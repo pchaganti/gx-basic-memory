@@ -3,37 +3,49 @@ import pytest_asyncio
 from datetime import datetime
 from pathlib import Path
 import tempfile
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.pool import StaticPool
 
-from basic_memory.db import init_connection
 from basic_memory.models import Base, Entity
 from basic_memory.services import EntityService, FileOperationError, DatabaseSyncError, EntityNotFoundError
 
 pytestmark = pytest.mark.asyncio
 
-@pytest_asyncio.fixture
-async def db_session():
-    """Fixture providing a database session."""
-    connection = init_connection("test-project")
+@pytest_asyncio.fixture(scope="function")
+async def engine():
+    """Create an async engine using in-memory SQLite database"""
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",  # In-memory database
+        echo=False,  # Set to True for SQL logging
+        poolclass=StaticPool,  # Ensure single connection for in-memory db
+        connect_args={"check_same_thread": False}  # Allow multi-threaded access
+    )
     
-    async with connection.engine.begin() as conn:
+    # Create all tables
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-    async with connection.session() as session:
-        yield session
-        await session.rollback()
     
-    await connection.dispose()
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
+
+@pytest_asyncio.fixture(scope="function")
+async def session(engine):
+    """Create an async session factory and yield a session"""
+    async_session = async_sessionmaker(engine, expire_on_commit=False)
+    async with async_session() as session:
+        yield session
 
 @pytest_asyncio.fixture
-async def entity_service(db_session):
+async def entity_service(session):
     """Fixture providing initialized EntityService with temp directories."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_path = Path(temp_dir) / "test-project"
         entities_path = project_path / "entities"
         entities_path.mkdir(parents=True)
         
-        service = EntityService(project_path, db_session)
+        service = EntityService(project_path, session)
         yield service
 
 # Happy Path Tests
@@ -165,9 +177,9 @@ async def test_rebuild_index(entity_service):
     assert retrieved2.name == entity2.name
 
 # TODO: Add tests for:
-# - Concurrent operations
+# - Concurrent operations (using asyncio.gather)
 # - Filesystem permissions issues
-# - System crash simulation
+# - System crash simulation 
 # - Markdown formatting edge cases
 # - Very long entity names/content
 # - Unicode/special character handling

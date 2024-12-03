@@ -4,6 +4,7 @@ from typing import Dict, Optional
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from basic_memory.models import Entity
 from basic_memory.repository import EntityRepository
@@ -48,12 +49,19 @@ class EntityService:
             entity_path = self.entities_path / f"{entity_data['id']}.md"
             entity_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # TODO: Replace with actual markdown formatting
-            content = f"# {entity_data['name']}\n\nStub content"
+            # Format entity data as markdown
+            content = [
+                f"# {entity_data['name']}\n",
+                f"type: {entity_data['entity_type']}\n",
+                f"created: {entity_data['created_at'].isoformat()}\n",
+                f"updated: {entity_data['updated_at'].isoformat()}\n",
+                "\n",
+                f"{entity_data['description']}\n"
+            ]
             
             # Write to temp file first, then rename for atomic operation
             temp_path = entity_path.with_suffix('.tmp')
-            temp_path.write_text(content)
+            temp_path.write_text("".join(content))
             temp_path.rename(entity_path)
             
             return True
@@ -67,10 +75,35 @@ class EntityService:
             if not entity_path.exists():
                 raise EntityNotFoundError(f"Entity file not found: {entity_id}")
             
-            # TODO: Implement actual markdown parsing
-            content = entity_path.read_text()
-            # Stub parsing
-            return {"id": entity_id, "content": content}
+            content = entity_path.read_text().split("\n")
+            
+            # Parse markdown content
+            # First line should be "# Name"
+            name = content[0].lstrip("# ").strip()
+            
+            # Parse metadata lines
+            metadata = {}
+            current_line = 1
+            while current_line < len(content) and content[current_line].strip():
+                line = content[current_line].strip()
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    metadata[key.strip()] = value.strip()
+                current_line += 1
+            
+            # Rest is description
+            description = "\n".join(content[current_line:]).strip()
+            
+            # Convert to entity data
+            return {
+                "id": entity_id,
+                "name": name,
+                "entity_type": metadata.get("type", ""),
+                "description": description,
+                "references": "",
+                "created_at": datetime.fromisoformat(metadata.get("created", datetime.now(UTC).isoformat())),
+                "updated_at": datetime.fromisoformat(metadata.get("updated", datetime.now(UTC).isoformat()))
+            }
         except EntityNotFoundError:
             raise
         except Exception as e:
@@ -79,15 +112,27 @@ class EntityService:
     async def _update_db_index(self, entity_data: dict) -> Entity:
         """Update database index with entity data."""
         try:
-            # TODO: Implement proper upsert logic
-            try:
-                return await self.entity_repo.create(entity_data)
-            except:
-                existing = await self.entity_repo.find_by_id(entity_data['id'])
-                if existing:
-                    return await self.entity_repo.update(entity_data['id'], entity_data)
-                raise
+            # Try to find existing entity first
+            existing = await self.entity_repo.find_by_id(entity_data['id'])
+            
+            if existing:
+                # Update existing entity
+                await self.entity_repo.session.refresh(existing)
+                for key, value in entity_data.items():
+                    setattr(existing, key, value)
+                await self.entity_repo.session.commit()
+                return existing
+            else:
+                # Create new entity
+                entity = await self.entity_repo.create(entity_data)
+                await self.entity_repo.session.commit()
+                return entity
+                
+        except IntegrityError as e:
+            await self.entity_repo.session.rollback()
+            raise DatabaseSyncError(f"Failed to update database index: {str(e)}") from e
         except Exception as e:
+            await self.entity_repo.session.rollback()
             raise DatabaseSyncError(f"Failed to update database index: {str(e)}") from e
 
     async def create_entity(self, name: str, type: str, description: str = "") -> Entity:
@@ -140,7 +185,9 @@ class EntityService:
             # Try to delete from database, but don't error if it fails
             try:
                 await self.entity_repo.delete(entity_id)
+                await self.entity_repo.session.commit()
             except DatabaseSyncError:
+                await self.entity_repo.session.rollback()
                 pass  # Database cleanup can happen during reindex
                 
             return True
@@ -148,7 +195,7 @@ class EntityService:
             raise FileOperationError(f"Failed to delete entity: {str(e)}") from e
 
     async def rebuild_index(self) -> None:
-        """Rebuild database index for entities from filesystem contents."""
+        """Rebuild database index from filesystem contents."""
         try:
             if not self.entities_path.exists():
                 return
