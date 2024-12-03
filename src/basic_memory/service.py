@@ -121,14 +121,14 @@ class MemoryService:
         except Exception as e:
             raise DatabaseSyncError(f"Failed to update database index: {str(e)}") from e
 
-    async def create_entity(self, name: str, type: str, context: Optional[str] = None) -> Entity:
+    async def create_entity(self, name: str, type: str, description: Optional[str] = None) -> Entity:
         """Create a new entity."""
         entity_id = self._generate_id(name)
         entity_data = {
             "id": entity_id,
             "name": name,
             "entity_type": type,
-            "context": context,
+            "description": description,
             "created_at": datetime.now(UTC)
         }
         

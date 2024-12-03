@@ -16,14 +16,14 @@ async def test_create_entity_success(memory_service):
     entity = await memory_service.create_entity(
         name="Test Entity",
         type="test",
-        context="test context"
+        description="test description"
     )
     
     # Assert
     assert isinstance(entity, Entity)
     assert entity.name == "Test Entity"
     assert entity.entity_type == "test"
-    assert entity.context == "test context"
+    assert entity.description == "test description"
     
     # Verify file was created
     entity_file = memory_service.project_path / "entities" / f"{entity.id}.md"
