@@ -1,13 +1,16 @@
 from datetime import datetime, UTC
 from typing import List
 from sqlalchemy import String, DateTime, ForeignKey, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.ext.declarative import declarative_base
 
-Base = declarative_base()
 
-class Entity(AsyncAttrs, Base):
+class Base(AsyncAttrs, DeclarativeBase):
+    """Base class for all models"""
+    pass
+
+
+class Entity(Base):
     """
     Core entity in the knowledge graph.
 
@@ -56,7 +59,7 @@ class Entity(AsyncAttrs, Base):
     )
 
 
-class Observation(AsyncAttrs, Base):
+class Observation(Base):
     """
     Observations are discrete pieces of information about an entity. They are:
     - Stored as strings
@@ -86,7 +89,7 @@ class Observation(AsyncAttrs, Base):
     )
 
 
-class Relation(AsyncAttrs, Base):
+class Relation(Base):
     """
     Relations define directed connections between entities.
     They are always stored in active voice and describe how entities interact or relate to each other.

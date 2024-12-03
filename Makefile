@@ -5,7 +5,7 @@ install:
 	pip install -e ".[dev]"
 
 test:
-	pytest
+	uv run pytest  -v
 
 lint:
 	black .
