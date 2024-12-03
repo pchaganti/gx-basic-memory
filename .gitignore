@@ -34,3 +34,4 @@ ENV/
 # Project specific
 projects/*.db
 projects/*.db-journal
+/.coverage
