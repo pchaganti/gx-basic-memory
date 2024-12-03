@@ -5,6 +5,7 @@ from pathlib import Path
 
 from basic_memory.service import MemoryService
 from basic_memory.db import init_connection
+from basic_memory.models import Base
 
 @pytest_asyncio.fixture
 async def memory_service():
@@ -15,7 +16,11 @@ async def memory_service():
         test_project_path = Path(temp_dir) / "test-project"
         
         # Initialize database connection
-        init_connection("test-project")
+        connection = init_connection("test-project")
+        
+        # Create all tables
+        async with connection.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
         
         # Initialize service with test configuration
         service = MemoryService("test-project")
@@ -25,6 +30,9 @@ async def memory_service():
         await service.initialize_project()
         
         yield service
+        
+        # Cleanup database connection
+        await connection.dispose()
         
         # Cleanup happens automatically when temp directory is removed
 

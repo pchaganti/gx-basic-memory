@@ -1,6 +1,7 @@
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple, Dict, AsyncContextManager
+from contextlib import asynccontextmanager
 from uuid import uuid4
 import shutil
 
@@ -51,18 +52,23 @@ class MemoryService:
         except Exception as e:
             raise FileOperationError(f"Failed to initialize project structure: {str(e)}") from e
 
-    async def _get_repos(self) -> Tuple[EntityRepository, ObservationRepository, RelationRepository]:
+    @asynccontextmanager
+    async def _get_repos(self) -> AsyncContextManager[Tuple[EntityRepository, ObservationRepository, RelationRepository]]:
         """Get repository instances with a shared session"""
         session = self.session_maker()
         try:
-            return (
+            repos = (
                 EntityRepository(session, Entity),
                 ObservationRepository(session, Observation),
                 RelationRepository(session, Relation)
             )
+            yield repos
+            await session.commit()
         except:
-            await session.close()
+            await session.rollback()
             raise
+        finally:
+            await session.close()
             
     @staticmethod
     def _generate_id(name: str) -> str:
@@ -72,7 +78,7 @@ class MemoryService:
         return f"{timestamp}-{normalized_name}-{uuid4().hex[:8]}"
 
     async def _write_entity_file(self, entity_data: dict) -> bool:
-        """Write entity to filesystem in Markdown format."""
+        """Write entity to filesystem in markdown format."""
         try:
             entity_path = self.project_path / "entities" / f"{entity_data['id']}.md"
             entity_path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,21 +113,20 @@ class MemoryService:
 
     async def _update_db_index(self, entity_data: dict) -> Entity:
         """Update database index with entity data using upsert pattern."""
-        entity_repo, _, _ = await self._get_repos()
-        
-        try:
-            # TODO: Implement proper upsert logic
+        async with self._get_repos() as (entity_repo, _, _):
             try:
-                return await entity_repo.create(entity_data)
-            except:
-                existing = await entity_repo.find_by_id(entity_data['id'])
-                if existing:
-                    return await entity_repo.update(entity_data['id'], entity_data)
-                raise
-        except Exception as e:
-            raise DatabaseSyncError(f"Failed to update database index: {str(e)}") from e
+                # TODO: Implement proper upsert logic
+                try:
+                    return await entity_repo.create(entity_data)
+                except:
+                    existing = await entity_repo.find_by_id(entity_data['id'])
+                    if existing:
+                        return await entity_repo.update(entity_data['id'], entity_data)
+                    raise
+            except Exception as e:
+                raise DatabaseSyncError(f"Failed to update database index: {str(e)}") from e
 
-    async def create_entity(self, name: str, type: str, description: Optional[str] = None) -> Entity:
+    async def create_entity(self, name: str, type: str, description: str = "") -> Entity:
         """Create a new entity."""
         entity_id = self._generate_id(name)
         entity_data = {
@@ -129,7 +134,9 @@ class MemoryService:
             "name": name,
             "entity_type": type,
             "description": description,
-            "created_at": datetime.now(UTC)
+            "references": "",
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC)
         }
         
         # Step 1: Write to filesystem (source of truth)
@@ -148,16 +155,16 @@ class MemoryService:
         entity_data = await self._read_entity_file(entity_id)
         
         # Try to get from database for full object
-        try:
-            entity_repo, _, _ = await self._get_repos()
-            entity = await entity_repo.find_by_id(entity_id)
-            if entity is None:
-                # Reindex this entity if not in database
-                entity = await self._update_db_index(entity_data)
-            return entity
-        except DatabaseSyncError:
-            # Return basic entity from file data if DB fails
-            return Entity(**entity_data)
+        async with self._get_repos() as (entity_repo, _, _):
+            try:
+                entity = await entity_repo.find_by_id(entity_id)
+                if entity is None:
+                    # Reindex this entity if not in database
+                    entity = await self._update_db_index(entity_data)
+                return entity
+            except DatabaseSyncError:
+                # Return basic entity from file data if DB fails
+                return Entity(**entity_data)
 
     async def delete_entity(self, entity_id: str) -> bool:
         """Delete entity from filesystem and database."""
@@ -169,8 +176,8 @@ class MemoryService:
             
             # Try to delete from database, but don't error if it fails
             try:
-                entity_repo, _, _ = await self._get_repos()
-                await entity_repo.delete(entity_id)
+                async with self._get_repos() as (entity_repo, _, _):
+                    await entity_repo.delete(entity_id)
             except DatabaseSyncError:
                 pass  # Database cleanup can happen during reindex
                 
@@ -196,5 +203,5 @@ class MemoryService:
 
     async def cleanup(self) -> None:
         """Clean up resources."""
-        # Implementation depends on what needs cleanup
+        # For now, we rely on the session cleanup in _get_repos
         pass
