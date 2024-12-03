@@ -1,11 +1,29 @@
 from datetime import datetime, UTC
-from typing import List
-from sqlalchemy import String, DateTime, ForeignKey, Text
+from typing import List, Optional
+from sqlalchemy import String, DateTime, ForeignKey, Text, TypeDecorator
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
 
-def utc_now():
+class UTCDateTime(TypeDecorator):
+    """Automatically handle UTC timezone for datetime columns"""
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value: Optional[datetime], dialect):
+        if value is not None:
+            if value.tzinfo is None:
+                return value.replace(tzinfo=UTC)
+            return value
+        return value
+
+    def process_result_value(self, value: Optional[datetime], dialect):
+        if value is not None:
+            return value.replace(tzinfo=UTC)
+        return value
+
+
+def utc_now() -> datetime:
     """Helper to get current UTC time"""
     return datetime.now(UTC)
 
@@ -36,10 +54,10 @@ class Entity(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     references: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now
+        UTCDateTime, default=utc_now
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        UTCDateTime,
         default=utc_now,
         onupdate=utc_now
     )
@@ -82,7 +100,7 @@ class Observation(Base):
     )
     content: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        UTCDateTime,
         default=utc_now
     )
     context: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -114,7 +132,7 @@ class Relation(Base):
     )
     relation_type: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
+        UTCDateTime,
         default=utc_now
     )
     context: Mapped[str | None] = mapped_column(String, nullable=True)
