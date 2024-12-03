@@ -5,6 +5,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
 
+def utc_now():
+    """Helper to get current UTC time"""
+    return datetime.now(UTC)
+
+
 class Base(AsyncAttrs, DeclarativeBase):
     """Base class for all models"""
     pass
@@ -31,12 +36,12 @@ class Entity(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     references: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.now(UTC)
+        DateTime(timezone=True), default=utc_now
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now(UTC),
-        onupdate=datetime.now(UTC)
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now
     )
 
     # Relationships
@@ -77,8 +82,8 @@ class Observation(Base):
     )
     content: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now(UTC)
+        DateTime(timezone=True),
+        default=utc_now
     )
     context: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -109,8 +114,8 @@ class Relation(Base):
     )
     relation_type: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.now(UTC)
+        DateTime(timezone=True),
+        default=utc_now
     )
     context: Mapped[str | None] = mapped_column(String, nullable=True)
 
