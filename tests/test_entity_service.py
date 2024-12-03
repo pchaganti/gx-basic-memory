@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from basic_memory.models import Base, Entity
+from basic_memory.repository import EntityRepository
 from basic_memory.services import EntityService, FileOperationError, DatabaseSyncError, EntityNotFoundError
 
 pytestmark = pytest.mark.asyncio
@@ -38,14 +39,19 @@ async def session(engine):
         yield session
 
 @pytest_asyncio.fixture
-async def entity_service(session):
+async def entity_repo(session):
+    """Create an EntityRepository instance."""
+    return EntityRepository(session, Entity)
+
+@pytest_asyncio.fixture
+async def entity_service(session, entity_repo):
     """Fixture providing initialized EntityService with temp directories."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_path = Path(temp_dir) / "test-project"
         entities_path = project_path / "entities"
         entities_path.mkdir(parents=True)
         
-        service = EntityService(project_path, session)
+        service = EntityService(project_path, entity_repo)
         yield service
 
 # Happy Path Tests

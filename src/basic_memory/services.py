@@ -1,9 +1,8 @@
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 from uuid import uuid4
 
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
 from basic_memory.models import Entity
@@ -31,9 +30,9 @@ class EntityService:
     Follows the "filesystem is source of truth" principle.
     """
     
-    def __init__(self, project_path: Path, session: AsyncSession):
+    def __init__(self, project_path: Path, entity_repo: EntityRepository):
         self.project_path = project_path
-        self.entity_repo = EntityRepository(session, Entity)
+        self.entity_repo = entity_repo
         self.entities_path = project_path / "entities"
 
     @staticmethod
