@@ -1,6 +1,6 @@
 from datetime import datetime, UTC
 from typing import List
-from sqlalchemy import String, DateTime, ForeignKey
+from sqlalchemy import String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.ext.declarative import declarative_base
@@ -17,14 +17,16 @@ class Entity(AsyncAttrs, Base):
     - An entity type (e.g., "person", "organization", "event")
     - A description
     - A list of observations
-    - References (optional
+    - References (optional)
     """
-    __tablename__ = "entities"
+    __tablename__ = "entity"
 
     # Primary key is a UUID string for compatibility with markdown IDs
     id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, unique=True, index=True)
     entity_type: Mapped[str] = mapped_column(String)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    references: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now(UTC)
     )
@@ -62,12 +64,12 @@ class Observation(AsyncAttrs, Base):
     - Can be added or removed independently
     - Should be atomic (one fact per observation)
     """
-    __tablename__ = "observations"
+    __tablename__ = "observation"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     entity_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey("entities.id", ondelete="CASCADE"),
+        ForeignKey("entity.id", ondelete="CASCADE"),
         index=True
     )
     content: Mapped[str] = mapped_column(String)
@@ -89,17 +91,17 @@ class Relation(AsyncAttrs, Base):
     Relations define directed connections between entities.
     They are always stored in active voice and describe how entities interact or relate to each other.
     """
-    __tablename__ = "relations"
+    __tablename__ = "relation"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     from_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey("entities.id", ondelete="CASCADE"),
+        ForeignKey("entity.id", ondelete="CASCADE"),
         index=True
     )
     to_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey("entities.id", ondelete="CASCADE"),
+        ForeignKey("entity.id", ondelete="CASCADE"),
         index=True
     )
     relation_type: Mapped[str] = mapped_column(String)
