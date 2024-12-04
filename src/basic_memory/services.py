@@ -69,46 +69,44 @@ class EntityService:
 
     async def _read_entity_file(self, entity_id: str) -> Entity:
         """Read entity data from filesystem."""
+        entity_path = self.entities_path / f"{entity_id}.md"
+        if not entity_path.exists():
+            raise EntityNotFoundError(f"Entity file not found: {entity_id}")
+        
+        # Only wrap the actual file read operation
         try:
-            entity_path = self.entities_path / f"{entity_id}.md"
-            if not entity_path.exists():
-                raise EntityNotFoundError(f"Entity file not found: {entity_id}")
-            
             content = entity_path.read_text().split("\n")
-            
-            # Parse markdown content
-            # First line should be "# Name"
-            name = content[0].lstrip("# ").strip()
-            
-            # Parse metadata (type)
-            entity_type = ""
-            observations = []
-            
-            # Parse content sections
-            in_observations = False
-            for line in content[1:]:  # Skip the title line
-                line = line.strip()
-                if not line:
-                    continue
-                    
-                if line.startswith("type: "):
-                    entity_type = line.replace("type: ", "").strip()
-                elif line == "## Observations":
-                    in_observations = True
-                elif in_observations and line.startswith("- "):
-                    observations.append(Observation(content=line[2:]))
-            
-            return Entity(
-                id=entity_id,
-                name=name,
-                entity_type=entity_type,
-                observations=observations
-            )
-            
-        except EntityNotFoundError:
-            raise
         except Exception as e:
             raise FileOperationError(f"Failed to read entity file: {str(e)}") from e
+                
+        # Parse markdown content
+        # First line should be "# Name"
+        name = content[0].lstrip("# ").strip()
+        
+        # Parse metadata (type)
+        entity_type = ""
+        observations = []
+        
+        # Parse content sections
+        in_observations = False
+        for line in content[1:]:  # Skip the title line
+            line = line.strip()
+            if not line:
+                continue
+                
+            if line.startswith("type: "):
+                entity_type = line.replace("type: ", "").strip()
+            elif line == "## Observations":
+                in_observations = True
+            elif in_observations and line.startswith("- "):
+                observations.append(Observation(content=line[2:]))
+        
+        return Entity(
+            id=entity_id,
+            name=name,
+            entity_type=entity_type,
+            observations=observations
+        )
 
     async def _update_db_index(self, entity: Entity) -> DbEntity:
         """Update database index with entity data."""
