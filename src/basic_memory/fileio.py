@@ -118,3 +118,28 @@ async def read_entity_file(entities_path: Path, entity_id: str) -> Entity:
         entity_type=entity_type,
         observations=observations
     )
+
+
+async def delete_entity_file(entities_path: Path, entity_id: str) -> bool:
+    """
+    Delete an entity's file from the filesystem.
+    
+    Args:
+        entities_path: Path to entities directory
+        entity_id: ID of entity to delete
+        
+    Returns:
+        True if successful or file didn't exist
+        
+    Raises:
+        FileOperationError: If file deletion fails
+    """
+    entity_path = entities_path / f"{entity_id}.md"
+    
+    if entity_path.exists():
+        try:
+            entity_path.unlink()
+        except Exception as e:
+            raise FileOperationError(f"Failed to delete entity file: {str(e)}") from e
+    
+    return True

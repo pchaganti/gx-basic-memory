@@ -9,7 +9,7 @@ from basic_memory.models import Observation as DbObservation
 from basic_memory.repository import EntityRepository, ObservationRepository
 from basic_memory.schemas import Entity, Observation
 from basic_memory.fileio import (
-    read_entity_file, write_entity_file,
+    read_entity_file, write_entity_file, delete_entity_file,
     FileOperationError, EntityNotFoundError
 )
 
@@ -85,14 +85,10 @@ class EntityService:
 
     async def delete_entity(self, entity_id: str) -> bool:
         """Delete entity from filesystem and database."""
-        entity_path = self.entities_path / f"{entity_id}.md"
+        # Delete from filesystem first (source of truth)
+        await delete_entity_file(self.entities_path, entity_id)
         
-        if entity_path.exists():
-            try:
-                entity_path.unlink()
-            except Exception as e:
-                raise FileOperationError(f"Failed to delete entity file: {str(e)}") from e
-        
+        # Delete from database index
         await self.entity_repo.delete(entity_id)
         return True
 
