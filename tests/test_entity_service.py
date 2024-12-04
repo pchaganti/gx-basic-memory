@@ -139,18 +139,14 @@ async def test_create_entity_db_error(entity_service, monkeypatch):
     async def mock_db_fail(*args, **kwargs):
         raise DatabaseSyncError("Mock DB error")
     monkeypatch.setattr(entity_service, "_update_db_index", mock_db_fail)
-    
+
     # Act
-    entity = await entity_service.create_entity(
-        name="Test Entity",
-        entity_type="test",
-        observations=["Test observation"]
-    )
-    
-    # Assert
-    assert isinstance(entity, Entity)  # Should still return entity from file
-    entity_file = entity_service.entities_path / f"{entity.id}.md"
-    assert entity_file.exists()  # File should still be created
+    with pytest.raises(DatabaseSyncError):
+        await entity_service.create_entity(
+            name="Test Entity",
+            entity_type="test",
+            observations=["Test observation"]
+        )
 
 async def test_delete_nonexistent_entity(entity_service):
     """Test deleting an entity that doesn't exist."""

@@ -42,30 +42,39 @@ class EntityService:
 
     async def _write_entity_file(self, entity: Entity) -> bool:
         """Write entity to filesystem in markdown format."""
+        entity_path = self.entities_path / f"{entity.id}.md"
+        
+        # Handle directory creation separately
         try:
-            entity_path = self.entities_path / f"{entity.id}.md"
             entity_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Format entity data as markdown
-            content = [
-                f"# {entity.name}\n",
-                f"type: {entity.entity_type}\n",
-                "\n",  # Observations section
-                "## Observations\n",
-            ]
-
-            # Add observations
-            for obs in entity.observations:
-                content.append(f"- {obs.content}\n")
-            
-            # Write to temp file first, then rename for atomic operation
-            temp_path = entity_path.with_suffix('.tmp')
-            temp_path.write_text("".join(content))
-            temp_path.rename(entity_path)
-            
-            return True
         except Exception as e:
-            raise FileOperationError(f"Failed to write entity file: {str(e)}") from e
+            raise FileOperationError(f"Failed to create entity directory: {str(e)}") from e
+
+        # Format entity data as markdown
+        content = [
+            f"# {entity.name}\n",
+            f"type: {entity.entity_type}\n",
+            "\n",  # Observations section
+            "## Observations\n",
+        ]
+
+        # Add observations
+        for obs in entity.observations:
+            content.append(f"- {obs.content}\n")
+        
+        # Handle atomic write operation
+        temp_path = entity_path.with_suffix('.tmp')
+        try:
+            temp_path.write_text("".join(content))
+        except Exception as e:
+            raise FileOperationError(f"Failed to write temporary entity file: {str(e)}") from e
+
+        try:
+            temp_path.rename(entity_path)
+        except Exception as e:
+            raise FileOperationError(f"Failed to finalize entity file: {str(e)}") from e
+            
+        return True
 
     async def _read_entity_file(self, entity_id: str) -> Entity:
         """Read entity data from filesystem."""
@@ -73,7 +82,6 @@ class EntityService:
         if not entity_path.exists():
             raise EntityNotFoundError(f"Entity file not found: {entity_id}")
         
-        # Only wrap the actual file read operation
         try:
             content = entity_path.read_text().split("\n")
         except Exception as e:
@@ -110,40 +118,31 @@ class EntityService:
 
     async def _update_db_index(self, entity: Entity) -> DbEntity:
         """Update database index with entity data."""
-        try:
-            # Convert Pydantic Entity to dict for DB
-            entity_data = {
-                "id": entity.id,
-                "name": entity.name,
-                "entity_type": entity.entity_type,
-                "description": "\n".join(obs.content for obs in entity.observations),
-                "references": "",  # We might want to handle references differently later
-                "created_at": datetime.now(UTC),
-                "updated_at": datetime.now(UTC)
-            }
-            
-            # Try to find existing entity first
-            existing = await self.entity_repo.find_by_id(entity.id)
-            
-            if existing:
-                # Update existing entity
-                await self.entity_repo.session.refresh(existing)
-                for key, value in entity_data.items():
-                    setattr(existing, key, value)
-                await self.entity_repo.session.commit()
-                return existing
-            else:
-                # Create new entity
-                db_entity = await self.entity_repo.create(entity_data)
-                await self.entity_repo.session.commit()
-                return db_entity
-                
-        except IntegrityError as e:
-            await self.entity_repo.session.rollback()
-            raise DatabaseSyncError(f"Failed to update database index: {str(e)}") from e
-        except Exception as e:
-            await self.entity_repo.session.rollback()
-            raise DatabaseSyncError(f"Failed to update database index: {str(e)}") from e
+        entity_data = {
+            "id": entity.id,
+            "name": entity.name,
+            "entity_type": entity.entity_type,
+            "description": "\n".join(obs.content for obs in entity.observations),
+            "references": "",  # We might want to handle references differently later
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC)
+        }
+        
+        # Try to find existing entity first
+        existing = await self.entity_repo.find_by_id(entity.id)
+        
+        if existing:
+            # Update existing entity
+            await self.entity_repo.session.refresh(existing)
+            for key, value in entity_data.items():
+                setattr(existing, key, value)
+            await self.entity_repo.session.commit()
+            return existing
+        else:
+            # Create new entity
+            db_entity = await self.entity_repo.create(entity_data)
+            await self.entity_repo.session.commit()
+            return db_entity
 
     async def create_entity(self, name: str, entity_type: str, 
                           observations: Optional[list[str]] = None) -> Entity:
@@ -161,11 +160,8 @@ class EntityService:
         # Step 1: Write to filesystem (source of truth)
         await self._write_entity_file(entity)
         
-        # Step 2: Update database index (can be rebuilt if needed)
-        try:
-            await self._update_db_index(entity)
-        except DatabaseSyncError:
-            pass  # Return entity from file even if DB fails
+        # Step 2: Update database index
+        await self._update_db_index(entity)
             
         return entity
 
@@ -174,45 +170,44 @@ class EntityService:
         # Read from filesystem (source of truth)
         entity = await self._read_entity_file(entity_id)
         
-        # Try to update database index if needed
-        try:
-            await self._update_db_index(entity)
-        except DatabaseSyncError:
-            pass  # Return entity from file even if DB fails
+        # Update database index
+        await self._update_db_index(entity)
             
         return entity
 
     async def delete_entity(self, entity_id: str) -> bool:
         """Delete entity from filesystem and database."""
-        try:
-            # Delete from filesystem first
-            entity_path = self.entities_path / f"{entity_id}.md"
-            if entity_path.exists():
-                entity_path.unlink()
-            
-            # Try to delete from database, but don't error if it fails
+        entity_path = self.entities_path / f"{entity_id}.md"
+        
+        if entity_path.exists():
             try:
-                await self.entity_repo.delete(entity_id)
-                await self.entity_repo.session.commit()
-            except DatabaseSyncError:
-                await self.entity_repo.session.rollback()
-                pass  # Database cleanup can happen during reindex
-                
-            return True
-        except Exception as e:
-            raise FileOperationError(f"Failed to delete entity: {str(e)}") from e
+                entity_path.unlink()
+            except Exception as e:
+                raise FileOperationError(f"Failed to delete entity file: {str(e)}") from e
+        
+        try:
+            await self.entity_repo.delete(entity_id)
+            await self.entity_repo.session.commit()
+        except Exception:
+            await self.entity_repo.session.rollback()
+            # Database cleanup can happen during reindex, so we don't fail
+            pass
+            
+        return True
 
     async def rebuild_index(self) -> None:
         """Rebuild database index from filesystem contents."""
+        if not self.entities_path.exists():
+            return
+            
         try:
-            if not self.entities_path.exists():
-                return
-                
-            for entity_file in self.entities_path.glob("*.md"):
-                try:
-                    entity = await self._read_entity_file(entity_file.stem)
-                    await self._update_db_index(entity)
-                except Exception as e:
-                    print(f"Warning: Failed to reindex {entity_file}: {str(e)}")
+            entity_files = list(self.entities_path.glob("*.md"))
         except Exception as e:
-            raise DatabaseSyncError(f"Failed to rebuild index: {str(e)}") from e
+            raise FileOperationError(f"Failed to read entities directory: {str(e)}") from e
+                
+        for entity_file in entity_files:
+            try:
+                entity = await self._read_entity_file(entity_file.stem)
+                await self._update_db_index(entity)
+            except Exception as e:
+                print(f"Warning: Failed to reindex {entity_file}: {str(e)}")
