@@ -33,6 +33,14 @@ class Repository[T: Base]:
         self.primary_key: Column[Any] = inspect(self.Model).mapper.primary_key[0]
         self.valid_columns = [column.key for column in inspect(self.Model).columns]
 
+    async def refresh(self, instance: T) -> None:
+        """
+        Refresh the state of the given instance from the database.
+
+        :param instance: Instance to refresh
+        """
+        await self.session.refresh(instance)
+
     async def find_all(self, skip: int = 0, limit: int = 100) -> Sequence[T]:
         """
         Fetches records from the database with pagination.

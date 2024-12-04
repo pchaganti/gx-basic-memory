@@ -2,8 +2,6 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy.exc import IntegrityError
-
 from basic_memory.models import Entity as DbEntity  # Rename to avoid confusion
 from basic_memory.repository import EntityRepository
 from basic_memory.schemas import Entity, Observation
@@ -119,30 +117,19 @@ class EntityService:
     async def _update_db_index(self, entity: Entity) -> DbEntity:
         """Update database index with entity data."""
         entity_data = {
-            "id": entity.id,
-            "name": entity.name,
-            "entity_type": entity.entity_type,
-            "description": "\n".join(obs.content for obs in entity.observations),
-            "references": "",  # We might want to handle references differently later
+            **entity.model_dump(),
             "created_at": datetime.now(UTC),
             "updated_at": datetime.now(UTC)
         }
         
-        # Try to find existing entity first
-        existing = await self.entity_repo.find_by_id(entity.id)
+        # Observations will be handled by ObservationService
+        entity_data.pop('observations', None)  # Remove observations if present
         
-        if existing:
-            # Update existing entity
-            await self.entity_repo.session.refresh(existing)
-            for key, value in entity_data.items():
-                setattr(existing, key, value)
-            await self.entity_repo.session.commit()
-            return existing
+        # Try to find existing entity first
+        if await self.entity_repo.find_by_id(entity.id):
+            return await self.entity_repo.update(entity.id, entity_data)
         else:
-            # Create new entity
-            db_entity = await self.entity_repo.create(entity_data)
-            await self.entity_repo.session.commit()
-            return db_entity
+            return await self.entity_repo.create(entity_data)
 
     async def create_entity(self, name: str, entity_type: str, 
                           observations: Optional[list[str]] = None) -> Entity:
@@ -185,14 +172,7 @@ class EntityService:
             except Exception as e:
                 raise FileOperationError(f"Failed to delete entity file: {str(e)}") from e
         
-        try:
-            await self.entity_repo.delete(entity_id)
-            await self.entity_repo.session.commit()
-        except Exception:
-            await self.entity_repo.session.rollback()
-            # Database cleanup can happen during reindex, so we don't fail
-            pass
-            
+        await self.entity_repo.delete(entity_id)
         return True
 
     async def rebuild_index(self) -> None:
