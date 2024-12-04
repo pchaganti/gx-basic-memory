@@ -3,7 +3,6 @@ import pytest_asyncio
 import tempfile
 from pathlib import Path
 
-from basic_memory.service import MemoryService
 from basic_memory.db import init_connection
 from basic_memory.models import Base
 
