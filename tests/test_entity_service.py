@@ -6,9 +6,10 @@ import tempfile
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from basic_memory.models import Base, Entity
+from basic_memory.models import Base, Entity as DbEntity
 from basic_memory.repository import EntityRepository
 from basic_memory.services import EntityService, FileOperationError, DatabaseSyncError, EntityNotFoundError
+from basic_memory.schemas import Entity, Observation
 
 pytestmark = pytest.mark.asyncio
 
@@ -41,7 +42,7 @@ async def session(engine):
 @pytest_asyncio.fixture
 async def entity_repo(session):
     """Create an EntityRepository instance."""
-    return EntityRepository(session, Entity)
+    return EntityRepository(session, DbEntity)
 
 @pytest_asyncio.fixture
 async def entity_service(session, entity_repo):
@@ -58,49 +59,60 @@ async def entity_service(session, entity_repo):
 
 async def test_create_entity_success(entity_service):
     """Test successful entity creation."""
+    observations = ["First observation", "Second observation"]
+    
     # Act
     entity = await entity_service.create_entity(
         name="Test Entity",
-        type="test",
-        description="test description"
+        entity_type="test",
+        observations=observations
     )
     
     # Assert Entity
     assert isinstance(entity, Entity)
     assert entity.name == "Test Entity"
     assert entity.entity_type == "test"
-    assert entity.description == "test description"
-    assert isinstance(entity.created_at, datetime)
-    assert isinstance(entity.updated_at, datetime)
+    assert len(entity.observations) == 2
+    assert entity.observations[0].content == "First observation"
+    assert entity.observations[1].content == "Second observation"
     
     # Verify file was created
     entity_file = entity_service.entities_path / f"{entity.id}.md"
     assert entity_file.exists()
     content = entity_file.read_text()
-    assert "Test Entity" in content
+    assert "# Test Entity" in content
+    assert "type: test" in content
+    assert "First observation" in content
+    assert "Second observation" in content
 
 async def test_get_entity_success(entity_service):
     """Test successful entity retrieval."""
     # Arrange
+    observations = ["Test observation"]
     created = await entity_service.create_entity(
         name="Test Entity",
-        type="test"
+        entity_type="test",
+        observations=observations
     )
     
     # Act
     retrieved = await entity_service.get_entity(created.id)
     
     # Assert
+    assert isinstance(retrieved, Entity)
     assert retrieved.id == created.id
     assert retrieved.name == created.name
     assert retrieved.entity_type == created.entity_type
+    assert len(retrieved.observations) == 1
+    assert retrieved.observations[0].content == "Test observation"
 
 async def test_delete_entity_success(entity_service):
     """Test successful entity deletion."""
     # Arrange
     entity = await entity_service.create_entity(
         name="Test Entity",
-        type="test"
+        entity_type="test",
+        observations=["Test observation"]
     )
     entity_file = entity_service.entities_path / f"{entity.id}.md"
     assert entity_file.exists()
@@ -131,7 +143,8 @@ async def test_create_entity_db_error(entity_service, monkeypatch):
     # Act
     entity = await entity_service.create_entity(
         name="Test Entity",
-        type="test"
+        entity_type="test",
+        observations=["Test observation"]
     )
     
     # Assert
@@ -149,7 +162,11 @@ async def test_delete_nonexistent_entity(entity_service):
 async def test_create_entity_with_special_chars(entity_service):
     """Test entity creation with special characters in name."""
     name = "Test & Entity! With @ Special #Chars"
-    entity = await entity_service.create_entity(name=name, type="test")
+    entity = await entity_service.create_entity(
+        name=name, 
+        entity_type="test",
+        observations=["Test observation"]
+    )
     
     assert entity.name == name
     entity_file = entity_service.entities_path / f"{entity.id}.md"
@@ -158,7 +175,11 @@ async def test_create_entity_with_special_chars(entity_service):
 async def test_create_entity_atomic_file_write(entity_service):
     """Test that file writing is atomic (uses temp file)."""
     # Act
-    entity = await entity_service.create_entity(name="Test Entity", type="test")
+    entity = await entity_service.create_entity(
+        name="Test Entity", 
+        entity_type="test",
+        observations=["Test observation"]
+    )
     
     # Assert
     temp_file = entity_service.entities_path / f"{entity.id}.md.tmp"
@@ -170,8 +191,16 @@ async def test_create_entity_atomic_file_write(entity_service):
 async def test_rebuild_index(entity_service):
     """Test rebuilding database index from filesystem."""
     # Arrange - Create some entities
-    entity1 = await entity_service.create_entity("Test 1", "test")
-    entity2 = await entity_service.create_entity("Test 2", "test")
+    entity1 = await entity_service.create_entity(
+        name="Test 1", 
+        entity_type="test",
+        observations=["Test observation 1"]
+    )
+    entity2 = await entity_service.create_entity(
+        name="Test 2", 
+        entity_type="test",
+        observations=["Test observation 2"]
+    )
     
     # Act - Rebuild index
     await entity_service.rebuild_index()
@@ -179,8 +208,42 @@ async def test_rebuild_index(entity_service):
     # Assert - Entities should be retrievable
     retrieved1 = await entity_service.get_entity(entity1.id)
     retrieved2 = await entity_service.get_entity(entity2.id)
+    
+    assert isinstance(retrieved1, Entity)
+    assert isinstance(retrieved2, Entity)
     assert retrieved1.name == entity1.name
     assert retrieved2.name == entity2.name
+    assert retrieved1.observations[0].content == "Test observation 1"
+    assert retrieved2.observations[0].content == "Test observation 2"
+
+# Tests for Pydantic Model Behavior
+
+async def test_entity_id_generation(entity_service):
+    """Test that entities get unique IDs generated correctly."""
+    entity = await entity_service.create_entity(
+        name="Test Entity",
+        entity_type="test"
+    )
+    
+    assert entity.id  # ID should be generated
+    assert "-test-entity-" in entity.id  # Should contain normalized name
+    assert len(entity.id.split("-")[-1]) == 8  # UUID part should be 8 chars
+
+async def test_entity_with_no_observations(entity_service):
+    """Test entity creation with no observations."""
+    entity = await entity_service.create_entity(
+        name="Test Entity",
+        entity_type="test"
+    )
+    
+    assert isinstance(entity, Entity)
+    assert entity.observations == []
+    
+    # Check file format
+    entity_file = entity_service.entities_path / f"{entity.id}.md"
+    content = entity_file.read_text()
+    assert "## Observations" in content
+    assert content.strip().endswith("## Observations")  # No observations after header
 
 # TODO: Add tests for:
 # - Concurrent operations (using asyncio.gather)

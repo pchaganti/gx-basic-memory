@@ -12,6 +12,7 @@ dependencies = [
     "typer>=0.9.0",
     "aiosqlite>=0.20.0",
     "greenlet>=3.1.1",
+    "pydantic[email,timezone]>=2.10.3",
 ]
 
 [project.optional-dependencies]
