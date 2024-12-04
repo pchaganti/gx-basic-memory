@@ -1,10 +1,17 @@
 from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional
+from uuid import uuid4
+from sqlalchemy import and_, select, delete
 
 from basic_memory.models import Entity as DbEntity  # Rename to avoid confusion
-from basic_memory.repository import EntityRepository
+from basic_memory.models import Observation as DbObservation
+from basic_memory.repository import EntityRepository, ObservationRepository
 from basic_memory.schemas import Entity, Observation
+from basic_memory.fileio import (
+    read_entity_file, write_entity_file,
+    FileOperationError, EntityNotFoundError
+)
 
 
 class ServiceError(Exception):
@@ -12,18 +19,8 @@ class ServiceError(Exception):
     pass
 
 
-class FileOperationError(ServiceError):
-    """Raised when file operations fail"""
-    pass
-
-
 class DatabaseSyncError(ServiceError):
     """Raised when database sync fails"""
-    pass
-
-
-class EntityNotFoundError(ServiceError):
-    """Raised when an entity cannot be found"""
     pass
 
 
@@ -37,82 +34,6 @@ class EntityService:
         self.project_path = project_path
         self.entity_repo = entity_repo
         self.entities_path = project_path / "entities"
-
-    async def _write_entity_file(self, entity: Entity) -> bool:
-        """Write entity to filesystem in markdown format."""
-        entity_path = self.entities_path / f"{entity.id}.md"
-        
-        # Handle directory creation separately
-        try:
-            entity_path.parent.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            raise FileOperationError(f"Failed to create entity directory: {str(e)}") from e
-
-        # Format entity data as markdown
-        content = [
-            f"# {entity.name}\n",
-            f"type: {entity.entity_type}\n",
-            "\n",  # Observations section
-            "## Observations\n",
-        ]
-
-        # Add observations
-        for obs in entity.observations:
-            content.append(f"- {obs.content}\n")
-        
-        # Handle atomic write operation
-        temp_path = entity_path.with_suffix('.tmp')
-        try:
-            temp_path.write_text("".join(content))
-        except Exception as e:
-            raise FileOperationError(f"Failed to write temporary entity file: {str(e)}") from e
-
-        try:
-            temp_path.rename(entity_path)
-        except Exception as e:
-            raise FileOperationError(f"Failed to finalize entity file: {str(e)}") from e
-            
-        return True
-
-    async def _read_entity_file(self, entity_id: str) -> Entity:
-        """Read entity data from filesystem."""
-        entity_path = self.entities_path / f"{entity_id}.md"
-        if not entity_path.exists():
-            raise EntityNotFoundError(f"Entity file not found: {entity_id}")
-        
-        try:
-            content = entity_path.read_text().split("\n")
-        except Exception as e:
-            raise FileOperationError(f"Failed to read entity file: {str(e)}") from e
-                
-        # Parse markdown content
-        # First line should be "# Name"
-        name = content[0].lstrip("# ").strip()
-        
-        # Parse metadata (type)
-        entity_type = ""
-        observations = []
-        
-        # Parse content sections
-        in_observations = False
-        for line in content[1:]:  # Skip the title line
-            line = line.strip()
-            if not line:
-                continue
-                
-            if line.startswith("type: "):
-                entity_type = line.replace("type: ", "").strip()
-            elif line == "## Observations":
-                in_observations = True
-            elif in_observations and line.startswith("- "):
-                observations.append(Observation(content=line[2:]))
-        
-        return Entity(
-            id=entity_id,
-            name=name,
-            entity_type=entity_type,
-            observations=observations
-        )
 
     async def _update_db_index(self, entity: Entity) -> DbEntity:
         """Update database index with entity data."""
@@ -145,7 +66,7 @@ class EntityService:
         )
         
         # Step 1: Write to filesystem (source of truth)
-        await self._write_entity_file(entity)
+        await write_entity_file(self.entities_path, entity)
         
         # Step 2: Update database index
         await self._update_db_index(entity)
@@ -155,7 +76,7 @@ class EntityService:
     async def get_entity(self, entity_id: str) -> Entity:
         """Get entity by ID, reading from filesystem first."""
         # Read from filesystem (source of truth)
-        entity = await self._read_entity_file(entity_id)
+        entity = await read_entity_file(self.entities_path, entity_id)
         
         # Update database index
         await self._update_db_index(entity)
@@ -187,7 +108,118 @@ class EntityService:
                 
         for entity_file in entity_files:
             try:
-                entity = await self._read_entity_file(entity_file.stem)
+                entity = await read_entity_file(self.entities_path, entity_file.stem)
                 await self._update_db_index(entity)
             except Exception as e:
                 print(f"Warning: Failed to reindex {entity_file}: {str(e)}")
+
+
+class ObservationService:
+    """
+    Service for managing observations in the filesystem and database.
+    Follows the "filesystem is source of truth" principle.
+    
+    Observations are stored in entity markdown files and indexed in the database
+    for efficient querying.
+    """
+    
+    def __init__(self, project_path: Path, observation_repo: ObservationRepository):
+        self.project_path = project_path
+        self.entities_path = project_path / "entities"
+        self.observation_repo = observation_repo
+        
+    async def add_observation(self, entity: Entity, content: str, 
+                          context: Optional[str] = None) -> Observation:
+        """
+        Add a new observation to an entity.
+        
+        Args:
+            entity: Entity to add observation to
+            content: Content of the observation
+            context: Optional context for the observation
+            
+        Returns:
+            The created Observation
+            
+        Raises:
+            FileOperationError: If file operations fail
+            DatabaseSyncError: If database sync fails
+        """
+        # Create new observation
+        observation = Observation(content=content)
+        entity.observations.append(observation)
+        
+        # Update filesystem first (source of truth)
+        await write_entity_file(self.entities_path, entity)
+        
+        # Update database index
+        try:
+            db_observation = await self.observation_repo.create({
+                'id': f"{entity.id}-obs-{uuid4().hex[:8]}",
+                'entity_id': entity.id,
+                'content': content,
+                'context': context,
+                'created_at': datetime.now(UTC)
+            })
+            return observation
+        except Exception as e:
+            raise DatabaseSyncError(f"Failed to sync observation to database: {str(e)}") from e
+            
+    async def search_observations(self, query: str) -> list[Observation]:
+        """
+        Search for observations across all entities.
+        
+        Args:
+            query: Text to search for in observation content
+            
+        Returns:
+            List of matching observations with their entity contexts
+        """
+        result = await self.observation_repo.execute_query(
+            select(DbObservation).filter(
+                DbObservation.content.contains(query)
+            )
+        )
+        return [
+            Observation(content=obs.content)
+            for obs in result.scalars().all()
+        ]
+        
+    async def get_observations_by_context(self, context: str) -> list[Observation]:
+        """Get all observations with a specific context."""
+        db_observations = await self.observation_repo.find_by_context(context)
+        return [
+            Observation(content=obs.content) 
+            for obs in db_observations
+        ]
+
+    async def rebuild_observation_index(self) -> None:
+        """
+        Rebuild the observation database index from filesystem contents.
+        Used for recovery or ensuring sync.
+        """
+        # List all entity files
+        if not self.entities_path.exists():
+            return
+            
+        try:
+            entity_files = list(self.entities_path.glob("*.md"))
+        except Exception as e:
+            raise FileOperationError(f"Failed to read entities directory: {str(e)}") from e
+                
+        # Clear existing observation index
+        await self.observation_repo.execute_query(delete(DbObservation))
+        
+        # Rebuild from each entity file
+        for entity_file in entity_files:
+            try:
+                entity = await read_entity_file(self.entities_path, entity_file.stem)
+                for obs in entity.observations:
+                    await self.observation_repo.create({
+                        'id': f"{entity.id}-obs-{uuid4().hex[:8]}",
+                        'entity_id': entity.id,
+                        'content': obs.content,
+                        'created_at': datetime.now(UTC)
+                    })
+            except Exception as e:
+                print(f"Warning: Failed to reindex observations for {entity_file}: {str(e)}")

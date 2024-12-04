@@ -1,6 +1,8 @@
+import typing
 from datetime import datetime, UTC
 from typing import List, Optional
 from sqlalchemy import String, DateTime, ForeignKey, Text, TypeDecorator
+from sqlalchemy.orm.exc import DetachedInstanceError
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
@@ -81,6 +83,9 @@ class Entity(Base):
         cascade="all, delete-orphan"
     )
 
+    def __repr__(self) -> str:
+        return f"Entity(id='{self.id}', name='{self.name}', type='{self.entity_type}')"
+
 
 class Observation(Base):
     """
@@ -110,6 +115,10 @@ class Observation(Base):
         "Entity",
         back_populates="observations"
     )
+
+    def __repr__(self) -> str:
+        content = self.content[:50] + "..." if len(self.content) > 50 else self.content
+        return f"Observation(id='{self.id}', entity='{self.entity_id}', content='{content}')"
 
 
 class Relation(Base):
@@ -148,3 +157,6 @@ class Relation(Base):
         foreign_keys=[to_id],
         back_populates="incoming_relations"
     )
+
+    def __repr__(self) -> str:
+        return f"Relation(from='{self.from_id}', type='{self.relation_type}', to='{self.to_id}')"
