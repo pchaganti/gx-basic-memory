@@ -4,7 +4,7 @@ Handles reading and writing entities and observations to the filesystem.
 """
 from pathlib import Path
 
-from basic_memory.schemas import Entity, Observation
+from basic_memory.schemas import Entity, Observation, Relation
 
 
 class FileOperationError(Exception):
@@ -50,6 +50,20 @@ async def write_entity_file(entities_path: Path, entity: Entity) -> bool:
     # Add observations
     for obs in entity.observations:
         content.append(f"- {obs.content}\n")
+        
+    # Add relations section if we have relations
+    if hasattr(entity, 'relations') and entity.relations:
+        content.extend([
+            "\n",  # Blank line before relations
+            "## Relations\n"
+        ])
+        # Use model_dump to get proper storage format
+        for rel in entity.relations:
+            rel_data = rel.model_dump()
+            relation_line = f"- [{rel_data['to_id']}] {rel_data['relation_type']}"
+            if rel_data.get('context'):
+                relation_line += f" | {rel_data['context']}"
+            content.append(f"{relation_line}\n")
     
     # Handle atomic write operation
     temp_path = entity_path.with_suffix('.tmp')
@@ -97,9 +111,12 @@ async def read_entity_file(entities_path: Path, entity_id: str) -> Entity:
     # Parse metadata (type)
     entity_type = ""
     observations = []
+    relations = []
     
     # Parse content sections
     in_observations = False
+    in_relations = False
+    
     for line in content[1:]:  # Skip the title line
         line = line.strip()
         if not line:
@@ -109,14 +126,44 @@ async def read_entity_file(entities_path: Path, entity_id: str) -> Entity:
             entity_type = line.replace("type: ", "").strip()
         elif line == "## Observations":
             in_observations = True
+            in_relations = False
+        elif line == "## Relations":
+            in_observations = False
+            in_relations = True
         elif in_observations and line.startswith("- "):
             observations.append(Observation(content=line[2:]))
+        elif in_relations and line.startswith("- "):
+            # Parse relation line: - [target_id] relation_type | context
+            line = line[2:]  # Remove the bullet point
+            if "] " not in line:
+                continue  # Skip malformed lines
+                
+            # Split on the first "] " to separate ID from relation_type
+            id_part, rest = line.split("] ", 1)
+            target_id = id_part[1:]  # Remove leading [
+            
+            # Split rest on " | " if there's a context
+            parts = rest.split(" | ", 1)
+            relation_type = parts[0]
+            context = parts[1] if len(parts) > 1 else None
+            
+            # Create temporary entities for the relation
+            target_entity = Entity(id=target_id, name=target_id, entity_type="unknown")
+            source_entity = Entity(id=entity_id, name=name, entity_type=entity_type)
+            
+            relations.append(Relation(
+                from_entity=source_entity,
+                to_entity=target_entity,
+                relation_type=relation_type,
+                context=context
+            ))
     
     return Entity(
         id=entity_id,
         name=name,
         entity_type=entity_type,
-        observations=observations
+        observations=observations,
+        relations=relations
     )
 
 

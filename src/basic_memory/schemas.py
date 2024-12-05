@@ -6,13 +6,43 @@ independent from storage/persistence concerns.
 
 from datetime import datetime, UTC
 from uuid import uuid4
-from typing import List
+from typing import List, Optional, ForwardRef, Dict, Any
 from pydantic import BaseModel, model_validator
 
 
 class Observation(BaseModel):
     """An atomic piece of information about an entity."""
     content: str
+
+
+class Relation(BaseModel):
+    """
+    Represents a directed edge between entities in the knowledge graph.
+    Relations are always stored in active voice (e.g. "created", "teaches", etc.)
+    """
+    id: str
+    from_entity: 'Entity'
+    to_entity: 'Entity'
+    relation_type: str
+    context: Optional[str] = None
+    
+    @model_validator(mode='before')
+    @classmethod
+    def generate_id_if_needed(cls, data: dict) -> dict:
+        """Generate an ID if one wasn't provided"""
+        if not data.get('id'):
+            data['id'] = f"rel-{uuid4().hex[:8]}"
+        return data
+
+    def model_dump(self, **kwargs) -> Dict[str, Any]:
+        """Serialize to storage format with entity IDs"""
+        return {
+            'id': self.id,
+            'from_id': self.from_entity.id,
+            'to_id': self.to_entity.id,
+            'relation_type': self.relation_type,
+            'context': self.context
+        }
 
 
 class Entity(BaseModel):
@@ -25,6 +55,7 @@ class Entity(BaseModel):
     name: str
     entity_type: str
     observations: List[Observation] = []
+    relations: List[Relation] = []
 
     @model_validator(mode='before')
     @classmethod 
@@ -36,12 +67,23 @@ class Entity(BaseModel):
             data['id'] = f"{timestamp}-{normalized_name}-{uuid4().hex[:8]}"
         return data
 
+    def model_dump(self, **kwargs) -> Dict[str, Any]:
+        """Serialize entity, handling relations to prevent circular references"""
+        # Get basic data without relations
+        exclude = kwargs.pop('exclude', set())
+        exclude.add('relations')  
+        basic_data = super().model_dump(exclude=exclude, **kwargs)
+        
+        # Add serialized relations if we have any
+        if 'relations' not in exclude and self.relations:
+            basic_data['relations'] = [
+                relation.model_dump(**kwargs)
+                for relation in self.relations
+            ]
+            
+        return basic_data
 
-class Relation(BaseModel):
-    """
-    Represents a directed edge between two entities in our knowledge graph.
-    Relations are always stored in active voice (e.g. "created", "teaches", etc.)
-    """
-    from_entity: str
-    to_entity: str
-    relation_type: str
+
+# Update forward refs
+Entity.model_rebuild()
+Relation.model_rebuild()

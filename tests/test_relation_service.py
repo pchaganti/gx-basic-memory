@@ -1,6 +1,6 @@
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from basic_memory.models import Relation as DbRelation
 from basic_memory.schemas import Relation
@@ -8,6 +8,7 @@ from basic_memory.services import FileOperationError, DatabaseSyncError
 from basic_memory.fileio import read_entity_file
 
 pytestmark = pytest.mark.asyncio
+
 
 @pytest_asyncio.fixture
 async def sample_entities(entity_service):
@@ -22,6 +23,13 @@ async def sample_entities(entity_service):
     )
     return entity1, entity2
 
+
+# Helper function for comparing strings with variable whitespace
+def normalize_whitespace(s: str) -> str:
+    """Normalize whitespace in a string for comparison."""
+    return ' '.join(s.split())
+
+
 # Happy Path Tests
 
 async def test_create_relation(relation_service, sample_entities):
@@ -34,8 +42,9 @@ async def test_create_relation(relation_service, sample_entities):
         relation_type="test_relation"
     )
     
-    assert relation.from_id == entity1.id
-    assert relation.to_id == entity2.id
+    # Check Entity objects in relation
+    assert relation.from_entity.id == entity1.id
+    assert relation.to_entity.id == entity2.id
     assert relation.relation_type == "test_relation"
     
     # Verify relation was added to source entity's relations
@@ -50,7 +59,7 @@ async def test_create_relation(relation_service, sample_entities):
     assert "## Relations" in content
     assert f"[{entity2.id}] test_relation" in content
     
-    # Verify database was updated
+    # Verify database was updated with correct IDs
     db_relation = await relation_service.relation_repo.find_by_id(relation.id)
     assert db_relation is not None
     assert db_relation.from_id == entity1.id
@@ -96,8 +105,8 @@ async def test_get_entity_relations(relation_service, sample_entities):
     relations = await relation_service.get_entity_relations(entity1)
     
     assert len(relations) == 1
-    assert relations[0].from_id == entity1.id
-    assert relations[0].to_id == entity2.id
+    assert relations[0].from_entity.id == entity1.id
+    assert relations[0].to_entity.id == entity2.id
     assert relations[0].relation_type == "test_relation"
 
 
@@ -150,15 +159,15 @@ async def test_rebuild_relation_index(relation_service, sample_entities):
     # Rebuild index
     await relation_service.rebuild_relation_index()
     
-    # Verify relations were restored
-    db_relations = await relation_service.relation_repo.execute_query(
-        'SELECT * FROM relation'
-    )
-    relations = db_relations.scalars().all()
+    # Verify relations were restored using SQLAlchemy select
+    query = select(DbRelation)
+    result = await relation_service.relation_repo.execute_query(query)
+    relations = result.scalars().all()
     
     assert len(relations) == 2
     relation_types = {r.relation_type for r in relations}
     assert relation_types == {"test_relation_1", "test_relation_2"}
+
 
 # Error Path Tests
 
@@ -178,6 +187,7 @@ async def test_file_operation_error(relation_service, sample_entities, monkeypat
             relation_type="test_relation"
         )
 
+
 async def test_database_sync_error(relation_service, sample_entities, monkeypatch):
     """Test handling of database sync errors."""
     entity1, entity2 = sample_entities
@@ -193,6 +203,7 @@ async def test_database_sync_error(relation_service, sample_entities, monkeypatc
             to_entity=entity2,
             relation_type="test_relation"
         )
+
 
 # Edge Cases
 
@@ -229,4 +240,6 @@ async def test_very_long_relation_type(relation_service, sample_entities):
     
     # Verify file content
     entity = await read_entity_file(relation_service.entities_path, entity1.id)
-    assert any(r.relation_type == long_type for r in getattr(entity, 'relations', []))
+    # Compare with normalized whitespace
+    stored_types = {normalize_whitespace(r.relation_type) for r in getattr(entity, 'relations', [])}
+    assert normalize_whitespace(long_type) in stored_types

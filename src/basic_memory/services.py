@@ -32,7 +32,6 @@ class RelationError(ServiceError):
 
 class EntityService:
     """Service for managing entities in the filesystem and database."""
-    # [Previous EntityService implementation remains unchanged]
     def __init__(self, project_path: Path, entity_repo: EntityRepository):
         self.project_path = project_path
         self.entity_repo = entity_repo
@@ -48,6 +47,7 @@ class EntityService:
         
         # Observations will be handled by ObservationService
         entity_data.pop('observations', None)  # Remove observations if present
+        entity_data.pop('relations', None)     # Remove relations if present
         
         # Try to find existing entity first
         if await self.entity_repo.find_by_id(entity.id):
@@ -115,7 +115,6 @@ class EntityService:
 
 class ObservationService:
     """Service for managing observations in the filesystem and database."""
-    # [Previous ObservationService implementation remains unchanged]
     def __init__(self, project_path: Path, observation_repo: ObservationRepository):
         self.project_path = project_path
         self.entities_path = project_path / "entities"
@@ -176,11 +175,10 @@ class RelationService:
             FileOperationError: If file operations fail
             DatabaseSyncError: If database sync fails
         """
-        # Create new relation
+        # Create new relation with actual Entity objects
         relation = Relation(
-            id=f"rel-{uuid4().hex[:8]}",
-            from_id=from_entity.id,
-            to_id=to_entity.id,
+            from_entity=from_entity,
+            to_entity=to_entity,
             relation_type=relation_type,
             context=context
         )
@@ -194,15 +192,11 @@ class RelationService:
         await write_entity_file(self.entities_path, from_entity)
         
         # Update database index
+        # model_dump will handle converting Entity refs to IDs
         try:
-            await self.relation_repo.create({
-                'id': relation.id,
-                'from_id': from_entity.id,
-                'to_id': to_entity.id,
-                'relation_type': relation_type,
-                'context': context,
-                'created_at': datetime.now(UTC)
-            })
+            db_data = relation.model_dump()
+            db_data['created_at'] = datetime.now(UTC)
+            await self.relation_repo.create(db_data)
             return relation
         except Exception as e:
             raise DatabaseSyncError(f"Failed to sync relation to database: {str(e)}") from e
@@ -217,7 +211,7 @@ class RelationService:
         Returns:
             List of relations where the entity is either source or target
         """
-        # Relations are stored in the entity object already
+        # Relations are stored in the entity object
         return getattr(entity, 'relations', [])
 
     async def delete_relation(self, from_entity: Entity, relation_id: str) -> bool:
@@ -269,13 +263,8 @@ class RelationService:
             try:
                 entity = await read_entity_file(self.entities_path, entity_file.stem)
                 for relation in getattr(entity, 'relations', []):
-                    await self.relation_repo.create({
-                        'id': relation.id,
-                        'from_id': relation.from_id,
-                        'to_id': relation.to_id,
-                        'relation_type': relation.relation_type,
-                        'context': relation.context,
-                        'created_at': datetime.now(UTC)
-                    })
+                    db_data = relation.model_dump()
+                    db_data['created_at'] = datetime.now(UTC)
+                    await self.relation_repo.create(db_data)
             except Exception as e:
                 print(f"Warning: Failed to reindex relations for {entity_file}: {str(e)}")
