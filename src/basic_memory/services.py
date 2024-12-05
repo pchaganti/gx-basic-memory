@@ -142,6 +142,65 @@ class ObservationService:
         except Exception as e:
             raise DatabaseSyncError(f"Failed to sync observation to database: {str(e)}") from e
 
+    async def search_observations(self, query: str) -> list[Observation]:
+        """
+        Search for observations across all entities.
+
+        Args:
+            query: Text to search for in observation content
+
+        Returns:
+            List of matching observations with their entity contexts
+        """
+        result = await self.observation_repo.execute_query(
+            select(DbObservation).filter(
+                DbObservation.content.contains(query)
+            )
+        )
+        return [
+            Observation(content=obs.content)
+            for obs in result.scalars().all()
+        ]
+
+    async def get_observations_by_context(self, context: str) -> list[Observation]:
+        """Get all observations with a specific context."""
+        db_observations = await self.observation_repo.find_by_context(context)
+        return [
+            Observation(content=obs.content)
+            for obs in db_observations
+        ]
+
+    async def rebuild_observation_index(self) -> None:
+        """
+        Rebuild the observation database index from filesystem contents.
+        Used for recovery or ensuring sync.
+        """
+        # List all entity files
+        if not self.entities_path.exists():
+            return
+
+        try:
+            entity_files = list(self.entities_path.glob("*.md"))
+        except Exception as e:
+            raise FileOperationError(f"Failed to read entities directory: {str(e)}") from e
+
+        # Clear existing observation index
+        await self.observation_repo.execute_query(delete(DbObservation))
+
+        # Rebuild from each entity file
+        for entity_file in entity_files:
+            try:
+                entity = await read_entity_file(self.entities_path, entity_file.stem)
+                for obs in entity.observations:
+                    await self.observation_repo.create({
+                        'id': f"{entity.id}-obs-{uuid4().hex[:8]}",
+                        'entity_id': entity.id,
+                        'content': obs.content,
+                        'created_at': datetime.now(UTC)
+                    })
+            except Exception as e:
+                print(f"Warning: Failed to reindex observations for {entity_file}: {str(e)}")
+
 
 class RelationService:
     """
