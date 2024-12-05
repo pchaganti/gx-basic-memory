@@ -1,35 +1,15 @@
 import pytest
-from datetime import datetime, UTC
-from pathlib import Path
+import pytest_asyncio
+from sqlalchemy import delete
 
-from basic_memory.models import Entity as DbEntity
 from basic_memory.models import Relation as DbRelation
-from basic_memory.schemas import Entity, Relation
-from basic_memory.services import RelationService, EntityService
-from basic_memory.repository import EntityRepository, RelationRepository
+from basic_memory.schemas import Relation
+from basic_memory.services import FileOperationError, DatabaseSyncError
+from basic_memory.fileio import read_entity_file
 
+pytestmark = pytest.mark.asyncio
 
-@pytest.fixture
-async def entity_repo(db_session):
-    return EntityRepository(db_session)
-
-
-@pytest.fixture
-async def relation_repo(db_session):
-    return RelationRepository(db_session)
-
-
-@pytest.fixture
-async def entity_service(tmp_path, entity_repo):
-    return EntityService(tmp_path, entity_repo)
-
-
-@pytest.fixture
-async def relation_service(tmp_path, relation_repo):
-    return RelationService(tmp_path, relation_repo)
-
-
-@pytest.fixture
+@pytest_asyncio.fixture
 async def sample_entities(entity_service):
     """Create two sample entities for testing relations"""
     entity1 = await entity_service.create_entity(
@@ -42,6 +22,7 @@ async def sample_entities(entity_service):
     )
     return entity1, entity2
 
+# Happy Path Tests
 
 async def test_create_relation(relation_service, sample_entities):
     """Test creating a basic relation between two entities"""
@@ -164,9 +145,7 @@ async def test_rebuild_relation_index(relation_service, sample_entities):
     )
     
     # Clear the database relations
-    await relation_service.relation_repo.execute_query(
-        'DELETE FROM relation'
-    )
+    await relation_service.relation_repo.execute_query(delete(DbRelation))
     
     # Rebuild index
     await relation_service.rebuild_relation_index()
@@ -180,3 +159,74 @@ async def test_rebuild_relation_index(relation_service, sample_entities):
     assert len(relations) == 2
     relation_types = {r.relation_type for r in relations}
     assert relation_types == {"test_relation_1", "test_relation_2"}
+
+# Error Path Tests
+
+async def test_file_operation_error(relation_service, sample_entities, monkeypatch):
+    """Test handling of file operation errors."""
+    entity1, entity2 = sample_entities
+    
+    async def mock_write(*args, **kwargs):
+        raise FileOperationError("Mock file error")
+    
+    monkeypatch.setattr('basic_memory.services.write_entity_file', mock_write)
+    
+    with pytest.raises(FileOperationError):
+        await relation_service.create_relation(
+            from_entity=entity1,
+            to_entity=entity2,
+            relation_type="test_relation"
+        )
+
+async def test_database_sync_error(relation_service, sample_entities, monkeypatch):
+    """Test handling of database sync errors."""
+    entity1, entity2 = sample_entities
+    
+    async def mock_create(*args, **kwargs):
+        raise Exception("Mock DB error")
+    
+    monkeypatch.setattr(relation_service.relation_repo, "create", mock_create)
+    
+    with pytest.raises(DatabaseSyncError):
+        await relation_service.create_relation(
+            from_entity=entity1,
+            to_entity=entity2,
+            relation_type="test_relation"
+        )
+
+# Edge Cases
+
+async def test_relation_with_special_characters(relation_service, sample_entities):
+    """Test handling relations with special characters."""
+    entity1, entity2 = sample_entities
+    
+    relation_type = "test & relation with @#$% special chars!"
+    relation = await relation_service.create_relation(
+        from_entity=entity1,
+        to_entity=entity2,
+        relation_type=relation_type
+    )
+    
+    assert relation.relation_type == relation_type
+    
+    # Verify file content
+    entity = await read_entity_file(relation_service.entities_path, entity1.id)
+    assert any(r.relation_type == relation_type for r in getattr(entity, 'relations', []))
+
+
+async def test_very_long_relation_type(relation_service, sample_entities):
+    """Test handling very long relation type."""
+    entity1, entity2 = sample_entities
+    
+    long_type = "Very long relation type " * 20  # ~400 characters
+    relation = await relation_service.create_relation(
+        from_entity=entity1,
+        to_entity=entity2,
+        relation_type=long_type
+    )
+    
+    assert relation.relation_type == long_type
+    
+    # Verify file content
+    entity = await read_entity_file(relation_service.entities_path, entity1.id)
+    assert any(r.relation_type == long_type for r in getattr(entity, 'relations', []))
