@@ -32,3 +32,7 @@ pytest
 ## License
 
 AGPL-3.0-or-later
+
+
+project info memory store
+~/.npm/_npx/15b07286cbcc3329/node_modules/@modelcontextprotocol/server-memory/dist/memory.json
