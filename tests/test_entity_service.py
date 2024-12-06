@@ -6,9 +6,10 @@ import tempfile
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from basic_memory.models import Base, Entity as DbEntity
+from basic_memory.fileio import EntityNotFoundError
+from basic_memory.models import Entity as DbEntity, Base
 from basic_memory.repository import EntityRepository
-from basic_memory.services import EntityService, FileOperationError, DatabaseSyncError, EntityNotFoundError
+from basic_memory.services import EntityService, ServiceError, DatabaseSyncError
 from basic_memory.schemas import Entity, Observation
 
 pytestmark = pytest.mark.asyncio
