@@ -18,6 +18,7 @@ class RelationError(ServiceError):
 from .entity_service import EntityService
 from .observation_service import ObservationService
 from .relation_service import RelationService
+from .memory_service import MemoryService
 
 __all__ = [
     'ServiceError',
@@ -26,4 +27,5 @@ __all__ = [
     'EntityService',
     'ObservationService',
     'RelationService',
+    'MemoryService',
 ]

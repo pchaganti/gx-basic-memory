@@ -20,7 +20,7 @@ class Repository[T: Base]:
     Example usage:
         async with async_sessionmaker() as session:
             entity_repo = Repository(session, Entity)
-            await entity_repo.create({
+            entity = await entity_repo.create({
                 'id': '20240102-some-entity',
                 'name': 'Example Entity',
                 'entity_type': 'concept'
@@ -91,8 +91,7 @@ class Repository[T: Base]:
         model_data = {k: v for k, v in entity_data.items() if k in self.valid_columns}
         entity = self.Model(**model_data)
         self.session.add(entity)
-        await self.session.commit()
-        await self.session.refresh(entity)
+        await self.session.flush()
         return entity
 
     async def update(self, entity_id: str, entity_data: dict) -> Optional[T]:
@@ -114,8 +113,7 @@ class Repository[T: Base]:
             for key, value in entity_data.items():
                 if key in self.valid_columns:
                     setattr(entity, key, value)
-            await self.session.commit()
-            await self.session.refresh(entity)
+            await self.session.flush()
             return entity
         except NoResultFound:
             return None
@@ -136,7 +134,7 @@ class Repository[T: Base]:
             )
             entity = result.scalars().one()
             await self.session.delete(entity)
-            await self.session.commit()
+            await self.session.flush()
             return True
         except NoResultFound:
             return False

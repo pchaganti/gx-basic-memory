@@ -5,7 +5,7 @@ from typing import Optional
 
 from basic_memory.models import Entity as DbEntity
 from basic_memory.repository import EntityRepository
-from basic_memory.schemas import Entity, EntityCreate
+from basic_memory.schemas import Entity
 from . import ServiceError, DatabaseSyncError
 
 class EntityService:
@@ -18,11 +18,8 @@ class EntityService:
         self.project_path = project_path
         self.entity_repo = entity_repo
 
-    async def create_entity(self, create_data: EntityCreate) -> Entity:
+    async def create_entity(self, entity: Entity) -> Entity:
         """Create a new entity in the database."""
-        # Create Entity from EntityCreate data
-        entity = Entity.from_create(create_data)
-        
         # Create DB record
         db_data = {
             **entity.model_dump(),
@@ -30,7 +27,6 @@ class EntityService:
             "updated_at": datetime.now(UTC)
         }
         await self.entity_repo.create(db_data)
-        
         return entity
 
     async def get_entity(self, entity_id: str) -> Entity:

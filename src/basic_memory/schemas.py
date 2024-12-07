@@ -20,13 +20,6 @@ class ObservationCreate(BaseModel):
     content: str
 
 
-class EntityCreate(BaseModel):
-    """Schema for creating a new entity via the MCP tool interface."""
-    name: str
-    entityType: str  # Matches the JSON field name from MCP tool
-    observations: Optional[List[str]] = None
-
-
 class RelationCreate(BaseModel):
     """Schema for creating a new relation via the MCP tool interface."""
     from_: str = None  # Raw entity name from MCP tool
@@ -79,15 +72,6 @@ class Relation(BaseModel):
             'context': self.context
         }
 
-    @classmethod
-    def from_create(cls, create_data: RelationCreate, from_entity: 'Entity', to_entity: 'Entity') -> 'Relation':
-        """Create a Relation from a RelationCreate schema and actual entities."""
-        return cls(
-            from_entity=from_entity,
-            to_entity=to_entity,
-            relation_type=create_data.relationType
-        )
-
 
 class Entity(BaseModel):
     """
@@ -102,7 +86,7 @@ class Entity(BaseModel):
     relations: List[Relation] = []
 
     @model_validator(mode='before')
-    @classmethod 
+    @classmethod
     def generate_id_if_needed(cls, data: dict) -> dict:
         """Generate an ID if one wasn't provided during instantiation"""
         if not data.get('id') and data.get('name'):
@@ -110,16 +94,6 @@ class Entity(BaseModel):
             normalized_name = data['name'].lower().replace(" ", "-")
             data['id'] = f"{timestamp}-{normalized_name}-{uuid4().hex[:8]}"
         return data
-
-    @classmethod
-    def from_create(cls, data: EntityCreate) -> 'Entity':
-        """Create an Entity from an EntityCreate schema."""
-        observations = [Observation(content=obs) for obs in (data.observations or [])]
-        return cls(
-            name=data.name,
-            entity_type=data.entityType,
-            observations=observations
-        )
 
     def model_dump(self, **kwargs) -> Dict[str, Any]:
         """Serialize entity, handling relations to prevent circular references"""
@@ -136,6 +110,10 @@ class Entity(BaseModel):
             ]
             
         return basic_data
+
+    def file_name(self) -> str:
+        """Get the markdown file name for this entity."""
+        return f"{self.id}.md"
 
 
 # Update forward refs
