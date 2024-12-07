@@ -2,7 +2,7 @@ from typing import Type, Optional, Any, Sequence
 from sqlalchemy import select, func, Select, Executable, inspect, Result, Column, and_
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import Mapped, selectinload
 
 from basic_memory.models import Entity, Observation, Relation, Base
 
@@ -177,6 +177,38 @@ class EntityRepository(Repository[Entity]):
     Repository for Entity model with memory-specific operations.
     """
     
+    async def find_by_id(self, entity_id: str) -> Optional[Entity]:
+        """
+        Find entity by ID with relations eagerly loaded.
+        
+        Uses selectinload to eagerly load outgoing and incoming relations in a single query.
+        This is necessary because:
+        1. In async code, lazy loading relations after the session closes doesn't work
+        2. Our service layer often needs the complete entity with its relations
+        3. Using a single query with selectinload is more efficient than multiple lazy-loaded queries
+        
+        :param entity_id: Entity ID to search for
+        :return: Entity if found with all relations loaded, None otherwise
+        
+        Example:
+            entity = await repo.find_by_id('20240102-entity-123')
+            # Relations are already loaded - no additional queries needed
+            for relation in entity.outgoing_relations:
+                print(f"Related to {relation.to_id} via {relation.relation_type}")
+        """
+        try:
+            result = await self.session.execute(
+                select(Entity)
+                .filter(Entity.id == entity_id)
+                .options(
+                    selectinload(Entity.outgoing_relations),
+                    selectinload(Entity.incoming_relations)
+                )
+            )
+            return result.scalars().one()
+        except NoResultFound:
+            return None
+
     async def find_by_name(self, name: str) -> Optional[Entity]:
         """
         Find an entity by its unique name.

@@ -2,6 +2,8 @@
 import pytest
 
 from basic_memory.services import MemoryService
+from basic_memory.fileio import read_entity_file
+from basic_memory.models import Entity as EntityModel
 
 test_entities_data = [
     {
@@ -47,7 +49,7 @@ async def test_create_entities(memory_service: MemoryService):
 
 @pytest.mark.asyncio
 async def test_create_relations(memory_service: MemoryService):
-    """Should create relations between entities and update the filesystem."""
+    """Should create relations between entities and update both filesystem and database."""
     # First create the entities
     entities = await memory_service.create_entities(test_entities_data)
     entity1, entity2 = entities
@@ -85,23 +87,47 @@ async def test_create_relations(memory_service: MemoryService):
     assert relations[1].relation_type == "references"
     assert relations[1].context == "test context"
 
-    # Verify relations were added to the entities
-    # Read updated entity1 from filesystem
-    entity1_path = memory_service.entities_path / entity1.file_name()
-    assert entity1_path.exists()
-    assert len(entity1.relations) == 1
-    assert entity1.relations[0].from_id == entity1.id
-    assert entity1.relations[0].to_id == entity2.id
-    assert entity1.relations[0].relation_type == "connects_to"
+    # Read updated entities from filesystem to verify relations
+    updated_entity1 = await read_entity_file(memory_service.entities_path, entity1.id)
+    updated_entity2 = await read_entity_file(memory_service.entities_path, entity2.id)
 
-    # Read updated entity2 from filesystem
-    entity2_path = memory_service.entities_path / entity2.file_name()
-    assert entity2_path.exists()
-    assert len(entity2.relations) == 1
-    assert entity2.relations[0].from_id == entity2.id
-    assert entity2.relations[0].to_id == entity1.id
-    assert entity2.relations[0].relation_type == "references"
-    assert entity2.relations[0].context == "test context"
+    # Verify relations were added to entity1 in filesystem
+    assert len(updated_entity1.relations) == 1
+    assert updated_entity1.relations[0].from_id == entity1.id
+    assert updated_entity1.relations[0].to_id == entity2.id
+    assert updated_entity1.relations[0].relation_type == "connects_to"
+
+    # Verify relations were added to entity2 in filesystem
+    assert len(updated_entity2.relations) == 1
+    assert updated_entity2.relations[0].from_id == entity2.id
+    assert updated_entity2.relations[0].to_id == entity1.id
+    assert updated_entity2.relations[0].relation_type == "references"
+    assert updated_entity2.relations[0].context == "test context"
+
+    # Now verify database state
+    # Get entities from database
+    db_entity1: EntityModel = await memory_service.entity_service.get_entity(entity1.id)
+    db_entity2: EntityModel = await memory_service.entity_service.get_entity(entity2.id)
+
+    # Entity 1 should have one outgoing relation to entity 2
+    assert len(db_entity1.outgoing_relations) == 1
+    outgoing = db_entity1.outgoing_relations[0]
+    assert outgoing.from_id == entity1.id
+    assert outgoing.to_id == entity2.id
+    assert outgoing.relation_type == "connects_to"
+    assert outgoing.context is None
+
+    # Entity 1 should have one incoming relation from entity 2
+    assert len(db_entity1.incoming_relations) == 1
+    incoming = db_entity1.incoming_relations[0]
+    assert incoming.from_id == entity2.id
+    assert incoming.to_id == entity1.id
+    assert incoming.relation_type == "references"
+    assert incoming.context == "test context"
+
+    # Verify the same for entity 2 (reversed)
+    assert len(db_entity2.outgoing_relations) == 1
+    assert len(db_entity2.incoming_relations) == 1
 
 @pytest.mark.asyncio
 async def test_create_relations_with_invalid_entity_id(memory_service: MemoryService):

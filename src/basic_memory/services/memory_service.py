@@ -42,40 +42,28 @@ class MemoryService:
 
     async def create_relations(self, relations_data: List[Dict[str, Any]]) -> List[Relation]:
         """Create multiple relations between entities."""
-        relations = []
-        
-        for data in relations_data:
-            # Resolve entities by ID
-            from_entity, to_entity = await asyncio.gather(
-                self.entity_service.get_entity(data["from_id"]),
-                self.entity_service.get_entity(data["to_id"])
-            )
-            
-            # Create relation from schema data
-            relation = Relation(
-                from_id=from_entity.id,
-                to_id=to_entity.id,
-                relation_type=data["relation_type"],
-                context=data.get("context")
-            )
-            
-            # Create in database
-            stored_relation = await self.relation_service.create_relation(relation)
-            
-            # Add to source entity's relations list
+        relations = [Relation.model_validate(data) for data in relations_data]
+
+        for relation in relations:
+            # First read complete entities from filesystem
+            from_entity = await read_entity_file(self.entities_path, relation.from_id) 
+            to_entity = await read_entity_file(self.entities_path, relation.to_id)
+
+            # Add the new relation to the source entity
             if not hasattr(from_entity, 'relations'):
                 from_entity.relations = []
-            from_entity.relations.append(stored_relation)
-            relations.append((stored_relation, from_entity))
+            from_entity.relations.append(relation)
 
-        # Write updated entities in parallel
-        async def write_file(entity: Entity):
-            await write_entity_file(self.entities_path, entity)
+            # Write updated entity files (filesystem is source of truth)
+            await asyncio.gather(
+                write_entity_file(self.entities_path, from_entity),
+                write_entity_file(self.entities_path, to_entity)
+            )
 
-        file_writes = [write_file(entity) for _, entity in relations]
-        await asyncio.gather(*file_writes)
+            # Now update the database index
+            await self.relation_service.create_relation(relation)
 
-        return [relation for relation, _ in relations]
+        return relations
 
     async def add_observations(self, observations_data: List[Dict[str, Any]]) -> None:
         """Add observations to existing entities."""
@@ -129,7 +117,7 @@ class MemoryService:
             ]
             entity_updates.append(entity)
 
-        # Write updated files in parallel
+        # Write updated entities in parallel
         async def write_file(entity: Entity):
             await write_entity_file(self.entities_path, entity)
 

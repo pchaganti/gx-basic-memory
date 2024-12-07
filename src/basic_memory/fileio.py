@@ -152,8 +152,8 @@ async def read_entity_file(entities_path: Path, entity_id: str) -> Entity:
             source_entity = Entity(id=entity_id, name=name, entity_type=entity_type)
             
             relations.append(Relation(
-                from_entity=source_entity,
-                to_entity=target_entity,
+                from_id=source_entity.id,
+                to_id=target_entity.id,
                 relation_type=relation_type,
                 context=context
             ))
