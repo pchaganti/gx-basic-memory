@@ -15,6 +15,41 @@ class Observation(BaseModel):
     content: str
 
 
+class ObservationCreate(BaseModel):
+    """Schema for creating a new observation."""
+    content: str
+
+
+class EntityCreate(BaseModel):
+    """Schema for creating a new entity via the MCP tool interface."""
+    name: str
+    entityType: str  # Matches the JSON field name from MCP tool
+    observations: Optional[List[str]] = None
+
+
+class RelationCreate(BaseModel):
+    """Schema for creating a new relation via the MCP tool interface."""
+    from_: str = None  # Raw entity name from MCP tool
+    to: str
+    relationType: str
+
+    # Handle the 'from' field which is a Python keyword
+    @model_validator(mode='before')
+    @classmethod
+    def handle_from_field(cls, data: dict) -> dict:
+        """Convert 'from' to 'from_' if present"""
+        if 'from' in data:
+            data['from_'] = data.pop('from')
+        return data
+
+    def model_dump(self, **kwargs) -> Dict[str, Any]:
+        """Convert back to format with 'from' field"""
+        data = super().model_dump(**kwargs)
+        if 'from_' in data:
+            data['from'] = data.pop('from_')
+        return data
+
+
 class Relation(BaseModel):
     """
     Represents a directed edge between entities in the knowledge graph.
@@ -44,6 +79,15 @@ class Relation(BaseModel):
             'context': self.context
         }
 
+    @classmethod
+    def from_create(cls, create_data: RelationCreate, from_entity: 'Entity', to_entity: 'Entity') -> 'Relation':
+        """Create a Relation from a RelationCreate schema and actual entities."""
+        return cls(
+            from_entity=from_entity,
+            to_entity=to_entity,
+            relation_type=create_data.relationType
+        )
+
 
 class Entity(BaseModel):
     """
@@ -66,6 +110,16 @@ class Entity(BaseModel):
             normalized_name = data['name'].lower().replace(" ", "-")
             data['id'] = f"{timestamp}-{normalized_name}-{uuid4().hex[:8]}"
         return data
+
+    @classmethod
+    def from_create(cls, data: EntityCreate) -> 'Entity':
+        """Create an Entity from an EntityCreate schema."""
+        observations = [Observation(content=obs) for obs in (data.observations or [])]
+        return cls(
+            name=data.name,
+            entity_type=data.entityType,
+            observations=observations
+        )
 
     def model_dump(self, **kwargs) -> Dict[str, Any]:
         """Serialize entity, handling relations to prevent circular references"""
