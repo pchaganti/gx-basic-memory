@@ -3,7 +3,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
-from basic_memory.schemas import Entity, RelationCreate, Observation, Relation
+from basic_memory.schemas import Entity, Observation, Relation
 from basic_memory.fileio import write_entity_file, read_entity_file, delete_entity_file
 from basic_memory.services import EntityService, RelationService, ObservationService
 
@@ -25,7 +25,6 @@ class MemoryService:
 
     async def create_entities(self, entities_data: List[Dict[str, Any]]) -> List[Entity]:
         """Create multiple entities with their observations."""
-        
         entities = [Entity.model_validate(data) for data in entities_data]
 
         # Write files in parallel (filesystem is source of truth)
@@ -43,18 +42,31 @@ class MemoryService:
 
     async def create_relations(self, relations_data: List[Dict[str, Any]]) -> List[Relation]:
         """Create multiple relations between entities."""
-        # First get all entities and create relations
         relations = []
+        
         for data in relations_data:
-            create_data = RelationCreate.model_validate(data)
-            from_entity = await self.entity_service.get_by_name(create_data.from_)
-            to_entity = await self.entity_service.get_by_name(create_data.to)
-            relation = await self.relation_service.create_relation(
-                create_data=create_data,
-                from_entity=from_entity,
-                to_entity=to_entity
+            # Resolve entities by ID
+            from_entity, to_entity = await asyncio.gather(
+                self.entity_service.get_entity(data["from_id"]),
+                self.entity_service.get_entity(data["to_id"])
             )
-            relations.append((relation, from_entity))
+            
+            # Create relation from schema data
+            relation = Relation(
+                from_id=from_entity.id,
+                to_id=to_entity.id,
+                relation_type=data["relation_type"],
+                context=data.get("context")
+            )
+            
+            # Create in database
+            stored_relation = await self.relation_service.create_relation(relation)
+            
+            # Add to source entity's relations list
+            if not hasattr(from_entity, 'relations'):
+                from_entity.relations = []
+            from_entity.relations.append(stored_relation)
+            relations.append((stored_relation, from_entity))
 
         # Write updated entities in parallel
         async def write_file(entity: Entity):

@@ -1,11 +1,12 @@
 """Service for managing relations in the database."""
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Any
+from sqlalchemy import delete
 
 from basic_memory.models import Relation as DbRelation
 from basic_memory.repository import RelationRepository
-from basic_memory.schemas import Entity, Relation, RelationCreate
+from basic_memory.schemas import Entity, Relation
 from . import ServiceError, DatabaseSyncError, RelationError
 
 
@@ -19,17 +20,8 @@ class RelationService:
         self.project_path = project_path
         self.relation_repo = relation_repo
 
-    async def create_relation(self, create_data: RelationCreate, from_entity: Entity, to_entity: Entity) -> Relation:
-        """Create a new relation between two entities."""
-        # Create new relation with actual Entity objects
-        relation = Relation.from_create(create_data, from_entity, to_entity)
-        
-        # Add relation to source entity's relations list
-        if not hasattr(from_entity, 'relations'):
-            from_entity.relations = []
-        from_entity.relations.append(relation)
-        
-        # Update database index
+    async def create_relation(self, relation: Relation) -> Relation:
+        """Create a new relation in the database."""
         try:
             db_data = relation.model_dump()
             db_data['created_at'] = datetime.now(UTC)
@@ -44,7 +36,7 @@ class RelationService:
         if hasattr(from_entity, 'relations'):
             from_entity.relations = [
                 r for r in from_entity.relations 
-                if not (r.to_entity.id == to_entity.id and r.relation_type == relation_type)
+                if not (r.to_id == to_entity.id and r.relation_type == relation_type)
             ]
         
         # Remove from database index

@@ -1,7 +1,8 @@
+"""Database models for basic-memory."""
 import typing
 from datetime import datetime, UTC
 from typing import List, Optional
-from sqlalchemy import String, DateTime, ForeignKey, Text, TypeDecorator
+from sqlalchemy import String, DateTime, ForeignKey, Text, TypeDecorator, Integer
 from sqlalchemy.orm.exc import DetachedInstanceError
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
@@ -40,7 +41,7 @@ class Entity(Base):
     Core entity in the knowledge graph.
 
     Entities are the primary nodes in the knowledge graph. Each entity has:
-    - A unique identifier
+    - A unique identifier (text, for filesystem references)
     - A name
     - An entity type (e.g., "person", "organization", "event")
     - A description
@@ -49,7 +50,6 @@ class Entity(Base):
     """
     __tablename__ = "entity"
 
-    # Primary key is a UUID string for compatibility with markdown IDs
     id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, unique=True, index=True)
     entity_type: Mapped[str] = mapped_column(String)
@@ -97,9 +97,9 @@ class Observation(Base):
     """
     __tablename__ = "observation"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    entity_id: Mapped[str] = mapped_column(
-        String,
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entity_id: Mapped[str] = mapped_column(  # Reference Entity.id which is text
+        String, 
         ForeignKey("entity.id", ondelete="CASCADE"),
         index=True
     )
@@ -118,7 +118,7 @@ class Observation(Base):
 
     def __repr__(self) -> str:
         content = self.content[:50] + "..." if len(self.content) > 50 else self.content
-        return f"Observation(id='{self.id}', entity='{self.entity_id}', content='{content}')"
+        return f"Observation(id={self.id}, entity='{self.entity_id}', content='{content}')"
 
 
 class Relation(Base):
@@ -128,13 +128,13 @@ class Relation(Base):
     """
     __tablename__ = "relation"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    from_id: Mapped[str] = mapped_column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    from_id: Mapped[str] = mapped_column(  # Reference Entity.id which is text
         String,
         ForeignKey("entity.id", ondelete="CASCADE"),
         index=True
     )
-    to_id: Mapped[str] = mapped_column(
+    to_id: Mapped[str] = mapped_column(  # Reference Entity.id which is text
         String,
         ForeignKey("entity.id", ondelete="CASCADE"),
         index=True
@@ -159,4 +159,4 @@ class Relation(Base):
     )
 
     def __repr__(self) -> str:
-        return f"Relation(from='{self.from_id}', type='{self.relation_type}', to='{self.to_id}')"
+        return f"Relation(id={self.id}, from='{self.from_id}', type='{self.relation_type}', to='{self.to_id}')"
