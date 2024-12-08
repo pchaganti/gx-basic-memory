@@ -123,7 +123,6 @@ class TestObservationRepository:
     async def sample_observation(self, observation_repository: ObservationRepository, sample_entity: Entity):
         """Create a sample observation for testing"""
         observation_data = {
-            'id': '20240102-test-obs',
             'entity_id': sample_entity.id,
             'content': 'Test observation',
             'context': 'test-context'
@@ -137,16 +136,15 @@ class TestObservationRepository:
     ):
         """Test creating a new observation"""
         observation_data = {
-            'id': '20240102-obs',
             'entity_id': sample_entity.id,
             'content': 'Test content',
             'context': 'test-context'
         }
         observation = await observation_repository.create(observation_data)
         
-        assert observation.id == '20240102-obs'
         assert observation.entity_id == sample_entity.id
         assert observation.content == 'Test content'
+        assert observation.id is not None  # Should be auto-generated
 
     async def test_find_by_entity(
         self,
@@ -193,7 +191,6 @@ class TestRelationRepository:
     ):
         """Create a sample relation for testing"""
         relation_data = {
-            'id': '20240102-test-rel',
             'from_id': sample_entity.id,
             'to_id': related_entity.id,
             'relation_type': 'test_relation',
@@ -209,7 +206,6 @@ class TestRelationRepository:
     ):
         """Test creating a new relation"""
         relation_data = {
-            'id': '20240102-rel',
             'from_id': sample_entity.id,
             'to_id': related_entity.id,
             'relation_type': 'test_relation',
@@ -217,10 +213,10 @@ class TestRelationRepository:
         }
         relation = await relation_repository.create(relation_data)
         
-        assert relation.id == '20240102-rel'
         assert relation.from_id == sample_entity.id
         assert relation.to_id == related_entity.id
         assert relation.relation_type == 'test_relation'
+        assert relation.id is not None  # Should be auto-generated
 
     async def test_find_by_entities(
         self,

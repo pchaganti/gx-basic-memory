@@ -1,5 +1,4 @@
 """Common test fixtures for basic-memory."""
-import pytest
 import pytest_asyncio
 from pathlib import Path
 import tempfile
@@ -16,6 +15,8 @@ from basic_memory.deps import (
     get_relation_service,
     get_memory_service
 )
+from basic_memory.schemas import EntityIn
+
 
 @pytest_asyncio.fixture(scope="function")
 async def engine():
@@ -38,7 +39,7 @@ async def engine():
 @pytest_asyncio.fixture(scope="function")
 async def session(engine):
     """Create an async session factory and yield a session"""
-    async_session = async_sessionmaker(engine, expire_on_commit=False)
+    async_session = async_sessionmaker(engine)  # Removed expire_on_commit=False
     async with async_session() as session:
         try:
             yield session
@@ -104,7 +105,8 @@ async def memory_service(
 @pytest_asyncio.fixture
 async def test_entity(entity_service):
     """Create a test entity for reuse in tests."""
-    return await entity_service.create_entity(
+    entity_data = EntityIn(
         name="Test Entity",
         entity_type="test",
     )
+    return await entity_service.create_entity(entity_data)

@@ -29,9 +29,6 @@ class MemoryService:
     async def create_entities(self, entities_data: List[Dict[str, Any]]) -> List[Entity]:
         """Create multiple entities with their observations."""
         entities_in = [EntityIn.model_validate(data) for data in entities_data]
-        print(f"\nCreating entities with observations:")
-        for e in entities_in:
-            print(f"Entity {e.name}: {len(e.observations)} observations")
 
         # Write files in parallel (filesystem is source of truth)
         async def write_file(entity: EntityIn):
@@ -41,14 +38,11 @@ class MemoryService:
         await asyncio.gather(*file_writes)
 
         async def create_entity_in_db(entity_in: EntityIn):
-            print(f"\nCreating entity in DB: {entity_in.name}")
-            db_entity = await self.entity_service.create_entity(entity_in)
-            print(f"Adding {len(entity_in.observations)} observations to DB for {entity_in.name}")
+            await self.entity_service.create_entity(entity_in)
             await self.observation_service.add_observations(entity_in, entity_in.observations)
             [await self.relation_service.create_relation(relation_in) for relation_in in entity_in.relations]
             # query the entity again to return relations
             final_entity = await self.entity_service.get_entity(entity_in.id)
-            print(f"Final entity {final_entity.name} has {len(final_entity.observations)} observations in DB")
             return final_entity
 
         # Update database index sequentially
@@ -91,27 +85,21 @@ class MemoryService:
         """
         # Create new observations
         new_observations = ObservationsIn.model_validate(observations_in)
-        print(f"\nAdding new observations to entity {new_observations.entity_id}")
-        print(f"New observations to add: {len(new_observations.observations)}")
 
         # Read entity from filesystem
         entity = await read_entity_file(self.entities_path, new_observations.entity_id)
-        print(f"Entity {entity.id} from file has {len(entity.observations)} observations")
-        
+
         # Create new observations for the entity
         for obs in new_observations.observations:
             entity.observations.append(obs)
-        print(f"After appending, entity has {len(entity.observations)} observations")
 
         # Write updated entity file
         await write_entity_file(self.entities_path, entity)
         
         # Update database index
         added_observations = await self.observation_service.add_observations(entity, new_observations.observations)
-        print(f"Added {len(added_observations)} observations to DB")
-        
+
         db_entity = await self.entity_service.get_entity(entity.id)
-        print(f"Entity {entity.id} in DB now has {len(db_entity.observations)} observations")
         return added_observations
 
     async def delete_entities(self, entity_names: List[str]) -> None:

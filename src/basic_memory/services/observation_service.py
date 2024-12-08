@@ -25,23 +25,31 @@ class ObservationService:
         Add multiple observations to an entity.
         Returns the created observations with IDs set.
         """
-        print(f"\nObservationService.add_observations called for entity {entity.id}")
-        print(f"Adding {len(observations)} observations")
-
         async def add_observation(observation: ObservationIn) -> Observation:
             try:
-                return await self.observation_repo.create({
+                obs = await self.observation_repo.create({
                     'entity_id': entity.id,
                     'content': observation.content,
                     'context': observation.context,
                     'created_at': datetime.now(UTC)
                 })
+                # Ensure each observation is flushed
+                await self.observation_repo.session.flush()
+                # Refresh to get latest state
+                await self.observation_repo.session.refresh(obs)
+                return obs
             except Exception as e:
                 raise DatabaseSyncError(f"Failed to add observation to database: {str(e)}") from e
 
         # Add each observation and collect the results
         created_observations = [await add_observation(obs) for obs in observations]
-        print(f"Created {len(created_observations)} observations in DB")
+
+        # Make sure observations are in sync before returning
+        # This helps ensure related entities see the new observations
+        await self.observation_repo.session.flush()
+        for obs in created_observations:
+            await self.observation_repo.session.refresh(obs)
+            
         return created_observations
 
     async def search_observations(self, query: str) -> List[Observation]:

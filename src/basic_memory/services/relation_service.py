@@ -25,8 +25,7 @@ class RelationService:
         try:
             db_data = relation.model_dump()
             db_data['created_at'] = datetime.now(UTC)
-            await self.relation_repo.create(db_data)
-            return relation
+            return await self.relation_repo.create(db_data)
         except Exception as e:
             raise DatabaseSyncError(f"Failed to sync relation to database: {str(e)}") from e
 
