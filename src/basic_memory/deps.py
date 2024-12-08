@@ -4,7 +4,9 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
 
 from basic_memory.models import Entity as DbEntity, Observation as DbObservation, Relation as DbRelation
-from basic_memory.repository import EntityRepository, ObservationRepository, RelationRepository
+from basic_memory.repository.entity_repository import EntityRepository
+from basic_memory.repository.observation_repository import ObservationRepository
+from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.services import EntityService, ObservationService, RelationService, MemoryService
 from basic_memory.db import DatabaseType, get_database_url, init_database, get_session
 

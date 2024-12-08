@@ -1,16 +1,9 @@
 """Tests for EntityService."""
 import pytest
-import pytest_asyncio
-from pathlib import Path
-import tempfile
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from basic_memory.fileio import EntityNotFoundError
-from basic_memory.models import Entity as DbEntity, Base, Entity
-from basic_memory.repository import EntityRepository
-from basic_memory.schemas import EntityIn, ObservationIn
-from basic_memory.services import EntityService
+from basic_memory.models import Entity
+from basic_memory.schemas import EntityIn
 
 pytestmark = pytest.mark.asyncio
 

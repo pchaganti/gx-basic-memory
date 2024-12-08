@@ -1,8 +1,9 @@
 """Service for managing entities in the database."""
 from datetime import datetime, UTC
 from pathlib import Path
+from typing import List
 
-from basic_memory.repository import EntityRepository
+from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas import EntityIn, ObservationIn
 from basic_memory.models import Entity, Observation
 from basic_memory.fileio import EntityNotFoundError
@@ -18,6 +19,10 @@ class EntityService:
     def __init__(self, project_path: Path, entity_repo: EntityRepository):
         self.project_path = project_path
         self.entity_repo = entity_repo
+
+    async def search(self, query: str) -> List[Entity]:
+        """Search entities using LIKE pattern matching."""
+        return await self.entity_repo.search(query)
 
     async def create_entity(self, entity: EntityIn) -> Entity:
         """Create a new entity in the database.

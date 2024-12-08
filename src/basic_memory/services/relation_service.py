@@ -5,7 +5,7 @@ from typing import Dict, Any
 from sqlalchemy import delete
 
 from basic_memory.models import Relation as DbRelation, Relation
-from basic_memory.repository import RelationRepository
+from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.schemas import EntityIn, RelationIn
 from . import ServiceError, DatabaseSyncError, RelationError
 

@@ -5,7 +5,7 @@ from typing import List
 from sqlalchemy import select, delete
 
 from basic_memory.models import Observation
-from basic_memory.repository import ObservationRepository
+from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.schemas import EntityIn, ObservationIn
 from . import DatabaseSyncError
 
