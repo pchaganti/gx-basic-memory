@@ -1,9 +1,9 @@
 """Tests for the MemoryService class."""
 import pytest
-
 from basic_memory.services import MemoryService
 from basic_memory.fileio import read_entity_file
 from basic_memory.models import Entity as EntityModel
+from basic_memory.schemas import ObservationsIn, ObservationIn
 
 test_entities_data = [
     {
@@ -46,6 +46,55 @@ async def test_create_entities(memory_service: MemoryService):
     entity2_path = memory_service.entities_path / entities[1].file_name()
     assert entity1_path.exists()
     assert entity2_path.exists()
+
+@pytest.mark.asyncio
+async def test_add_observations(memory_service: MemoryService):
+    """Should add observations to an existing entity."""
+    # First create an entity
+    entities = await memory_service.create_entities([test_entities_data[0]])
+    entity = entities[0]
+
+    # Create observations input
+    observations_data = {
+        "entity_id": entity.id,
+        "observations": [
+            {"content": "New observation 1"},
+            {"content": "New observation 2", "context": "test context"}
+        ]
+    }
+
+    # Add observations
+    result = await memory_service.add_observations(observations_data)
+
+    # Check the result
+    assert result.entity_id == entity.id
+    assert len(result.observations) == 2
+    assert result.observations[0].content == "New observation 1"
+    assert result.observations[0].context is None
+    assert result.observations[1].content == "New observation 2"
+    assert result.observations[1].context == "test context"
+
+    # Verify file was updated
+    updated_entity = await read_entity_file(memory_service.entities_path, entity.id)
+    assert len(updated_entity.observations) == 4  # 2 original + 2 new
+    assert updated_entity.observations[2].content == "New observation 1"
+    assert updated_entity.observations[3].content == "New observation 2"
+    assert updated_entity.observations[3].context == "test context"
+
+    # Verify database was updated via observation service
+    db_entity = await memory_service.entity_service.get_entity(entity.id)
+    assert len(db_entity.observations) == 4
+
+@pytest.mark.asyncio
+async def test_add_observations_nonexistent_entity(memory_service: MemoryService):
+    """Should raise an appropriate error when adding observations to a non-existent entity."""
+    observations_data = {
+        "entity_id": "nonexistent-id",
+        "observations": [{"content": "Test observation"}]
+    }
+    
+    with pytest.raises(Exception) as exc:  # We might want to define a specific error type
+        await memory_service.add_observations(observations_data)
 
 @pytest.mark.asyncio
 async def test_create_relations(memory_service: MemoryService):

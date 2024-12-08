@@ -3,7 +3,6 @@ Core pydantic models for basic-memory entities, observations, and relations.
 These models define the schema for our core data types while remaining 
 independent from storage/persistence concerns.
 """
-
 from datetime import datetime, UTC
 from typing import List, Optional, Dict, Any
 from uuid import uuid4
@@ -11,29 +10,42 @@ from uuid import uuid4
 from pydantic import BaseModel, model_validator
 
 
+class ObservationIn(BaseModel):
+    """Schema for creating a single observation."""
+    content: str
+    context: Optional[str] = None
+
+class ObservationsIn(BaseModel):
+    """Schema for adding observations to an entity."""
+    entity_id: str  # Maps to Entity.id
+    observations: List[ObservationIn]
+
+class ObservationOut(ObservationIn):
+    """Schema for observation data returned from the service."""
+    id: int
+
+class ObservationsOut(BaseModel):
+    """Schema for bulk observation operation results."""
+    entity_id: str
+    observations: List[ObservationOut]
+
+# Original schemas kept for now until we migrate everything
 class Observation(BaseModel):
     """An atomic piece of information about an entity."""
     id: Optional[int] = None  # Let the database handle ID generation
     content: str
     context: Optional[str] = None
 
-
-class ObservationCreate(BaseModel):
-    """Schema for creating a new observation."""
-    content: str
-
-
 class Relation(BaseModel):
     """
     Represents a directed edge between entities in the knowledge graph.
     Relations are always stored in active voice (e.g. "created", "teaches", etc.)
     """
-    id: Optional[int] = None  # Let the database handle ID generation
-    from_id: str             # Reference to Entity text ID
-    to_id: str              # Reference to Entity text ID
+    id: Optional[int] = None
+    from_id: str
+    to_id: str              
     relation_type: str
     context: Optional[str] = None
-
 
 class Entity(BaseModel):
     """
@@ -44,8 +56,6 @@ class Entity(BaseModel):
     id: str                         # Text ID for filesystem references
     name: str
     entity_type: str
-    description: str = ""           # Match DB default
-    references: str = ""            # Match DB default
     observations: List[Observation] = []
     relations: List[Relation] = []
 

@@ -3,7 +3,10 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
-from basic_memory.schemas import Entity, Observation, Relation
+from basic_memory.schemas import (
+    Entity, Observation, Relation,
+    ObservationsIn, ObservationsOut, ObservationOut
+)
 from basic_memory.fileio import write_entity_file, read_entity_file, delete_entity_file
 from basic_memory.services import EntityService, RelationService, ObservationService
 
@@ -65,26 +68,46 @@ class MemoryService:
 
         return relations
 
-    async def add_observations(self, observations_data: List[Dict[str, Any]]) -> None:
-        """Add observations to existing entities."""
-        # First read all entities and create their observations
-        entity_updates = []
-        for data in observations_data:
-            entity = await read_entity_file(self.entities_path, data["entityName"])
-            new_observations = [Observation(content=content) for content in data["contents"]]
-            entity.observations.extend(new_observations)
-            entity_updates.append(entity)
+    async def add_observations(self, observations_in: Dict[str, Any]) -> ObservationsOut:
+        """Add observations to an existing entity.
+        
+        Args:
+            observations_in: input containing entity_name and observations
+            
+        Returns:
+            ObservationsOut containing the created observations with IDs
+        """
+        # Create new observations
+        new_observations = ObservationsIn.model_validate(observations_in)
 
-        # Write updated entities in parallel
-        async def write_file(entity: Entity):
-            await write_entity_file(self.entities_path, entity)
+        # Read entity from filesystem
+        entity = await read_entity_file(self.entities_path, new_observations.entity_id)
 
-        file_writes = [write_file(entity) for entity in entity_updates]
-        await asyncio.gather(*file_writes)
+        # Convert ObservationIn to Observation before adding to entity
+        entity_observations = [
+            Observation(content=obs.content, context=obs.context)
+            for obs in new_observations.observations
+        ]
+        entity.observations.extend(entity_observations)
 
-        # Update database indexes sequentially
-        for entity in entity_updates:
-            await self.entity_service.rebuild_index(entity)
+        # Write updated entity file
+        await write_entity_file(self.entities_path, entity)
+        
+        # Update database index
+        added_observations = await self.observation_service.add_observations(entity, new_observations.observations)
+        
+        # Create and return output model
+        return ObservationsOut(
+            entity_id=entity.id,
+            observations=[
+                ObservationOut(
+                    id=obs.id,
+                    content=obs.content,
+                    context=obs.context
+                )
+                for obs in added_observations
+            ]
+        )
 
     async def delete_entities(self, entity_names: List[str]) -> None:
         """Delete multiple entities and their associated data."""
