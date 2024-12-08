@@ -1,19 +1,20 @@
 """MCP server implementation for basic-memory."""
-from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from mcp.server import Server
 from mcp.types import Tool, TextContent, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
 from mcp.shared.exceptions import McpError
 
-from basic_memory import deps
-from basic_memory.schemas import EntityIn, ObservationIn, RelationIn
+from basic_memory.config import ProjectConfig, create_project_services
+from basic_memory.schemas import ObservationIn, RelationIn, EntityIn
+from basic_memory.services.memory_service import MemoryService
 
 class MemoryServer(Server):
     """Extended server class that exposes handlers for testing."""
     
-    def __init__(self):
+    def __init__(self, config: Optional[ProjectConfig] = None):
         super().__init__("basic-memory")
+        self.config = config or ProjectConfig()
         self.register_handlers()
     
     def register_handlers(self):
@@ -141,50 +142,55 @@ class MemoryServer(Server):
             ]
         
         @self.call_tool()
-        async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+        async def handle_call_tool(
+            name: str, 
+            arguments: Dict[str, Any],
+            *,
+            memory_service: Optional[MemoryService] = None
+        ) -> List[TextContent]:
             """Handle tool calls by delegating to the memory service."""
             try:
-                # Get project path (could come from context in future)
-                project_path = Path.home() / ".basic-memory" / "projects" / "default"
+                service = await create_project_services(
+                    self.config,
+                    memory_service=memory_service
+                )
 
-                # Get services with proper lifecycle management
-                async with deps.get_project_services(project_path) as memory_service:
-                    match name:
-                        case "create_entities":
-                            # Each entity in arguments["entities"] will be validated by EntityIn
-                            result = await memory_service.create_entities(arguments["entities"])
-                            return [TextContent(type="text", text=str(result))]
-                        
-                        case "search_nodes":
-                            result = await memory_service.search_nodes(arguments["query"])
-                            return [TextContent(type="text", text=str(result))]
-                            
-                        case "open_nodes":
-                            result = await memory_service.open_nodes(arguments["names"])
-                            return [TextContent(type="text", text=str(result))]
-                            
-                        case "add_observations":
-                            result = await memory_service.add_observations(arguments)
-                            return [TextContent(type="text", text=str(result))]
-                            
-                        case "create_relations":
-                            result = await memory_service.create_relations(arguments["relations"])
-                            return [TextContent(type="text", text=str(result))]
-                            
-                        case "delete_entities":
-                            await memory_service.delete_entities(arguments["names"])
-                            return [TextContent(type="text", text="Entities deleted")]
-                            
-                        case "delete_observations":
-                            await memory_service.delete_observations(arguments["deletions"])
-                            return [TextContent(type="text", text="Observations deleted")]
-                        
-                        case _:
-                            raise McpError(
-                                METHOD_NOT_FOUND,
-                                f"Unknown tool: {name}"
-                            )
+                match name:
+                    case "create_entities":
+                        # Each entity in arguments["entities"] will be validated by EntityIn
+                        result = await service.create_entities(arguments["entities"])
+                        return [TextContent(type="text", text=str(result))]
                     
+                    case "search_nodes":
+                        result = await service.search_nodes(arguments["query"])
+                        return [TextContent(type="text", text=str(result))]
+                        
+                    case "open_nodes":
+                        result = await service.open_nodes(arguments["names"])
+                        return [TextContent(type="text", text=str(result))]
+                        
+                    case "add_observations":
+                        result = await service.add_observations(arguments)
+                        return [TextContent(type="text", text=str(result))]
+                        
+                    case "create_relations":
+                        result = await service.create_relations(arguments["relations"])
+                        return [TextContent(type="text", text=str(result))]
+                        
+                    case "delete_entities":
+                        await service.delete_entities(arguments["names"])
+                        return [TextContent(type="text", text="Entities deleted")]
+                        
+                    case "delete_observations":
+                        await service.delete_observations(arguments["deletions"])
+                        return [TextContent(type="text", text="Observations deleted")]
+                    
+                    case _:
+                        raise McpError(
+                            METHOD_NOT_FOUND,
+                            f"Unknown tool: {name}"
+                        )
+                
             except ValueError as e:
                 raise McpError(INVALID_PARAMS, str(e))
             except Exception as e:
@@ -194,7 +200,7 @@ class MemoryServer(Server):
         self.handle_list_tools = handle_list_tools
         self.handle_call_tool = handle_call_tool
 
-# Create server instance
+# Create server instance with default config
 server = MemoryServer()
 
 async def run_server():
