@@ -2,10 +2,8 @@
 import pytest_asyncio
 from pathlib import Path
 import tempfile
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
 
-from basic_memory.models import Base
+from basic_memory.db import DatabaseType, get_database_url, init_database, get_session, dispose_database
 from basic_memory.deps import (
     get_entity_repo, 
     get_observation_repo, 
@@ -17,36 +15,30 @@ from basic_memory.deps import (
 )
 from basic_memory.schemas import EntityIn
 
-
 @pytest_asyncio.fixture(scope="function")
 async def engine():
-    """Create an async engine using in-memory SQLite database"""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-        poolclass=StaticPool,
-        connect_args={"check_same_thread": False}
-    )
-    
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
+    """Create an async engine using in-memory SQLite database."""
+    url = get_database_url(DatabaseType.MEMORY)
+    engine = await init_database(url)
     try:
         yield engine
     finally:
-        await engine.dispose()
+        await dispose_database(engine)
 
 @pytest_asyncio.fixture(scope="function")
 async def session(engine):
-    """Create an async session factory and yield a session"""
-    async_session = async_sessionmaker(engine)  # Removed expire_on_commit=False
-    async with async_session() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
+    """Create a database session with proper lifecycle management."""
+    async with get_session(engine) as session:
+        yield session
+
+@pytest_asyncio.fixture
+async def test_project_path():
+    """Create a temporary project directory."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        project_path = Path(temp_dir) / "test-project"
+        entities_path = project_path / "entities"
+        entities_path.mkdir(parents=True)
+        yield project_path
 
 @pytest_asyncio.fixture
 async def entity_repo(session):
@@ -62,15 +54,6 @@ async def observation_repo(session):
 async def relation_repo(session):
     """Create a RelationRepository instance."""
     return await get_relation_repo(session)
-
-@pytest_asyncio.fixture
-async def test_project_path():
-    """Create a temporary project directory."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        project_path = Path(temp_dir) / "test-project"
-        entities_path = project_path / "entities"
-        entities_path.mkdir(parents=True)
-        yield project_path
 
 @pytest_asyncio.fixture
 async def entity_service(test_project_path, entity_repo):

@@ -1,93 +1,86 @@
-from mcp.server import Server
-from mcp.types import Tool, Prompt, GetPromptResult, PromptArgument
-from typing import List, Dict, Any, Optional
+"""MCP server implementation for basic-memory."""
 from pathlib import Path
+from typing import Annotated, List, Dict, Any
 
-from ..services.memory_service import MemoryService
+from mcp.server import Server
+from mcp.types import Tool, TextContent, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
+from mcp.shared.exceptions import McpError
+from pydantic import BaseModel, Field
 
-class MemoryServer(Server):
-    """MCP server implementation for basic-memory."""
-    
-    def __init__(self):
-        self.memory_service: Optional[MemoryService] = None
-        
-    async def get_project_prompt(self) -> GetPromptResult:
-        """Prompt to select which project to work with."""
-        return GetPromptResult(
-            prompt=Prompt(
-                name="project",
-                description="Select a project to work with",
-                arguments=[
-                    PromptArgument(
-                        name="project_name", 
-                        description="Name of the project to load"
-                    )
-                ]
-            )
+from basic_memory import deps
+
+# Create server instance
+server = Server("basic-memory")
+
+# Parameter models
+class CreateEntitiesParams(BaseModel):
+    """Parameters for creating entities."""
+    entities: Annotated[List[Dict[str, Any]], Field(
+        description="List of entities to create",
+        min_items=1
+    )]
+
+class SearchNodesParams(BaseModel):
+    """Parameters for searching nodes."""
+    query: Annotated[str, Field(
+        description="Search query to match against entities"
+    )]
+
+@server.list_tools()
+async def list_tools() -> List[Tool]:
+    """Define the available tools."""
+    return [
+        Tool(
+            name="create_entities",
+            description="Create multiple new entities in the knowledge graph",
+            inputSchema=CreateEntitiesParams.model_json_schema()
+        ),
+        Tool(
+            name="search_nodes",
+            description="Search for nodes in the knowledge graph",
+            inputSchema=SearchNodesParams.model_json_schema()
         )
+    ]
 
-    async def initialize_project(self, project_name: str) -> None:
-        """Initialize the memory service for a specific project."""
-        project_path = Path.home() / ".basic-memory" / "projects" / project_name
-        self.memory_service = MemoryService(project_path)
+@server.call_tool()
+async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+    """Handle tool calls by delegating to the memory service."""
+    try:
+        # Get project path (could come from context in future)
+        project_path = Path.home() / ".basic-memory" / "projects" / "default"
 
-    async def ensure_initialized(self) -> None:
-        """Ensure we have an initialized memory service."""
-        if not self.memory_service:
-            project = await self.get_project_prompt()
-            await self.initialize_project(project.prompt.arguments[0].value)
+        # Get services with proper lifecycle management
+        async with deps.get_project_services(project_path) as memory_service:
+            match name:
+                case "create_entities":
+                    params = CreateEntitiesParams(**arguments)
+                    result = await memory_service.create_entities(params.entities)
+                    return [TextContent(type="text", text=str(result))]
+                
+                case "search_nodes":
+                    params = SearchNodesParams(**arguments)
+                    result = await memory_service.search_nodes(params.query)
+                    return [TextContent(type="text", text=str(result))]
+                
+                case _:
+                    raise McpError(
+                        METHOD_NOT_FOUND,
+                        f"Unknown tool: {name}"
+                    )
+                    
+    except ValueError as e:
+        raise McpError(INVALID_PARAMS, str(e))
+    except Exception as e:
+        raise McpError(INTERNAL_ERROR, str(e))
 
-    async def create_entities(self, entities: List[Dict[str, Any]]) -> Tool:
-        """Create new entities in the knowledge graph."""
-        await self.ensure_initialized()
-        result = await self.memory_service.create_entities(entities)
-        return [entity.model_dump() for entity in result]
-
-    async def create_relations(self, relations: List[Dict[str, Any]]) -> Tool:
-        """Create new relations between entities."""
-        await self.ensure_initialized()
-        result = await self.memory_service.create_relations(relations)
-        return [relation.model_dump() for relation in result]
-
-    async def add_observations(self, observations: List[Dict[str, Any]]) -> Tool:
-        """Add observations to existing entities."""
-        await self.ensure_initialized()
-        await self.memory_service.add_observations(observations)
-        return {"status": "success"}
-
-    async def delete_entities(self, entity_names: List[str]) -> Tool:
-        """Delete entities from the knowledge graph."""
-        await self.ensure_initialized()
-        await self.memory_service.delete_entities(entity_names)
-        return {"status": "success"}
-
-    async def delete_observations(self, deletions: List[Dict[str, Any]]) -> Tool:
-        """Delete specific observations from entities."""
-        await self.ensure_initialized()
-        await self.memory_service.delete_observations(deletions)
-        return {"status": "success"}
-
-    async def delete_relations(self, relations: List[Dict[str, Any]]) -> Tool:
-        """Delete specific relations between entities."""
-        await self.ensure_initialized()
-        await self.memory_service.delete_relations(relations)
-        return {"status": "success"}
-
-    async def read_graph(self) -> Tool:
-        """Read the entire knowledge graph."""
-        await self.ensure_initialized()
-        return await self.memory_service.read_graph()
-
-    async def search_nodes(self, query: str) -> Tool:
-        """Search for nodes in the knowledge graph."""
-        await self.ensure_initialized()
-        return await self.memory_service.search_nodes(query)
-
-    async def open_nodes(self, names: List[str]) -> Tool:
-        """Get specific nodes and their relationships."""
-        await self.ensure_initialized()
-        return await self.memory_service.open_nodes(names)
+async def run_server():
+    """Run the MCP server."""
+    from mcp.server.stdio import stdio_server
+    
+    options = server.create_initialization_options()
+    async with stdio_server() as (read_stream, write_stream):
+        await server.run(read_stream, write_stream, options)
 
 if __name__ == "__main__":
-    server = MemoryServer()
-    server.run()
+    import asyncio
+    asyncio.run(run_server())

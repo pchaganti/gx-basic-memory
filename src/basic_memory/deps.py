@@ -1,10 +1,12 @@
 """Dependency injection functions for basic-memory services."""
+from contextlib import asynccontextmanager
 from pathlib import Path
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
 
 from basic_memory.models import Entity as DbEntity, Observation as DbObservation, Relation as DbRelation
 from basic_memory.repository import EntityRepository, ObservationRepository, RelationRepository
 from basic_memory.services import EntityService, ObservationService, RelationService, MemoryService
+from basic_memory.db import DatabaseType, get_database_url, init_database, get_session
 
 async def get_entity_repo(session: AsyncSession) -> EntityRepository:
     """Get an EntityRepository instance."""
@@ -52,3 +54,44 @@ async def get_memory_service(
         relation_service=relation_service,
         observation_service=observation_service
     )
+
+@asynccontextmanager
+async def get_engine(project_path: Path):
+    """Get database engine for project with proper lifecycle management."""
+    url = get_database_url(DatabaseType.FILESYSTEM, project_path)
+    engine = await init_database(url)
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
+
+@asynccontextmanager
+async def get_services(engine: AsyncEngine, project_path: Path):
+    """Get all services with proper session and lifecycle management."""
+    async with get_session(engine) as session:
+        # Create repos
+        entity_repo = await get_entity_repo(session)
+        observation_repo = await get_observation_repo(session)
+        relation_repo = await get_relation_repo(session)
+
+        # Create services
+        entity_service = await get_entity_service(project_path, entity_repo)
+        observation_service = await get_observation_service(project_path, observation_repo)
+        relation_service = await get_relation_service(project_path, relation_repo)
+
+        # Create memory service
+        memory_service = await get_memory_service(
+            project_path=project_path,
+            entity_service=entity_service,
+            relation_service=relation_service,
+            observation_service=observation_service
+        )
+
+        yield memory_service
+
+@asynccontextmanager
+async def get_project_services(project_path: Path):
+    """Get all services for a project with full lifecycle management."""
+    async with get_engine(project_path) as engine:
+        async with get_services(engine, project_path) as services:
+            yield services
