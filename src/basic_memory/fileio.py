@@ -4,7 +4,7 @@ Handles reading and writing entities and observations to the filesystem.
 """
 from pathlib import Path
 
-from basic_memory.schemas import Entity, Observation, Relation
+from basic_memory.schemas import EntityIn, ObservationIn, RelationIn
 
 
 class FileOperationError(Exception):
@@ -17,7 +17,7 @@ class EntityNotFoundError(Exception):
     pass
 
 
-async def write_entity_file(entities_path: Path, entity: Entity) -> bool:
+async def write_entity_file(entities_path: Path, entity: EntityIn) -> bool:
     """
     Write entity to filesystem in markdown format.
     
@@ -49,7 +49,10 @@ async def write_entity_file(entities_path: Path, entity: Entity) -> bool:
 
     # Add observations
     for obs in entity.observations:
-        content.append(f"- {obs.content}\n")
+        obs_line = f"- {obs.content}"
+        if obs.context:
+            obs_line += f" | {obs.context}"
+        content.append(f"{obs_line}\n")
         
     # Add relations section if we have relations
     if hasattr(entity, 'relations') and entity.relations:
@@ -80,7 +83,7 @@ async def write_entity_file(entities_path: Path, entity: Entity) -> bool:
     return True
 
 
-async def read_entity_file(entities_path: Path, entity_id: str) -> Entity:
+async def read_entity_file(entities_path: Path, entity_id: str) -> EntityIn:
     """
     Read entity data from filesystem.
     
@@ -131,7 +134,12 @@ async def read_entity_file(entities_path: Path, entity_id: str) -> Entity:
             in_observations = False
             in_relations = True
         elif in_observations and line.startswith("- "):
-            observations.append(Observation(content=line[2:]))
+            # Parse observation line: content | context
+            line = line[2:]  # Remove the "- "
+            parts = line.split(" | ", 1)
+            content = parts[0]
+            context = parts[1] if len(parts) > 1 else None
+            observations.append(ObservationIn(content=content, context=context))
         elif in_relations and line.startswith("- "):
             # Parse relation line: - [target_id] relation_type | context
             line = line[2:]  # Remove the bullet point
@@ -148,17 +156,18 @@ async def read_entity_file(entities_path: Path, entity_id: str) -> Entity:
             context = parts[1] if len(parts) > 1 else None
             
             # Create temporary entities for the relation
-            target_entity = Entity(id=target_id, name=target_id, entity_type="unknown")
-            source_entity = Entity(id=entity_id, name=name, entity_type=entity_type)
+            # TODO what is this for?
+            target_entity = EntityIn(id=target_id, name=target_id, entity_type="unknown")
+            source_entity = EntityIn(id=entity_id, name=name, entity_type=entity_type)
             
-            relations.append(Relation(
+            relations.append(RelationIn(
                 from_id=source_entity.id,
                 to_id=target_entity.id,
                 relation_type=relation_type,
                 context=context
             ))
     
-    return Entity(
+    return EntityIn(
         id=entity_id,
         name=name,
         entity_type=entity_type,

@@ -3,8 +3,8 @@ from datetime import datetime, UTC
 from pathlib import Path
 
 from basic_memory.repository import EntityRepository
-from basic_memory.schemas import Entity
-from basic_memory.models import Entity as EntityModel
+from basic_memory.schemas import EntityIn
+from basic_memory.models import Entity
 from . import ServiceError
 
 class EntityService:
@@ -17,7 +17,7 @@ class EntityService:
         self.project_path = project_path
         self.entity_repo = entity_repo
 
-    async def create_entity(self, entity: Entity) -> EntityModel:
+    async def create_entity(self, entity: EntityIn) -> Entity:
         """Create a new entity in the database."""
         # Create DB record
         db_data = {
@@ -26,7 +26,7 @@ class EntityService:
         }
         return await self.entity_repo.create(db_data)
 
-    async def get_entity(self, entity_id: str) -> EntityModel:
+    async def get_entity(self, entity_id: str) -> Entity:
         """Get entity by ID."""
         db_entity = await self.entity_repo.find_by_id(entity_id)
         if not db_entity:
@@ -35,7 +35,7 @@ class EntityService:
         return db_entity
 
     # TODO name is not uniaue
-    async def get_by_name(self, name: str) -> EntityModel:
+    async def get_by_name(self, name: str) -> Entity:
         """Get entity by name."""
         db_entity = await self.entity_repo.find_by_name(name)
         if not db_entity:

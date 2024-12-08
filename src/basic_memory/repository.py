@@ -179,28 +179,23 @@ class EntityRepository(Repository[Entity]):
     
     async def find_by_id(self, entity_id: str) -> Optional[Entity]:
         """
-        Find entity by ID with relations eagerly loaded.
+        Find entity by ID with all relationships eagerly loaded.
         
-        Uses selectinload to eagerly load outgoing and incoming relations in a single query.
-        This is necessary because:
+        Uses selectinload to eagerly load observations, outgoing and incoming relations
+        in a single query. This is necessary because:
         1. In async code, lazy loading relations after the session closes doesn't work
-        2. Our service layer often needs the complete entity with its relations
-        3. Using a single query with selectinload is more efficient than multiple lazy-loaded queries
-        
+        2. Our service layer often needs the complete entity 
+        3. Using a single query with selectinload is more efficient
+
         :param entity_id: Entity ID to search for
-        :return: Entity if found with all relations loaded, None otherwise
-        
-        Example:
-            entity = await repo.find_by_id('20240102-entity-123')
-            # Relations are already loaded - no additional queries needed
-            for relation in entity.outgoing_relations:
-                print(f"Related to {relation.to_id} via {relation.relation_type}")
+        :return: Entity if found with everything loaded, None otherwise
         """
         try:
             result = await self.session.execute(
                 select(Entity)
                 .filter(Entity.id == entity_id)
                 .options(
+                    selectinload(Entity.observations),
                     selectinload(Entity.outgoing_relations),
                     selectinload(Entity.incoming_relations)
                 )
@@ -216,7 +211,15 @@ class EntityRepository(Repository[Entity]):
         :param name: Entity name to search for
         :return: Entity if found, None otherwise
         """
-        query = select(Entity).filter(Entity.name == name)
+        query = (
+            select(Entity)
+            .filter(Entity.name == name)
+            .options(
+                selectinload(Entity.observations),
+                selectinload(Entity.outgoing_relations),
+                selectinload(Entity.incoming_relations)
+            )
+        )
         return await self.find_one(query)
     
     async def search_by_type(self, entity_type: str, skip: int = 0, limit: int = 100) -> Sequence[Entity]:

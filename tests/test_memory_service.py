@@ -2,8 +2,8 @@
 import pytest
 from basic_memory.services import MemoryService
 from basic_memory.fileio import read_entity_file
-from basic_memory.models import Entity as EntityModel
-from basic_memory.schemas import ObservationsIn, ObservationIn
+from basic_memory.models import Entity as EntityModel, Observation, Relation
+from basic_memory.schemas import EntityIn
 
 test_entities_data = [
     {
@@ -21,10 +21,10 @@ test_entities_data = [
 @pytest.mark.asyncio
 async def test_create_entities(memory_service: MemoryService):
     """Should create multiple entities in parallel with their observations."""
-    # Create entities
+    # Create entities - returns List[models.Entity]
     entities = await memory_service.create_entities(test_entities_data)
 
-    # Verify the entities were created
+    # Verify the SQLAlchemy models were created
     assert len(entities) == 2
 
     # Check first entity
@@ -41,16 +41,17 @@ async def test_create_entities(memory_service: MemoryService):
     assert entities[1].observations[0].content == "Observation 2.1"
     assert entities[1].observations[1].content == "Observation 2.2"
 
-    # Verify files were created
-    entity1_path = memory_service.entities_path / entities[0].file_name()
-    entity2_path = memory_service.entities_path / entities[1].file_name()
-    assert entity1_path.exists()
-    assert entity2_path.exists()
+    # Verify files were created (returns Pydantic Entity)
+    file_entity1 = await read_entity_file(memory_service.entities_path, entities[0].id)
+    file_entity2 = await read_entity_file(memory_service.entities_path, entities[1].id)
+    
+    assert file_entity1.name == "Test_Entity_1"
+    assert file_entity2.name == "Test_Entity_2"
 
 @pytest.mark.asyncio
 async def test_add_observations(memory_service: MemoryService):
     """Should add observations to an existing entity."""
-    # First create an entity
+    # First create an entity - returns SQLAlchemy Entity
     entities = await memory_service.create_entities([test_entities_data[0]])
     entity = entities[0]
 
@@ -63,25 +64,24 @@ async def test_add_observations(memory_service: MemoryService):
         ]
     }
 
-    # Add observations
-    result = await memory_service.add_observations(observations_data)
+    # Add observations - returns List[models.Observation]
+    added_observations = await memory_service.add_observations(observations_data)
 
-    # Check the result
-    assert result.entity_id == entity.id
-    assert len(result.observations) == 2
-    assert result.observations[0].content == "New observation 1"
-    assert result.observations[0].context is None
-    assert result.observations[1].content == "New observation 2"
-    assert result.observations[1].context == "test context"
+    # Check the SQLAlchemy model results
+    assert len(added_observations) == 2
+    assert added_observations[0].content == "New observation 1"
+    assert added_observations[0].context is None
+    assert added_observations[1].content == "New observation 2" 
+    assert added_observations[1].context == "test context"
 
-    # Verify file was updated
+    # Verify file was updated - returns Pydantic Entity
     updated_entity = await read_entity_file(memory_service.entities_path, entity.id)
     assert len(updated_entity.observations) == 4  # 2 original + 2 new
     assert updated_entity.observations[2].content == "New observation 1"
     assert updated_entity.observations[3].content == "New observation 2"
     assert updated_entity.observations[3].context == "test context"
 
-    # Verify database was updated via observation service
+    # Verify database - returns SQLAlchemy Entity
     db_entity = await memory_service.entity_service.get_entity(entity.id)
     assert len(db_entity.observations) == 4
 
@@ -99,7 +99,7 @@ async def test_add_observations_nonexistent_entity(memory_service: MemoryService
 @pytest.mark.asyncio
 async def test_create_relations(memory_service: MemoryService):
     """Should create relations between entities and update both filesystem and database."""
-    # First create the entities
+    # First create entities - returns List[models.Entity]
     entities = await memory_service.create_entities(test_entities_data)
     entity1, entity2 = entities
 
@@ -118,10 +118,10 @@ async def test_create_relations(memory_service: MemoryService):
         }
     ]
 
-    # Create relations
+    # Create relations - returns List[models.Relation]
     relations = await memory_service.create_relations(test_relations_data)
 
-    # Verify relations were created
+    # Verify SQLAlchemy Relation models were created
     assert len(relations) == 2
 
     # Check first relation
@@ -136,7 +136,7 @@ async def test_create_relations(memory_service: MemoryService):
     assert relations[1].relation_type == "references"
     assert relations[1].context == "test context"
 
-    # Read updated entities from filesystem to verify relations
+    # Read updated entities from filesystem - returns Pydantic Entities
     updated_entity1 = await read_entity_file(memory_service.entities_path, entity1.id)
     updated_entity2 = await read_entity_file(memory_service.entities_path, entity2.id)
 
@@ -153,10 +153,9 @@ async def test_create_relations(memory_service: MemoryService):
     assert updated_entity2.relations[0].relation_type == "references"
     assert updated_entity2.relations[0].context == "test context"
 
-    # Now verify database state
-    # Get entities from database
-    db_entity1: EntityModel = await memory_service.entity_service.get_entity(entity1.id)
-    db_entity2: EntityModel = await memory_service.entity_service.get_entity(entity2.id)
+    # Now verify database state - get SQLAlchemy Entity models
+    db_entity1 = await memory_service.entity_service.get_entity(entity1.id)
+    db_entity2 = await memory_service.entity_service.get_entity(entity2.id)
 
     # Entity 1 should have one outgoing relation to entity 2
     assert len(db_entity1.outgoing_relations) == 1
@@ -181,7 +180,7 @@ async def test_create_relations(memory_service: MemoryService):
 @pytest.mark.asyncio
 async def test_create_relations_with_invalid_entity_id(memory_service: MemoryService):
     """Should raise an appropriate error when trying to create relations with non-existent entity IDs."""
-    # Create only one entity
+    # Create one entity - returns SQLAlchemy Entity
     entities = await memory_service.create_entities([test_entities_data[0]])
     entity1 = entities[0]
 

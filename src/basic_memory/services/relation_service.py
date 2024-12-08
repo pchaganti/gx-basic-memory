@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Dict, Any
 from sqlalchemy import delete
 
-from basic_memory.models import Relation as DbRelation
+from basic_memory.models import Relation as DbRelation, Relation
 from basic_memory.repository import RelationRepository
-from basic_memory.schemas import Entity, Relation
+from basic_memory.schemas import EntityIn, RelationIn
 from . import ServiceError, DatabaseSyncError, RelationError
 
 
@@ -20,7 +20,7 @@ class RelationService:
         self.project_path = project_path
         self.relation_repo = relation_repo
 
-    async def create_relation(self, relation: Relation) -> Relation:
+    async def create_relation(self, relation: RelationIn) -> Relation:
         """Create a new relation in the database."""
         try:
             db_data = relation.model_dump()
@@ -30,7 +30,7 @@ class RelationService:
         except Exception as e:
             raise DatabaseSyncError(f"Failed to sync relation to database: {str(e)}") from e
 
-    async def delete_relation(self, from_entity: Entity, to_entity: Entity, relation_type: str) -> bool:
+    async def delete_relation(self, from_entity: EntityIn, to_entity: EntityIn, relation_type: str) -> bool:
         """Delete a specific relation between entities."""
         # Find and remove the relation from the entity's relations
         if hasattr(from_entity, 'relations'):
