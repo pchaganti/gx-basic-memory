@@ -7,8 +7,7 @@ from datetime import datetime, UTC
 from typing import List, Optional, Dict, Any
 from uuid import uuid4
 
-from pydantic import BaseModel, model_validator
-
+from pydantic import BaseModel, Field, model_validator
 
 class ObservationIn(BaseModel):
     """Schema for creating a single observation."""
@@ -17,8 +16,11 @@ class ObservationIn(BaseModel):
 
 class ObservationsIn(BaseModel):
     """Schema for adding observations to an entity."""
-    entity_id: str  # Maps to Entity.id
+    entity_id: str = Field(alias="entityId")  # Maps to Entity.id
     observations: List[ObservationIn]
+
+    class Config:
+        populate_by_name = True
 
 class ObservationOut(ObservationIn):
     """Schema for observation data returned from the service."""
@@ -26,19 +28,24 @@ class ObservationOut(ObservationIn):
 
 class ObservationsOut(BaseModel):
     """Schema for bulk observation operation results."""
-    entity_id: str
+    entity_id: str = Field(alias="entityId")
     observations: List[ObservationOut]
 
+    class Config:
+        populate_by_name = True
 
 class RelationIn(BaseModel):
     """
     Represents a directed edge between entities in the knowledge graph.
     Relations are always stored in active voice (e.g. "created", "teaches", etc.)
     """
-    from_id: str
-    to_id: str              
-    relation_type: str
+    from_id: str = Field(alias="fromId")
+    to_id: str = Field(alias="toId")              
+    relation_type: str = Field(alias="relationType")
     context: Optional[str] = None
+
+    class Config:
+        populate_by_name = True
 
 class RelationOut(BaseModel):
     id: int
@@ -47,7 +54,7 @@ class EntityBase(BaseModel):
     # id assigned at creation via model_validator
     id: str
     name: str
-    entity_type: str
+    entity_type: str = Field(alias="entityType")
 
     @model_validator(mode='before')
     @classmethod
@@ -72,12 +79,13 @@ class EntityIn(EntityBase):
     observations: List[ObservationIn] = []
     relations: List[RelationIn] = []
 
+    class Config:
+        populate_by_name = True
 
 class EntityOut(EntityBase):
-    """
-    Represents a node in our knowledge graph - could be a person, project,
-    concept, etc. Each entity has a unique name, a type, and a list of
-    associated observations.
-    """
+    """Schema for entity data returned from the service."""
     observations: List[ObservationOut] = []
     relations: List[RelationOut] = []
+
+    class Config:
+        populate_by_name = True

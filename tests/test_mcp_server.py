@@ -1,8 +1,7 @@
 """Tests for the MCP server implementation."""
 import pytest
-from pathlib import Path
 
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent
 from basic_memory.mcp import server
 
 @pytest.fixture
@@ -11,49 +10,87 @@ def anyio_backend():
 
 @pytest.fixture
 def test_entity_data():
+    """Sample data for creating a test entity using camelCase (like MCP will)."""
     return {
         "entities": [{
-            "name": "Test Entity",
+            "name": "Test Entity CamelCase",
             "entityType": "test",
-            "observations": ["This is a test observation"]
+            "observations": [{"content": "This is a test observation"}]
+        }]
+    }
+
+@pytest.fixture
+def test_entity_snake_case():
+    """Same test data but using snake_case to test schema flexibility."""
+    return {
+        "entities": [{
+            "name": "Test Entity SnakeCase",
+            "entity_type": "test",
+            "observations": [{"content": "This is a test observation"}]
         }]
     }
 
 @pytest.mark.anyio
 async def test_list_tools():
     """Test that server exposes expected tools."""
-    tools = server.list_tools()
+    tools = await server.handle_list_tools()
     
-    assert len(tools) == 2  # We have create_entities and search_nodes for now
+    # Check each expected tool is present
+    expected_tools = {
+        "create_entities", "search_nodes", "open_nodes",
+        "add_observations", "create_relations", 
+        "delete_entities", "delete_observations"
+    }
     
-    # Verify create_entities tool
-    create_tool = next(t for t in tools if t.name == "create_entities")
-    assert create_tool.inputSchema["required"] == ["entities"]
-    assert "entities" in create_tool.inputSchema["properties"]
+    found_tools = {t.name: t for t in tools}
+    assert found_tools.keys() == expected_tools
     
-    # Verify search_nodes tool
-    search_tool = next(t for t in tools if t.name == "search_nodes")
-    assert search_tool.inputSchema["required"] == ["query"]
-    assert "query" in search_tool.inputSchema["properties"]
+    # Verify schemas include required fields
+    assert "entities" in found_tools["create_entities"].inputSchema["required"]
+    assert "query" in found_tools["search_nodes"].inputSchema["required"]
 
 @pytest.mark.anyio
-async def test_call_create_entities(test_entity_data):
-    """Test creating an entity through the tool interface."""
-    result = await server.call_tool("create_entities", test_entity_data)
+async def test_create_entities_camel_case(test_entity_data):
+    """Test creating an entity with camelCase data (like from MCP)."""
+    result = await server.handle_call_tool("create_entities", test_entity_data)
     
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    text_content = result[0].text
-    assert "Test Entity" in text_content
+    assert "Test Entity" in result[0].text
 
 @pytest.mark.anyio
-async def test_call_search_nodes(test_entity_data):
+async def test_create_entities_snake_case(test_entity_snake_case):
+    """Test creating an entity with snake_case data (like internal usage)."""
+    result = await server.handle_call_tool("create_entities", test_entity_snake_case)
+    
+    assert len(result) == 1
+    assert isinstance(result[0], TextContent)
+    assert "Test Entity" in result[0].text
+
+@pytest.mark.anyio
+async def test_search_nodes(test_entity_data):
     """Test searching for an entity after creating it."""
     # First create an entity
-    await server.call_tool("create_entities", test_entity_data)
+    await server.handle_call_tool("create_entities", test_entity_data)
     
     # Then search for it
-    result = await server.call_tool("search_nodes", {"query": "Test Entity"})
+    result = await server.handle_call_tool("search_nodes", {"query": "Test Entity"})
+    
+    assert len(result) == 1
+    assert isinstance(result[0], TextContent)
+    assert "Test Entity" in result[0].text
+
+@pytest.mark.anyio
+async def test_add_observations(test_entity_data):
+    """Test adding observations to an existing entity."""
+    # First create an entity
+    await server.handle_call_tool("create_entities", test_entity_data)
+    
+    # Add new observations using camelCase
+    result = await server.handle_call_tool("add_observations", {
+        "entityId": "Test Entity",
+        "observations": [{"content": "A new observation"}]
+    })
     
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
@@ -62,19 +99,30 @@ async def test_call_search_nodes(test_entity_data):
 @pytest.mark.anyio
 async def test_invalid_tool_name():
     """Test calling a non-existent tool."""
-    with pytest.raises(Exception) as exc:  # We could be more specific about error type
-        await server.call_tool("not_a_tool", {})
+    with pytest.raises(Exception) as exc:
+        await server.handle_call_tool("not_a_tool", {})
     assert "Unknown tool" in str(exc.value)
 
 @pytest.mark.anyio
 async def test_invalid_parameters():
-    """Test calling tools with invalid parameters."""
-    # Test missing required parameter
+    """Test validation with invalid parameters."""
+    # Test missing required field
     with pytest.raises(Exception) as exc:
-        await server.call_tool("search_nodes", {})
-    assert "query" in str(exc.value)
+        await server.handle_call_tool("search_nodes", {})
+    assert "query" in str(exc.value).lower()
     
     # Test empty entities list
     with pytest.raises(Exception) as exc:
-        await server.call_tool("create_entities", {"entities": []})
-    assert "min_items" in str(exc.value)
+        await server.handle_call_tool("create_entities", {"entities": []})
+    assert "length" in str(exc.value).lower()
+
+    # Test invalid case mixing (should pass due to aliases)
+    result = await server.handle_call_tool("create_entities", {
+        "entities": [{
+            "name": "Mixed Case Test",
+            "entityType": "test",  # camelCase
+            "observations": [{"content": "Testing mixed case"}]
+        }]
+    })
+    assert len(result) == 1
+    assert "Mixed Case Test" in result[0].text
