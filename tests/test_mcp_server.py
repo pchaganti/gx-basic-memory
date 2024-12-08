@@ -1,5 +1,6 @@
 """Tests for the MCP server implementation."""
 import pytest
+import json
 from pathlib import Path
 
 from mcp.types import TextContent
@@ -117,18 +118,21 @@ async def test_add_observations(test_entity_data, memory_service, test_config):
     """Test adding observations to an existing entity."""
     server_instance = MemoryServer(config=test_config)
     
-    # First create an entity
-    await server_instance.handle_call_tool(
+    # First create an entity and get its ID
+    create_result = await server_instance.handle_call_tool(
         "create_entities", 
         test_entity_data,
         memory_service=memory_service
     )
+    # Extract ID from response
+    created_entity = json.loads(create_result[0].text.replace("'", '"'))[0]
+    entity_id = created_entity["id"]
     
     # Add new observations using camelCase
     result = await server_instance.handle_call_tool(
         "add_observations",
         {
-            "entityId": "Test Entity",
+            "entityId": entity_id,  # Use ID instead of name
             "observations": [{"content": "A new observation"}]
         },
         memory_service=memory_service
@@ -136,7 +140,7 @@ async def test_add_observations(test_entity_data, memory_service, test_config):
     
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
-    assert "Test Entity" in result[0].text
+    assert entity_id in result[0].text
 
 @pytest.mark.anyio
 async def test_invalid_tool_name(test_config):

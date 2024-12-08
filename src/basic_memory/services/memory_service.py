@@ -5,10 +5,11 @@ from pathlib import Path
 
 from basic_memory.models import Entity, Observation
 from basic_memory.schemas import (
-    ObservationsIn, EntityIn, RelationIn, RelationOut
+    ObservationsIn, ObservationsOut, ObservationOut, EntityIn, EntityOut, RelationIn
 )
 from basic_memory.fileio import write_entity_file, read_entity_file, delete_entity_file
 from basic_memory.services import EntityService, RelationService, ObservationService
+
 
 class MemoryService:
     """Orchestrates entity, relation, and observation operations with filesystem handling."""
@@ -49,7 +50,7 @@ class MemoryService:
         entities = [await create_entity_in_db(entities_in) for entities_in in entities_in]
         return entities
 
-    async def create_relations(self, relations_data: List[Dict[str, Any]]) -> List[RelationOut]:
+    async def create_relations(self, relations_data: List[Dict[str, Any]]) -> List[RelationIn]:
         """Create multiple relations between entities."""
         relations = [RelationIn.model_validate(data) for data in relations_data]
 
@@ -86,8 +87,11 @@ class MemoryService:
         # Create new observations
         new_observations = ObservationsIn.model_validate(observations_in)
 
-        # Read entity from filesystem
-        entity = await read_entity_file(self.entities_path, new_observations.entity_id)
+        # First get the entity from DB to get its ID
+        db_entity = await self.entity_service.get_by_name(new_observations.entity_id)
+        
+        # Read entity from filesystem using the ID
+        entity = await read_entity_file(self.entities_path, db_entity.id)
 
         # Create new observations for the entity
         for obs in new_observations.observations:
@@ -103,7 +107,6 @@ class MemoryService:
         return added_observations
 
     async def delete_entities(self, entity_names: List[str]) -> None:
-        """Delete multiple entities and their associated data."""
         # First get all entities to be deleted
         entities = []
         for name in entity_names:
@@ -126,7 +129,11 @@ class MemoryService:
         # First read and update all entities
         entity_updates = []
         for deletion in deletions:
-            entity = await read_entity_file(self.entities_path, deletion["entityName"])
+            # Get entity ID from name
+            db_entity = await self.entity_service.get_by_name(deletion["entityName"])
+            
+            # Read entity from filesystem using ID
+            entity = await read_entity_file(self.entities_path, db_entity.id)
             entity.observations = [
                 obs for obs in entity.observations
                 if obs.content not in deletion["observations"]
@@ -161,33 +168,23 @@ class MemoryService:
         file_writes = [write_file(entity) for entity in updates]
         await asyncio.gather(*file_writes)
 
-    async def read_graph(self) -> Dict[str, Any]:
+    async def read_graph(self) -> List[Entity]:
         """Read the entire knowledge graph."""
-        entities = await self.entity_service.get_all()
-        return {
-            "entities": [entity.model_dump() for entity in entities]
-            # Relations are included in entity.model_dump()
-        }
+        return await self.entity_service.get_all()
 
-    async def search_nodes(self, query: str) -> Dict[str, Any]:
+    async def search_nodes(self, query: str) -> List[Entity]:
         """Search for nodes in the knowledge graph."""
-        results = await self.entity_service.search(query)
-        return {
-            "matches": [entity.model_dump() for entity in results],
-            "query": query
-        }
+        return await self.entity_service.search(query)
 
-    async def open_nodes(self, names: List[str]) -> Dict[str, Any]:
+    async def open_nodes(self, names: List[str]) -> List[Entity]:
         """Get specific nodes and their relationships."""
         async def read_node(name: str) -> Optional[Entity]:
-            if entity := await read_entity_file(self.entities_path, name):
-                return entity
+            # Get ID from name first
+            db_entity = await self.entity_service.get_by_name(name)
+            if db_entity:
+                return await read_entity_file(self.entities_path, db_entity.id)
             return None
 
         entities = [entity for entity in await asyncio.gather(*(read_node(name) for name in names))
                    if entity is not None]
-
-        return {
-            "entities": [entity.model_dump() for entity in entities]
-            # Relations between these entities are included in model_dump()
-        }
+        return entities

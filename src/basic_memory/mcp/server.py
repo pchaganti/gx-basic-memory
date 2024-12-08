@@ -4,10 +4,16 @@ from typing import List, Dict, Any, Optional
 from mcp.server import Server
 from mcp.types import Tool, TextContent, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
 from mcp.shared.exceptions import McpError
+from sqlalchemy import inspect
 
 from basic_memory.config import ProjectConfig, create_project_services
-from basic_memory.schemas import ObservationIn, RelationIn, EntityIn
+from basic_memory.schemas import (
+    ObservationIn, RelationIn, EntityIn, EntityOut,
+    ReadGraphResponse, SearchNodesResponse, OpenNodesResponse
+)
+from basic_memory.models import Entity
 from basic_memory.services.memory_service import MemoryService
+
 
 class MemoryServer(Server):
     """Extended server class that exposes handlers for testing."""
@@ -157,17 +163,24 @@ class MemoryServer(Server):
 
                 match name:
                     case "create_entities":
-                        # Each entity in arguments["entities"] will be validated by EntityIn
-                        result = await service.create_entities(arguments["entities"])
-                        return [TextContent(type="text", text=str(result))]
+                        entities = await service.create_entities(arguments["entities"])
+                        response = [EntityOut.model_validate(entity).model_dump() for entity in entities]
+                        return [TextContent(type="text", text=str(response))]
                     
                     case "search_nodes":
-                        result = await service.search_nodes(arguments["query"])
-                        return [TextContent(type="text", text=str(result))]
+                        results = await service.search_nodes(arguments["query"])
+                        response = SearchNodesResponse(
+                            matches=[EntityOut.model_validate(entity) for entity in results],
+                            query=arguments["query"]
+                        )
+                        return [TextContent(type="text", text=str(response.model_dump()))]
                         
                     case "open_nodes":
-                        result = await service.open_nodes(arguments["names"])
-                        return [TextContent(type="text", text=str(result))]
+                        entities = await service.open_nodes(arguments["names"])
+                        response = OpenNodesResponse(
+                            entities=[EntityOut.model_validate(entity) for entity in entities]
+                        )
+                        return [TextContent(type="text", text=str(response.model_dump()))]
                         
                     case "add_observations":
                         result = await service.add_observations(arguments)

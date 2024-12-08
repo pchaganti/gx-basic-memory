@@ -2,6 +2,7 @@
 from typing import Optional, Sequence
 from sqlalchemy import select, or_
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import selectinload
 
 from basic_memory.models import Entity, Observation
 from basic_memory.repository import Repository
@@ -57,6 +58,10 @@ class EntityRepository(Repository[Entity]):
                     Observation.content.ilike(f"%{query}%")
                 )
             )
+        ).options(
+            selectinload(Entity.observations),
+            selectinload(Entity.outgoing_relations),
+            selectinload(Entity.incoming_relations)
         )
         result = await self.session.execute(stmt)
         return list(result.scalars())

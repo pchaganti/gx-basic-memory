@@ -1,6 +1,7 @@
 """Tests for EntityRepository."""
 import pytest
 from datetime import datetime, UTC
+from sqlalchemy import text
 
 from basic_memory.models import Entity
 from basic_memory.repository.entity_repository import EntityRepository
@@ -77,13 +78,18 @@ class TestEntityRepository:
         })
         
         # Add observations
-        await entity_repository.session.execute('''
-            INSERT INTO observation (entity_id, content)
-            VALUES (?, ?), (?, ?)
-        ''', [
-            (entity1.id, 'First observation with searchable content'),
-            (entity2.id, 'Another observation to find')
-        ])
+        stmt = text("""
+            INSERT INTO observation (entity_id, content, created_at)
+            VALUES (:e1_id, :e1_obs, :ts), (:e2_id, :e2_obs, :ts)
+        """)
+        ts = datetime.now(UTC)
+        await entity_repository.session.execute(stmt, {
+            "e1_id": entity1.id,
+            "e1_obs": "First observation with searchable content",
+            "e2_id": entity2.id,
+            "e2_obs": "Another observation to find",
+            "ts": ts
+        })
         await entity_repository.session.commit()
         
         # Test search by name

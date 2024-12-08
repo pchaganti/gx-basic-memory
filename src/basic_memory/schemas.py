@@ -26,6 +26,9 @@ class ObservationOut(ObservationIn):
     """Schema for observation data returned from the service."""
     id: int
 
+    class Config:
+        from_attributes = True
+
 class ObservationsOut(BaseModel):
     """Schema for bulk observation operation results."""
     entity_id: str = Field(alias="entityId")
@@ -33,6 +36,7 @@ class ObservationsOut(BaseModel):
 
     class Config:
         populate_by_name = True
+        from_attributes = True
 
 class RelationIn(BaseModel):
     """
@@ -50,25 +54,29 @@ class RelationIn(BaseModel):
 class RelationOut(BaseModel):
     id: int
 
+    class Config:
+        from_attributes = True
+
 class EntityBase(BaseModel):
-    # id assigned at creation via model_validator
-    id: str
+    id: str = Field(default=None)  # Allow None during creation
     name: str
     entity_type: str = Field(alias="entityType")
 
-    @model_validator(mode='before')
-    @classmethod
-    def generate_id(cls, data: dict) -> dict:
-        """Generate an ID for this entity, eg `20240101-basic-memory`"""
-        if not data.get('id') and data.get('name'):
+    @model_validator(mode='after')
+    def generate_id(self) -> 'EntityBase':
+        """Generate an ID for this entity if not provided"""
+        if not self.id:
             timestamp = datetime.now(UTC).strftime("%Y%m%d")
-            normalized_name = data['name'].lower().replace(" ", "-")
-            data['id'] = f"{timestamp}-{normalized_name}"
-        return data
+            normalized_name = self.name.lower().replace(" ", "-")
+            self.id = f"{timestamp}-{normalized_name}"
+        return self
 
     def file_name(self) -> str:
         """Get the markdown file name for this entity."""
         return f"{self.id}.md"
+
+    class Config:
+        from_attributes = True
 
 class EntityIn(EntityBase):
     """
@@ -81,6 +89,7 @@ class EntityIn(EntityBase):
 
     class Config:
         populate_by_name = True
+        from_attributes = True
 
 class EntityOut(EntityBase):
     """Schema for entity data returned from the service."""
@@ -89,3 +98,26 @@ class EntityOut(EntityBase):
 
     class Config:
         populate_by_name = True
+        from_attributes = True
+
+class ReadGraphResponse(BaseModel):
+    """Response model for reading the entire graph."""
+    entities: List[EntityOut]
+
+    class Config:
+        from_attributes = True
+
+class SearchNodesResponse(BaseModel):
+    """Response model for searching nodes."""
+    matches: List[EntityOut]
+    query: str
+
+    class Config:
+        from_attributes = True
+
+class OpenNodesResponse(BaseModel):
+    """Response model for opening specific nodes."""
+    entities: List[EntityOut]
+
+    class Config:
+        from_attributes = True
