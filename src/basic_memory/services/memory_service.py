@@ -3,7 +3,7 @@ import asyncio
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
-from basic_memory.models import Entity, Observation
+from basic_memory.models import Entity, Observation, Relation
 from basic_memory.schemas import (
     ObservationsIn, EntityIn, RelationIn
 )
@@ -49,11 +49,11 @@ class MemoryService:
         entities = [await create_entity_in_db(entities_in) for entities_in in entities_in]
         return entities
 
-    async def create_relations(self, relations_data: List[Dict[str, Any]]) -> List[RelationIn]:
+    async def create_relations(self, relations_data: List[RelationIn]) -> List[Relation]:
         """Create multiple relations between entities."""
-        relations = [RelationIn.model_validate(data) for data in relations_data]
 
-        for relation in relations:
+        relations = []
+        for relation in relations_data:
             # First read complete entities from filesystem
             from_entity = await read_entity_file(self.entities_path, relation.from_id) 
             to_entity = await read_entity_file(self.entities_path, relation.to_id)
@@ -70,7 +70,8 @@ class MemoryService:
             )
 
             # Now update the database index
-            await self.relation_service.create_relation(relation)
+            relation = await self.relation_service.create_relation(relation)
+            relations.append(relation)
 
         return relations
 

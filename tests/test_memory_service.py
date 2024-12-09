@@ -3,7 +3,7 @@ import pytest
 from basic_memory.services import MemoryService
 from basic_memory.fileio import read_entity_file
 from basic_memory.models import Entity as EntityModel, Observation, Relation
-from basic_memory.schemas import EntityIn, CreateEntitiesInput, AddObservationsInput
+from basic_memory.schemas import EntityIn, CreateEntitiesInput, AddObservationsInput, CreateRelationsInput
 
 test_entities_data = [
     {
@@ -122,7 +122,8 @@ async def test_create_relations(memory_service: MemoryService):
     ]
 
     # Create relations - returns List[models.Relation]
-    relations = await memory_service.create_relations(test_relations_data)
+    input_args = CreateRelationsInput.model_validate({"relations": test_relations_data})
+    relations = await memory_service.create_relations(input_args.relations)
 
     # Verify SQLAlchemy Relation models were created
     assert len(relations) == 2
