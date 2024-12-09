@@ -23,7 +23,7 @@ from basic_memory.schemas import (
     EntityOut, ObservationOut
 )
 from basic_memory.services.memory_service import MemoryService
-
+from loguru import logger
 
 MIME_TYPE = "application/vnd.basic-memory+json"
 url_validator = TypeAdapter(AnyUrl)
@@ -261,8 +261,10 @@ async def run_server():
     
     options = server.create_initialization_options()
     async with stdio_server() as (read_stream, write_stream):
+        logger.info(f"Starting MCP server {options.server_name}")
         await server.run(read_stream, write_stream, options)
 
 if __name__ == "__main__":
+    logger.add("out.log", backtrace=True, diagnose=True)
     import asyncio
     asyncio.run(run_server())
