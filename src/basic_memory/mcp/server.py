@@ -20,7 +20,7 @@ from basic_memory.schemas import (
     AddObservationsResponse, CreateRelationsResponse, DeleteEntitiesResponse,
     DeleteObservationsResponse,
     # Base models
-    EntityOut, ObservationOut
+    EntityOut, ObservationOut, RelationOut
 )
 from basic_memory.services.memory_service import MemoryService
 from loguru import logger
@@ -45,7 +45,8 @@ ToolHandler: TypeAlias = Callable[[MemoryService, Dict[str, Any]], Awaitable[Emb
 
 def create_response(response: BaseModel) -> EmbeddedResource:
     """Create standard MCP response from any response model."""
-    return EmbeddedResource(
+    logger.debug(f"Creating MCP response from {response.__class__.__name__}")
+    result = EmbeddedResource(
         type="resource",
         resource=TextResourceContents(
             uri=BASIC_MEMORY_URI,
@@ -53,6 +54,8 @@ def create_response(response: BaseModel) -> EmbeddedResource:
             text=response.model_dump_json()
         )
     )
+    logger.debug(f"Created response: {result}")
+    return result
 
 
 async def handle_create_entities(
@@ -61,13 +64,17 @@ async def handle_create_entities(
 ) -> EmbeddedResource:
     """Handle create_entities tool call."""
     # Validate input
+    logger.debug(f"Creating entities with args: {args}")
     input_args = CreateEntitiesInput.model_validate(args)
+    logger.debug(f"Validated input: {len(input_args.entities)} entities")
     
     # Call service with validated data
     entities = await service.create_entities(input_args.entities)
+    logger.debug(f"Created {len(entities)} entities")
     
     # Format response
     response = CreateEntitiesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
+    logger.debug("Formatted create_entities response")
     return create_response(response)
 
 
@@ -76,8 +83,10 @@ async def handle_search_nodes(
     args: Dict[str, Any]
 ) -> EmbeddedResource:
     """Handle search_nodes tool call."""
+    logger.debug(f"Searching nodes with query: {args.get('query')}")
     input_args = SearchNodesInput.model_validate(args)
     results = await service.search_nodes(input_args.query)
+    logger.debug(f"Found {len(results)} matches for query '{input_args.query}'")
     response = SearchNodesResponse(
         matches=[EntityOut.model_validate(entity) for entity in results],
         query=input_args.query
@@ -90,8 +99,10 @@ async def handle_open_nodes(
     args: Dict[str, Any]
 ) -> EmbeddedResource:
     """Handle open_nodes tool call."""
+    logger.debug(f"Opening nodes: {args.get('names')}")
     input_args = OpenNodesInput.model_validate(args)
     entities = await service.open_nodes(input_args.names)
+    logger.debug(f"Opened {len(entities)} entities")
     response = OpenNodesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
     return create_response(response)
 
@@ -102,10 +113,13 @@ async def handle_add_observations(
 ) -> EmbeddedResource:
     """Handle add_observations tool call."""
     # Validate input
+    logger.debug(f"Adding observations: {args}")
     input_args = AddObservationsInput.model_validate(args)
+    logger.debug(f"Adding {len(input_args.observations)} observations to entity {input_args.entity_id}")
     
     # Call service with validated data
     observations = await service.add_observations(input_args)
+    logger.debug(f"Added {len(observations)} observations")
     
     # Format response
     response = AddObservationsResponse(
@@ -121,13 +135,16 @@ async def handle_create_relations(
 ) -> EmbeddedResource:
     """Handle create_relations tool call."""
     # Validate input
+    logger.debug(f"Creating relations: {args}")
     input_args = CreateRelationsInput.model_validate(args)
+    logger.debug(f"Creating {len(input_args.relations)} relations")
     
     # Call service with validated data
     created = await service.create_relations(input_args.relations)
+    logger.debug(f"Created {len(created)} relations")
     
     # Format response
-    response = CreateRelationsResponse(relations=created)
+    response = CreateRelationsResponse(relations=[RelationOut.model_validate(created) for created in created])
     return create_response(response)
 
 
@@ -136,8 +153,10 @@ async def handle_delete_entities(
     args: Dict[str, Any]
 ) -> EmbeddedResource:
     """Handle delete_entities tool call."""
+    logger.debug(f"Deleting entities: {args}")
     input_args = DeleteEntitiesInput.model_validate(args)
     deleted = await service.delete_entities(input_args.names)
+    logger.debug(f"Deleted entities: {deleted}")
     response = DeleteEntitiesResponse(deleted=deleted)
     return create_response(response)
 
@@ -147,8 +166,10 @@ async def handle_delete_observations(
     args: Dict[str, Any]
 ) -> EmbeddedResource:
     """Handle delete_observations tool call."""
+    logger.debug(f"Deleting observations: {args}")
     input_args = DeleteObservationsInput.model_validate(args)
     entity, deleted = await service.delete_observations(input_args.deletions)
+    logger.debug(f"Deleted {len(deleted)} observations from entity {entity}")
     response = DeleteObservationsResponse(
         entity=entity,
         deleted=deleted
@@ -174,6 +195,7 @@ class MemoryServer(Server):
     def __init__(self, config: Optional[ProjectConfig] = None):
         super().__init__("basic-memory")
         self.config = config or ProjectConfig()
+        logger.debug(f"Initialized MemoryServer with config: {self.config}")
         self.register_handlers()
     
     def register_handlers(self):
@@ -182,7 +204,8 @@ class MemoryServer(Server):
         @self.list_tools()
         async def handle_list_tools() -> List[Tool]:
             """Define the available tools."""
-            return [
+            logger.debug("Listing available tools")
+            tools = [
                 Tool(
                     name="create_entities",
                     description="Create multiple new entities in the knowledge graph",
@@ -219,6 +242,8 @@ class MemoryServer(Server):
                     inputSchema=DeleteObservationsInput.model_json_schema()
                 )
             ]
+            logger.debug(f"Returning {len(tools)} available tools")
+            return tools
         
         @self.call_tool()
         async def handle_call_tool(
@@ -229,28 +254,38 @@ class MemoryServer(Server):
         ) -> List[EmbeddedResource]:
             """Handle tool calls by delegating to the memory service."""
             try:
+                logger.debug(f"Handling tool call: {name} with args: {arguments}")
                 # Check if tool exists
                 if name not in TOOL_HANDLERS:
+                    logger.error(f"Unknown tool requested: {name}")
                     raise McpError(METHOD_NOT_FOUND, f"Unknown tool: {name}")
 
                 service = await create_project_services(
                     self.config,
                     memory_service=memory_service
                 )
+                logger.debug("Created project services")
 
                 tool_name = name  # type: ignore
-                return [await TOOL_HANDLERS[tool_name](service, arguments)]
+                result = [await TOOL_HANDLERS[tool_name](service, arguments)]
+                logger.debug(f"Tool {name} completed successfully")
+                return result
                 
             except ValueError as e:
+                logger.error(f"Invalid parameters for {name}: {e}")
                 raise McpError(INVALID_PARAMS, str(e))
             except EntityNotFoundError as e:
+                logger.error(f"Entity not found in {name}: {e}")
                 raise McpError(INVALID_PARAMS, str(e))
             except Exception as e:
+                logger.exception(f"Unexpected error in {name}: {e}")
                 raise McpError(INTERNAL_ERROR, str(e))
         
         # Store handlers as instance attributes for testing
         self.handle_list_tools = handle_list_tools
         self.handle_call_tool = handle_call_tool
+        logger.debug("Registered all handlers")
+
 
 # Create server instance with default config
 server = MemoryServer()
@@ -265,6 +300,6 @@ async def run_server():
         await server.run(read_stream, write_stream, options)
 
 if __name__ == "__main__":
-    logger.add("out.log", backtrace=True, diagnose=True)
+    logger.add("basic-memory-mcp.log", rotation="100 MB", level="DEBUG", backtrace=True, diagnose=True)
     import asyncio
     asyncio.run(run_server())

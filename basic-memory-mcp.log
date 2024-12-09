@@ -1,0 +1,186 @@
+2024-12-08 20:58:32.697 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 20:58:32.710 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 20:58:32.715 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 20:58:32.810 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 20:58:32.814 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 20:58:32.838 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 20:58:32.844 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 20:58:33.114 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 20:58:33.118 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 20:58:33.129 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 20:58:33.133 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 20:58:33.144 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 20:58:33.146 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 20:59:03.173 | DEBUG    | __main__:handle_call_tool:257 - Handling tool call: search_nodes with args: {'query': 'basic-memory server'}
+2024-12-08 20:59:03.196 | DEBUG    | basic_memory.repository:__init__:21 - Initialized EntityRepository for Entity
+2024-12-08 20:59:03.196 | DEBUG    | basic_memory.repository:__init__:22 - Valid columns: ['id', 'name', 'entity_type', 'description', 'references', 'created_at', 'updated_at']
+2024-12-08 20:59:03.196 | DEBUG    | basic_memory.repository.entity_repository:__init__:17 - Initialized EntityRepository
+2024-12-08 20:59:03.196 | DEBUG    | basic_memory.repository:__init__:21 - Initialized ObservationRepository for Observation
+2024-12-08 20:59:03.196 | DEBUG    | basic_memory.repository:__init__:22 - Valid columns: ['id', 'entity_id', 'content', 'created_at', 'context']
+2024-12-08 20:59:03.196 | DEBUG    | basic_memory.repository:__init__:21 - Initialized RelationRepository for Relation
+2024-12-08 20:59:03.196 | DEBUG    | basic_memory.repository:__init__:22 - Valid columns: ['id', 'from_id', 'to_id', 'relation_type', 'created_at', 'context']
+2024-12-08 20:59:03.196 | DEBUG    | basic_memory.services.entity_service:__init__:23 - Initialized EntityService with path: /Users/phernandez/.basic-memory/projects/default
+2024-12-08 20:59:03.196 | DEBUG    | basic_memory.services.memory_service:__init__:30 - Initialized MemoryService with path: /Users/phernandez/.basic-memory/projects/default
+2024-12-08 20:59:03.197 | DEBUG    | __main__:handle_call_tool:267 - Created project services
+2024-12-08 20:59:03.197 | DEBUG    | __main__:handle_search_nodes:86 - Searching nodes with query: basic-memory server
+2024-12-08 20:59:03.197 | DEBUG    | basic_memory.services.memory_service:search_nodes:173 - Searching nodes with query: basic-memory server
+2024-12-08 20:59:03.197 | DEBUG    | basic_memory.services.entity_service:search:27 - Searching entities with query: basic-memory server
+2024-12-08 20:59:03.197 | DEBUG    | basic_memory.repository.entity_repository:search:78 - Searching entities with query: basic-memory server
+2024-12-08 20:59:03.205 | DEBUG    | basic_memory.repository.entity_repository:search:95 - Found 0 matching entities
+2024-12-08 20:59:03.205 | DEBUG    | basic_memory.services.entity_service:search:30 - Found 0 matches
+2024-12-08 20:59:03.205 | DEBUG    | basic_memory.services.memory_service:search_nodes:176 - Found 0 matches for 'basic-memory server'
+2024-12-08 20:59:03.205 | DEBUG    | __main__:handle_search_nodes:89 - Found 0 matches for query 'basic-memory server'
+2024-12-08 20:59:03.205 | DEBUG    | __main__:create_response:48 - Creating MCP response from SearchNodesResponse
+2024-12-08 20:59:03.205 | DEBUG    | __main__:create_response:57 - Created response: type='resource' resource=TextResourceContents(uri=AnyUrl('basic-memory://response'), mimeType='application/vnd.basic-memory+json', text='{"matches":[],"query":"basic-memory server"}')
+2024-12-08 20:59:03.205 | DEBUG    | __main__:handle_call_tool:271 - Tool search_nodes completed successfully
+2024-12-08 20:59:36.731 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 20:59:36.744 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 20:59:36.748 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 20:59:37.163 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 20:59:37.167 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 20:59:37.251 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 20:59:37.254 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 20:59:37.735 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 20:59:37.738 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:06.198 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:01:06.204 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:06.207 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:06.216 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:01:06.222 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:06.227 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:06.441 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:06.443 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:06.681 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:06.689 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:06.719 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:06.722 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:06.763 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:06.767 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:06.799 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:06.802 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:06.818 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:06.821 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:46.546 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:01:46.555 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:01:46.556 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:46.565 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:46.571 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:46.577 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:46.939 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:46.941 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:46.962 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:46.964 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:47.059 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:47.063 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:47.072 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:47.076 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:47.106 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:47.109 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:56.053 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:01:56.057 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:56.060 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:56.061 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:01:56.066 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:56.071 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:56.122 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:56.125 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:56.382 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:56.395 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.150 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.154 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.324 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.327 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.340 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.343 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.469 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.472 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.492 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.498 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.504 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.507 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.514 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.518 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.576 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.579 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.598 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.602 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.626 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.629 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.649 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.652 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.739 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:01:57.746 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.750 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:57.789 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:01:57.798 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:57.802 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:58.078 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:58.081 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:58.191 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:58.194 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:58.203 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:58.207 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:58.257 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:58.260 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:58.267 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:58.270 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:01:58.277 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:01:58.282 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:06.210 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:06.231 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:06.672 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:06.675 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:06.942 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:52:06.947 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:06.951 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:07.157 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:07.170 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:07.185 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:07.188 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:07.469 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:07.473 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:07.477 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:07.481 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:07.516 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:07.519 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:44.689 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:44.694 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:44.869 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:44.875 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:45.992 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:45.997 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.007 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.012 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.026 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.030 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.155 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.167 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.180 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.185 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.212 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.218 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.342 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:52:46.399 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.410 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:52:46.427 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.435 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.413 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.743 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.746 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.759 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.763 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.774 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.777 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.813 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.817 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:52:46.830 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:52:46.832 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:56:15.969 | INFO     | __main__:run_server:299 - Starting MCP server basic-memory
+2024-12-08 21:56:15.979 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:56:15.983 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:56:16.379 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:56:16.383 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:56:16.426 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:56:16.430 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools
+2024-12-08 21:56:16.444 | DEBUG    | __main__:handle_list_tools:207 - Listing available tools
+2024-12-08 21:56:16.448 | DEBUG    | __main__:handle_list_tools:245 - Returning 7 available tools

@@ -35,3 +35,6 @@ ENV/
 projects/*.db
 projects/*.db-journal
 /.coverage
+
+
+*.log

@@ -9,6 +9,7 @@ from basic_memory.schemas import (
 )
 from basic_memory.fileio import write_entity_file, read_entity_file
 from basic_memory.services import EntityService, RelationService, ObservationService
+from loguru import logger
 
 
 class MemoryService:
@@ -26,82 +27,126 @@ class MemoryService:
         self.entity_service = entity_service
         self.relation_service = relation_service
         self.observation_service = observation_service
+        logger.debug(f"Initialized MemoryService with path: {project_path}")
 
     async def create_entities(self, entities_in: List[EntityIn]) -> List[Entity]:
         """Create multiple entities with their observations."""
+        logger.debug(f"Creating {len(entities_in)} entities")
 
         # Write files in parallel (filesystem is source of truth)
         async def write_file(entity: EntityIn):
+            logger.debug(f"Writing entity file for {entity.id}")
             await write_entity_file(self.entities_path, entity)
+            logger.debug(f"Wrote entity file: {self.entities_path}/{entity.file_name()}")
 
         file_writes = [write_file(entity) for entity in entities_in]
+        logger.debug("Starting parallel file writes")
         await asyncio.gather(*file_writes)
+        logger.debug("Completed all file writes")
 
         async def create_entity_in_db(entity_in: EntityIn):
-            await self.entity_service.create_entity(entity_in)
-            await self.observation_service.add_observations(entity_in, entity_in.observations)
-            [await self.relation_service.create_relation(relation_in) for relation_in in entity_in.relations]
-            # query the entity again to return relations
-            final_entity = await self.entity_service.get_entity(entity_in.id)
-            return final_entity
+            logger.debug(f"Creating entity in DB: {entity_in.id}")
+            try:
+                # Create base entity
+                await self.entity_service.create_entity(entity_in)
+                logger.debug(f"Created base entity: {entity_in.id}")
+
+                # Add observations
+                await self.observation_service.add_observations(entity_in, entity_in.observations)
+                logger.debug(f"Added {len(entity_in.observations)} observations to {entity_in.id}")
+
+                # Add relations
+                for relation in entity_in.relations:
+                    await self.relation_service.create_relation(relation)
+                logger.debug(f"Added {len(entity_in.relations)} relations for {entity_in.id}")
+
+                # Query final state
+                final_entity = await self.entity_service.get_entity(entity_in.id)
+                logger.debug(f"Retrieved final entity state: {final_entity}")
+                return final_entity
+            except Exception as e:
+                logger.exception(f"Failed to create entity in DB: {entity_in.id}")
+                raise
 
         # Update database index sequentially
-        entities = [await create_entity_in_db(entities_in) for entities_in in entities_in]
-        return entities
+        logger.debug("Starting DB updates")
+        try:
+            entities = [await create_entity_in_db(entity_in) for entity_in in entities_in]
+            logger.debug(f"Successfully created {len(entities)} entities in DB")
+            return entities
+        except Exception as e:
+            logger.exception("Failed to create entities in DB")
+            raise
 
     async def create_relations(self, relations_data: List[RelationIn]) -> List[Relation]:
         """Create multiple relations between entities."""
+        logger.debug(f"Creating {len(relations_data)} relations")
 
         relations = []
         for relation in relations_data:
-            # First read complete entities from filesystem
-            from_entity = await read_entity_file(self.entities_path, relation.from_id) 
-            to_entity = await read_entity_file(self.entities_path, relation.to_id)
+            logger.debug(f"Processing relation: {relation.from_id} -> {relation.to_id}")
+            try:
+                # First read complete entities from filesystem
+                from_entity = await read_entity_file(self.entities_path, relation.from_id) 
+                to_entity = await read_entity_file(self.entities_path, relation.to_id)
+                logger.debug(f"Read entities for relation: {from_entity.id}, {to_entity.id}")
 
-            # Add the new relation to the source entity
-            if not hasattr(from_entity, 'relations'):
-                from_entity.relations = []
-            from_entity.relations.append(relation)
+                # Add the new relation to the source entity
+                if not hasattr(from_entity, 'relations'):
+                    from_entity.relations = []
+                from_entity.relations.append(relation)
+                logger.debug(f"Added relation to source entity: {from_entity.id}")
 
-            # Write updated entity files (filesystem is source of truth)
-            await asyncio.gather(
-                write_entity_file(self.entities_path, from_entity),
-                write_entity_file(self.entities_path, to_entity)
-            )
+                # Write updated entity files (filesystem is source of truth)
+                logger.debug("Writing updated entity files")
+                await asyncio.gather(
+                    write_entity_file(self.entities_path, from_entity),
+                    write_entity_file(self.entities_path, to_entity)
+                )
+                logger.debug("Wrote updated entity files")
 
-            # Now update the database index
-            relation = await self.relation_service.create_relation(relation)
-            relations.append(relation)
+                # Now update the database index
+                relation = await self.relation_service.create_relation(relation)
+                relations.append(relation)
+                logger.debug(f"Created relation in DB: {relation.id}")
+            except Exception as e:
+                logger.exception(f"Failed to create relation: {relation}")
+                raise
 
+        logger.debug(f"Successfully created {len(relations)} relations")
         return relations
 
     async def add_observations(self, observations_in: ObservationsIn) -> List[Observation]:
-        """Add observations to an existing entity.
-        
-        Args:
-            observations_in: input containing entity_id and observations
+        """Add observations to an existing entity."""
+        logger.debug(f"Adding observations to entity: {observations_in.entity_id}")
+        try:
+            # First get the entity from DB to get its ID
+            db_entity = await self.entity_service.get_entity(observations_in.entity_id)
+            logger.debug(f"Found entity in DB: {db_entity.id}")
             
-        Returns:
-            List[Observation] with the newly created observations
-        """
-        # First get the entity from DB to get its ID
-        db_entity = await self.entity_service.get_entity(observations_in.entity_id)
-        
-        # Read entity from filesystem using the ID
-        entity = await read_entity_file(self.entities_path, db_entity.id)
+            # Read entity from filesystem using the ID
+            entity = await read_entity_file(self.entities_path, db_entity.id)
+            logger.debug(f"Read entity from filesystem: {entity.id}")
 
-        # Create new observations for the entity
-        for obs in observations_in.observations:
-            entity.observations.append(obs)
+            # Create new observations for the entity
+            for obs in observations_in.observations:
+                entity.observations.append(obs)
+            logger.debug(f"Added {len(observations_in.observations)} observations to entity")
 
-        # Write updated entity file
-        await write_entity_file(self.entities_path, entity)
-        
-        # Update database index
-        added_observations = await self.observation_service.add_observations(entity, observations_in.observations)
+            # Write updated entity file
+            logger.debug("Writing updated entity file")
+            await write_entity_file(self.entities_path, entity)
+            logger.debug("Wrote updated entity file")
+            
+            # Update database index
+            added_observations = await self.observation_service.add_observations(entity, observations_in.observations)
+            logger.debug(f"Added {len(added_observations)} observations to DB")
 
-        db_entity = await self.entity_service.get_entity(entity.id)
-        return added_observations
+            db_entity = await self.entity_service.get_entity(entity.id)
+            return added_observations
+        except Exception as e:
+            logger.exception(f"Failed to add observations to entity: {observations_in.entity_id}")
+            raise
 
     async def delete_entities(self, entity_names: List[str]) -> None:
        pass
@@ -114,21 +159,51 @@ class MemoryService:
 
     async def read_graph(self) -> List[Entity]:
         """Read the entire knowledge graph."""
-        return await self.entity_service.get_all()
+        logger.debug("Reading entire knowledge graph")
+        try:
+            entities = await self.entity_service.get_all()
+            logger.debug(f"Read {len(entities)} entities from graph")
+            return entities
+        except Exception as e:
+            logger.exception("Failed to read graph")
+            raise
 
     async def search_nodes(self, query: str) -> List[Entity]:
         """Search for nodes in the knowledge graph."""
-        return await self.entity_service.search(query)
+        logger.debug(f"Searching nodes with query: {query}")
+        try:
+            results = await self.entity_service.search(query)
+            logger.debug(f"Found {len(results)} matches for '{query}'")
+            return results
+        except Exception as e:
+            logger.exception(f"Failed to search nodes with query: {query}")
+            raise
 
     async def open_nodes(self, names: List[str]) -> List[Entity]:
         """Get specific nodes and their relationships."""
-        async def read_node(name: str) -> Optional[Entity]:
-            # Get ID from name first
-            db_entity = await self.entity_service.get_entity(name)
-            if db_entity:
-                return await read_entity_file(self.entities_path, db_entity.id)
-            return None
+        logger.debug(f"Opening nodes: {names}")
 
-        entities = [entity for entity in await asyncio.gather(*(read_node(name) for name in names))
-                   if entity is not None]
-        return entities
+        async def read_node(name: str) -> Optional[Entity]:
+            try:
+                # Get ID from name first
+                logger.debug(f"Looking up entity: {name}")
+                db_entity = await self.entity_service.get_entity(name)
+                if db_entity:
+                    logger.debug(f"Found entity in DB: {db_entity.id}")
+                    entity = await read_entity_file(self.entities_path, db_entity.id)
+                    logger.debug(f"Read entity from filesystem: {entity.id}")
+                    return entity
+                logger.debug(f"Entity not found: {name}")
+                return None
+            except Exception as e:
+                logger.exception(f"Failed to read node: {name}")
+                return None
+
+        try:
+            entities = [entity for entity in await asyncio.gather(*(read_node(name) for name in names))
+                       if entity is not None]
+            logger.debug(f"Opened {len(entities)} entities")
+            return entities
+        except Exception as e:
+            logger.exception("Failed to open nodes")
+            raise
