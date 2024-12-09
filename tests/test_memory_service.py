@@ -3,7 +3,7 @@ import pytest
 from basic_memory.services import MemoryService
 from basic_memory.fileio import read_entity_file
 from basic_memory.models import Entity as EntityModel, Observation, Relation
-from basic_memory.schemas import EntityIn
+from basic_memory.schemas import EntityIn, CreateEntitiesInput, AddObservationsInput
 
 test_entities_data = [
     {
@@ -21,8 +21,9 @@ test_entities_data = [
 @pytest.mark.asyncio
 async def test_create_entities(memory_service: MemoryService):
     """Should create multiple entities in parallel with their observations."""
-    # Create entities - returns List[models.Entity]
-    entities = await memory_service.create_entities(test_entities_data)
+
+    entity_input = CreateEntitiesInput.model_validate({"entities": test_entities_data})
+    entities = await memory_service.create_entities(entity_input.entities)
 
     # Verify the SQLAlchemy models were created
     assert len(entities) == 2
@@ -51,8 +52,8 @@ async def test_create_entities(memory_service: MemoryService):
 @pytest.mark.asyncio
 async def test_add_observations(memory_service: MemoryService):
     """Should add observations to an existing entity."""
-    # First create an entity - returns SQLAlchemy Entity
-    entities = await memory_service.create_entities([test_entities_data[0]])
+    entity_input = CreateEntitiesInput.model_validate({"entities": test_entities_data})
+    entities = await memory_service.create_entities([entity_input.entities[0]])
     entity = entities[0]
 
     # Create observations input
@@ -65,7 +66,8 @@ async def test_add_observations(memory_service: MemoryService):
     }
 
     # Add observations - returns List[models.Observation]
-    added_observations = await memory_service.add_observations(observations_data)
+    observation_input = AddObservationsInput.model_validate(observations_data)
+    added_observations = await memory_service.add_observations(observation_input)
 
     # Check the SQLAlchemy model results
     assert len(added_observations) == 2
@@ -94,13 +96,14 @@ async def test_add_observations_nonexistent_entity(memory_service: MemoryService
     }
     
     with pytest.raises(Exception) as exc:  # We might want to define a specific error type
-        await memory_service.add_observations(observations_data)
+        observation_input = AddObservationsInput.model_validate(observations_data)
+        await memory_service.add_observations(observation_input)
 
 @pytest.mark.asyncio
 async def test_create_relations(memory_service: MemoryService):
     """Should create relations between entities and update both filesystem and database."""
-    # First create entities - returns List[models.Entity]
-    entities = await memory_service.create_entities(test_entities_data)
+    entity_input = CreateEntitiesInput.model_validate({"entities": test_entities_data})
+    entities = await memory_service.create_entities(entity_input.entities)
     entity1, entity2 = entities
 
     # Create test relations data using actual entity IDs
@@ -181,7 +184,8 @@ async def test_create_relations(memory_service: MemoryService):
 async def test_create_relations_with_invalid_entity_id(memory_service: MemoryService):
     """Should raise an appropriate error when trying to create relations with non-existent entity IDs."""
     # Create one entity - returns SQLAlchemy Entity
-    entities = await memory_service.create_entities([test_entities_data[0]])
+    entity_input = CreateEntitiesInput.model_validate({"entities": test_entities_data})
+    entities = await memory_service.create_entities([entity_input.entities[0]])
     entity1 = entities[0]
 
     # Try to create relation with non-existent entity ID

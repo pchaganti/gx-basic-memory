@@ -1,19 +1,26 @@
 """MCP server implementation for basic-memory."""
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal, Callable, Awaitable
+from typing_extensions import TypeAlias
 
 from mcp.server import Server
 from mcp.types import Tool, EmbeddedResource, TextResourceContents, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
 from mcp.shared.exceptions import McpError
 from pydantic.networks import AnyUrl
-from pydantic import TypeAdapter, BaseModel
+from pydantic import TypeAdapter, BaseModel, ConfigDict
 
 from basic_memory.config import ProjectConfig, create_project_services
 from basic_memory.fileio import EntityNotFoundError
 from basic_memory.schemas import (
-    ObservationIn, RelationIn, EntityIn, ObservationsIn,
+    # Tool inputs
+    CreateEntitiesInput, SearchNodesInput, OpenNodesInput,
+    AddObservationsInput, CreateRelationsInput, DeleteEntitiesInput,
+    DeleteObservationsInput,
+    # Tool responses
     CreateEntitiesResponse, SearchNodesResponse, OpenNodesResponse,
     AddObservationsResponse, CreateRelationsResponse, DeleteEntitiesResponse,
-    DeleteObservationsResponse, EntityOut, ObservationOut
+    DeleteObservationsResponse,
+    # Base models
+    EntityOut, ObservationOut
 )
 from basic_memory.services.memory_service import MemoryService
 
@@ -21,6 +28,19 @@ from basic_memory.services.memory_service import MemoryService
 MIME_TYPE = "application/vnd.basic-memory+json"
 url_validator = TypeAdapter(AnyUrl)
 BASIC_MEMORY_URI = url_validator.validate_python("basic-memory://response")
+
+# Define tool name type and handler type
+ToolName = Literal[
+    "create_entities",
+    "search_nodes",
+    "open_nodes",
+    "add_observations",
+    "create_relations",
+    "delete_entities",
+    "delete_observations"
+]
+
+ToolHandler: TypeAlias = Callable[[MemoryService, Dict[str, Any]], Awaitable[EmbeddedResource]]
 
 
 def create_response(response: BaseModel) -> EmbeddedResource:
@@ -40,11 +60,11 @@ async def handle_create_entities(
     args: Dict[str, Any]
 ) -> EmbeddedResource:
     """Handle create_entities tool call."""
-    # Validate each entity in the input
-    entities_data = [EntityIn.model_validate(entity) for entity in args["entities"]]
+    # Validate input
+    input_args = CreateEntitiesInput.model_validate(args)
     
     # Call service with validated data
-    entities = await service.create_entities(entities_data)
+    entities = await service.create_entities(input_args.entities)
     
     # Format response
     response = CreateEntitiesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
@@ -56,10 +76,11 @@ async def handle_search_nodes(
     args: Dict[str, Any]
 ) -> EmbeddedResource:
     """Handle search_nodes tool call."""
-    results = await service.search_nodes(args["query"])
+    input_args = SearchNodesInput.model_validate(args)
+    results = await service.search_nodes(input_args.query)
     response = SearchNodesResponse(
         matches=[EntityOut.model_validate(entity) for entity in results],
-        query=args["query"]
+        query=input_args.query
     )
     return create_response(response)
 
@@ -69,7 +90,8 @@ async def handle_open_nodes(
     args: Dict[str, Any]
 ) -> EmbeddedResource:
     """Handle open_nodes tool call."""
-    entities = await service.open_nodes(args["names"])
+    input_args = OpenNodesInput.model_validate(args)
+    entities = await service.open_nodes(input_args.names)
     response = OpenNodesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
     return create_response(response)
 
@@ -80,15 +102,15 @@ async def handle_add_observations(
 ) -> EmbeddedResource:
     """Handle add_observations tool call."""
     # Validate input
-    observations_in = ObservationsIn.model_validate(args)
+    input_args = AddObservationsInput.model_validate(args)
     
     # Call service with validated data
-    observations = await service.add_observations(observations_in)
+    observations = await service.add_observations(input_args)
     
     # Format response
     response = AddObservationsResponse(
-        entity_id=observations_in.entity_id,
-        added_observations=[ObservationOut.model_validate(observation) for observation in observations]
+        entity_id=input_args.entity_id,
+        added_observations=[ObservationOut.model_validate(obs) for obs in observations]
     )
     return create_response(response)
 
@@ -98,12 +120,13 @@ async def handle_create_relations(
     args: Dict[str, Any]
 ) -> EmbeddedResource:
     """Handle create_relations tool call."""
-    # Validate each relation in the input
-    relations = [RelationIn.model_validate(r) for r in args["relations"]]
+    # Validate input
+    input_args = CreateRelationsInput.model_validate(args)
     
     # Call service with validated data
-    created = await service.create_relations(relations)
+    created = await service.create_relations(input_args.relations)
     
+    # Format response
     response = CreateRelationsResponse(relations=created)
     return create_response(response)
 
@@ -113,7 +136,8 @@ async def handle_delete_entities(
     args: Dict[str, Any]
 ) -> EmbeddedResource:
     """Handle delete_entities tool call."""
-    deleted = await service.delete_entities(args["names"])
+    input_args = DeleteEntitiesInput.model_validate(args)
+    deleted = await service.delete_entities(input_args.names)
     response = DeleteEntitiesResponse(deleted=deleted)
     return create_response(response)
 
@@ -123,12 +147,25 @@ async def handle_delete_observations(
     args: Dict[str, Any]
 ) -> EmbeddedResource:
     """Handle delete_observations tool call."""
-    entity, deleted = await service.delete_observations(args["deletions"])
+    input_args = DeleteObservationsInput.model_validate(args)
+    entity, deleted = await service.delete_observations(input_args.deletions)
     response = DeleteObservationsResponse(
         entity=entity,
         deleted=deleted
     )
     return create_response(response)
+
+
+# Map tool names to handlers
+TOOL_HANDLERS: Dict[ToolName, ToolHandler] = {
+    "create_entities": handle_create_entities,
+    "search_nodes": handle_search_nodes,
+    "open_nodes": handle_open_nodes,
+    "add_observations": handle_add_observations,
+    "create_relations": handle_create_relations,
+    "delete_entities": handle_delete_entities,
+    "delete_observations": handle_delete_observations,
+}
 
 
 class MemoryServer(Server):
@@ -149,117 +186,37 @@ class MemoryServer(Server):
                 Tool(
                     name="create_entities",
                     description="Create multiple new entities in the knowledge graph",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entities": {
-                                "type": "array",
-                                "items": EntityIn.model_json_schema(),
-                                "minItems": 1
-                            }
-                        },
-                        "required": ["entities"]
-                    }
+                    inputSchema=CreateEntitiesInput.model_json_schema()
                 ),
                 Tool(
                     name="search_nodes", 
                     description="Search for nodes in the knowledge graph",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "minLength": 1
-                            }
-                        },
-                        "required": ["query"]
-                    }
+                    inputSchema=SearchNodesInput.model_json_schema()
                 ),
                 Tool(
                     name="open_nodes",
                     description="Open specific nodes by their names",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "names": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "minItems": 1
-                            }
-                        },
-                        "required": ["names"]
-                    }
+                    inputSchema=OpenNodesInput.model_json_schema()
                 ),
                 Tool(
                     name="add_observations",
                     description="Add observations to existing entities",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "entityId": {"type": "string"},
-                            "observations": {
-                                "type": "array",
-                                "items": ObservationIn.model_json_schema(),
-                                "minItems": 1
-                            }
-                        },
-                        "required": ["entityId", "observations"]
-                    }
+                    inputSchema=AddObservationsInput.model_json_schema()
                 ),
                 Tool(
                     name="create_relations",
                     description="Create relations between entities",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "relations": {
-                                "type": "array",
-                                "items": RelationIn.model_json_schema(),
-                                "minItems": 1
-                            }
-                        },
-                        "required": ["relations"]
-                    }
+                    inputSchema=CreateRelationsInput.model_json_schema()
                 ),
                 Tool(
                     name="delete_entities",
                     description="Delete entities from the knowledge graph",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "names": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "minItems": 1
-                            }
-                        },
-                        "required": ["names"]
-                    }
+                    inputSchema=DeleteEntitiesInput.model_json_schema()
                 ),
                 Tool(
                     name="delete_observations",
                     description="Delete observations from entities",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "deletions": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "entityName": {"type": "string"},
-                                        "observations": {
-                                            "type": "array",
-                                            "items": {"type": "string"},
-                                            "minItems": 1
-                                        }
-                                    },
-                                    "required": ["entityName", "observations"]
-                                }
-                            }
-                        },
-                        "required": ["deletions"]
-                    }
+                    inputSchema=DeleteObservationsInput.model_json_schema()
                 )
             ]
         
@@ -272,31 +229,17 @@ class MemoryServer(Server):
         ) -> List[EmbeddedResource]:
             """Handle tool calls by delegating to the memory service."""
             try:
+                # Check if tool exists
+                if name not in TOOL_HANDLERS:
+                    raise McpError(METHOD_NOT_FOUND, f"Unknown tool: {name}")
+
                 service = await create_project_services(
                     self.config,
                     memory_service=memory_service
                 )
 
-                match name:
-                    case "create_entities":
-                        return [await handle_create_entities(service, arguments)]
-                    case "search_nodes":
-                        return [await handle_search_nodes(service, arguments)]
-                    case "open_nodes":
-                        return [await handle_open_nodes(service, arguments)]
-                    case "add_observations":
-                        return [await handle_add_observations(service, arguments)]
-                    case "create_relations":
-                        return [await handle_create_relations(service, arguments)]
-                    case "delete_entities":
-                        return [await handle_delete_entities(service, arguments)]
-                    case "delete_observations":
-                        return [await handle_delete_observations(service, arguments)]
-                    case _:
-                        raise McpError(
-                            METHOD_NOT_FOUND,
-                            f"Unknown tool: {name}"
-                        )
+                tool_name = name  # type: ignore
+                return [await TOOL_HANDLERS[tool_name](service, arguments)]
                 
             except ValueError as e:
                 raise McpError(INVALID_PARAMS, str(e))

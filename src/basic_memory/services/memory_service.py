@@ -5,9 +5,9 @@ from pathlib import Path
 
 from basic_memory.models import Entity, Observation
 from basic_memory.schemas import (
-    ObservationsIn, ObservationsOut, ObservationOut, EntityIn, EntityOut, RelationIn
+    ObservationsIn, EntityIn, RelationIn
 )
-from basic_memory.fileio import write_entity_file, read_entity_file, delete_entity_file
+from basic_memory.fileio import write_entity_file, read_entity_file
 from basic_memory.services import EntityService, RelationService, ObservationService
 
 

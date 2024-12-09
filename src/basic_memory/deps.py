@@ -12,15 +12,15 @@ from basic_memory.db import DatabaseType, get_database_url, init_database, get_s
 
 async def get_entity_repo(session: AsyncSession) -> EntityRepository:
     """Get an EntityRepository instance."""
-    return EntityRepository(session, DbEntity)
+    return EntityRepository(session)  # Entity type is handled in EntityRepository.__init__
 
 async def get_observation_repo(session: AsyncSession) -> ObservationRepository:
     """Get an ObservationRepository instance."""
-    return ObservationRepository(session, DbObservation)
+    return ObservationRepository(session)
 
 async def get_relation_repo(session: AsyncSession) -> RelationRepository:
     """Get a RelationRepository instance."""
-    return RelationRepository(session, DbRelation)
+    return RelationRepository(session)
 
 async def get_entity_service(
     project_path: Path,

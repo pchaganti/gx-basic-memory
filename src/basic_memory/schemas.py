@@ -4,11 +4,12 @@ These models define the schema for our core data types while remaining
 independent from storage/persistence concerns.
 """
 from datetime import datetime, UTC
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Annotated
 from uuid import uuid4
-
+from annotated_types import Gt, Len
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 
+# Base Models
 class ObservationIn(BaseModel):
     """Schema for creating a single observation."""
     content: str
@@ -40,10 +41,10 @@ class RelationIn(BaseModel):
     to_id: str = Field(alias="toId")              
     relation_type: str = Field(alias="relationType")
     context: Optional[str] = None
+
     model_config = ConfigDict(populate_by_name=True)
 
 class RelationOut(BaseModel):
-    """Schema for relation data returned from the service."""
     id: int
     from_id: str = Field(alias="fromId")
     to_id: str = Field(alias="toId")
@@ -52,7 +53,6 @@ class RelationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 class EntityBase(BaseModel):
-    """Base schema for entities with shared functionality."""
     id: str = Field(default=None)  # Allow None during creation
     name: str
     entity_type: str = Field(alias="entityType")
@@ -88,7 +88,38 @@ class EntityOut(EntityBase):
     relations: List[RelationOut] = []
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
-# Tool Response Models
+# Tool Input Schemas
+class CreateEntitiesInput(BaseModel):
+    """Input schema for create_entities tool."""
+    entities: Annotated[List[EntityIn], Len(min_length=1)]
+
+class SearchNodesInput(BaseModel):
+    """Input schema for search_nodes tool."""
+    query: str
+
+class OpenNodesInput(BaseModel):
+    """Input schema for open_nodes tool."""
+    names: Annotated[List[str], Len(min_length=1)]
+
+class AddObservationsInput(BaseModel):
+    """Input schema for add_observations tool."""
+    entity_id: str = Field(alias="entityId")
+    observations: List[ObservationIn]
+    model_config = ConfigDict(populate_by_name=True)
+
+class CreateRelationsInput(BaseModel):
+    """Input schema for create_relations tool."""
+    relations: List[RelationIn]
+
+class DeleteEntitiesInput(BaseModel):
+    """Input schema for delete_entities tool."""
+    names: List[str]
+
+class DeleteObservationsInput(BaseModel):
+    """Input schema for delete_observations tool."""
+    deletions: List[Dict[str, Any]]  # TODO: Make this more specific
+
+# Tool Response Schemas
 class CreateEntitiesResponse(BaseModel):
     """Response for create_entities tool."""
     entities: List[EntityOut]
@@ -125,10 +156,4 @@ class DeleteObservationsResponse(BaseModel):
     """Response for delete_observations tool."""
     entity_id: str
     deleted: List[str]
-    model_config = ConfigDict(from_attributes=True)
-
-# Response wrappers for file/markdown export
-class ReadGraphResponse(BaseModel):
-    """Response model for reading the entire graph."""
-    entities: List[EntityOut]
     model_config = ConfigDict(from_attributes=True)
