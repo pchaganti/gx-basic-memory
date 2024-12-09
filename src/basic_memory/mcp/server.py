@@ -2,17 +2,133 @@
 from typing import List, Dict, Any, Optional
 
 from mcp.server import Server
-from mcp.types import Tool, TextContent, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
+from mcp.types import Tool, EmbeddedResource, TextResourceContents, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
 from mcp.shared.exceptions import McpError
-from sqlalchemy import inspect
+from pydantic.networks import AnyUrl
+from pydantic import TypeAdapter, BaseModel
 
 from basic_memory.config import ProjectConfig, create_project_services
+from basic_memory.fileio import EntityNotFoundError
 from basic_memory.schemas import (
-    ObservationIn, RelationIn, EntityIn, EntityOut,
-    ReadGraphResponse, SearchNodesResponse, OpenNodesResponse
+    ObservationIn, RelationIn, EntityIn, ObservationsIn,
+    CreateEntitiesResponse, SearchNodesResponse, OpenNodesResponse,
+    AddObservationsResponse, CreateRelationsResponse, DeleteEntitiesResponse,
+    DeleteObservationsResponse, EntityOut, ObservationOut
 )
-from basic_memory.models import Entity
 from basic_memory.services.memory_service import MemoryService
+
+
+MIME_TYPE = "application/vnd.basic-memory+json"
+url_validator = TypeAdapter(AnyUrl)
+BASIC_MEMORY_URI = url_validator.validate_python("basic-memory://response")
+
+
+def create_response(response: BaseModel) -> EmbeddedResource:
+    """Create standard MCP response from any response model."""
+    return EmbeddedResource(
+        type="resource",
+        resource=TextResourceContents(
+            uri=BASIC_MEMORY_URI,
+            mimeType=MIME_TYPE,
+            text=response.model_dump_json()
+        )
+    )
+
+
+async def handle_create_entities(
+    service: MemoryService, 
+    args: Dict[str, Any]
+) -> EmbeddedResource:
+    """Handle create_entities tool call."""
+    # Validate each entity in the input
+    entities_data = [EntityIn.model_validate(entity) for entity in args["entities"]]
+    
+    # Call service with validated data
+    entities = await service.create_entities(entities_data)
+    
+    # Format response
+    response = CreateEntitiesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
+    return create_response(response)
+
+
+async def handle_search_nodes(
+    service: MemoryService, 
+    args: Dict[str, Any]
+) -> EmbeddedResource:
+    """Handle search_nodes tool call."""
+    results = await service.search_nodes(args["query"])
+    response = SearchNodesResponse(
+        matches=[EntityOut.model_validate(entity) for entity in results],
+        query=args["query"]
+    )
+    return create_response(response)
+
+
+async def handle_open_nodes(
+    service: MemoryService, 
+    args: Dict[str, Any]
+) -> EmbeddedResource:
+    """Handle open_nodes tool call."""
+    entities = await service.open_nodes(args["names"])
+    response = OpenNodesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
+    return create_response(response)
+
+
+async def handle_add_observations(
+    service: MemoryService, 
+    args: Dict[str, Any]
+) -> EmbeddedResource:
+    """Handle add_observations tool call."""
+    # Validate input
+    observations_in = ObservationsIn.model_validate(args)
+    
+    # Call service with validated data
+    observations = await service.add_observations(observations_in)
+    
+    # Format response
+    response = AddObservationsResponse(
+        entity_id=observations_in.entity_id,
+        added_observations=[ObservationOut.model_validate(observation) for observation in observations]
+    )
+    return create_response(response)
+
+
+async def handle_create_relations(
+    service: MemoryService, 
+    args: Dict[str, Any]
+) -> EmbeddedResource:
+    """Handle create_relations tool call."""
+    # Validate each relation in the input
+    relations = [RelationIn.model_validate(r) for r in args["relations"]]
+    
+    # Call service with validated data
+    created = await service.create_relations(relations)
+    
+    response = CreateRelationsResponse(relations=created)
+    return create_response(response)
+
+
+async def handle_delete_entities(
+    service: MemoryService, 
+    args: Dict[str, Any]
+) -> EmbeddedResource:
+    """Handle delete_entities tool call."""
+    deleted = await service.delete_entities(args["names"])
+    response = DeleteEntitiesResponse(deleted=deleted)
+    return create_response(response)
+
+
+async def handle_delete_observations(
+    service: MemoryService, 
+    args: Dict[str, Any]
+) -> EmbeddedResource:
+    """Handle delete_observations tool call."""
+    entity, deleted = await service.delete_observations(args["deletions"])
+    response = DeleteObservationsResponse(
+        entity=entity,
+        deleted=deleted
+    )
+    return create_response(response)
 
 
 class MemoryServer(Server):
@@ -153,7 +269,7 @@ class MemoryServer(Server):
             arguments: Dict[str, Any],
             *,
             memory_service: Optional[MemoryService] = None
-        ) -> List[TextContent]:
+        ) -> List[EmbeddedResource]:
             """Handle tool calls by delegating to the memory service."""
             try:
                 service = await create_project_services(
@@ -163,41 +279,19 @@ class MemoryServer(Server):
 
                 match name:
                     case "create_entities":
-                        entities = await service.create_entities(arguments["entities"])
-                        response = [EntityOut.model_validate(entity).model_dump() for entity in entities]
-                        return [TextContent(type="text", text=str(response))]
-                    
+                        return [await handle_create_entities(service, arguments)]
                     case "search_nodes":
-                        results = await service.search_nodes(arguments["query"])
-                        response = SearchNodesResponse(
-                            matches=[EntityOut.model_validate(entity) for entity in results],
-                            query=arguments["query"]
-                        )
-                        return [TextContent(type="text", text=str(response.model_dump()))]
-                        
+                        return [await handle_search_nodes(service, arguments)]
                     case "open_nodes":
-                        entities = await service.open_nodes(arguments["names"])
-                        response = OpenNodesResponse(
-                            entities=[EntityOut.model_validate(entity) for entity in entities]
-                        )
-                        return [TextContent(type="text", text=str(response.model_dump()))]
-                        
+                        return [await handle_open_nodes(service, arguments)]
                     case "add_observations":
-                        result = await service.add_observations(arguments)
-                        return [TextContent(type="text", text=str(result))]
-                        
+                        return [await handle_add_observations(service, arguments)]
                     case "create_relations":
-                        result = await service.create_relations(arguments["relations"])
-                        return [TextContent(type="text", text=str(result))]
-                        
+                        return [await handle_create_relations(service, arguments)]
                     case "delete_entities":
-                        await service.delete_entities(arguments["names"])
-                        return [TextContent(type="text", text="Entities deleted")]
-                        
+                        return [await handle_delete_entities(service, arguments)]
                     case "delete_observations":
-                        await service.delete_observations(arguments["deletions"])
-                        return [TextContent(type="text", text="Observations deleted")]
-                    
+                        return [await handle_delete_observations(service, arguments)]
                     case _:
                         raise McpError(
                             METHOD_NOT_FOUND,
@@ -205,6 +299,8 @@ class MemoryServer(Server):
                         )
                 
             except ValueError as e:
+                raise McpError(INVALID_PARAMS, str(e))
+            except EntityNotFoundError as e:
                 raise McpError(INVALID_PARAMS, str(e))
             except Exception as e:
                 raise McpError(INTERNAL_ERROR, str(e))

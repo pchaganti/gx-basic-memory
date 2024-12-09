@@ -7,7 +7,7 @@ from datetime import datetime, UTC
 from typing import List, Optional, Dict, Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 
 class ObservationIn(BaseModel):
     """Schema for creating a single observation."""
@@ -18,25 +18,18 @@ class ObservationsIn(BaseModel):
     """Schema for adding observations to an entity."""
     entity_id: str = Field(alias="entityId")  # Maps to Entity.id
     observations: List[ObservationIn]
-
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class ObservationOut(ObservationIn):
     """Schema for observation data returned from the service."""
     id: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ObservationsOut(BaseModel):
     """Schema for bulk observation operation results."""
     entity_id: str = Field(alias="entityId")
     observations: List[ObservationOut]
-
-    class Config:
-        populate_by_name = True
-        from_attributes = True
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 class RelationIn(BaseModel):
     """
@@ -47,17 +40,19 @@ class RelationIn(BaseModel):
     to_id: str = Field(alias="toId")              
     relation_type: str = Field(alias="relationType")
     context: Optional[str] = None
-
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 class RelationOut(BaseModel):
+    """Schema for relation data returned from the service."""
     id: int
-
-    class Config:
-        from_attributes = True
+    from_id: str = Field(alias="fromId")
+    to_id: str = Field(alias="toId")
+    relation_type: str = Field(alias="relationType")
+    context: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 class EntityBase(BaseModel):
+    """Base schema for entities with shared functionality."""
     id: str = Field(default=None)  # Allow None during creation
     name: str
     entity_type: str = Field(alias="entityType")
@@ -75,8 +70,7 @@ class EntityBase(BaseModel):
         """Get the markdown file name for this entity."""
         return f"{self.id}.md"
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class EntityIn(EntityBase):
     """
@@ -86,38 +80,55 @@ class EntityIn(EntityBase):
     """
     observations: List[ObservationIn] = []
     relations: List[RelationIn] = []
-
-    class Config:
-        populate_by_name = True
-        from_attributes = True
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 class EntityOut(EntityBase):
     """Schema for entity data returned from the service."""
     observations: List[ObservationOut] = []
     relations: List[RelationOut] = []
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
-    class Config:
-        populate_by_name = True
-        from_attributes = True
+# Tool Response Models
+class CreateEntitiesResponse(BaseModel):
+    """Response for create_entities tool."""
+    entities: List[EntityOut]
+    model_config = ConfigDict(from_attributes=True)
 
+class SearchNodesResponse(BaseModel):
+    """Response for search_nodes tool."""
+    matches: List[EntityOut]
+    query: str
+    model_config = ConfigDict(from_attributes=True)
+
+class OpenNodesResponse(BaseModel):
+    """Response for open_nodes tool."""
+    entities: List[EntityOut]
+    model_config = ConfigDict(from_attributes=True)
+
+class AddObservationsResponse(BaseModel):
+    """Response for add_observations tool."""
+    entity_id: str
+    added_observations: List[ObservationOut]
+    model_config = ConfigDict(from_attributes=True)
+
+class CreateRelationsResponse(BaseModel):
+    """Response for create_relations tool."""
+    relations: List[RelationOut]
+    model_config = ConfigDict(from_attributes=True)
+
+class DeleteEntitiesResponse(BaseModel):
+    """Response for delete_entities tool."""
+    deleted: List[str]
+    model_config = ConfigDict(from_attributes=True)
+
+class DeleteObservationsResponse(BaseModel):
+    """Response for delete_observations tool."""
+    entity_id: str
+    deleted: List[str]
+    model_config = ConfigDict(from_attributes=True)
+
+# Response wrappers for file/markdown export
 class ReadGraphResponse(BaseModel):
     """Response model for reading the entire graph."""
     entities: List[EntityOut]
-
-    class Config:
-        from_attributes = True
-
-class SearchNodesResponse(BaseModel):
-    """Response model for searching nodes."""
-    matches: List[EntityOut]
-    query: str
-
-    class Config:
-        from_attributes = True
-
-class OpenNodesResponse(BaseModel):
-    """Response model for opening specific nodes."""
-    entities: List[EntityOut]
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

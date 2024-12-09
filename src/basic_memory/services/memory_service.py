@@ -27,9 +27,8 @@ class MemoryService:
         self.relation_service = relation_service
         self.observation_service = observation_service
 
-    async def create_entities(self, entities_data: List[Dict[str, Any]]) -> List[Entity]:
+    async def create_entities(self, entities_in: List[EntityIn]) -> List[Entity]:
         """Create multiple entities with their observations."""
-        entities_in = [EntityIn.model_validate(data) for data in entities_data]
 
         # Write files in parallel (filesystem is source of truth)
         async def write_file(entity: EntityIn):
@@ -75,7 +74,7 @@ class MemoryService:
 
         return relations
 
-    async def add_observations(self, observations_in: Dict[str, Any]) -> List[Observation]:
+    async def add_observations(self, observations_in: ObservationsIn) -> List[Observation]:
         """Add observations to an existing entity.
         
         Args:
@@ -84,89 +83,33 @@ class MemoryService:
         Returns:
             List[Observation] with the newly created observations
         """
-        # Create new observations
-        new_observations = ObservationsIn.model_validate(observations_in)
-
         # First get the entity from DB to get its ID
-        db_entity = await self.entity_service.get_by_name(new_observations.entity_id)
+        db_entity = await self.entity_service.get_entity(observations_in.entity_id)
         
         # Read entity from filesystem using the ID
         entity = await read_entity_file(self.entities_path, db_entity.id)
 
         # Create new observations for the entity
-        for obs in new_observations.observations:
+        for obs in observations_in.observations:
             entity.observations.append(obs)
 
         # Write updated entity file
         await write_entity_file(self.entities_path, entity)
         
         # Update database index
-        added_observations = await self.observation_service.add_observations(entity, new_observations.observations)
+        added_observations = await self.observation_service.add_observations(entity, observations_in.observations)
 
         db_entity = await self.entity_service.get_entity(entity.id)
         return added_observations
 
     async def delete_entities(self, entity_names: List[str]) -> None:
-        # First get all entities to be deleted
-        entities = []
-        for name in entity_names:
-            entity = await self.entity_service.get_by_name(name)
-            entities.append(entity)
-
-        # Delete files in parallel
-        async def delete_file(entity: Entity):
-            await delete_entity_file(self.entities_path, entity.id)
-
-        file_deletes = [delete_file(entity) for entity in entities]
-        await asyncio.gather(*file_deletes)
-
-        # Update database sequentially
-        for entity in entities:
-            await self.entity_service.delete_entity(entity.id)
+       pass
 
     async def delete_observations(self, deletions: List[Dict[str, Any]]) -> None:
-        """Delete specific observations from entities."""
-        # First read and update all entities
-        entity_updates = []
-        for deletion in deletions:
-            # Get entity ID from name
-            db_entity = await self.entity_service.get_by_name(deletion["entityName"])
-            
-            # Read entity from filesystem using ID
-            entity = await read_entity_file(self.entities_path, db_entity.id)
-            entity.observations = [
-                obs for obs in entity.observations
-                if obs.content not in deletion["observations"]
-            ]
-            entity_updates.append(entity)
-
-        # Write updated entities in parallel
-        async def write_file(entity: Entity):
-            await write_entity_file(self.entities_path, entity)
-
-        file_writes = [write_file(entity) for entity in entity_updates]
-        await asyncio.gather(*file_writes)
-
-        # Update database indexes sequentially
-        for entity in entity_updates:
-            await self.entity_service.rebuild_index(entity)
+        pass
 
     async def delete_relations(self, relations: List[Dict[str, Any]]) -> None:
-        """Delete specific relations between entities."""
-        # First get all entities and delete relations
-        updates = []
-        for data in relations:
-            from_entity = await self.entity_service.get_by_name(data["from"])
-            to_entity = await self.entity_service.get_by_name(data["to"])
-            await self.relation_service.delete_relation(from_entity, to_entity, data["relationType"])
-            updates.append(from_entity)
-
-        # Write updated files in parallel
-        async def write_file(entity: Entity):
-            await write_entity_file(self.entities_path, entity)
-
-        file_writes = [write_file(entity) for entity in updates]
-        await asyncio.gather(*file_writes)
+        pass
 
     async def read_graph(self) -> List[Entity]:
         """Read the entire knowledge graph."""
@@ -180,7 +123,7 @@ class MemoryService:
         """Get specific nodes and their relationships."""
         async def read_node(name: str) -> Optional[Entity]:
             # Get ID from name first
-            db_entity = await self.entity_service.get_by_name(name)
+            db_entity = await self.entity_service.get_entity(name)
             if db_entity:
                 return await read_entity_file(self.entities_path, db_entity.id)
             return None

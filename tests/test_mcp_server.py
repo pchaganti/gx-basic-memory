@@ -1,11 +1,15 @@
 """Tests for the MCP server implementation."""
-import pytest
 import json
+import pytest
 from pathlib import Path
 
-from mcp.types import TextContent
-from basic_memory.mcp.server import MemoryServer
+from mcp.types import EmbeddedResource, TextResourceContents
+from basic_memory.mcp.server import MemoryServer, MIME_TYPE, BASIC_MEMORY_URI
 from basic_memory.config import ProjectConfig
+from basic_memory.schemas import (
+    CreateEntitiesResponse, SearchNodesResponse, OpenNodesResponse,
+    AddObservationsResponse
+)
 
 @pytest.fixture
 def anyio_backend():
@@ -73,8 +77,17 @@ async def test_create_entities_camel_case(test_entity_data, memory_service, test
     )
     
     assert len(result) == 1
-    assert isinstance(result[0], TextContent)
-    assert "Test Entity" in result[0].text
+    assert isinstance(result[0], EmbeddedResource)
+    assert result[0].type == "resource"
+    assert isinstance(result[0].resource, TextResourceContents)
+    assert result[0].resource.mimeType == MIME_TYPE
+    assert result[0].resource.uri == BASIC_MEMORY_URI
+    
+    response = CreateEntitiesResponse.model_validate_json(result[0].resource.text)
+    assert len(response.entities) == 1
+    assert response.entities[0].name == "Test Entity"
+    assert response.entities[0].entity_type == "test"
+    assert len(response.entities[0].observations) == 1
 
 @pytest.mark.anyio
 async def test_create_entities_snake_case(test_entity_snake_case, memory_service, test_config):
@@ -87,8 +100,17 @@ async def test_create_entities_snake_case(test_entity_snake_case, memory_service
     )
     
     assert len(result) == 1
-    assert isinstance(result[0], TextContent)
-    assert "Test Entity" in result[0].text
+    assert isinstance(result[0], EmbeddedResource)
+    assert result[0].type == "resource"
+    assert isinstance(result[0].resource, TextResourceContents)
+    assert result[0].resource.mimeType == MIME_TYPE
+    assert result[0].resource.uri == BASIC_MEMORY_URI
+    
+    response = CreateEntitiesResponse.model_validate_json(result[0].resource.text)
+    assert len(response.entities) == 1
+    assert response.entities[0].name == "Test Entity"
+    assert response.entities[0].entity_type == "test"
+    assert len(response.entities[0].observations) == 1
 
 @pytest.mark.anyio
 async def test_search_nodes(test_entity_data, memory_service, test_config):
@@ -110,37 +132,53 @@ async def test_search_nodes(test_entity_data, memory_service, test_config):
     )
     
     assert len(result) == 1
-    assert isinstance(result[0], TextContent)
-    assert "Test Entity" in result[0].text
+    assert isinstance(result[0], EmbeddedResource)
+    assert result[0].type == "resource"
+    assert isinstance(result[0].resource, TextResourceContents)
+    assert result[0].resource.mimeType == MIME_TYPE
+    assert result[0].resource.uri == BASIC_MEMORY_URI
+    
+    response = SearchNodesResponse.model_validate_json(result[0].resource.text)
+    assert len(response.matches) == 1
+    assert response.matches[0].name == "Test Entity"
+    assert response.query == "Test Entity"
 
 @pytest.mark.anyio
 async def test_add_observations(test_entity_data, memory_service, test_config):
     """Test adding observations to an existing entity."""
     server_instance = MemoryServer(config=test_config)
     
-    # First create an entity and get its ID
+    # First create an entity and get its ID from response
     create_result = await server_instance.handle_call_tool(
         "create_entities", 
         test_entity_data,
         memory_service=memory_service
     )
-    # Extract ID from response
-    created_entity = json.loads(create_result[0].text.replace("'", '"'))[0]
-    entity_id = created_entity["id"]
+    
+    create_response = CreateEntitiesResponse.model_validate_json(create_result[0].resource.text)
+    entity_id = create_response.entities[0].id
     
     # Add new observations using camelCase
     result = await server_instance.handle_call_tool(
         "add_observations",
         {
-            "entityId": entity_id,  # Use ID instead of name
+            "entityId": entity_id,
             "observations": [{"content": "A new observation"}]
         },
         memory_service=memory_service
     )
     
     assert len(result) == 1
-    assert isinstance(result[0], TextContent)
-    assert entity_id in result[0].text
+    assert isinstance(result[0], EmbeddedResource)
+    assert result[0].type == "resource"
+    assert isinstance(result[0].resource, TextResourceContents)
+    assert result[0].resource.mimeType == MIME_TYPE
+    assert result[0].resource.uri == BASIC_MEMORY_URI
+    
+    response = AddObservationsResponse.model_validate_json(result[0].resource.text)
+    assert response.entity_id == entity_id
+    assert len(response.added_observations) == 1
+    assert response.added_observations[0].content == "A new observation"
 
 @pytest.mark.anyio
 async def test_invalid_tool_name(test_config):
@@ -177,4 +215,7 @@ async def test_invalid_parameters(test_config):
         }
     )
     assert len(result) == 1
-    assert "Mixed Case Test" in result[0].text
+    assert isinstance(result[0], EmbeddedResource)
+    assert result[0].type == "resource"
+    assert isinstance(result[0].resource, TextResourceContents)
+    assert result[0].resource.mimeType == MIME_TYPE
