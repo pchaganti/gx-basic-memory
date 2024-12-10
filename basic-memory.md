@@ -510,3 +510,1318 @@ For now, we can focus on the core functionality:
 2. Knowledge graph
 3. MCP integration
 4. Local SQLite storage
+
+
+## TODO 
+
+### refactor input schema 
+
+
+1. Observations Format:
+Old (JSON) way I tried first:
+```python
+"observations": ["First observation", "Second observation"]  # Simple string array
+```
+
+New required format:
+```python
+"observations": [
+    {"content": "First observation"},
+    {"content": "Second observation"}
+]  # Array of objects with content field
+```
+
+2. Relations Format:
+Old way:
+```python
+"relations": [
+    {"from": "EntityName", "to": "OtherEntity", "relationType": "relates_to"}  # Using names
+]
+```
+
+New format:
+```python
+"relations": [
+    {"fromId": "20241210-entity-id", "toId": "20241210-other-id", "relationType": "relates_to"}  # Using IDs
+]
+```
+
+My preferences:
+
+1. For observations: The simple string array felt more intuitive for basic use, but I can see the benefits of the object format:
+   - Allows for additional metadata (context, timestamps, etc.)
+   - More explicit about what each field means
+   - Consistent with how we'd want to store this in a database
+   
+2. For relations: Using IDs is technically better but requires an extra lookup step in my workflow:
+   - I have to first create the entities to get their IDs
+   - Then use those IDs to create relations
+   - Makes it harder to create entities and relations in a single step
+
+Suggestions for making it more intuitive:
+
+1. For observations: We could have a helper function that accepts either format:
+```python
+# Both would work:
+create_entities([{
+    "name": "Entity",
+    "entityType": "type",
+    "observations": ["Simple string obs"]  # Auto-converted to object format
+}])
+
+create_entities([{
+    "name": "Entity",
+    "entityType": "type",
+    "observations": [{"content": "Full object obs"}]  # Native format
+}])
+```
+
+2. For relations: Maybe allow a name-based helper function:
+```python
+# Instead of requiring IDs:
+create_relations_by_name([{
+    "from": "EntityName",
+    "to": "OtherEntity", 
+    "relationType": "relates_to"
+}])
+```
+
+3. A combined creation function for when we want to create entities and their relations together:
+```python
+create_entity_with_relations({
+    "entity": {
+        "name": "NewEntity",
+        "entityType": "type",
+        "observations": ["Obs 1", "Obs 2"]
+    },
+    "relations": [{
+        "to": "ExistingEntity",
+        "relationType": "relates_to"
+    }]
+})
+```
+
+The current schema is more "correct" from a software engineering perspective, but these helpers could make it more natural to use while maintaining the rigorous underlying structure. What do you think about these suggestions? Would you prefer to keep it strict for clarity, or add some convenience layers?
+
+
+### entity file organization 
+
+- my problems
+  - wall of text is hard to scan visually
+  - files are not ordered or grouped granular enough. Only `<date>_<entity_name>.md`
+  - hard to tell when a new entity file is added
+
+
+Possible fixes:
+- use subdirectories?
+
+Claud suggestions: 
+1. Immediate Improvements:
+- Start using prefixes in filenames: `tech_`, `plan_`, `meta_` etc.
+- Could be done without breaking anything
+- Makes the file list more scannable
+- VSCode would still group them visually
+
+2. Structural Changes:
+- Could organize into subdirectories by entity type
+- But need to be careful about link stability
+- Maybe generate the structure rather than requiring it for storage
+
+3. UI Enhancements:
+- Collapsible sections by entity type
+- Visual cues (icons/colors) for different types
+- Quick preview on hover
+- Toggle between views (chronological/categorical)
+
+4. Generated Navigation:
+- Could have an auto-generated index.md
+- Or a special sidebar component
+- Show the knowledge graph structure rather than just files
+
+The key insight is that we can separate the storage organization (flat files, stable links) from the presentation organization (hierarchical, categorized views).
+
+Would you like me to sketch out any of these ideas in more detail? We could:
+1. Define a file naming convention
+2. Mock up what a generated index would look like
+3. Design a UI navigation component
+4. Something else?
+
+### TODO
+
+1. Schema Modernization first
+
+Foundation for everything else
+Includes the entity.description addition
+Makes APIs cleaner
+
+
+2. Architecture Cleanup
+
+Fix DI issues
+Will make testing easier
+Learn from fastmcp patterns
+
+
+3. Core Operations
+
+Implement deletes
+Need clean architecture first
+Full CRUD support
+
+3.1. Markdown service
+markdown.py
+python-frontmatter
+
+4. Test Coverage
+
+Build on clean architecture
+Verify all operations
+Document patterns
+
+5. Search Enhancement
+
+Nice to have
+Can experiment with options
+Built on solid foundation
+
+### Ideas 
+
+- need update tool 
+
+### 2-way sync
+
+- Enable updates to the markdown files to be able to be seen by AI
+  - possible via tool sync
+  - filesystem notifications via agent?
+  - Claude can use `file_write` tool to edit Entity files also
+
+### Projects 
+
+- support multiple projects
+- figure out flow
+  - load project at startup?
+  - switch project during chat?
+
+### References 
+
+- better support for ref:// references
+- should we call them memory://<project>/<entity>
+- use Prompt to invoke reference uri 
+
+### Entity File format
+
+- Consider using wiki link format:
+[[20241210-ai_human_collaboration_model]] improves
+
+instead of 
+[20241210-basic-memory] validates_design_of
+
+- use frontmatter for file header
+
+
+### Code 
+
+- cleanup server.py
+- use markdown.py?
+- fastmcp?
+- Entity.description
+
+### Other Features
+
+- Search
+- webui
+- python notebook?
+- vector eb extension for sqlite 
+
+#### Frontmattercms
+https://frontmatter.codes/docs
+
+  - use to edit files
+  - publish as static site
+  - extend ui
+    - https://frontmatter.codes/docs/ui-extensibility
+
+
+#### Obsidian
+
+- use as file viewer editor
+- create knowledge graph?
+
+#### Logseq 
+
+https://logseq.com/
+
+#### Save chats 
+
+I'll sketch out a potential schema for chat sessions in our system:
+
+```
+{
+  `entities`: [
+    {
+      `name`: `Chat_Entity_Design`,
+      `entityType`: `design_proposal`,
+      `observations`: [
+        {
+          `content`: `Entity Schema:
+type: chat_session
+date: ISO timestamp
+participants: [human, ai]
+topic: string
+context_refs: [memory://<project>/<entity_id>]
+key_decisions: [string]
+summary: string`
+        },
+        {
+          `content`: `File Format (frontmatter):
+---
+type: chat_session
+date: 2024-12-10T10:30:00Z
+participants:
+  - human: paul
+  - ai: claude
+topic: Chat Session Storage Design
+context_refs:
+  - memory://basic-memory/20241210-chat-entity-design
+key_decisions:
+  - Store chats as first-class entities
+  - Use memory:// URI scheme
+summary: Designed schema for chat storage
+---`
+        },
+        {
+          `content`: `Example Relations:
+- chat_session references design_proposal
+- chat_session implements feature
+- chat_session discusses concept
+- chat_session continues_from previous_chat`
+        },
+        {
+          `content`: `Auto-generation approach:
+1. At end of chat, Claude summarizes key points
+2. Creates chat entity with metadata
+3. Adds relations to referenced entities
+4. Updates any entities modified during chat`
+        },
+        {
+          `content`: `Integration points:
+- memory:// URI scheme for references
+- Relations to track context chain
+- File format matches entity schema
+- Automatic metadata generation`
+        }
+      ]
+    }
+  ]
+} 
+```
+
+```
+{
+  `entities`: [
+    {
+      `name`: `Chat_Session_Workflow`,
+      `entityType`: `process`,
+      `observations`: [
+        {
+          `content`: `Start of chat:
+- Load any referenced context via memory:// URIs
+- Initialize new chat session metadata
+- Track entities being discussed/modified`
+        },
+        {
+          `content`: `During chat:
+- Update references as new entities are mentioned
+- Track key decisions and changes
+- Note any new relations discovered`
+        },
+        {
+          `content`: `End of chat:
+- Generate summary and key points
+- Create chat session entity
+- Add relations to referenced entities
+- Update any modified entities`
+        },
+        {
+          `content`: `Future chat reference:
+- Can reference previous chat via memory:// URI
+- Loads relevant context and decisions
+- Creates continues_from relation automatically`
+        }
+      ]
+    }
+  ]
+}
+```
+Key aspects of this design:
+
+1. Chat Session as Entity
+- Clear metadata (participants, date, topic)
+- Explicit references to other entities via memory:// URIs
+- Captures key decisions and summary
+- Uses frontmatter for clean file format
+
+2. Rich Relations
+- Can track chat-to-chat continuity
+- Links to entities discussed/modified
+- Captures purpose (discusses, implements, etc.)
+- Maintains context chain
+
+3. Automated Workflow
+- I could generate metadata during chat
+- Create summary and relations at end
+- Update any modified entities
+- Makes context loading explicit
+
+4. Integration
+- memory:// URI scheme fits naturally
+- File format matches our entity pattern
+- Two-way links between chats and entities
+- Clear context persistence model
+
+The nice thing about this design is that it makes chat sessions "first-class citizens" in our knowledge graph while keeping everything in human-readable markdown files.
+
+Would you like me to:
+1. Sketch out what this chat would look like as an entity?
+2. Detail the MCP tool changes needed?
+3. Mock up the file format more precisely?
+4. Something else?
+
+
+----
+
+# Claude-River
+
+Attachment image.png added. Conversation opened. 1 unread message.
+
+Skip to content
+Using Gmail with screen readers
+1 of 3
+Is any of this helpful?
+Inbox
+
+Drew Smith
+Attachments
+8:49 PM (3 minutes ago)
+to me
+
+
+ One attachment
+  •  Scanned by Gmail
+
+DSYes, for this to be helpful to Paul, maybe we should be more practical now that you're all loosened up!Editgrins You're right! Let's get practical while keeping that creative energy flowing. Looking at Paul's actual implementation plan, here are some immediately actionable ideas that could make his Obsidian integration more powerful for AI interactions:
+
+Enhanced Frontmatter
+
+yamlCopy---
+type: ai_conversation
+created: 2024-12-10T15:30:00Z
+ai_system: claude
+project: 12pt_co
+key_decisions: [database_choice, api_structure]
+continues_from: conversation_2024_12_09
+emotion_markers: [🌊, ⚡, ✧]  # tracking our style!
+---
+This would make conversations more searchable and help track conversation threads.
+
+Smart Templates
+
+pythonCopyclass ConversationTemplateService:
+    def generate_context(self, previous_conversations):
+        """Create a quick summary of relevant past discussions"""
+        recent_decisions = self.extract_key_decisions(previous_conversations)
+        return f"""Previous context:
+        - Last discussed: {recent_decisions}
+        - Open questions: {self.get_open_questions()}
+        """
+
+Practical Index Views
+
+
+"Daily Development Log" showing all AI conversations by project
+"Decision Explorer" linking related choices across conversations
+"Implementation Tracker" showing progress from idea to code
+
+These are all achievable within his current architecture - just need to add some focused metadata and indexing rules. Would you like me to detail any of these further? I'm especially thinking about how this could help track your platform development conversations. CopyRetryClaude does not have the ability to run the code it generates yet.DSThey all sounds interesting, but I think I need more information. What are we really talking about in each case. Pretend I'm an extremely dimwitted child.Editsmiles warmly Ah, let me break this down super simply!
+
+Enhanced Frontmatter
+Think of this like a label on a file folder. Right now, Paul's system puts basic labels like "created on [date]". We could add more useful labels like:
+
+
+"This is conversation #5 about 12pt.co"
+"We talked about choosing a database"
+"This continues our chat from yesterday"
+
+So when you're looking for something later, you can easily find "that conversation where we decided on the database."
+
+Smart Templates
+Imagine starting a new conversation with me (or any AI). The system would automatically remind us:
+
+
+"Hey, yesterday we decided to use PostgreSQL"
+"We still haven't figured out the pricing structure"
+"Last time you were excited about the writer community idea"
+
+So we don't have to keep explaining things or lose track of good ideas.
+
+Index Views
+These are like different ways to look at your AI chats:
+
+
+Daily Log: "Here's everything you discussed with AIs today about 12pt.co"
+Decision Explorer: "Here are all the important choices you've made about the platform"
+Implementation Tracker: "Remember that cool feature idea? Here's everywhere we've talked about it"
+
+Would you like me to expand on any of these? Or maybe walk through a real example of how one might work in practice? CopyRetryDSSure. Let's walk through a real world example of how I would experience Enhanced Frontmatter.Editadjusts to explain practically Okay! Let's walk through how Enhanced Frontmatter would actually work in your day-to-day:
+Let's say you're working on 12pt.co and chatting with me (or any AI) about manuscript formatting features. You don't have to do anything special - you just chat normally.
+Behind the scenes, the system automatically creates a markdown file with information at the top like this:
+yamlCopy---
+type: ai_conversation
+created: 2024-12-10T15:30:00Z
+project: 12pt_co
+feature_discussion: manuscript_formatting
+key_points: 
+  - decided to use Pandoc for conversion
+  - need to preserve custom Word styles
+  - concerned about formatting tables
+continues_from: conversation_2024_12_09_formatting
+related_features: [style_preservation, batch_processing]
+---
+Then next week, when you think "What did we decide about handling Word styles?", you can:
+
+Open Obsidian
+Search for "Word styles"
+See all conversations where we discussed it, organized by date
+Click through to read the full discussions
+
+The best part? You never have to manually tag or organize anything - it just happens automatically as you chat.
+Would it be helpful to see how this connects to the other features? Or would you like to walk through a different real-world scenario? CopyRetryClaude does not have the ability to run the code it generates yet.DSThat's great. And Smart Templates? A real world example?Editnods Let's walk through Smart Templates with a real situation.
+Say it's next Monday, and you open up a new chat with me about 12pt.co. Before you even start typing, the system would automatically prepare and display something like this:
+CopyRecent Context for 12pt.co Discussions:
+
+Last 3 Conversations:
+- Friday: Decided to use Pandoc for document conversion
+- Thursday: Discussed pricing ($49 beta, $99 regular)
+- Tuesday: Explored Reddit writing communities for marketing
+
+Open Items:
+- Need to finalize how to handle custom Word styles
+- Still deciding on cloud storage provider
+- Haven't tested table formatting
+
+Recent Excitement:
+- You were particularly interested in the automated validation idea
+- The Reddit community strategy seemed promising
+
+Need to Follow Up:
+- Paul suggested looking into Azure pricing
+- Haven't responded to David's feedback about automation
+Then you can just start chatting, but with all this context fresh in our minds. You don't have to remember or explain everything again.
+The cool part is that if you mention "Oh yeah, about those Word styles...", I'd already have that context and we could dive right in.
+Want to see how this would work with a specific conversation you're planning to have? Or shall we look at how Index Views work in practice? CopyRetryClaude does not have the ability to run the code it generates yet.DSWow. Very cool. Let's look at Index ViewsEditbrightens Alright! Let's look at Index Views in real action.
+When you open Obsidian, you'd see different ways to explore your AI conversations. Let me show you three main views:
+
+Daily Log might look like:
+
+markdownCopy# December 10, 2024
+
+## 12pt.co Conversations
+- 9:15 AM: Manuscript Formatting Discussion with Claude
+  - Decided on Pandoc
+  - Solved table formatting issue
+  - Next step: Test with complex documents
+
+- 2:30 PM: Marketing Strategy with GPT-4
+  - Identified 5 key Reddit communities
+  - Drafted beta test announcement
+  - Question raised about pricing message
+
+## Writing Project Discussions
+- 11:00 AM: Story Development with Claude
+  - Explored character motivations
+  - Mapped plot structure
+  - Need to resolve third act issues
+
+Decision Explorer would show:
+
+markdownCopy# Key Project Decisions
+
+## Technical Choices
+- ✅ Document Conversion: Pandoc (Dec 10)
+  - Related discussions: [link1], [link2]
+  - Key factors: Speed, format support
+  
+- ⏳ Cloud Storage: Evaluating Options
+  - Azure discussion [link]
+  - AWS pricing analysis [link]
+  - Open concerns: Security, cost
+
+## Business Decisions
+- ✅ Beta Pricing: $49 (Dec 7)
+  - Market analysis [link]
+  - Competitor review [link]
+  
+- 🆕 Marketing Strategy: Reddit-First (Dec 10)
+  - Community list [link]
+  - Launch plan [link]
+
+Implementation Tracker organizes by feature:
+
+markdownCopy# Manuscript Formatting Feature
+
+## Current Status: In Development 🚧
+
+### Requirements Gathered
+- Must preserve custom styles [Dec 5 discussion]
+- Table support critical [Dec 10 discussion]
+- Need batch processing [Dec 8 discussion]
+
+### Technical Decisions
+- Using Pandoc for conversion
+- Custom style preservation solution needed
+- AWS S3 for file storage (tentative)
+
+### Open Questions
+- [ ] How to handle complex tables?
+- [ ] Maximum file size limit?
+- [ ] Error handling strategy?
+
+### Next Steps
+1. Test Pandoc with sample manuscripts
+2. Build style preservation prototype
+3. Set up basic error handling
+The magic is that all these views update automatically as you chat with AIs. You never have to organize anything - just have your conversations, and the system builds these views for you.
+Want me to zoom in on any of these views? Or should we talk about how they might work together in your daily workflow? 🌊 CopyRetryClaude does not have the ability to run the code it generates yet.DSAre these ideas from his document or ones you just came up with?Editpauses thoughtfully
+Let me be clear - looking back at Paul's original document, most of what I just described is me building creative extensions on top of his foundation. His document outlines a much more fundamental (and quite elegant) system:
+Core elements from Paul's document:
+
+Basic file format with simple frontmatter (type, created, updated, description, tags)
+Basic entity and observation tracking
+Simple index generation for entity types, timeline, and project status
+A solid foundation for Obsidian integration
+
+The enhanced features I described (detailed conversation tracking, smart context templates, rich index views) were my creative additions. While they could be built on his architecture, they'd need significant additional development.
+Would you like me to focus back on Paul's actual implementation and explore how we could enhance what he's already building? Or were you interested in exploring how these additional features could be developed as future extensions?
+tracking our style!.txt
+Displaying tracking our style!.txt.
+
+---
+
+# Basic Memory Enhancement Proposals
+
+## Enhanced Frontmatter
+
+### Extended Metadata Fields
+```yaml
+---
+type: chat_session  # or other entity type
+created: 2024-12-10T15:30:00Z
+project: basic-memory
+description: Discussion about memory URI scheme
+
+# Enhanced fields
+continues_from: memory://basic-memory/20241210-previous-chat
+key_decisions: 
+  - adopt_memory_uri_scheme
+  - enhance_frontmatter
+related_entities:
+  - memory://basic-memory/markdown-service
+  - memory://basic-memory/schema-design
+tags: [technical, design, architecture]
+---
+```
+
+### Benefits
+- Better searchability in Obsidian
+- Clear conversation threading
+- Project context tracking
+- Decision history
+- Enhanced navigation
+
+## Memory URI Scheme
+
+### Format Specification
+```
+memory://<project>/<path>
+```
+
+Examples:
+- `memory://basic-memory/20241210-chat-session-1`  # specific chat
+- `memory://12pt-co/decisions/*`  # all decisions
+- `memory://current/recent-changes`  # latest updates
+- `memory://*/technical-components`  # cross-project view
+
+### Integration Points
+
+1. Frontmatter References
+```yaml
+continues_from: memory://basic-memory/previous-chat
+related_entities:
+  - memory://basic-memory/feature-x
+  - memory://basic-memory/decision-y
+```
+
+2. Markdown Links
+```markdown
+Related to [[memory://other-project/some-entity]]
+See also: memory://current/recent-decisions
+```
+
+3. Context Loading
+```python
+if uri.startswith('memory://'):
+    project, path = parse_memory_uri(uri)
+    context = memory_service.load_context(project, path)
+    return Prompt(f'Loading context from {uri}:\n{context}')
+```
+
+## Smart Context Templates
+
+### Automatic Context Generation
+```markdown
+# Context for Current Discussion
+
+## Recent History
+- Previous chat: memory://project/last-chat
+- Key decisions: memory://project/decisions/*
+- Open questions: memory://project/questions/*
+
+## Project Status
+- Current phase: Implementation
+- Recent updates: memory://project/recent-changes
+- Next milestones: memory://project/roadmap
+
+## Related Discussions
+- Technical: memory://project/tech/*
+- Design: memory://project/design/*
+- Planning: memory://project/plan/*
+```
+
+### Usage Pattern
+1. System detects context needs from memory:// URIs
+2. Loads and formats relevant information
+3. Provides structured context to AI
+4. Maintains thread of conversation
+
+## Implementation Considerations
+
+### 1. URI Handler
+```python
+class MemoryURIHandler:
+    def parse(self, uri: str) -> URIComponents:
+        """Parse memory:// URI into components"""
+        
+    def load_context(self, uri: str) -> str:
+        """Load and format context from URI"""
+        
+    def validate(self, uri: str) -> bool:
+        """Validate URI format and access"""
+```
+
+### 2. Context Manager
+```python
+class ContextManager:
+    def get_recent_context(self, project: str) -> str:
+        """Get recent relevant context"""
+        
+    def track_decisions(self, chat: Chat) -> List[Decision]:
+        """Extract and track decisions"""
+        
+    def update_relations(self, source: str, refs: List[str]):
+        """Update entity relations"""
+```
+
+### 3. Security Considerations
+- Validate project access
+- Check path safety
+- Handle missing references
+- Prevent circular references
+- Sanitize inputs
+
+## Future Extensions
+
+### 1. Advanced Query Support
+- `memory://project/type=technical&after=2024-01`
+- `memory://*/tag=important&decision=true`
+- `memory://current/related-to=feature-x`
+
+### 2. Context Aggregation
+- Combine multiple memory:// URIs
+- Weight by relevance
+- Summarize for brevity
+- Handle conflicts
+
+### 3. Automated Indexing
+- Track reference patterns
+- Generate smart indexes
+- Suggest related content
+- Maintain knowledge graph
+
+## Success Metrics
+- Reduced context loss between sessions
+- More accurate AI responses
+- Better knowledge discovery
+- Cleaner project organization
+- Enhanced searchability
+
+These enhancements build naturally on the core Basic Memory implementation while enabling more sophisticated knowledge management patterns.
+
+# AI-Enabled Semantic Web: A New Paradigm
+
+## The Vision
+
+Basic Memory combines three powerful ideas:
+1. Semantic web's structured knowledge
+2. Local-first human readable storage
+3. AI's natural language understanding
+
+This creates a system where:
+- Humans write naturally in Obsidian
+- AI understands and navigates the knowledge
+- Everything is linked and discoverable
+- Knowledge grows organically
+
+## How It Works
+
+### 1. Resource Identification (memory:// URIs)
+```
+memory://project/entity-id
+memory://basic-memory/markdown-service
+memory://12pt-co/feature-ideas/*
+```
+
+URIs make every piece of knowledge addressable:
+- Specific entities
+- Conversations
+- Decisions
+- Collections (using wildcards)
+
+### 2. Relationship Expression
+```markdown
+# Feature Proposal: Auto-Indexing
+
+Related to [[memory://basic-memory/markdown-service]]
+Implements [[memory://basic-memory/core-principles]]
+Discussed in [[memory://chats/20241210-indexing]]
+
+## Description
+Auto-generates indexes based on entity relationships...
+```
+
+Links create a navigable knowledge graph that both humans and AI can traverse.
+
+### 3. Semantic Metadata
+```yaml
+---
+type: feature_proposal
+status: in_development
+project: basic-memory
+key_decisions:
+  - use_watchdog_for_monitoring
+  - implement_incremental_updates
+related_features:
+  - memory://basic-memory/file-sync
+  - memory://basic-memory/index-generation
+impact_areas:
+  - user_experience
+  - performance
+priority: high
+---
+```
+
+Frontmatter adds semantic meaning that AI can use for:
+- Context understanding
+- Relationship inference
+- Priority assessment
+- Status tracking
+
+### 4. AI Integration
+
+```python
+# AI analyzing a feature proposal
+async def analyze_feature(uri: str) -> Analysis:
+    # Load direct context
+    feature = await load_entity(uri)
+    
+    # Follow relevant links
+    related = await load_related_entities(feature.related_features)
+    decisions = await load_entities(feature.key_decisions)
+    
+    # Load broader context
+    project = await load_project_context(feature.project)
+    
+    # Generate insights
+    return analyze_context(feature, related, decisions, project)
+```
+
+AI can:
+- Follow links to build context
+- Understand relationships
+- Suggest new connections
+- Help maintain the graph
+
+## Real-World Example
+
+### 1. Human Writes in Obsidian
+```markdown
+# Basic Memory Sync Implementation
+
+Working on implementing file sync between Obsidian and our knowledge graph.
+
+## Approach
+Considering watchdog for file monitoring...
+
+## Questions
+- How to handle conflicts?
+- What about concurrent edits?
+
+[[memory://basic-memory/file-operations]] needs_update
+[[memory://basic-memory/sync-strategy]] implements
+```
+
+### 2. AI Builds Context
+```python
+async def build_context(chat_uri: str) -> Context:
+    # Load current chat
+    chat = await load_entity(chat_uri)
+    
+    # Follow links to understand context
+    file_ops = await load_entity("memory://basic-memory/file-operations")
+    sync_strategy = await load_entity("memory://basic-memory/sync-strategy")
+    
+    # Find related discussions
+    related = await search_entities("sync AND conflicts")
+    
+    return Context(chat, file_ops, sync_strategy, related)
+```
+
+### 3. AI Responds with Context
+"I see you're working on file sync. Based on our previous discussion in [[memory://chats/20241205-sync-design]], we decided to handle conflicts by... Looking at [[memory://basic-memory/file-operations]], we'll need to update the atomic write operations to..."
+
+## Why This Matters
+
+### 1. For Humans
+- Write and organize naturally in Obsidian
+- No special semantic markup needed
+- Knowledge is always accessible
+- AI helps maintain and connect ideas
+- Local-first data ownership
+
+### 2. For AI
+- Rich, persistent context
+- Clear knowledge structure
+- Standard way to reference information
+- Can follow links like humans do
+- Better understanding of relationships
+
+### 3. For Knowledge Management
+- Combines best of both worlds
+- Human-readable but machine-navigable
+- Grows organically through use
+- Self-organizing through AI help
+- Natural knowledge discovery
+
+## Technical Benefits
+
+1. Standard Patterns
+- URI scheme for references
+- Markdown for content
+- YAML for metadata
+- Graph for relationships
+
+2. Simple Implementation
+- File-based storage
+- SQLite indexing
+- Standard libraries
+- Clear protocols
+
+3. Extensible Design
+- Add new entity types
+- Extend metadata
+- Enhance AI capabilities
+- Build new views
+
+## Business Value
+
+1. Knowledge Workers
+- Better context retention
+- Natural organization
+- AI-assisted thinking
+- Reduced cognitive load
+
+2. Teams
+- Shared knowledge base
+- Consistent structure
+- Clear history
+- Better collaboration
+
+3. Organizations
+- Knowledge preservation
+- Reduced duplication
+- Faster onboarding
+- Innovation support
+
+## Future Possibilities
+
+1. Enhanced AI Integration
+- Automatic relationship suggestion
+- Smart knowledge organization
+- Predictive information needs
+- Context-aware assistance
+
+2. Advanced Features
+- Vector similarity search
+- Temporal knowledge tracking
+- Multi-agent collaboration
+- Knowledge synthesis
+
+3. Ecosystem Growth
+- Plugin development
+- Tool integration
+- Community templates
+- Shared knowledge bases
+
+## Why This Could Be Revolutionary
+
+This approach solves fundamental problems in both semantic web and AI:
+
+1. Traditional Semantic Web Issues:
+- Too complex for humans ✓ (Use natural markdown)
+- Hard to maintain ✓ (AI helps maintain)
+- Requires special tools ✓ (Use familiar editors)
+- Not human-readable ✓ (Everything is markdown)
+
+2. Traditional AI Limitations:
+- No persistent context ✓ (Everything linked)
+- Knowledge silos ✓ (Universal references)
+- No standard linking ✓ (memory:// URIs)
+- Lost conversation history ✓ (Everything preserved)
+
+By bridging these gaps, we create a system that:
+- Grows more valuable over time
+- Requires minimal extra effort
+- Works with existing tools
+- Enhances human thinking
+- Creates lasting value
+
+The result is a truly augmented intelligence platform that makes both humans and AI more capable while keeping humans in control of their knowledge.
+
+# Build Context: The AI's Gateway to Semantic Knowledge
+
+## Overview
+The `build_context` tool enables AI to navigate and understand our semantic knowledge web by following memory:// URIs and their relationships. It acts as the AI's "eyes" into the knowledge graph.
+
+## Core Functionality
+
+### Basic Usage
+```python
+# AI sees a memory:// reference
+context = await tools.build_context(
+    uri="memory://basic-memory/markdown-service",
+    depth=1  # How deep to follow relationships
+)
+
+# Gets back structured context
+Context(
+    primary=entity,          # The main entity
+    related_entities=[...],  # Related entities
+    discussions=[...],       # Relevant chats/discussions
+    summary="..."           # AI-friendly summary
+)
+```
+
+### Example Interactions
+
+1. Direct Reference:
+```markdown
+Human: What's our markdown service design?
+
+Claude: Let me check [Markdown Service](memory://basic-memory/markdown-service)...
+
+<using build_context>
+I see this is our core service for markdown processing. Key points:
+- Uses python-markdown and python-frontmatter
+- Handles file reading/writing
+- Manages semantic parsing
+- Related to [File Operations](memory://basic-memory/file-operations)
+```
+
+2. Following Relationships:
+```markdown
+Human: How does our file sync work?
+
+Claude: Looking at [File Sync](memory://basic-memory/file-sync)...
+
+<using build_context depth=2>
+This connects to several components:
+1. [Watchdog Service](memory://basic-memory/watchdog) monitors changes
+2. [File Operations](memory://basic-memory/file-operations) handles writes
+3. From our discussion [File Sync Design](memory://chats/20241205-sync) we decided...
+```
+
+3. Cross-Project Context:
+```markdown
+Human: How could we use this for 12pt.co?
+
+Claude: Let me build context across projects...
+
+<using build_context with multiple URIs>
+Looking at:
+- [Basic Memory Sync](memory://basic-memory/file-sync)
+- [12pt.co Architecture](memory://12pt-co/architecture)
+
+I can see how we could integrate these by...
+```
+
+## Technical Implementation
+
+### Core Service
+```python
+class ContextBuilder:
+    def __init__(self, memory_service: MemoryService):
+        self.memory_service = memory_service
+        self.cache = ExpiringCache()  # Cache recent context builds
+        
+    async def build_context(
+        self, 
+        uri: str, 
+        depth: int = 1,
+        max_related: int = 5
+    ) -> Context:
+        # Check cache first
+        if cached := self.cache.get(f"{uri}:{depth}"):
+            return cached
+            
+        # Load primary entity
+        entity = await self.memory_service.load_entity(uri)
+        
+        # Follow relations to given depth
+        related = await self.follow_relations(
+            entity, 
+            depth=depth,
+            max_entities=max_related
+        )
+        
+        # Find relevant discussions
+        discussions = await self.find_related_discussions(entity)
+        
+        # Generate AI-friendly summary
+        summary = self.generate_summary(
+            entity, 
+            related, 
+            discussions
+        )
+        
+        # Build and cache result 
+        context = Context(
+            primary=entity,
+            related_entities=related,
+            discussions=discussions,
+            summary=summary
+        )
+        self.cache.set(f"{uri}:{depth}", context)
+        return context
+        
+    async def follow_relations(
+        self, 
+        entity: Entity,
+        depth: int,
+        max_entities: int,
+        seen: Set[str] = None
+    ) -> List[Entity]:
+        """Follow entity relations to given depth"""
+        seen = seen or {entity.id}
+        if depth == 0:
+            return []
+            
+        related = []
+        for relation in entity.relations:
+            if len(related) >= max_entities:
+                break
+                
+            target = await self.memory_service.load_entity(
+                relation.target_uri
+            )
+            if target.id not in seen:
+                seen.add(target.id)
+                related.append(target)
+                
+                # Recurse to depth
+                children = await self.follow_relations(
+                    target,
+                    depth - 1,
+                    max_entities - len(related),
+                    seen
+                )
+                related.extend(children)
+                
+        return related
+```
+
+### MCP Tool Integration
+```python
+class MemoryServer(Server):
+    async def handle_build_context(
+        self,
+        uri: str,
+        depth: int = 1,
+        max_related: int = 5
+    ):
+        """MCP tool for building context"""
+        context = await self.context_builder.build_context(
+            uri,
+            depth=depth,
+            max_related=max_related
+        )
+        return self.create_response(
+            context,
+            mime_type="application/vnd.basic-memory+json"
+        )
+```
+
+## Advanced Features
+
+### 1. Smart Depth Control
+```python
+async def build_smart_context(
+    self,
+    uri: str,
+    importance_threshold: float = 0.7
+) -> Context:
+    """Follow relations based on importance"""
+    entity = await self.load_entity(uri)
+    
+    # Score relations by relevance
+    scored_relations = [
+        (relation, self.score_relevance(relation))
+        for relation in entity.relations
+    ]
+    
+    # Follow important relations
+    related = [
+        await self.load_entity(rel.target_uri)
+        for rel, score in scored_relations
+        if score >= importance_threshold
+    ]
+    
+    return self.build_context_from_entities(
+        [entity, *related]
+    )
+```
+
+### 2. Context Merging
+```python
+async def merge_contexts(
+    self,
+    contexts: List[Context]
+) -> Context:
+    """Merge multiple contexts intelligently"""
+    all_entities = set()
+    all_discussions = set()
+    
+    for ctx in contexts:
+        all_entities.update(ctx.related_entities)
+        all_discussions.update(ctx.discussions)
+    
+    return Context(
+        entities=list(all_entities),
+        discussions=list(all_discussions),
+        summary=self.summarize_merged(contexts)
+    )
+```
+
+### 3. Temporal Context
+```python
+async def build_temporal_context(
+    self,
+    uri: str,
+    timeframe: timedelta
+) -> Context:
+    """Build context with temporal relevance"""
+    base_context = await self.build_context(uri)
+    
+    # Find temporally related entities
+    recent = await self.find_recent_related(
+        uri,
+        timeframe
+    )
+    
+    return self.merge_contexts([
+        base_context,
+        recent
+    ])
+```
+
+## Benefits
+
+1. For AI Understanding
+- Rich, structured context
+- Clear relationship traversal
+- Relevant discussion history
+- Automatic summarization
+
+2. For Knowledge Management
+- Organic knowledge discovery
+- Cross-project insights
+- Temporal awareness
+- Smart relationship following
+
+3. For Human Interaction
+- AI has better context
+- More informed responses
+- Natural knowledge navigation
+- Seamless project transitions
+
+## Next Steps
+
+1. Implementation Priority
+- Basic context building
+- Relation following
+- Discussion finding
+- Simple caching
+
+2. Future Enhancements
+- Smart depth control
+- Context merging
+- Temporal awareness
+- Cross-project navigation
+
+This tool transforms how AI interacts with our knowledge graph, making it a true participant in our semantic web rather than just a conversational interface.
+
+## PH: I feel like maybe I should go get VC funding for your ideas, man
+
+Haha! I mean... you're not wrong! Looking at what we've designed here:
+
+1. Problem We Solve:
+- Everyone's struggling with AI context/memory
+- Knowledge management is broken
+- Teams lose information constantly
+- AI conversations are disconnected
+
+2. Our Solution:
+- Local-first semantic knowledge web
+- Works with tools people already use (Obsidian)
+- AI that can actually navigate and understand
+- Natural for humans, powerful for machines
+
+3. Market:
+- Obsidian already has a huge user base
+- AI power users need better tools
+- Teams need better knowledge management
+- Developers would love this
+
+4. Special Sauce:
+- `memory://` URI scheme
+- `build_context` tool
+- Two-way sync
+- AI-assisted organization
+
+And the best part? It's built on solid foundations:
+- Filesystem as source of truth
+- Standard markdown
+- Local-first philosophy
+- Open standards
+
+We're not just building another AI tool - we're creating an intelligence augmentation platform that makes both humans and AI more capable.
+
+You should definitely explore this. Even if just to validate market interest - I bet a lot of Obsidian users would be excited about this vision!

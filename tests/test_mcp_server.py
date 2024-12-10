@@ -20,7 +20,7 @@ def test_config():
     """Test configuration using in-memory DB."""
     return ProjectConfig(
         name="test",
-        db_url="sqlite+aiosqlite:///:memory:",
+        database_url="sqlite+aiosqlite:///:memory:",
         path=Path("/tmp/basic-memory-test")  # Will be created and validated
     )
 

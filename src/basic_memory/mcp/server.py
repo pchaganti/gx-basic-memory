@@ -1,4 +1,6 @@
 """MCP server implementation for basic-memory."""
+import sys
+import os
 from typing import List, Dict, Any, Optional, Literal, Callable, Awaitable
 from typing_extensions import TypeAlias
 
@@ -8,7 +10,8 @@ from mcp.shared.exceptions import McpError
 from pydantic.networks import AnyUrl
 from pydantic import TypeAdapter, BaseModel, ConfigDict
 
-from basic_memory.config import ProjectConfig, create_project_services
+from basic_memory.config import ProjectConfig
+from basic_memory.deps import get_project_services
 from basic_memory.fileio import EntityNotFoundError
 from basic_memory.schemas import (
     # Tool inputs
@@ -144,7 +147,7 @@ async def handle_create_relations(
     logger.debug(f"Created {len(created)} relations")
     
     # Format response
-    response = CreateRelationsResponse(relations=[RelationOut.model_validate(created) for created in created])
+    response = CreateRelationsResponse(relations=[RelationOut.model_validate(relation) for relation in created])
     return create_response(response)
 
 
@@ -260,16 +263,11 @@ class MemoryServer(Server):
                     logger.error(f"Unknown tool requested: {name}")
                     raise McpError(METHOD_NOT_FOUND, f"Unknown tool: {name}")
 
-                service = await create_project_services(
-                    self.config,
-                    memory_service=memory_service
-                )
-                logger.debug("Created project services")
-
-                tool_name = name  # type: ignore
-                result = [await TOOL_HANDLERS[tool_name](service, arguments)]
-                logger.debug(f"Tool {name} completed successfully")
-                return result
+                async with get_project_services(self.config.path) as service:
+                    tool_name = name  # type: ignore
+                    result = [await TOOL_HANDLERS[tool_name](service, arguments)]
+                    logger.debug(f"Tool {name} completed successfully")
+                    return result
                 
             except ValueError as e:
                 logger.error(f"Invalid parameters for {name}: {e}")
@@ -290,16 +288,40 @@ class MemoryServer(Server):
 # Create server instance with default config
 server = MemoryServer()
 
+def setup_logging():
+    """Configure logging for the application."""
+    # Remove default handler
+    logger.remove()
+    
+    # Add file handler
+    logger.add(
+        "basic-memory-mcp.log",
+        rotation="100 MB",
+        level="DEBUG",
+        backtrace=True,
+        diagnose=True
+    )
+    
+    # Add stdout handler for INFO and above
+    logger.add(
+        sys.stdout,
+        level="INFO",
+        backtrace=True,
+        diagnose=True
+    )
+
 async def run_server():
     """Run the MCP server."""
     from mcp.server.stdio import stdio_server
     
     options = server.create_initialization_options()
+    logger.info(f"Starting MCP server {options.server_name}")
+    logger.info(f"Database URL: {server.config.database_url}")
+
     async with stdio_server() as (read_stream, write_stream):
-        logger.info(f"Starting MCP server {options.server_name}")
         await server.run(read_stream, write_stream, options)
 
 if __name__ == "__main__":
-    logger.add("basic-memory-mcp.log", rotation="100 MB", level="DEBUG", backtrace=True, diagnose=True)
+    setup_logging()
     import asyncio
     asyncio.run(run_server())

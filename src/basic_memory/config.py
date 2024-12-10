@@ -1,17 +1,16 @@
 """Configuration management for basic-memory."""
 from pathlib import Path
-from typing import Optional
+from typing import Optional, AsyncGenerator
+from contextlib import asynccontextmanager
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
 
+DATABASE_NAME = "memory.db"
+
 class ProjectConfig(BaseSettings):
     """Configuration for a specific basic-memory project."""
     name: str = Field(default="default")
-    db_url: str = Field(
-        default="sqlite+aiosqlite:///:memory:",
-        description="Database URL - defaults to in-memory SQLite"
-    )
     path: Path = Field(
         default_factory=lambda: Path.home() / ".basic-memory" / "projects" / "default",
         description="Path to project files"
@@ -19,8 +18,17 @@ class ProjectConfig(BaseSettings):
     
     model_config = SettingsConfigDict(
         env_prefix='BASIC_MEMORY_',  # env vars like BASIC_MEMORY_DB_URL
-        extra='forbid'
+        extra='ignore',
+        env_file=".env",
+        env_file_encoding="utf-8"
     )
+
+    @property
+    def database_url(self) -> str:
+        """Get SQLite database URL based on project path."""
+        db_path = self.path / "data" / DATABASE_NAME
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return f"sqlite+aiosqlite:///{db_path}"
     
     @field_validator('path')
     @classmethod
@@ -30,42 +38,24 @@ class ProjectConfig(BaseSettings):
             v.mkdir(parents=True)
         return v
 
-async def create_project_services(
+@asynccontextmanager
+async def get_testing_services(
     config: ProjectConfig,
-    memory_service: Optional["MemoryService"] = None  # Forward ref since this is used in mcp
-) -> "MemoryService":
-    """Create all services needed for a project.
+    memory_service: Optional["MemoryService"] = None
+) -> AsyncGenerator["MemoryService", None]:
+    """Get services for testing with optional pre-configured service.
     
     Args:
         config: Project configuration
         memory_service: Optional pre-configured service for testing
         
-    Returns:
-        Configured MemoryService instance
+    Yields:
+        Configured MemoryService instance with proper lifecycle management
     """
     if memory_service:
-        return memory_service
-        
-    from basic_memory.db import init_database, get_session
-    from basic_memory.deps import (
-        get_entity_repo, get_observation_repo, get_relation_repo,
-        get_entity_service, get_observation_service, get_relation_service,
-        get_memory_service
-    )
-    
-    engine = await init_database(config.db_url)
-    async with get_session(engine) as session:
-        entity_repo = await get_entity_repo(session)
-        observation_repo = await get_observation_repo(session)
-        relation_repo = await get_relation_repo(session)
-        
-        entity_service = await get_entity_service(config.path, entity_repo)
-        observation_service = await get_observation_service(config.path, observation_repo)
-        relation_service = await get_relation_service(config.path, relation_repo)
-        
-        return await get_memory_service(
-            config.path,
-            entity_service,
-            relation_service, 
-            observation_service
-        )
+        yield memory_service
+        return
+
+    from basic_memory.deps import get_project_services
+    async with get_project_services(config.path) as service:
+        yield service

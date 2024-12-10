@@ -121,3 +121,8 @@ The garbage collector is trying to clean up non-checked-in connection <AdaptedCo
 
 more info about setting log level: https://modelcontextprotocol.io/docs/first-server/python
 - scroll down to logging
+
+
+```bash
+basic-memory migrate json /Users/phernandez/.npm/_npx/15b07286cbcc3329/node_modules/@modelcontextprotocol/server-memory/dist/memory.json /Users/phernandez/.basic-memory/projects/default
+```
