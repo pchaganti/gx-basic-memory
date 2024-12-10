@@ -199,6 +199,7 @@ Possible fixes:
 
 1. **Schema Update First**
    - Add `entity.description` field
+   - rename entity.references?
    - This affects database, Pydantic models, and file format
    - Good foundation for other changes
 

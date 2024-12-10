@@ -44,7 +44,7 @@ class Entity(Base):
     - A unique identifier (text, for filesystem references)
     - A name
     - An entity type (e.g., "person", "organization", "event")
-    - A description
+    - A description (optional)
     - A list of observations
     - References (optional)
     """
@@ -53,7 +53,7 @@ class Entity(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, unique=True, index=True)
     entity_type: Mapped[str] = mapped_column(String)
-    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     references: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime, default=utc_now

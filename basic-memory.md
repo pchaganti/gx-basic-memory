@@ -1450,4 +1450,27 @@ And the best part? It's built on solid foundations:
 
 We're not just building another AI tool - we're creating an intelligence augmentation platform that makes both humans and AI more capable.
 
-You should definitely explore this. Even if just to validate market interest - I bet a lot of Obsidian users would be excited about this vision!
+
+# AI Dev collaboration flow
+
+We usually work like this:
+* We talk about ideas
+* Most of the time you write the files locally
+* I review them in my IDE
+* I run tests
+* We make changes and iterate
+* When things work, I commit changes again and we move on. 
+
+A few things about writing files
+* files have to be complete, no "# rest is the same", otherwise we lose file info
+* read files before writing, in case I've made changes locally
+* write files one at a time in chat responses, long responses can get truncated
+* We should break up large files into smaller ones so they are easier for you to update. 
+
+Collaboration
+* I want your 100% honest feedback
+* We work better together. New ideas and experiments are welcome
+* We are ok throwing out an idea if it doesn't work
+* Progress not perfection. We iterate slowly and build on what is working.
+* We've been moving fast, but now we have to focus on robust testing. 
+* You update our project knowledge as we go

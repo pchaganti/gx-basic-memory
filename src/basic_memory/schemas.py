@@ -56,6 +56,7 @@ class EntityBase(BaseModel):
     id: str = Field(default=None)  # Allow None during creation
     name: str
     entity_type: str = Field(alias="entityType")
+    description: Optional[str] = None
 
     @model_validator(mode='after')
     def generate_id(self) -> 'EntityBase':
