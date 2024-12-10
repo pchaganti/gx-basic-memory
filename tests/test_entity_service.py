@@ -13,6 +13,7 @@ async def test_create_entity_success(entity_service):
     entity_data = EntityIn(
         name="Test Entity",
         entity_type="test",
+        description="A test entity description"
     )
     
     # Act
@@ -22,7 +23,26 @@ async def test_create_entity_success(entity_service):
     assert isinstance(entity, Entity)
     assert entity.name == "Test Entity"
     assert entity.entity_type == "test"
+    assert entity.description == "A test entity description"
     assert entity.created_at is not None
+
+    # Verify we can retrieve it
+    retrieved = await entity_service.get_entity(entity.id)
+    assert retrieved.description == "A test entity description"
+
+async def test_create_entity_no_description(entity_service):
+    """Test creating entity without description (should be None)."""
+    entity_data = EntityIn(
+        name="Test Entity",
+        entity_type="test",
+    )
+    
+    entity = await entity_service.create_entity(entity_data)
+    assert entity.description is None
+
+    # Verify after retrieval
+    retrieved = await entity_service.get_entity(entity.id)
+    assert retrieved.description is None
 
 async def test_get_entity_success(entity_service):
     """Test successful entity retrieval."""
@@ -30,6 +50,7 @@ async def test_get_entity_success(entity_service):
     entity_data = EntityIn(
         name="Test Entity",
         entity_type="test",
+        description="Test description"
     )
     created = await entity_service.create_entity(entity_data)
     
@@ -41,7 +62,44 @@ async def test_get_entity_success(entity_service):
     assert retrieved.id == created.id
     assert retrieved.name == created.name
     assert retrieved.entity_type == created.entity_type
+    assert retrieved.description == "Test description"
     # relations are tested in test_memory_service
+
+async def test_update_entity_description(entity_service):
+    """Test updating an entity's description."""
+    # Create entity with description
+    entity_data = EntityIn(
+        name="Test Entity",
+        entity_type="test",
+        description="Initial description"
+    )
+    entity = await entity_service.create_entity(entity_data)
+    
+    # Update description
+    updated = await entity_service.update_entity(entity.id, {"description": "Updated description"})
+    assert updated.description == "Updated description"
+
+    # Verify after retrieval
+    retrieved = await entity_service.get_entity(entity.id)
+    assert retrieved.description == "Updated description"
+
+async def test_update_entity_description_to_none(entity_service):
+    """Test updating an entity's description to None."""
+    # Create entity with description
+    entity_data = EntityIn(
+        name="Test Entity",
+        entity_type="test",
+        description="Initial description"
+    )
+    entity = await entity_service.create_entity(entity_data)
+    
+    # Update description to None
+    updated = await entity_service.update_entity(entity.id, {"description": None})
+    assert updated.description is None
+
+    # Verify after retrieval
+    retrieved = await entity_service.get_entity(entity.id)
+    assert retrieved.description is None
 
 async def test_delete_entity_success(entity_service):
     """Test successful entity deletion."""
@@ -77,6 +135,7 @@ async def test_create_entity_db_error(entity_service, monkeypatch):
     entity_data = EntityIn(
         name="Test Entity",
         entity_type="test",
+        description="Test description"
     )
 
     # Act/Assert
@@ -91,22 +150,29 @@ async def test_delete_nonexistent_entity(entity_service):
 # Edge Cases
 
 async def test_create_entity_with_special_chars(entity_service):
-    """Test entity creation with special characters in name."""
+    """Test entity creation with special characters in name and description."""
     name = "Test & Entity! With @ Special #Chars"
+    description = "Description with $pecial chars & symbols!"
     entity_data = EntityIn(
         name=name,
         entity_type="test",
+        description=description
     )
     entity = await entity_service.create_entity(entity_data)
     
     assert entity.name == name
+    assert entity.description == description
 
+    # Verify after retrieval
+    retrieved = await entity_service.get_entity(entity.id)
+    assert retrieved.description == description
 
 async def test_entity_id_generation(entity_service):
     """Test that entities get unique IDs generated correctly."""
     entity_data = EntityIn(
         name="Test Entity",
         entity_type="test",
+        description="Test description",
         observations=[]
     )
     
@@ -114,3 +180,19 @@ async def test_entity_id_generation(entity_service):
     
     assert entity.id  # ID should be generated
     assert "-test-entity" in entity.id  # Should contain normalized name
+
+async def test_create_entity_long_description(entity_service):
+    """Test creating entity with a long description."""
+    long_description = "A" * 1000  # 1000 character description
+    entity_data = EntityIn(
+        name="Test Entity",
+        entity_type="test",
+        description=long_description
+    )
+    
+    entity = await entity_service.create_entity(entity_data)
+    assert entity.description == long_description
+
+    # Verify after retrieval
+    retrieved = await entity_service.get_entity(entity.id)
+    assert retrieved.description == long_description

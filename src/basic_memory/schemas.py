@@ -9,6 +9,11 @@ from uuid import uuid4
 from annotated_types import Gt, Len
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 
+# Base output model for SQLAlchemy attribute conversion
+class SQLAlchemyOut(BaseModel):
+    """Base class for models that read from SQLAlchemy attributes."""
+    model_config = ConfigDict(from_attributes=True)
+
 # Base Models
 class ObservationIn(BaseModel):
     """Schema for creating a single observation."""
@@ -21,16 +26,15 @@ class ObservationsIn(BaseModel):
     observations: List[ObservationIn]
     model_config = ConfigDict(populate_by_name=True)
 
-class ObservationOut(ObservationIn):
+class ObservationOut(ObservationIn, SQLAlchemyOut):
     """Schema for observation data returned from the service."""
     id: int
-    model_config = ConfigDict(from_attributes=True)
 
-class ObservationsOut(BaseModel):
+class ObservationsOut(SQLAlchemyOut):
     """Schema for bulk observation operation results."""
     entity_id: str = Field(alias="entityId")
     observations: List[ObservationOut]
-    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+    model_config = ConfigDict(populate_by_name=True)
 
 class RelationIn(BaseModel):
     """
@@ -44,13 +48,13 @@ class RelationIn(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-class RelationOut(BaseModel):
+class RelationOut(SQLAlchemyOut):
     id: int
     from_id: str = Field(alias="fromId")
     to_id: str = Field(alias="toId")
     relation_type: str = Field(alias="relationType")
     context: Optional[str] = None
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True)
 
 class EntityBase(BaseModel):
     id: str = Field(default=None)  # Allow None during creation
@@ -81,13 +85,13 @@ class EntityIn(EntityBase):
     """
     observations: List[ObservationIn] = []
     relations: List[RelationIn] = []
-    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+    model_config = ConfigDict(populate_by_name=True)
 
-class EntityOut(EntityBase):
+class EntityOut(EntityBase, SQLAlchemyOut):
     """Schema for entity data returned from the service."""
     observations: List[ObservationOut] = []
     relations: List[RelationOut] = []
-    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+    model_config = ConfigDict(populate_by_name=True)
 
 # Tool Input Schemas
 class CreateEntitiesInput(BaseModel):
@@ -121,40 +125,33 @@ class DeleteObservationsInput(BaseModel):
     deletions: List[Dict[str, Any]]  # TODO: Make this more specific
 
 # Tool Response Schemas
-class CreateEntitiesResponse(BaseModel):
+class CreateEntitiesResponse(SQLAlchemyOut):
     """Response for create_entities tool."""
     entities: List[EntityOut]
-    model_config = ConfigDict(from_attributes=True)
 
-class SearchNodesResponse(BaseModel):
+class SearchNodesResponse(SQLAlchemyOut):
     """Response for search_nodes tool."""
     matches: List[EntityOut]
     query: str
-    model_config = ConfigDict(from_attributes=True)
 
-class OpenNodesResponse(BaseModel):
+class OpenNodesResponse(SQLAlchemyOut):
     """Response for open_nodes tool."""
     entities: List[EntityOut]
-    model_config = ConfigDict(from_attributes=True)
 
-class AddObservationsResponse(BaseModel):
+class AddObservationsResponse(SQLAlchemyOut):
     """Response for add_observations tool."""
     entity_id: str
     added_observations: List[ObservationOut]
-    model_config = ConfigDict(from_attributes=True)
 
-class CreateRelationsResponse(BaseModel):
+class CreateRelationsResponse(SQLAlchemyOut):
     """Response for create_relations tool."""
     relations: List[RelationOut]
-    model_config = ConfigDict(from_attributes=True)
 
-class DeleteEntitiesResponse(BaseModel):
+class DeleteEntitiesResponse(SQLAlchemyOut):
     """Response for delete_entities tool."""
     deleted: List[str]
-    model_config = ConfigDict(from_attributes=True)
 
-class DeleteObservationsResponse(BaseModel):
+class DeleteObservationsResponse(SQLAlchemyOut):
     """Response for delete_observations tool."""
     entity_id: str
     deleted: List[str]
-    model_config = ConfigDict(from_attributes=True)
