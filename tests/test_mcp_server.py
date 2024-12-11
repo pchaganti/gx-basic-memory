@@ -15,14 +15,6 @@ from basic_memory.schemas import (
 def anyio_backend():
     return "asyncio"
 
-@pytest.fixture
-def test_config():
-    """Test configuration using in-memory DB."""
-    return ProjectConfig(
-        name="test",
-        database_url="sqlite+aiosqlite:///:memory:",
-        path=Path("/tmp/basic-memory-test")  # Will be created and validated
-    )
 
 @pytest.fixture
 def test_entity_data():

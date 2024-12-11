@@ -69,12 +69,14 @@ class Repository[T: Base]:
         model = model or self.Model
         logger.debug(f"Creating {model.__name__} with data: {entity_data}")
         try:
-            # Initialize all columns with None and update with filtered data
-            model_data = {column: None for column in self.valid_columns}
-            model_data.update({k: v for k, v in entity_data.items() if k in self.valid_columns})
+            # Only include valid columns that are provided in entity_data
+            model_data = {
+                k: v for k, v in entity_data.items() 
+                if k in self.valid_columns
+            }
             logger.debug(f"Filtered data for valid columns: {model_data}")
 
-            # Use insert().values() with filtered data
+            # Create insert statement with only provided data
             stmt = insert(model).values(**model_data).returning(model)
             result = await self.session.execute(stmt)
             entity = result.scalar_one()

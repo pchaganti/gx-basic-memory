@@ -1,9 +1,10 @@
 """Dependency injection functions for basic-memory services."""
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
 
-from basic_memory.models import Entity as DbEntity, Observation as DbObservation, Relation as DbRelation
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
@@ -58,17 +59,18 @@ async def get_memory_service(
     )
 
 @asynccontextmanager
-async def get_engine(project_path: Path):
+async def get_engine(db_type=DatabaseType.FILESYSTEM, project_path: Path = None):
     """Get database engine for project with proper lifecycle management."""
-    url = get_database_url(DatabaseType.FILESYSTEM, project_path)
+    url = get_database_url(db_type, project_path)
     engine = await init_database(url)
+    logger.debug(f"engine url: {engine.url}")
     try:
         yield engine
     finally:
         await engine.dispose()
 
 @asynccontextmanager
-async def get_services(engine: AsyncEngine, project_path: Path):
+async def get_memory_service_session(engine: AsyncEngine, project_path: Path):
     """Get all services with proper session and lifecycle management."""
     async with get_session(engine) as session:
         # Create repos
@@ -94,6 +96,6 @@ async def get_services(engine: AsyncEngine, project_path: Path):
 @asynccontextmanager
 async def get_project_services(project_path: Path):
     """Get all services for a project with full lifecycle management."""
-    async with get_engine(project_path) as engine:
-        async with get_services(engine, project_path) as services:
+    async with get_engine(project_path=project_path) as engine:
+        async with get_memory_service_session(engine, project_path) as services:
             yield services
