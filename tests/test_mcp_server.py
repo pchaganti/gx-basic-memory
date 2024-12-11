@@ -31,6 +31,7 @@ def test_entity_data():
         "entities": [{
             "name": "Test Entity",
             "entityType": "test",
+            "description": "",  # Empty string instead of None
             "observations": [{"content": "This is a test observation"}]
         }]
     }
@@ -42,6 +43,7 @@ def test_entity_snake_case():
         "entities": [{
             "name": "Test Entity",
             "entity_type": "test",
+            "description": "",  # Empty string instead of None
             "observations": [{"content": "This is a test observation"}]
         }]
     }

@@ -1,9 +1,7 @@
 """Database models for basic-memory."""
-import typing
 from datetime import datetime, UTC
 from typing import List, Optional
-from sqlalchemy import String, DateTime, ForeignKey, Text, TypeDecorator, Integer
-from sqlalchemy.orm.exc import DetachedInstanceError
+from sqlalchemy import String, DateTime, ForeignKey, Text, TypeDecorator, Integer, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
@@ -46,7 +44,6 @@ class Entity(Base):
     - An entity type (e.g., "person", "organization", "event")
     - A description (optional)
     - A list of observations
-    - References (optional)
     """
     __tablename__ = "entity"
 
@@ -54,13 +51,13 @@ class Entity(Base):
     name: Mapped[str] = mapped_column(String, unique=True, index=True)
     entity_type: Mapped[str] = mapped_column(String)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    references: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
-        UTCDateTime, default=utc_now
+        UTCDateTime,
+        server_default=text('CURRENT_TIMESTAMP')
     )
     updated_at: Mapped[datetime] = mapped_column(
         UTCDateTime,
-        default=utc_now,
+        server_default=text('CURRENT_TIMESTAMP'),
         onupdate=utc_now
     )
 
@@ -106,7 +103,7 @@ class Observation(Base):
     content: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime,
-        default=utc_now
+        server_default=text('CURRENT_TIMESTAMP')
     )
     context: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -142,7 +139,7 @@ class Relation(Base):
     relation_type: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime,
-        default=utc_now
+        server_default=text('CURRENT_TIMESTAMP')
     )
     context: Mapped[str | None] = mapped_column(String, nullable=True)
 

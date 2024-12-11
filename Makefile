@@ -12,7 +12,7 @@ lint:
 	ruff check .
 
 db-new:
-	dbmate new
+	dbmate new $(name)
 
 db-up:
 	dbmate up
@@ -23,3 +23,7 @@ db-down:
 db-reset:
 	dbmate drop
 	dbmate up
+
+clean:
+	find . -type f -name '*.pyc' -delete
+	find . -type d -name '__pycache__' -exec rm -r {} +

@@ -1,6 +1,6 @@
 """Base repository implementation."""
 from typing import Type, Optional, Any, Sequence, TypeVar
-from sqlalchemy import select, func, Select, Executable, inspect, Result, Column
+from sqlalchemy import select, func, Select, Executable, inspect, Result, Column, insert
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped
@@ -16,8 +16,10 @@ class Repository[T: Base]:
     def __init__(self, session: AsyncSession, Model: Type[T]):
         self.session = session
         self.Model = Model
-        self.primary_key: Column[Any] = inspect(self.Model).mapper.primary_key[0]
-        self.valid_columns = [column.key for column in inspect(self.Model).columns]
+        self.mapper = inspect(self.Model).mapper
+        self.primary_key: Column[Any] = self.mapper.primary_key[0]
+        self.valid_columns = [column.key for column in self.mapper.columns]
+
         logger.debug(f"Initialized {self.__class__.__name__} for {Model.__name__}")
         logger.debug(f"Valid columns: {self.valid_columns}")
 
@@ -67,15 +69,19 @@ class Repository[T: Base]:
         model = model or self.Model
         logger.debug(f"Creating {model.__name__} with data: {entity_data}")
         try:
-            model_data = {k: v for k, v in entity_data.items() if k in self.valid_columns}
+            # Initialize all columns with None and update with filtered data
+            model_data = {column: None for column in self.valid_columns}
+            model_data.update({k: v for k, v in entity_data.items() if k in self.valid_columns})
             logger.debug(f"Filtered data for valid columns: {model_data}")
-            
-            entity = model(**model_data)
-            self.session.add(entity)
-            await self.session.flush()
-            
+
+            # Use insert().values() with filtered data
+            stmt = insert(model).values(**model_data).returning(model)
+            result = await self.session.execute(stmt)
+            entity = result.scalar_one()
+
             logger.debug(f"Created {model.__name__}: {getattr(entity, 'id', None)}")
             return entity
+
         except Exception as e:
             logger.exception(f"Failed to create {model.__name__}")
             raise

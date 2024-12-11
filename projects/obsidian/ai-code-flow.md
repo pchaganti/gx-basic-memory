@@ -3,12 +3,15 @@
 What makes Basic Memory unique isn't just its technical architecture - it emerged from and enables a new kind of development process. While many use AI for code generation or problem-solving, we've discovered something more powerful: true collaborative development between humans and AI.
 
 ### The Basic Memory Development Story
+
 Our own development process demonstrates this:
 1. AI (Claude) writes initial implementation
 2. Human (Paul) reviews, runs, and commits code
 3. Knowledge persists across conversations
 4. Development continues seamlessly even across different AI instances
 5. Results improve through iterative collaboration
+
+
 
 ```mermaid
 graph TD
@@ -331,3 +334,7 @@ What makes this transformative:
 The result isn't just better code - it's better thinking, more ambitious projects, and a more enjoyable development process.
 
 This is the future of development: not AI replacing developers, but empowering them to think bigger, work smarter, and build more amazing things together.
+
+
+## Practical info 
+

@@ -1,8 +1,7 @@
 """Service for managing observations in both filesystem and database."""
-from datetime import datetime, UTC
 from pathlib import Path
 from typing import List
-from sqlalchemy import select, delete
+from sqlalchemy import select
 
 from basic_memory.models import Observation
 from basic_memory.repository.observation_repository import ObservationRepository
@@ -28,14 +27,11 @@ class ObservationService:
         async def add_observation(observation: ObservationIn) -> Observation:
             try:
                 obs = await self.observation_repo.create({
-                    'entity_id': entity.id,
-                    'content': observation.content,
-                    'context': observation.context,
-                    'created_at': datetime.now(UTC)
+                    **observation.model_dump(),
+                    'entity_id': entity.id
                 })
-                # Ensure each observation is flushed
+                # Ensure observation is flushed and refreshed
                 await self.observation_repo.session.flush()
-                # Refresh to get latest state
                 await self.observation_repo.session.refresh(obs)
                 return obs
             except Exception as e:

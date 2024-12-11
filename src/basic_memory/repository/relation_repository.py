@@ -1,6 +1,6 @@
 """Repository for managing Relation objects."""
-from typing import Sequence
-from sqlalchemy import select, and_
+from typing import Sequence, Any, Dict
+from sqlalchemy import select, and_, delete
 
 from basic_memory.models import Relation
 from basic_memory.repository import Repository
@@ -28,3 +28,11 @@ class RelationRepository(Repository[Relation]):
         query = select(Relation).filter(Relation.relation_type == relation_type)
         result = await self.execute_query(query)
         return result.scalars().all()
+
+    async def delete_by_fields(self, **filters: Dict[str, Any]) -> bool:
+        """Delete relations matching the given field values."""
+        conditions = [getattr(Relation, field) == value for field, value in filters.items()]
+        query = delete(Relation).where(and_(*conditions))
+        result = await self.execute_query(query)
+        await self.session.flush()
+        return result.rowcount > 0

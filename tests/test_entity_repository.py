@@ -17,7 +17,6 @@ class TestEntityRepository:
             'name': 'Test',
             'entity_type': 'test',
             'description': 'Test description',
-            'references': 'Test references'
         }
         entity = await entity_repository.create(entity_data)
         
@@ -35,7 +34,6 @@ class TestEntityRepository:
         assert db_entity.id == entity.id
         assert db_entity.name == entity.name
         assert db_entity.description == entity.description
-        assert db_entity.references == entity.references
 
     async def test_create_entity_null_description(self, entity_repository: EntityRepository):
         """Test creating an entity with null description"""
@@ -44,7 +42,6 @@ class TestEntityRepository:
             'name': 'Test',
             'entity_type': 'test',
             'description': None,
-            'references': ''
         }
         entity = await entity_repository.create(entity_data)
         

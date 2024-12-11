@@ -127,12 +127,3 @@ more info about setting log level: https://modelcontextprotocol.io/docs/first-se
 basic-memory migrate json /Users/phernandez/.npm/_npx/15b07286cbcc3329/node_modules/@modelcontextprotocol/server-memory/dist/memory.json /Users/phernandez/.basic-memory/projects/default
 ```
 
-project:
-/Users/phernandez/.basic-memory/projects/default
-
-Files 
-/Users/phernandez/.basic-memory/projects/default/entities/*
-
-
-db:
-/Users/phernandez/.basic-memory/projects/default/data/memory.db
