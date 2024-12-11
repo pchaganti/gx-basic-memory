@@ -59,6 +59,31 @@ class EntityRepository(Repository[Entity]):
         except Exception as e:
             logger.exception(f"Error finding entity by name: {name}")
             raise
+
+    async def find_by_type_and_name(self, entity_type: str, name: str) -> Optional[Entity]:
+        """Find an entity by its type and name combination."""
+        logger.debug(f"Finding entity by type and name: {entity_type}/{name}")
+        try:
+            query = (
+                select(Entity)
+                .filter(Entity.entity_type == entity_type)
+                .filter(Entity.name == name)
+                .options(
+                    selectinload(Entity.observations),
+                    selectinload(Entity.outgoing_relations),
+                    selectinload(Entity.incoming_relations)
+                )
+            )
+            result = await self.session.execute(query)
+            entity = result.scalars().one_or_none()
+            if entity:
+                logger.debug(f"Found entity: {entity.id}")
+            else:
+                logger.debug(f"No entity found with type/name: {entity_type}/{name}")
+            return entity
+        except Exception as e:
+            logger.exception(f"Error finding entity by type/name: {entity_type}/{name}")
+            raise
     
     async def search_by_type(self, entity_type: str, skip: int = 0, limit: int = 100) -> Sequence[Entity]:
         """Search for entities of a specific type."""

@@ -181,3 +181,70 @@ class TestEntityRepository:
         results = await entity_repository.search('searchable')
         assert len(results) == 1
         assert results[0].id == entity1.id
+
+
+async def test_find_by_type_and_name(entity_repository: EntityRepository):
+    """Test finding an entity by type and name combination."""
+    # Create two entities with same name but different types
+    entity1 = await entity_repository.create({
+        'id': '20240102-test1',
+        'name': 'Test Entity',
+        'entity_type': 'type1',
+        'description': 'First test entity'
+    })
+
+    entity2 = await entity_repository.create({
+        'id': '20240102-test2',
+        'name': 'Test Entity',
+        'entity_type': 'type2',
+        'description': 'Second test entity'
+    })
+
+    # Should find correct entity when both type and name match
+    found = await entity_repository.find_by_type_and_name('type1', 'Test Entity')
+    assert found is not None
+    assert found.id == entity1.id
+    assert found.entity_type == 'type1'
+    assert found.name == 'Test Entity'
+
+    # Should find other entity with same name but different type
+    found = await entity_repository.find_by_type_and_name('type2', 'Test Entity')
+    assert found is not None
+    assert found.id == entity2.id
+    assert found.entity_type == 'type2'
+    assert found.name == 'Test Entity'
+
+    # Should return None when type doesn't match
+    found = await entity_repository.find_by_type_and_name('nonexistent', 'Test Entity')
+    assert found is None
+
+    # Should return None when name doesn't match
+    found = await entity_repository.find_by_type_and_name('type1', 'Nonexistent')
+    assert found is None
+
+    # Verify relationships are loaded
+    entity3 = await entity_repository.create({
+        'id': '20240102-test3',
+        'name': 'Entity With Relations',
+        'entity_type': 'type3',
+        'description': 'Entity with observations and relations'
+    })
+
+    # Add an observation
+    stmt = text("""
+        INSERT INTO observation (entity_id, content, created_at)
+        VALUES (:entity_id, :content, :ts)
+    """)
+    ts = datetime.now(UTC)
+    await entity_repository.session.execute(stmt, {
+        "entity_id": entity3.id,
+        "content": "Test observation",
+        "ts": ts
+    })
+    await entity_repository.session.commit()
+
+    # Find entity and verify relationships are loaded
+    found = await entity_repository.find_by_type_and_name('type3', 'Entity With Relations')
+    assert found is not None
+    assert len(found.observations) == 1
+    assert found.observations[0].content == "Test observation"

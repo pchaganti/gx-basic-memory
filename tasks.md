@@ -185,7 +185,7 @@ Possible fixes:
 ## TASKS
 
 1. **Core Functionality Improvements**
-    - [ ] entity.description addition
+    - [x] entity.description addition
     - [ ] subdirectories 
       - Paul needs this for markdown view
     - [ ] improve tool api
