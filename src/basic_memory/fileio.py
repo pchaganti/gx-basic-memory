@@ -19,7 +19,7 @@ class EntityNotFoundError(Exception):
     pass
 
 
-async def write_entity_file(entities_path: Path, entity: EntityIn) -> bool:
+async def write_entity_file(entities_path: Path, entity_id: str, entity: EntityIn) -> bool:
     """
     Write entity to filesystem in markdown format.
     
@@ -33,9 +33,9 @@ async def write_entity_file(entities_path: Path, entity: EntityIn) -> bool:
     Raises:
         FileOperationError: If file operations fail
     """
-    logger.debug(f"Writing entity file for {entity.file_path}")
+    logger.debug(f"Writing entity file for {entity_id}")
 
-    entity_path = entities_path / entity.file_path
+    entity_path = entities_path / entity_id
     
     # Handle directory creation separately
     try:
@@ -84,7 +84,7 @@ async def write_entity_file(entities_path: Path, entity: EntityIn) -> bool:
     except Exception as e:
         raise FileOperationError(f"Failed to finalize entity file: {str(e)}") from e
 
-    logger.debug(f"Wrote entity file: {entity.file_path}")
+    logger.debug(f"Wrote entity file: {entity_id}")
     return True
 
 

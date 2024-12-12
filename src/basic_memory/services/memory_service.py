@@ -33,28 +33,25 @@ class MemoryService:
         """Create multiple entities with their observations."""
         logger.debug(f"Creating {len(entities_in)} entities")
 
-        # First check if any entities already exist and generate IDs
-        for entity in entities_in:
-            # Generate ID upfront
-            entity.id = Entity.generate_id(entity.entity_type, entity.name)
-            logger.debug(f"Generated ID for entity: {entity.id}")
-
-            # Check if entity exists
+        # Write files in parallel (filesystem is source of truth)
+        async def write_file(entity: EntityIn):
             try:
                 existing = await self.entity_service.get_by_type_and_name(
-                    entity.entity_type, 
+                    entity.entity_type,
                     entity.name
                 )
                 if existing:
-                    raise ValueError(
+                    logger.error(
                         f"Entity already exists: {entity.entity_type}/{entity.name}"
                     )
-            except EntityNotFoundError:
-                # This is good - means entity doesn't exist
-                pass
 
-        # Write files in parallel (filesystem is source of truth)
-        async def write_file(entity: EntityIn):
+            except EntityNotFoundError:
+                # TODO replace with self.entity_service.exists(entity.entity_type, entity.name)
+                return
+
+            # Generate ID and data dict for this entity
+            entity_id = Entity.generate_id(entity.entity_type, entity.name)
+
             await write_entity_file(self.entities_path, entity)
 
         file_writes = [write_file(entity) for entity in entities_in]
