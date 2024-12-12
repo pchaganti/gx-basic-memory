@@ -7,7 +7,7 @@ from basic_memory.models import Entity, Observation, Relation
 from basic_memory.schemas import (
     ObservationsIn, EntityIn, RelationIn
 )
-from basic_memory.fileio import write_entity_file, read_entity_file
+from basic_memory.fileio import write_entity_file, read_entity_file, EntityNotFoundError
 from basic_memory.services import EntityService, RelationService, ObservationService
 from loguru import logger
 
@@ -32,6 +32,26 @@ class MemoryService:
     async def create_entities(self, entities_in: List[EntityIn]) -> List[Entity]:
         """Create multiple entities with their observations."""
         logger.debug(f"Creating {len(entities_in)} entities")
+
+        # First check if any entities already exist and generate IDs
+        for entity in entities_in:
+            # Generate ID upfront
+            entity.id = Entity.generate_id(entity.entity_type, entity.name)
+            logger.debug(f"Generated ID for entity: {entity.id}")
+
+            # Check if entity exists
+            try:
+                existing = await self.entity_service.get_by_type_and_name(
+                    entity.entity_type, 
+                    entity.name
+                )
+                if existing:
+                    raise ValueError(
+                        f"Entity already exists: {entity.entity_type}/{entity.name}"
+                    )
+            except EntityNotFoundError:
+                # This is good - means entity doesn't exist
+                pass
 
         # Write files in parallel (filesystem is source of truth)
         async def write_file(entity: EntityIn):
@@ -69,11 +89,22 @@ class MemoryService:
         # Update database index sequentially
         logger.debug("Starting DB updates")
         try:
-            entities = [await create_entity_in_db(entity_in) for entity_in in entities_in]
+            entities = []
+            for entity_in in entities_in:
+                entity = await create_entity_in_db(entity_in)
+                entities.append(entity)
             logger.debug(f"Successfully created {len(entities)} entities in DB")
             return entities
         except Exception as e:
+            # On failure, we should try to clean up any files we wrote
             logger.exception("Failed to create entities in DB")
+            for entity in entities_in:
+                try:
+                    path = self.entities_path / f"{entity.id}.md"
+                    if path.exists():
+                        path.unlink()
+                except Exception as cleanup_error:
+                    logger.error(f"Failed to clean up file for {entity.id}: {cleanup_error}")
             raise
 
     async def create_relations(self, relations_data: List[RelationIn]) -> List[Relation]:
@@ -87,13 +118,13 @@ class MemoryService:
                 # First read complete entities from filesystem
                 from_entity = await read_entity_file(self.entities_path, relation.from_id) 
                 to_entity = await read_entity_file(self.entities_path, relation.to_id)
-                logger.debug(f"Read entities for relation: {from_entity.file_path}, {to_entity.file_path}")
+                logger.debug(f"Read entities for relation: {from_entity.id}, {to_entity.id}")
 
                 # Add the new relation to the source entity
                 if not hasattr(from_entity, 'relations'):
                     from_entity.relations = []
                 from_entity.relations.append(relation)
-                logger.debug(f"Added relation to source entity: {from_entity.file_path}")
+                logger.debug(f"Added relation to source entity: {from_entity.id}")
 
                 # Write updated entity files (filesystem is source of truth)
                 logger.debug("Writing updated entity files")
