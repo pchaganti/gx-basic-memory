@@ -41,18 +41,16 @@ class MemoryService:
                     entity.name
                 )
                 if existing:
-                    logger.error(
+                    raise ValueError(
                         f"Entity already exists: {entity.entity_type}/{entity.name}"
                     )
-
             except EntityNotFoundError:
-                # TODO replace with self.entity_service.exists(entity.entity_type, entity.name)
-                return
+                # Good - entity doesn't exist yet
+                pass
 
-            # Generate ID and data dict for this entity
+            # Generate ID and write file
             entity_id = Entity.generate_id(entity.entity_type, entity.name)
-
-            await write_entity_file(self.entities_path, entity)
+            await write_entity_file(self.entities_path, entity_id, entity)
 
         file_writes = [write_file(entity) for entity in entities_in]
         logger.debug("Starting parallel file writes")
@@ -97,11 +95,12 @@ class MemoryService:
             logger.exception("Failed to create entities in DB")
             for entity in entities_in:
                 try:
-                    path = self.entities_path / f"{entity.id}.md"
+                    entity_id = Entity.generate_id(entity.entity_type, entity.name)
+                    path = self.entities_path / entity_id
                     if path.exists():
                         path.unlink()
                 except Exception as cleanup_error:
-                    logger.error(f"Failed to clean up file for {entity.id}: {cleanup_error}")
+                    logger.error(f"Failed to clean up file for {entity_id}: {cleanup_error}")
             raise
 
     async def create_relations(self, relations_data: List[RelationIn]) -> List[Relation]:
@@ -126,8 +125,8 @@ class MemoryService:
                 # Write updated entity files (filesystem is source of truth)
                 logger.debug("Writing updated entity files")
                 await asyncio.gather(
-                    write_entity_file(self.entities_path, from_entity),
-                    write_entity_file(self.entities_path, to_entity)
+                    write_entity_file(self.entities_path, from_entity.id, from_entity),
+                    write_entity_file(self.entities_path, to_entity.id, to_entity)
                 )
                 logger.debug("Wrote updated entity files")
 
@@ -161,7 +160,7 @@ class MemoryService:
 
             # Write updated entity file
             logger.debug("Writing updated entity file")
-            await write_entity_file(self.entities_path, entity)
+            await write_entity_file(self.entities_path, db_entity.id, entity)
             logger.debug("Wrote updated entity file")
             
             # Update database index
