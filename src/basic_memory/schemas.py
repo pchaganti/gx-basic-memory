@@ -56,6 +56,7 @@ class RelationOut(SQLAlchemyOut):
     model_config = ConfigDict(populate_by_name=True)
 
 class EntityBase(BaseModel):
+    id: Optional[str] = None
     name: str
     entity_type: str = Field(alias="entityType")
     description: Optional[str] = None
@@ -78,7 +79,6 @@ class EntityIn(EntityBase):
     model_config = ConfigDict(populate_by_name=True)
 
 class EntityOut(EntityBase, SQLAlchemyOut):
-    id: str  # ID will be set by repository
     """Schema for entity data returned from the service."""
     observations: List[ObservationOut] = []
     relations: List[RelationOut] = []

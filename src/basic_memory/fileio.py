@@ -19,12 +19,28 @@ class EntityNotFoundError(Exception):
     pass
 
 
-async def write_entity_file(entities_path: Path, entity_id: str, entity: EntityIn) -> bool:
+def get_entity_path(project_entities_path: Path, entity_id: str) -> Path:
+    assert entity_id is not None, "entity_id cannot be None"
+    """
+    Get the filesystem path for an entity.
+    
+    Args:
+        project_entities_path: Base path to project's entities directory
+        entity_id: ID of entity (e.g., '.../project/basic_memory.md')
+        
+    Returns:
+        Path object for the entity file
+    """
+    return Path(f"{project_entities_path}/{entity_id}.md")
+
+
+async def write_entity_file(project_entities_path: Path, entity_id: str, entity: EntityIn) -> bool:
     """
     Write entity to filesystem in markdown format.
     
     Args:
-        entities_path: Path to entities directory
+        project_entities_path: Base path to project's entities directory
+        entity_id: ID of entity
         entity: Entity to write
         
     Returns:
@@ -35,7 +51,7 @@ async def write_entity_file(entities_path: Path, entity_id: str, entity: EntityI
     """
     logger.debug(f"Writing entity file for {entity_id}")
 
-    entity_path = entities_path / entity_id
+    entity_path = get_entity_path(project_entities_path, entity_id)
     
     # Handle directory creation separately
     try:
@@ -88,12 +104,12 @@ async def write_entity_file(entities_path: Path, entity_id: str, entity: EntityI
     return True
 
 
-async def read_entity_file(entities_path: Path, entity_id: str) -> EntityIn:
+async def read_entity_file(project_entities_path: Path, entity_id: str) -> EntityIn:
     """
     Read entity data from filesystem.
     
     Args:
-        entities_path: Path to entities directory
+        project_entities_path: Base path to project's entities directory
         entity_id: ID of entity to read
         
     Returns:
@@ -103,7 +119,7 @@ async def read_entity_file(entities_path: Path, entity_id: str) -> EntityIn:
         EntityNotFoundError: If entity file doesn't exist
         FileOperationError: If file operations fail
     """
-    entity_path = entities_path / f"{entity_id}.md"
+    entity_path = get_entity_path(project_entities_path, entity_id)
     if not entity_path.exists():
         raise EntityNotFoundError(f"Entity file not found: {entity_id}")
     
@@ -168,6 +184,7 @@ async def read_entity_file(entities_path: Path, entity_id: str) -> EntityIn:
             ))
     
     return EntityIn(
+        id=entity_id,
         name=name,
         entity_type=entity_type,
         observations=observations,
@@ -175,12 +192,12 @@ async def read_entity_file(entities_path: Path, entity_id: str) -> EntityIn:
     )
 
 
-async def delete_entity_file(entities_path: Path, entity_id: str) -> bool:
+async def delete_entity_file(project_entities_path: Path, entity_id: str) -> bool:
     """
     Delete an entity's file from the filesystem.
     
     Args:
-        entities_path: Path to entities directory
+        project_entities_path: Base path to project's entities directory
         entity_id: ID of entity to delete
         
     Returns:
@@ -189,7 +206,7 @@ async def delete_entity_file(entities_path: Path, entity_id: str) -> bool:
     Raises:
         FileOperationError: If file deletion fails
     """
-    entity_path = entities_path / f"{entity_id}.md"
+    entity_path = get_entity_path(project_entities_path, entity_id)
     
     if entity_path.exists():
         try:
