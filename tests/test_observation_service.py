@@ -13,16 +13,9 @@ async def test_add_observation_success(observation_service, test_entity):
         content="New observation",
         context="test-context"
     )
-    
-    entity_data = EntityIn(
-        name=test_entity.name,
-        entity_type=test_entity.entity_type,
-        id=test_entity.id,
-        observations=[]
-    )
-    
+
     # Act
-    observations = await observation_service.add_observations(entity_data, [observation_data])
+    observations = await observation_service.add_observations(test_entity.id, [observation_data])
     
     # Assert
     assert len(observations) == 1
@@ -40,15 +33,8 @@ async def test_add_observation_success(observation_service, test_entity):
 async def test_search_observations(observation_service, test_entity):
     """Test searching observations across entities."""
     # Arrange
-    entity_data = EntityIn(
-        name=test_entity.name,
-        entity_type=test_entity.entity_type,
-        id=test_entity.id,
-        observations=[]
-    )
-    
     await observation_service.add_observations(
-        entity_data,
+        test_entity.id,
         [ObservationIn(content="Unique test content"), ObservationIn(content="Other content")]
     )
 
@@ -63,15 +49,8 @@ async def test_search_observations(observation_service, test_entity):
 async def test_get_observations_by_context(observation_service, test_entity):
     """Test retrieving observations by context."""
     # Arrange
-    entity_data = EntityIn(
-        name=test_entity.name,
-        entity_type=test_entity.entity_type,
-        id=test_entity.id,
-        observations=[]
-    )
-    
     await observation_service.add_observations(
-        entity_data,
+        test_entity.id,
         [ObservationIn(content="Context observation", context="test-context"),
          ObservationIn(content="Other observation", context="other-context")]
     )
@@ -89,26 +68,15 @@ async def test_get_observations_by_context(observation_service, test_entity):
 async def test_observation_with_special_characters(observation_service, test_entity):
     """Test handling observations with special characters."""
     content = "Test & observation with @#$% special chars!"
-    entity_data = EntityIn(
-        name=test_entity.name,
-        entity_type=test_entity.entity_type,
-        id=test_entity.id,
-    )
 
-    observations = await observation_service.add_observations(entity_data, [ObservationIn(content=content)])
+    observations = await observation_service.add_observations(test_entity.id, [ObservationIn(content=content)])
     assert observations[0].content == content
 
 
 async def test_very_long_observation(observation_service, test_entity):
     """Test handling very long observation content."""
     long_content = "Very long observation " * 100  # ~1800 characters
-    entity_data = EntityIn(
-        name=test_entity.name,
-        entity_type=test_entity.entity_type,
-        id=test_entity.id,
-        observations=[]
-    )
 
-    observations = await observation_service.add_observations(entity_data, [ObservationIn(content=long_content)])
+    observations = await observation_service.add_observations(test_entity.id, [ObservationIn(content=long_content)])
     assert observations[0].content == long_content
     

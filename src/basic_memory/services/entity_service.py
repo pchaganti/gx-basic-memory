@@ -34,7 +34,7 @@ class EntityService:
 
     async def create_entity(self, entity: EntityIn) -> Entity:
         """Create a new entity in the database."""
-        logger.debug(f"Creating entity in DB: {entity.id}")
+        logger.debug(f"Creating entity in DB: {entity}")
         try:
             created_entity = await self.entity_repo.create(entity.model_dump())
             logger.debug(f"Created base entity: {created_entity.id}")
@@ -44,7 +44,7 @@ class EntityService:
 
             return created_entity
         except Exception as e:
-            logger.exception(f"Failed to create entity: {entity.id}")
+            logger.exception(f"Failed to create entity: {entity}")
             raise
 
     async def update_entity(self, entity_id: str, update_data: Dict[str, Any]) -> Entity:
@@ -80,21 +80,21 @@ class EntityService:
             logger.exception(f"Failed to get entity: {entity_id}")
             raise
 
-    async def get_by_name(self, name: str) -> Entity:
-        """Get entity by name."""
-        logger.debug(f"Getting entity by name: {name}")
+    async def get_by_type_and_name(self, entity_type: str, name: str) -> Entity:
+        """Get entity by type and name combination."""
+        logger.debug(f"Getting entity by type/name: {entity_type}/{name}")
         try:
-            db_entity = await self.entity_repo.find_by_name(name)
+            db_entity = await self.entity_repo.find_by_type_and_name(entity_type, name)
             if not db_entity:
-                logger.error(f"Entity not found: {name}")
-                raise EntityNotFoundError(f"Entity not found: {name}")
+                logger.error(f"Entity not found: {entity_type}/{name}")
+                raise EntityNotFoundError(f"Entity not found: {entity_type}/{name}")
 
             logger.debug(f"Found entity: {db_entity.id}")
             return db_entity
         except EntityNotFoundError:
             raise
         except Exception as e:
-            logger.exception(f"Failed to get entity by name: {name}")
+            logger.exception(f"Failed to get entity by type/name: {entity_type}/{name}")
             raise
 
     async def delete_entity(self, entity_id: str) -> bool:

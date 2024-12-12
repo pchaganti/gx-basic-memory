@@ -26,7 +26,6 @@ def test_entity_in_minimal():
     assert entity.description is None
     assert entity.observations == []
     assert entity.relations == []
-    assert entity.id is not None  # Should auto-generate
 
 def test_entity_in_complete():
     """Test creating EntityIn with all fields."""
@@ -124,12 +123,6 @@ def test_create_entities_input():
     # Empty entities list should fail
     with pytest.raises(ValidationError):
         CreateEntitiesInput.model_validate({"entities": []})
-
-def test_entity_id_generation():
-    """Test ID generation for entities."""
-    entity = EntityIn.model_validate({"name": "test entity", "entityType": "test"})
-    assert entity.id.startswith(datetime.now().strftime("%Y%m%d"))
-    assert "test-entity" in entity.id
 
 def test_snake_case_to_camel():
     """Test conversion from snake_case to camelCase."""

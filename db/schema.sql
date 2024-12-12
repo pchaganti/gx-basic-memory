@@ -30,9 +30,11 @@ CREATE TABLE IF NOT EXISTS "entity" (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX idx_entity_type_name ON entity(entity_type, name);
 -- Dbmate schema migrations
 INSERT INTO "schema_migrations" (version) VALUES
   ('20240101000000'),
   ('20241210213454'),
   ('20241211034719'),
-  ('20241211052101');
+  ('20241211052101'),
+  ('20241211190000');

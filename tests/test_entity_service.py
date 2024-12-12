@@ -30,6 +30,41 @@ async def test_create_entity_success(entity_service):
     retrieved = await entity_service.get_entity(entity.id)
     assert retrieved.description == "A test entity description"
 
+async def test_get_by_type_and_name(entity_service):
+    """Test finding entity by type and name combination."""
+    # Create two entities with same name but different types
+    entity1_data = EntityIn(
+        name="Test Entity",
+        entity_type="type1",
+        description="First test entity"
+    )
+    entity1 = await entity_service.create_entity(entity1_data)
+
+    entity2_data = EntityIn(
+        name="Test Entity",  # Same name
+        entity_type="type2",  # Different type
+        description="Second test entity"
+    )
+    entity2 = await entity_service.create_entity(entity2_data)
+
+    # Find by type1 and name
+    found = await entity_service.get_by_type_and_name("type1", "Test Entity")
+    assert found is not None
+    assert found.id == entity1.id
+    assert found.entity_type == "type1"
+    assert found.description == "First test entity"
+
+    # Find by type2 and name
+    found = await entity_service.get_by_type_and_name("type2", "Test Entity")
+    assert found is not None
+    assert found.id == entity2.id
+    assert found.entity_type == "type2"
+    assert found.description == "Second test entity"
+
+    # Test not found case
+    with pytest.raises(EntityNotFoundError):
+        await entity_service.get_by_type_and_name("nonexistent", "Test Entity")
+
 async def test_create_entity_no_description(entity_service):
     """Test creating entity without description (should be None)."""
     entity_data = EntityIn(
@@ -179,7 +214,7 @@ async def test_entity_id_generation(entity_service):
     entity = await entity_service.create_entity(entity_data)
     
     assert entity.id  # ID should be generated
-    assert "-test-entity" in entity.id  # Should contain normalized name
+    assert "test/test_entity" ==  entity.id  # Should contain normalized name
 
 async def test_create_entity_long_description(entity_service):
     """Test creating entity with a long description."""

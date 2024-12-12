@@ -5,9 +5,8 @@ independent from storage/persistence concerns.
 """
 from datetime import datetime, UTC
 from typing import List, Optional, Dict, Any, Annotated
-from uuid import uuid4
 from annotated_types import Gt, Len
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 
 # Base output model for SQLAlchemy attribute conversion
 class SQLAlchemyOut(BaseModel):
@@ -57,23 +56,14 @@ class RelationOut(SQLAlchemyOut):
     model_config = ConfigDict(populate_by_name=True)
 
 class EntityBase(BaseModel):
-    id: str = Field(default=None)  # Allow None during creation
     name: str
     entity_type: str = Field(alias="entityType")
     description: Optional[str] = None
 
-    @model_validator(mode='after')
-    def generate_id(self) -> 'EntityBase':
-        """Generate an ID for this entity if not provided"""
-        if not self.id:
-            timestamp = datetime.now(UTC).strftime("%Y%m%d")
-            normalized_name = self.name.lower().replace(" ", "-")
-            self.id = f"{timestamp}-{normalized_name}"
-        return self
-
-    def file_name(self) -> str:
-        """Get the markdown file name for this entity."""
-        return f"{self.id}.md"
+    @property
+    def file_path(self) -> str:
+        """The relative file path for this entity."""
+        return f"{self.entity_type}/{self.name}.md"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -88,6 +78,7 @@ class EntityIn(EntityBase):
     model_config = ConfigDict(populate_by_name=True)
 
 class EntityOut(EntityBase, SQLAlchemyOut):
+    id: str  # ID will be set by repository
     """Schema for entity data returned from the service."""
     observations: List[ObservationOut] = []
     relations: List[RelationOut] = []

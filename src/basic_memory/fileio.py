@@ -4,6 +4,8 @@ Handles reading and writing entities and observations to the filesystem.
 """
 from pathlib import Path
 
+from loguru import logger
+
 from basic_memory.schemas import EntityIn, ObservationIn, RelationIn
 
 
@@ -31,7 +33,9 @@ async def write_entity_file(entities_path: Path, entity: EntityIn) -> bool:
     Raises:
         FileOperationError: If file operations fail
     """
-    entity_path = entities_path / f"{entity.id}.md"
+    logger.debug(f"Writing entity file for {entity.file_path}")
+
+    entity_path = entities_path / entity.file_path
     
     # Handle directory creation separately
     try:
@@ -79,7 +83,8 @@ async def write_entity_file(entities_path: Path, entity: EntityIn) -> bool:
         temp_path.rename(entity_path)
     except Exception as e:
         raise FileOperationError(f"Failed to finalize entity file: {str(e)}") from e
-        
+
+    logger.debug(f"Wrote entity file: {entity.file_path}")
     return True
 
 
@@ -154,21 +159,15 @@ async def read_entity_file(entities_path: Path, entity_id: str) -> EntityIn:
             parts = rest.split(" | ", 1)
             relation_type = parts[0]
             context = parts[1] if len(parts) > 1 else None
-            
-            # Create temporary entities for the relation
-            # TODO what is this for?
-            target_entity = EntityIn(id=target_id, name=target_id, entity_type="unknown")
-            source_entity = EntityIn(id=entity_id, name=name, entity_type=entity_type)
-            
+
             relations.append(RelationIn(
-                from_id=source_entity.id,
-                to_id=target_entity.id,
+                from_id=entity_id,
+                to_id=target_id,
                 relation_type=relation_type,
                 context=context
             ))
     
     return EntityIn(
-        id=entity_id,
         name=name,
         entity_type=entity_type,
         observations=observations,

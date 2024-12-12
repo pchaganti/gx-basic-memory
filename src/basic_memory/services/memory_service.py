@@ -35,9 +35,7 @@ class MemoryService:
 
         # Write files in parallel (filesystem is source of truth)
         async def write_file(entity: EntityIn):
-            logger.debug(f"Writing entity file for {entity.id}")
             await write_entity_file(self.entities_path, entity)
-            logger.debug(f"Wrote entity file: {self.entities_path}/{entity.file_name()}")
 
         file_writes = [write_file(entity) for entity in entities_in]
         logger.debug("Starting parallel file writes")
@@ -45,27 +43,27 @@ class MemoryService:
         logger.debug("Completed all file writes")
 
         async def create_entity_in_db(entity_in: EntityIn):
-            logger.debug(f"Creating entity in DB: {entity_in.id}")
+            logger.debug(f"Creating entity in DB: {entity_in}")
             try:
                 # Create base entity
-                await self.entity_service.create_entity(entity_in)
-                logger.debug(f"Created base entity: {entity_in.id}")
+                created_entity = await self.entity_service.create_entity(entity_in)
+                logger.debug(f"Created base entity: {created_entity.id}")
 
                 # Add observations
-                await self.observation_service.add_observations(entity_in, entity_in.observations)
-                logger.debug(f"Added {len(entity_in.observations)} observations to {entity_in.id}")
+                await self.observation_service.add_observations(created_entity.id, entity_in.observations)
+                logger.debug(f"Added {len(entity_in.observations)} observations to {created_entity.id}")
 
                 # Add relations
                 for relation in entity_in.relations:
                     await self.relation_service.create_relation(relation)
-                logger.debug(f"Added {len(entity_in.relations)} relations for {entity_in.id}")
+                logger.debug(f"Added {len(entity_in.relations)} relations for {created_entity.id}")
 
                 # Query final state
-                final_entity = await self.entity_service.get_entity(entity_in.id)
+                final_entity = await self.entity_service.get_entity(created_entity.id)
                 logger.debug(f"Retrieved final entity state: {final_entity}")
                 return final_entity
             except Exception as e:
-                logger.exception(f"Failed to create entity in DB: {entity_in.id}")
+                logger.exception(f"Failed to create entity in DB: {entity_in}")
                 raise
 
         # Update database index sequentially
@@ -89,13 +87,13 @@ class MemoryService:
                 # First read complete entities from filesystem
                 from_entity = await read_entity_file(self.entities_path, relation.from_id) 
                 to_entity = await read_entity_file(self.entities_path, relation.to_id)
-                logger.debug(f"Read entities for relation: {from_entity.id}, {to_entity.id}")
+                logger.debug(f"Read entities for relation: {from_entity.file_path}, {to_entity.file_path}")
 
                 # Add the new relation to the source entity
                 if not hasattr(from_entity, 'relations'):
                     from_entity.relations = []
                 from_entity.relations.append(relation)
-                logger.debug(f"Added relation to source entity: {from_entity.id}")
+                logger.debug(f"Added relation to source entity: {from_entity.file_path}")
 
                 # Write updated entity files (filesystem is source of truth)
                 logger.debug("Writing updated entity files")
@@ -126,7 +124,7 @@ class MemoryService:
             
             # Read entity from filesystem using the ID
             entity = await read_entity_file(self.entities_path, db_entity.id)
-            logger.debug(f"Read entity from filesystem: {entity.id}")
+            logger.debug(f"Read entity from filesystem: {db_entity.id}")
 
             # Create new observations for the entity
             for obs in observations_in.observations:
@@ -139,10 +137,9 @@ class MemoryService:
             logger.debug("Wrote updated entity file")
             
             # Update database index
-            added_observations = await self.observation_service.add_observations(entity, observations_in.observations)
+            added_observations = await self.observation_service.add_observations(db_entity.id, observations_in.observations)
             logger.debug(f"Added {len(added_observations)} observations to DB")
 
-            db_entity = await self.entity_service.get_entity(entity.id)
             return added_observations
         except Exception as e:
             logger.exception(f"Failed to add observations to entity: {observations_in.entity_id}")

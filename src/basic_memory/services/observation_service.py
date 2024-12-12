@@ -19,7 +19,7 @@ class ObservationService:
         self.project_path = project_path
         self.observation_repo = observation_repo
         
-    async def add_observations(self, entity: EntityIn, observations: List[ObservationIn]) -> List[Observation]:
+    async def add_observations(self, entity_id: str, observations: List[ObservationIn]) -> List[Observation]:
         """
         Add multiple observations to an entity.
         Returns the created observations with IDs set.
@@ -28,7 +28,7 @@ class ObservationService:
             try:
                 obs = await self.observation_repo.create({
                     **observation.model_dump(),
-                    'entity_id': entity.id
+                    'entity_id': entity_id
                 })
                 # Ensure observation is flushed and refreshed
                 await self.observation_repo.session.flush()

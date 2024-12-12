@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped
 from loguru import logger
 
-from basic_memory.models import Base
+from basic_memory.models import Base, Entity
 
 T = TypeVar('T', bound=Base)
 
@@ -72,8 +72,16 @@ class Repository[T: Base]:
             # Only include valid columns that are provided in entity_data
             model_data = {
                 k: v for k, v in entity_data.items() 
-                if k in self.valid_columns
+                if k in self.valid_columns and v is not None
             }
+
+            # Generate ID if this is an Entity model and no ID provided
+            if model is Entity and 'id' not in model_data:
+                model_data['id'] = Entity.generate_id(
+                    model_data['entity_type'],
+                    model_data['name']
+                )
+
             logger.debug(f"Filtered data for valid columns: {model_data}")
 
             # Create insert statement with only provided data

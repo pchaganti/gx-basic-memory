@@ -1,7 +1,7 @@
 """Database models for basic-memory."""
 from datetime import datetime, UTC
 from typing import List, Optional
-from sqlalchemy import String, DateTime, ForeignKey, Text, TypeDecorator, Integer, text
+from sqlalchemy import String, DateTime, ForeignKey, Text, TypeDecorator, Integer, text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
@@ -39,16 +39,19 @@ class Entity(Base):
     Core entity in the knowledge graph.
 
     Entities are the primary nodes in the knowledge graph. Each entity has:
-    - A unique identifier (text, for filesystem references)
+    - A unique identifier (text, based on type/name path)
     - A name
     - An entity type (e.g., "person", "organization", "event")
     - A description (optional)
     - A list of observations
     """
     __tablename__ = "entity"
+    __table_args__ = (
+        UniqueConstraint('entity_type', 'name', name='uix_entity_type_name'),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    name: Mapped[str] = mapped_column(String, index=True)
+    name: Mapped[str] = mapped_column(String)
     entity_type: Mapped[str] = mapped_column(String)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -79,6 +82,17 @@ class Entity(Base):
         back_populates="to_entity",
         cascade="all, delete-orphan"
     )
+
+    @classmethod
+    def generate_id(cls, entity_type: str, name: str) -> str:
+        """Generate a filesystem path-based ID for this entity."""
+        # Normalize name for filesystem (handle spaces, special chars etc)
+        safe_name = name.lower().replace(" ", "_")
+        return f"{entity_type}/{safe_name}"
+
+    def get_file_path(self) -> str:
+        """Get the filesystem path for this entity."""
+        return f"{self.id}.md"  # id is already in path format
 
     def __repr__(self) -> str:
         return f"Entity(id='{self.id}', name='{self.name}', type='{self.entity_type}')"

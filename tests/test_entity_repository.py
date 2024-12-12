@@ -2,6 +2,7 @@
 import pytest
 from datetime import datetime, UTC
 from sqlalchemy import text, select
+from sqlalchemy.exc import IntegrityError
 
 from basic_memory.models import Entity
 from basic_memory.repository.entity_repository import EntityRepository
@@ -13,7 +14,6 @@ class TestEntityRepository:
     async def test_create_entity(self, entity_repository: EntityRepository):
         """Test creating a new entity"""
         entity_data = {
-            'id': '20240102-test',
             'name': 'Test',
             'entity_type': 'test',
             'description': 'Test description',
@@ -21,7 +21,7 @@ class TestEntityRepository:
         entity = await entity_repository.create(entity_data)
         
         # Verify returned object
-        assert entity.id == '20240102-test'
+        assert entity.id == f'test/test'
         assert entity.name == 'Test'
         assert entity.description == 'Test description'
         assert isinstance(entity.created_at, datetime)
@@ -34,6 +34,42 @@ class TestEntityRepository:
         assert db_entity.id == entity.id
         assert db_entity.name == entity.name
         assert db_entity.description == entity.description
+
+    async def test_entity_type_name_unique_constraint(self, entity_repository: EntityRepository):
+        """Test the unique constraint on entity_type + name combination."""
+        # Create first entity
+        entity1_data = {
+            'id': '20240102-test1',
+            'name': 'Test Entity',
+            'entity_type': 'type1',
+            'description': 'First entity'
+        }
+        await entity_repository.create(entity1_data)
+
+        # Try to create another entity with same type and name
+        entity2_data = {
+            'id': '20240102-test2',
+            'name': 'Test Entity',  # Same name
+            'entity_type': 'type1', # Same type
+            'description': 'Second entity'
+        }
+        
+        # Should raise IntegrityError
+        with pytest.raises(IntegrityError) as exc_info:
+            await entity_repository.create(entity2_data)
+        assert 'UNIQUE constraint failed: entity.entity_type, entity.name' in str(exc_info.value)
+
+        # But should allow same name with different type
+        entity3_data = {
+            'id': '20240102-test3',
+            'name': 'Test Entity',  # Same name
+            'entity_type': 'type2', # Different type
+            'description': 'Third entity'
+        }
+        entity3 = await entity_repository.create(entity3_data)
+        assert entity3 is not None
+        assert entity3.name == 'Test Entity'
+        assert entity3.entity_type == 'type2'
 
     async def test_create_entity_null_description(self, entity_repository: EntityRepository):
         """Test creating an entity with null description"""
