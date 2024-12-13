@@ -1,32 +1,9 @@
 """Database models for basic-memory."""
-from datetime import datetime, UTC
+from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, DateTime, ForeignKey, Text, TypeDecorator, Integer, text, UniqueConstraint
+from sqlalchemy import String, DateTime, ForeignKey, Text, Integer, text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
-
-
-class UTCDateTime(TypeDecorator):
-    """Automatically handle UTC timezone for datetime columns"""
-    impl = DateTime
-    cache_ok = True
-
-    def process_bind_param(self, value: Optional[datetime], dialect):
-        if value is not None:
-            if value.tzinfo is None:
-                return value.replace(tzinfo=UTC)
-            return value
-        return value
-
-    def process_result_value(self, value: Optional[datetime], dialect):
-        if value is not None:
-            return value.replace(tzinfo=UTC)
-        return value
-
-
-def utc_now() -> datetime:
-    """Helper to get current UTC time"""
-    return datetime.now(UTC)
 
 
 class Base(AsyncAttrs, DeclarativeBase):
@@ -55,13 +32,13 @@ class Entity(Base):
     entity_type: Mapped[str] = mapped_column(String)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        UTCDateTime,
+        DateTime,
         server_default=text('CURRENT_TIMESTAMP')
     )
     updated_at: Mapped[datetime] = mapped_column(
-        UTCDateTime,
+        DateTime,
         server_default=text('CURRENT_TIMESTAMP'),
-        onupdate=utc_now
+        onupdate=text('CURRENT_TIMESTAMP')
     )
 
     # Relationships
@@ -152,7 +129,7 @@ class Relation(Base):
     )
     relation_type: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        UTCDateTime,
+        DateTime,
         server_default=text('CURRENT_TIMESTAMP')
     )
     context: Mapped[str | None] = mapped_column(String, nullable=True)

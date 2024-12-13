@@ -25,7 +25,6 @@ class TestEntityRepository:
         assert entity.name == 'Test'
         assert entity.description == 'Test description'
         assert isinstance(entity.created_at, datetime)
-        assert entity.created_at.tzinfo == UTC
 
         # Verify in database
         stmt = select(Entity).where(Entity.id == entity.id)
