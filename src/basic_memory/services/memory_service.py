@@ -22,8 +22,11 @@ class MemoryService:
         relation_service: RelationService,
         observation_service: ObservationService
     ):
-        self.project_path = project_path
-        self.entities_path = project_path / "entities" if project_path else None
+        if project_path:
+            assert project_path.is_dir(), "Path does not exist or is not a directory: {project_path}"
+            self.project_path = project_path
+            self.entities_path = project_path / "entities"
+
         self.entity_service = entity_service
         self.relation_service = relation_service
         self.observation_service = observation_service
@@ -64,13 +67,9 @@ class MemoryService:
                 created_entity = await self.entity_service.create_entity(entity_in)
                 logger.debug(f"Created base entity: {created_entity.id}")
 
-                # Convert ObservationIn to Observation instances
-                if entity_in.observations:
-                    created_observations = await self.observation_service.add_observations(
-                        created_entity.id, 
-                        [ObservationIn(**obs.model_dump()) for obs in entity_in.observations]
-                    )
-                    logger.debug(f"Added {len(created_observations)} observations to {created_entity.id}")
+                # Add observations
+                await self.observation_service.add_observations(created_entity.id, entity_in.observations)
+                logger.debug(f"Added {len(entity_in.observations)} observations to {created_entity.id}")
 
                 # Add relations
                 for relation in entity_in.relations:
@@ -104,7 +103,7 @@ class MemoryService:
                     if path.exists():
                         path.unlink()
                 except Exception as cleanup_error:
-                    logger.error(f"Failed to clean up file for {entity_id}: {cleanup_error}")
+                    logger.error(f"Failed to clean up file for {entity.id}: {cleanup_error}")
             raise
 
     async def create_relations(self, relations_data: List[RelationIn]) -> List[Relation]:
