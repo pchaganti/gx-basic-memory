@@ -1,11 +1,11 @@
 """Service for managing observations in both filesystem and database."""
 from pathlib import Path
-from typing import List
+from typing import List, Sequence
 from sqlalchemy import select
 
 from basic_memory.models import Observation
 from basic_memory.repository.observation_repository import ObservationRepository
-from basic_memory.schemas import EntityIn, ObservationIn
+from basic_memory.schemas import ObservationIn
 from . import DatabaseSyncError
 
 
@@ -24,29 +24,17 @@ class ObservationService:
         Add multiple observations to an entity.
         Returns the created observations with IDs set.
         """
-        async def add_observation(observation: ObservationIn) -> Observation:
-            try:
-                obs = await self.observation_repo.create({
-                    **observation.model_dump(),
-                    'entity_id': entity_id
-                })
-                # Ensure observation is flushed and refreshed
-                await self.observation_repo.session.flush()
-                await self.observation_repo.session.refresh(obs)
-                return obs
-            except Exception as e:
-                raise DatabaseSyncError(f"Failed to add observation to database: {str(e)}") from e
-
-        # Add each observation and collect the results
-        created_observations = [await add_observation(obs) for obs in observations]
-
-        # Make sure observations are in sync before returning
-        # This helps ensure related entities see the new observations
-        await self.observation_repo.session.flush()
-        for obs in created_observations:
-            await self.observation_repo.session.refresh(obs)
-            
-        return created_observations
+        try:
+            return await self.observation_repo.bulk_create([
+                Observation(
+                    entity_id=entity_id,
+                    content=observation.content,
+                    context=observation.context
+                )
+                for observation in observations
+            ])
+        except Exception as e:
+            raise DatabaseSyncError(f"Failed to add observations to database: {str(e)}") from e
 
     async def search_observations(self, query: str) -> List[Observation]:
         """
@@ -68,10 +56,6 @@ class ObservationService:
             for obs in result.scalars().all()
         ]
         
-    async def get_observations_by_context(self, context: str) -> List[Observation]:
+    async def get_observations_by_context(self, context: str) -> Sequence[Observation]:
         """Get all observations with a specific context."""
-        db_observations = await self.observation_repo.find_by_context(context)
-        return [
-            Observation(content=obs.content) 
-            for obs in db_observations
-        ]
+        return await self.observation_repo.find_by_context(context)

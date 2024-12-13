@@ -5,7 +5,7 @@ from pathlib import Path
 
 from basic_memory.models import Entity, Observation, Relation
 from basic_memory.schemas import (
-    ObservationsIn, EntityIn, RelationIn
+    ObservationsIn, EntityIn, RelationIn, ObservationIn
 )
 from basic_memory.fileio import write_entity_file, read_entity_file, EntityNotFoundError
 from basic_memory.services import EntityService, RelationService, ObservationService
@@ -64,9 +64,13 @@ class MemoryService:
                 created_entity = await self.entity_service.create_entity(entity_in)
                 logger.debug(f"Created base entity: {created_entity.id}")
 
-                # Add observations
-                await self.observation_service.add_observations(created_entity.id, entity_in.observations)
-                logger.debug(f"Added {len(entity_in.observations)} observations to {created_entity.id}")
+                # Convert ObservationIn to Observation instances
+                if entity_in.observations:
+                    created_observations = await self.observation_service.add_observations(
+                        created_entity.id, 
+                        [ObservationIn(**obs.model_dump()) for obs in entity_in.observations]
+                    )
+                    logger.debug(f"Added {len(created_observations)} observations to {created_entity.id}")
 
                 # Add relations
                 for relation in entity_in.relations:

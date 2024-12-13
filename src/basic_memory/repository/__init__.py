@@ -1,5 +1,5 @@
 """Base repository implementation."""
-from typing import Type, Optional, Any, Sequence, TypeVar
+from typing import Type, Optional, Any, Sequence, TypeVar, List
 from sqlalchemy import select, func, Select, Executable, inspect, Result, Column, insert
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,16 +69,54 @@ class Repository[T: Base]:
         model = model or self.Model
         logger.debug(f"Creating {model.__name__} with data: {entity_data}")
         try:
+            # Only include valid columns that are provided in entity_data
+            model_data = {
+                k: v for k, v in entity_data.items() 
+                if k in self.valid_columns and v is not None
+            }
+
+            # Generate ID if this is an Entity model and no ID provided
+            if model is Entity and 'id' not in model_data:
+                model_data['id'] = Entity.generate_id(
+                    model_data['entity_type'],
+                    model_data['name']
+                )
+
+            logger.debug(f"Filtered data for valid columns: {model_data}")
 
             # Create insert statement with only provided data
-            instance = model(**entity_data)
-            self.session.add(instance)
-            await self.session.flush()
-            logger.debug(f"Created {model.__name__}: {getattr(instance, 'id', None)}")
-            return instance
+            stmt = insert(model).values(**model_data).returning(model)
+            result = await self.session.execute(stmt)
+            entity = result.scalar_one()
+
+            logger.debug(f"Created {model.__name__}: {getattr(entity, 'id', None)}")
+            return entity
 
         except Exception as e:
             logger.exception(f"Failed to create {model.__name__}")
+            raise
+    
+    async def instance_create(self, instance: T) -> T:
+        """Create a new record from a model instance."""
+        logger.debug(f"Creating {self.Model.__name__} from instance: {instance}")
+        try:
+            self.session.add(instance)
+            await self.session.flush()
+            return instance
+        except Exception as e:
+            logger.exception(f"Failed to create {self.Model.__name__}")
+            raise
+
+    async def bulk_create(self, instances: List[T]) -> List[T]:
+        """Create multiple records in a single transaction."""
+        logger.debug(f"Bulk creating {len(instances)} {self.Model.__name__} instances")
+        try:
+            for instance in instances:
+                self.session.add(instance)
+            await self.session.flush()
+            return instances
+        except Exception as e:
+            logger.exception(f"Failed to bulk create {self.Model.__name__}")
             raise
 
     async def update(self, entity_id: str, entity_data: dict) -> Optional[T]:
