@@ -7,7 +7,6 @@ from basic_memory.schemas import EntityIn
 from basic_memory.models import Entity
 from basic_memory.fileio import EntityNotFoundError
 from loguru import logger
-from . import ServiceError
 
 
 class EntityService:
@@ -28,7 +27,7 @@ class EntityService:
             results = await self.entity_repo.search(query)
             logger.debug(f"Found {len(results)} matches")
             return results
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to search entities with query: {query}")
             raise
 
@@ -43,7 +42,7 @@ class EntityService:
             logger.debug(f"Refreshed entity relationships: {created_entity.id}")
 
             return created_entity
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to create entity: {entity}")
             raise
 
@@ -59,7 +58,7 @@ class EntityService:
             return updated
         except EntityNotFoundError:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to update entity: {entity_id}")
             raise
 
@@ -76,7 +75,7 @@ class EntityService:
             return db_entity
         except EntityNotFoundError:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to get entity: {entity_id}")
             raise
 
@@ -93,7 +92,7 @@ class EntityService:
             return db_entity
         except EntityNotFoundError:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to get entity by type/name: {entity_type}/{name}")
             raise
 
@@ -104,6 +103,6 @@ class EntityService:
             result = await self.entity_repo.delete(entity_id)
             logger.debug(f"Entity deleted: {entity_id}")
             return result
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to delete entity: {entity_id}")
             raise

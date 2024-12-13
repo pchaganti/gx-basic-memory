@@ -64,7 +64,7 @@ class EntityBase(BaseModel):
     @property
     def file_path(self) -> str:
         """The relative file path for this entity."""
-        return f"{self.entity_type}/{self.name}.md"
+        return f"{id}.md"
 
     model_config = ConfigDict(from_attributes=True)
 

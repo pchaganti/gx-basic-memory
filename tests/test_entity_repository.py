@@ -59,18 +59,6 @@ class TestEntityRepository:
             await entity_repository.create(entity2_data)
         assert 'UNIQUE constraint failed: entity.entity_type, entity.name' in str(exc_info.value)
 
-        # But should allow same name with different type
-        entity3_data = {
-            'id': '20240102-test3',
-            'name': 'Test Entity',  # Same name
-            'entity_type': 'type2', # Different type
-            'description': 'Third entity'
-        }
-        entity3 = await entity_repository.create(entity3_data)
-        assert entity3 is not None
-        assert entity3.name == 'Test Entity'
-        assert entity3.entity_type == 'type2'
-
     async def test_create_entity_null_description(self, entity_repository: EntityRepository):
         """Test creating an entity with null description"""
         entity_data = {

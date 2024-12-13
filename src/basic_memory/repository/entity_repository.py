@@ -1,5 +1,5 @@
 """Repository for managing Entity objects."""
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Type
 from sqlalchemy import select, or_
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import selectinload
@@ -15,6 +15,14 @@ class EntityRepository(Repository[Entity]):
     def __init__(self, session):
         super().__init__(session, Entity)
         logger.debug("Initialized EntityRepository")
+
+    async def create(self, entity_data: dict, model: Type[Entity] | None = None) -> Entity:
+        """Create a new entity in the database from the provided data."""
+        entity_id = Entity.generate_id(
+                entity_data['entity_type'],
+                entity_data['name']
+            )
+        return await super().create({**entity_data, 'id': entity_id})
 
     async def find_by_id(self, entity_id: str) -> Optional[Entity]:
         """Find entity by ID with all relationships eagerly loaded."""

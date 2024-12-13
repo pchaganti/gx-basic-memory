@@ -29,6 +29,22 @@ def test_entity_data():
     }
 
 @pytest.fixture
+def test_directory_entity_data():
+    """Real data that caused failure in the tool."""
+    return {
+        "entities": [{
+            "name": "Directory Organization", 
+            "entityType": "memory", 
+            "description": "Implemented filesystem organization by entity type", 
+            "observations": [
+                {"content": "Files are now organized by type using directories like entities/project/basic_memory"}, 
+                {"content": "Entity IDs match filesystem paths for better mental model"}, 
+                {"content": "Fixed path handling bugs by adding consistent get_entity_path helper"}
+            ]
+        }]
+    }
+
+@pytest.fixture
 def test_entity_snake_case():
     """Same test data but using snake_case to test schema flexibility."""
     return {
@@ -60,6 +76,28 @@ async def test_list_tools(test_config):
     search_schema = found_tools["search_nodes"].inputSchema
     assert "query" in search_schema["properties"]
     assert search_schema["required"] == ["query"]
+
+@pytest.mark.anyio
+async def test_create_directory_entity(test_directory_entity_data, memory_service, test_config):
+    """Test creating entity with exactly the data that failed in the tool."""
+    server_instance = MemoryServer(config=test_config)
+    result = await server_instance.handle_call_tool(
+        "create_entities", 
+        test_directory_entity_data,
+        memory_service=memory_service
+    )
+    
+    # Verify response format
+    assert len(result) == 1
+    assert isinstance(result[0], EmbeddedResource)
+    assert result[0].type == "resource"
+    
+    # Verify entity creation
+    response = CreateEntitiesResponse.model_validate_json(result[0].resource.text)
+    assert len(response.entities) == 1
+    assert response.entities[0].name == "Directory Organization"
+    assert response.entities[0].entity_type == "memory"
+    assert len(response.entities[0].observations) == 3
 
 @pytest.mark.anyio
 async def test_create_entities_camel_case(test_entity_data, memory_service, test_config):

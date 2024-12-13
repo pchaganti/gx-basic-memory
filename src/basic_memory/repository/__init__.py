@@ -69,28 +69,13 @@ class Repository[T: Base]:
         model = model or self.Model
         logger.debug(f"Creating {model.__name__} with data: {entity_data}")
         try:
-            # Only include valid columns that are provided in entity_data
-            model_data = {
-                k: v for k, v in entity_data.items() 
-                if k in self.valid_columns and v is not None
-            }
-
-            # Generate ID if this is an Entity model and no ID provided
-            if model is Entity and 'id' not in model_data:
-                model_data['id'] = Entity.generate_id(
-                    model_data['entity_type'],
-                    model_data['name']
-                )
-
-            logger.debug(f"Filtered data for valid columns: {model_data}")
 
             # Create insert statement with only provided data
-            stmt = insert(model).values(**model_data).returning(model)
-            result = await self.session.execute(stmt)
-            entity = result.scalar_one()
-
-            logger.debug(f"Created {model.__name__}: {getattr(entity, 'id', None)}")
-            return entity
+            instance = model(**entity_data)
+            self.session.add(instance)
+            await self.session.flush()
+            logger.debug(f"Created {model.__name__}: {getattr(instance, 'id', None)}")
+            return instance
 
         except Exception as e:
             logger.exception(f"Failed to create {model.__name__}")

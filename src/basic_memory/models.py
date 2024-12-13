@@ -4,6 +4,7 @@ from typing import List, Optional
 from sqlalchemy import String, DateTime, ForeignKey, Text, TypeDecorator, Integer, text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
+from sqlalchemy import orm
 
 
 class UTCDateTime(TypeDecorator):
@@ -28,10 +29,20 @@ def utc_now() -> datetime:
     """Helper to get current UTC time"""
     return datetime.now(UTC)
 
+def lenient_constructor(self, **kwargs):
+    cls_ = type(self)
+    for k in kwargs:
+        if not hasattr(cls_, k):
+            print(f'Skipping invalid attr {k!r}')
+            continue
+        setattr(self, k, kwargs[k])
+
+registry = orm.registry(constructor=lenient_constructor)
+
 
 class Base(AsyncAttrs, DeclarativeBase):
     """Base class for all models"""
-    pass
+    registry = registry
 
 
 class Entity(Base):
