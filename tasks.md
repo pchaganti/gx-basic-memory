@@ -186,8 +186,9 @@ Possible fixes:
 
 1. **Core Functionality Improvements**
     - [x] entity.description addition
-    - [ ] subdirectories 
+    - [x] subdirectories 
       - Paul needs this for markdown view
+    - [x] refine directory sprawl
     - [ ] improve tool api
     - [ ] Choose and implement observation update/removal strategy
     - [ ] Handle relationship updates in files
