@@ -1,7 +1,5 @@
 """Configuration management for basic-memory."""
 from pathlib import Path
-from typing import Optional, AsyncGenerator
-from contextlib import asynccontextmanager
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
@@ -38,24 +36,6 @@ class ProjectConfig(BaseSettings):
             v.mkdir(parents=True)
         return v
 
-@asynccontextmanager
-async def get_testing_services(
-    config: ProjectConfig,
-    memory_service: Optional["MemoryService"] = None
-) -> AsyncGenerator["MemoryService", None]:
-    """Get services for testing with optional pre-configured service.
-    
-    Args:
-        config: Project configuration
-        memory_service: Optional pre-configured service for testing
-        
-    Yields:
-        Configured MemoryService instance with proper lifecycle management
-    """
-    if memory_service:
-        yield memory_service
-        return
-
-    from basic_memory.deps import get_project_services
-    async with get_project_services(config.path) as service:
-        yield service
+# Load project config
+config = ProjectConfig()
+project_path = Path(config.path)

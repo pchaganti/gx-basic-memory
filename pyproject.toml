@@ -3,7 +3,7 @@ name = "basic-memory"
 version = "0.1.0"
 description = "Local-first knowledge management combining Zettelkasten with knowledge graphs"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12.1"
 license = { text = "AGPL-3.0-or-later" }
 dependencies = [
     "sqlalchemy>=2.0.0",
@@ -18,6 +18,7 @@ dependencies = [
     "pydantic-settings>=2.6.1",
     "loguru>=0.7.3",
     "pyright>=1.1.390",
+    "basic-foundation",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +30,7 @@ dev = [
     "ruff>=0.1.6",
 ]
 
+
 [project.scripts]
 basic-memory = "basic_memory.cli.main:app"
 
@@ -37,6 +39,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
+pythonpath = [
+    "src",
+    "tests"
+]
 addopts = "--cov=basic_memory -ra -q"
 testpaths = ["tests"]
 asyncio_mode = "strict"
@@ -47,3 +53,6 @@ asyncio_default_fixture_loop_scope = "function"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.uv.sources]
+basic-foundation = { path = "../basic-foundation", editable = true }

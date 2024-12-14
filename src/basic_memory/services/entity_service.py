@@ -1,6 +1,6 @@
 """Service for managing entities in the database."""
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Sequence
 
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas import EntityIn
@@ -20,7 +20,7 @@ class EntityService:
         self.entity_repo = entity_repo
         logger.debug(f"Initialized EntityService with path: {project_path}")
 
-    async def search(self, query: str) -> List[Entity]:
+    async def search(self, query: str) -> Sequence[Entity]:
         """Search entities using LIKE pattern matching."""
         logger.debug(f"Searching entities with query: {query}")
         try:

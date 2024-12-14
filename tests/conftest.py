@@ -38,7 +38,7 @@ def test_config(tmp_path):
 @pytest_asyncio.fixture(scope="function")
 async def engine(test_config):
     """Create an async engine using in-memory SQLite database"""
-    async with get_engine(db_type=DatabaseType.MEMORY, project_path=test_config.path) as engine:
+    async with get_engine(project_path=test_config.path, db_type=DatabaseType.MEMORY) as engine:
         yield engine
 
 

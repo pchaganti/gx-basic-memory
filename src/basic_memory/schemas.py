@@ -97,12 +97,6 @@ class OpenNodesInput(BaseModel):
     """Input schema for open_nodes tool."""
     names: Annotated[List[str], Len(min_length=1)]
 
-class AddObservationsInput(BaseModel):
-    """Input schema for add_observations tool."""
-    entity_id: str = Field(alias="entityId")
-    observations: List[ObservationIn]
-    model_config = ConfigDict(populate_by_name=True)
-
 class CreateRelationsInput(BaseModel):
     """Input schema for create_relations tool."""
     relations: List[RelationIn]
@@ -129,10 +123,6 @@ class OpenNodesResponse(SQLAlchemyOut):
     """Response for open_nodes tool."""
     entities: List[EntityOut]
 
-class AddObservationsResponse(SQLAlchemyOut):
-    """Response for add_observations tool."""
-    entity_id: str
-    added_observations: List[ObservationOut]
 
 class CreateRelationsResponse(SQLAlchemyOut):
     """Response for create_relations tool."""

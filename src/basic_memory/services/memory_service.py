@@ -106,6 +106,12 @@ class MemoryService:
                     logger.error(f"Failed to clean up file for {entity.id}: {cleanup_error}")
             raise
 
+    async def get_entity(self, entity_id):
+        logger.debug(f"Get entity {entity_id} entities")
+        entity = self.entity_service.get_entity(entity_id)
+        logger.debug(f"Found entity {entity}")
+        return entity
+
     async def create_relations(self, relations_data: List[RelationIn]) -> List[Relation]:
         """Create multiple relations between entities."""
         logger.debug(f"Creating {len(relations_data)} relations")
@@ -234,3 +240,4 @@ class MemoryService:
         except Exception as e:
             logger.exception("Failed to open nodes")
             raise
+
