@@ -7,7 +7,7 @@ from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-from basic_memory import deps
+from basic_memory import deps, db
 from basic_memory.db import DatabaseType
 from basic_memory.models import Base
 from basic_memory.repository.entity_repository import EntityRepository
@@ -20,6 +20,8 @@ from basic_memory.deps import (
 from basic_memory.schemas import EntityIn
 from basic_memory.debug_utils import dump_db_state
 from basic_memory.config import ProjectConfig
+from basic_memory.services import MemoryService
+
 
 @pytest_asyncio.fixture
 def anyio_backend():
@@ -38,7 +40,7 @@ def test_config(tmp_path):
 @pytest_asyncio.fixture(scope="function")
 async def engine(test_config):
     """Create an async engine using in-memory SQLite database"""
-    async with get_engine(project_path=test_config.path, db_type=DatabaseType.MEMORY) as engine:
+    async with db.engine(project_path=test_config.path, db_type=DatabaseType.MEMORY) as engine:
         yield engine
 
 
@@ -96,7 +98,7 @@ async def memory_service(
     observation_service
 ):
     """Fixture providing initialized MemoryService."""
-    return await get_memory_service(
+    return MemoryService(
         test_project_path,
         entity_service,
         relation_service,
@@ -117,9 +119,9 @@ async def sample_entity(entity_repository: EntityRepository):
 @pytest_asyncio.fixture
 async def test_entity(entity_service):
     """Create a test entity for reuse in tests."""
-    entity_data = EntityIn(
+    entity_data = EntityIn(  # pyright: ignore [reportCallIssue]
         name="Test Entity",
-        entity_type="test",
+        entity_type="test",  # pyright: ignore [reportCallIssue]
     )
     return await entity_service.create_entity(entity_data)
 

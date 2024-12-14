@@ -10,12 +10,12 @@ from unittest.mock import AsyncMock
 from icecream import ic
 from loguru import logger
 
+from basic_memory.deps import get_project_config, get_engine
 from basic_memory.models import Entity
-from basic_memory.deps import get_project_services
 
 
 @pytest_asyncio.fixture
-def app(memory_service_mock: AsyncMock) -> FastAPI:
+def app(test_config, engine) -> FastAPI:
     """Create FastAPI test application."""
     # Lazy import router to avoid app startup issues
     from basic_memory.api.routers.knowledge import router
@@ -23,11 +23,8 @@ def app(memory_service_mock: AsyncMock) -> FastAPI:
     app = FastAPI()
     app.include_router(router)
 
-    # Override service dependency with mock
-    async def memory_service_override(project_path: Path):
-        yield memory_service_mock
-
-    app.dependency_overrides[get_project_services] = memory_service_override
+    app.dependency_overrides[get_project_config] = lambda: test_config
+    app.dependency_overrides[get_engine] = lambda: engine
     return app
 
 
@@ -41,18 +38,9 @@ async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
         yield client
 
 
-@pytest_asyncio.fixture
-def memory_service_mock() -> AsyncMock:
-    """Create service mock."""
-    return AsyncMock()
-
-
 @pytest.mark.asyncio
-async def test_create_entities(client: AsyncClient, memory_service_mock):
+async def test_create_entities(client: AsyncClient):
     """Should create entities successfully."""
-    # Setup mock
-    entity = Entity(id="test-1", name="Test Entity", entity_type="test")
-    memory_service_mock.create_entities.return_value = [entity]
 
     # Make request like a real client would
     response = await client.post("/knowledge/entities", json={
@@ -69,7 +57,4 @@ async def test_create_entities(client: AsyncClient, memory_service_mock):
     assert response.status_code == 200
     data = response.json()
     assert len(data["entities"]) == 1
-    assert data["entities"][0]["id"] == "test-1"
-
-    # Verify service called
-    memory_service_mock.create_entities.assert_called_once()
+    assert data["entities"][0]["id"] == "test/test_entity"

@@ -23,13 +23,15 @@ def get_project_path(project_config: ProjectConfigDep) -> Path:
 ProjectPathDep = Annotated[Path, Depends(get_project_path)]
 
 
-async def get_engine(project_path: ProjectPathDep, db_type=db.DatabaseType.FILESYSTEM):
-    yield db.engine(project_path, db_type)
+async def get_engine(project_path: ProjectPathDep, db_type=db.DatabaseType.FILESYSTEM) -> AsyncGenerator[AsyncEngine, None]:
+    async with db.engine(project_path, db_type) as engine:
+        yield engine
 
 EngineDep = Annotated[AsyncEngine, Depends(get_engine)]
 
-async def get_session(engine: EngineDep) :
-    yield db.session(engine)
+async def get_session(engine: EngineDep) -> AsyncGenerator[AsyncSession, None]:
+    async with db.session(engine) as session:
+        yield session
 
 AsyncSessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -80,7 +82,7 @@ async def get_relation_service(
 RelationServiceDep = Annotated[RelationService, Depends(get_relation_service)]
 
 @asynccontextmanager
-async def get_memory_service(
+async def memory_service(
     project_path: ProjectPathDep,
     entity_service: EntityServiceDep,
     relation_service: RelationServiceDep,
@@ -93,6 +95,15 @@ async def get_memory_service(
         relation_service=relation_service,
         observation_service=observation_service
     )
+
+async def get_memory_service(
+        project_path: ProjectPathDep,
+        entity_service: EntityServiceDep,
+        relation_service: RelationServiceDep,
+        observation_service: ObservationServiceDep
+) -> AsyncGenerator[MemoryService, None]:
+    async with memory_service(project_path, entity_service, relation_service, observation_service) as service:
+        yield service
 
 MemoryServiceDep = Annotated[MemoryService, Depends(get_memory_service)]
 
