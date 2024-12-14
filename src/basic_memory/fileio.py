@@ -69,9 +69,7 @@ async def write_entity_file(project_entities_path: Path, entity_id: str, entity:
 
     # Add observations
     for obs in entity.observations:
-        obs_line = f"- {obs.content}"
-        if obs.context:
-            obs_line += f" | {obs.context}"
+        obs_line = f"- {obs}"
         content.append(f"{obs_line}\n")
         
     # Add relations section if we have relations
@@ -160,7 +158,7 @@ async def read_entity_file(project_entities_path: Path, entity_id: str) -> Entit
             parts = line.split(" | ", 1)
             content = parts[0]
             context = parts[1] if len(parts) > 1 else None
-            observations.append(ObservationIn(content=content, context=context))
+            observations.append(ObservationIn(content=content))
         elif in_relations and line.startswith("- "):
             # Parse relation line: - [target_id] relation_type | context
             line = line[2:]  # Remove the bullet point

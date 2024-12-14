@@ -1,6 +1,6 @@
 """Service for orchestrating entity, relation, and observation operations."""
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Sequence
 from pathlib import Path
 
 from basic_memory.models import Entity, Observation, Relation
@@ -80,7 +80,7 @@ class MemoryService:
                 final_entity = await self.entity_service.get_entity(created_entity.id)
                 logger.debug(f"Retrieved final entity state: {final_entity}")
                 return final_entity
-            except Exception as e:
+            except Exception:
                 logger.exception(f"Failed to create entity in DB: {entity_in}")
                 raise
 
@@ -93,7 +93,7 @@ class MemoryService:
                 entities.append(entity)
             logger.debug(f"Successfully created {len(entities)} entities in DB")
             return entities
-        except Exception as e:
+        except Exception:
             # On failure, we should try to clean up any files we wrote
             logger.exception("Failed to create entities in DB")
             for entity in entities_in:
@@ -106,9 +106,9 @@ class MemoryService:
                     logger.error(f"Failed to clean up file for {entity.id}: {cleanup_error}")
             raise
 
-    async def get_entity(self, entity_id):
+    async def get_entity(self, entity_id: str):
         logger.debug(f"Get entity {entity_id} entities")
-        entity = self.entity_service.get_entity(entity_id)
+        entity = await self.entity_service.get_entity(entity_id)
         logger.debug(f"Found entity {entity}")
         return entity
 
@@ -146,7 +146,7 @@ class MemoryService:
                 relation = await self.relation_service.create_relation(relation)
                 relations.append(relation)
                 logger.debug(f"Created relation in DB: {relation.id}")
-            except Exception as e:
+            except Exception:
                 logger.exception(f"Failed to create relation: {relation}")
                 raise
 
@@ -167,7 +167,7 @@ class MemoryService:
 
             # Create new observations for the entity
             for obs in observations_in.observations:
-                entity.observations.append(obs)
+                entity.observations.append(ObservationIn(content=obs))
             logger.debug(f"Added {len(observations_in.observations)} observations to entity")
 
             # Write updated entity file
@@ -180,7 +180,7 @@ class MemoryService:
             logger.debug(f"Added {len(added_observations)} observations to DB")
 
             return added_observations
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to add observations to entity: {observations_in.entity_id}")
             raise
 
@@ -193,33 +193,33 @@ class MemoryService:
     async def delete_relations(self, relations: List[Dict[str, Any]]) -> None:
         pass
 
-    async def read_graph(self) -> List[Entity]:
+    async def read_graph(self) -> Sequence[Entity]:
         """Read the entire knowledge graph."""
         logger.debug("Reading entire knowledge graph")
         try:
             entities = await self.entity_service.get_all()
             logger.debug(f"Read {len(entities)} entities from graph")
             return entities
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to read graph")
             raise
 
-    async def search_nodes(self, query: str) -> List[Entity]:
+    async def search_nodes(self, query: str) -> Sequence[Entity]:
         """Search for nodes in the knowledge graph."""
         logger.debug(f"Searching nodes with query: {query}")
         try:
             results = await self.entity_service.search(query)
             logger.debug(f"Found {len(results)} matches for '{query}'")
             return results
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to search nodes with query: {query}")
             raise
 
-    async def open_nodes(self, names: List[str]) -> List[Entity]:
+    async def open_nodes(self, names: List[str]) -> List[EntityIn]:
         """Get specific nodes and their relationships."""
         logger.debug(f"Opening nodes: {names}")
 
-        async def read_node(name: str) -> Optional[Entity]:
+        async def read_node(name: str) -> Optional[EntityIn]:
             try:
                 # Get ID from name first
                 logger.debug(f"Looking up entity: {name}")
@@ -231,7 +231,7 @@ class MemoryService:
                     return entity
                 logger.debug(f"Entity not found: {name}")
                 return None
-            except Exception as e:
+            except Exception:
                 logger.exception(f"Failed to read node: {name}")
                 return None
 
@@ -240,7 +240,7 @@ class MemoryService:
                        if entity is not None]
             logger.debug(f"Opened {len(entities)} entities")
             return entities
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to open nodes")
             raise
 

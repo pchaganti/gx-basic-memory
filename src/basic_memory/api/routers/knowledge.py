@@ -23,7 +23,7 @@ async def create_entities(
     return CreateEntitiesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
 
 
-@router.get("/entities/{entity_id}", response_model=EntityOut)
+@router.get("/entities/{entity_id:path}", response_model=EntityOut)
 async def get_entity(
     entity_id: str,
     memory_service: MemoryServiceDep

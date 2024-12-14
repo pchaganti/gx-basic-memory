@@ -2,7 +2,7 @@
 import pytest
 
 from basic_memory.models import Observation
-from basic_memory.schemas import EntityIn, ObservationIn
+from basic_memory.schemas import ObservationIn
 
 pytestmark = pytest.mark.asyncio
 
@@ -11,7 +11,6 @@ async def test_add_observation_success(observation_service, test_entity):
     """Test successful observation addition."""
     observation_data = ObservationIn(
         content="New observation",
-        context="test-context"
     )
 
     # Act
@@ -25,7 +24,7 @@ async def test_add_observation_success(observation_service, test_entity):
     # Verify database index
     db_observations = await observation_service.observation_repo.find_by_entity(test_entity.id)
     assert len(db_observations) == 1
-    assert any(obs.content == "New observation" and obs.context == "test-context"
+    assert any(obs.content == "New observation"
               for obs in db_observations)
 
 
@@ -46,21 +45,6 @@ async def test_search_observations(observation_service, test_entity):
     assert results[0].content == "Unique test content"
 
 
-async def test_get_observations_by_context(observation_service, test_entity):
-    """Test retrieving observations by context."""
-    # Arrange
-    await observation_service.add_observations(
-        test_entity.id,
-        [ObservationIn(content="Context observation", context="test-context"),
-         ObservationIn(content="Other observation", context="other-context")]
-    )
-
-    # Act
-    results = await observation_service.get_observations_by_context("test-context")
-    
-    # Assert
-    assert len(results) == 1
-    assert results[0].content == "Context observation"
 
 
 # Edge Cases

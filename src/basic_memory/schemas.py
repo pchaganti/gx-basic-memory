@@ -3,10 +3,9 @@ Core pydantic models for basic-memory entities, observations, and relations.
 These models define the schema for our core data types while remaining 
 independent from storage/persistence concerns.
 """
-from datetime import datetime, UTC
 from typing import List, Optional, Dict, Any, Annotated
-from annotated_types import Gt, Len
-from pydantic import BaseModel, Field, ConfigDict
+from annotated_types import Len
+from pydantic import BaseModel, ConfigDict
 
 # Base output model for SQLAlchemy attribute conversion
 class SQLAlchemyOut(BaseModel):
@@ -14,15 +13,16 @@ class SQLAlchemyOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 # Base Models
+# TODO remove
 class ObservationIn(BaseModel):
     """Schema for creating a single observation."""
     content: str
-    context: Optional[str] = None
 
 class ObservationsIn(BaseModel):
     """Schema for adding observations to an entity."""
-    entity_id: str = Field(alias="entityId")  # Maps to Entity.id
-    observations: List[ObservationIn]
+    entity_id: str
+    context: Optional[str] = None
+    observations: List[str]
     model_config = ConfigDict(populate_by_name=True)
 
 class ObservationOut(ObservationIn, SQLAlchemyOut):
@@ -31,7 +31,7 @@ class ObservationOut(ObservationIn, SQLAlchemyOut):
 
 class ObservationsOut(SQLAlchemyOut):
     """Schema for bulk observation operation results."""
-    entity_id: str = Field(alias="entityId")
+    entity_id: str
     observations: List[ObservationOut]
     model_config = ConfigDict(populate_by_name=True)
 
@@ -40,25 +40,25 @@ class RelationIn(BaseModel):
     Represents a directed edge between entities in the knowledge graph.
     Relations are always stored in active voice (e.g. "created", "teaches", etc.)
     """
-    from_id: str = Field(alias="fromId")
-    to_id: str = Field(alias="toId")              
-    relation_type: str = Field(alias="relationType")
+    from_id: str
+    to_id: str
+    relation_type: str
     context: Optional[str] = None
 
     model_config = ConfigDict(populate_by_name=True)
 
 class RelationOut(SQLAlchemyOut):
     id: int
-    from_id: str = Field(alias="fromId")
-    to_id: str = Field(alias="toId")
-    relation_type: str = Field(alias="relationType")
+    from_id: str
+    to_id: str
+    relation_type: str
     context: Optional[str] = None
     model_config = ConfigDict(populate_by_name=True)
 
 class EntityBase(BaseModel):
     id: Optional[str] = None
     name: str
-    entity_type: str = Field(alias="entityType")
+    entity_type: str
     description: Optional[str] = None
 
     @property
@@ -99,7 +99,7 @@ class OpenNodesInput(BaseModel):
 
 class AddObservationsInput(BaseModel):
     """Input schema for add_observations tool."""
-    entity_id: str = Field(alias="entityId")
+    entity_id: str
     observations: List[ObservationIn]
     model_config = ConfigDict(populate_by_name=True)
 
@@ -113,6 +113,7 @@ class DeleteEntitiesInput(BaseModel):
 
 class DeleteObservationsInput(BaseModel):
     """Input schema for delete_observations tool."""
+    entity_id: str
     deletions: List[Dict[str, Any]]  # TODO: Make this more specific
 
 # Tool Response Schemas

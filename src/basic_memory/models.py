@@ -60,6 +60,11 @@ class Entity(Base):
         cascade="all, delete-orphan"
     )
 
+    @property
+    def relations(self):
+        return self.outgoing_relations + self.incoming_relations
+
+
     @classmethod
     def generate_id(cls, entity_type: str, name: str) -> str:
         """Generate a filesystem path-based ID for this entity."""

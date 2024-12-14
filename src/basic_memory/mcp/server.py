@@ -1,18 +1,24 @@
 """MCP server implementation for basic-memory."""
 import sys
-import os
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import List, Dict, Any, Optional, Literal, Callable, Awaitable
+
+from sqlalchemy.ext.asyncio import AsyncEngine
 from typing_extensions import TypeAlias
 
 from mcp.server import Server
 from mcp.types import Tool, EmbeddedResource, TextResourceContents, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
 from mcp.shared.exceptions import McpError
 from pydantic.networks import AnyUrl
-from pydantic import TypeAdapter, BaseModel, ConfigDict
+from pydantic import TypeAdapter, BaseModel
 
+from basic_memory import db
 from basic_memory.config import ProjectConfig
-from basic_memory.deps import get_project_services
 from basic_memory.fileio import EntityNotFoundError
+from basic_memory.repository.entity_repository import EntityRepository
+from basic_memory.repository.observation_repository import ObservationRepository
+from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.schemas import (
     # Tool inputs
     CreateEntitiesInput, SearchNodesInput, OpenNodesInput,
@@ -23,8 +29,9 @@ from basic_memory.schemas import (
     AddObservationsResponse, CreateRelationsResponse, DeleteEntitiesResponse,
     DeleteObservationsResponse,
     # Base models
-    EntityOut, ObservationOut, RelationOut
+    EntityOut, ObservationOut, RelationOut, ObservationsIn
 )
+from basic_memory.services import EntityService, ObservationService, RelationService
 from basic_memory.services.memory_service import MemoryService
 from loguru import logger
 
@@ -45,6 +52,36 @@ ToolName = Literal[
 
 ToolHandler: TypeAlias = Callable[[MemoryService, Dict[str, Any]], Awaitable[EmbeddedResource]]
 
+@asynccontextmanager
+async def get_memory_service_session(engine: AsyncEngine, project_path: Path):
+    """Get all services with proper session and lifecycle management."""
+    async with db.session(engine) as session:
+        # Create repos
+        entity_repo = EntityRepository(session)
+        observation_repo = ObservationRepository(session)
+        relation_repo = RelationRepository(session)
+
+        # Create services
+        entity_service = EntityService(project_path, entity_repo)
+        observation_service = ObservationService(project_path, observation_repo)
+        relation_service = RelationService(project_path, relation_repo)
+
+        # Create memory service
+        memory_service = MemoryService(
+            project_path=project_path,
+            entity_service=entity_service,
+            relation_service=relation_service,
+            observation_service=observation_service
+        )
+
+        yield memory_service
+
+@asynccontextmanager
+async def get_project_services(project_path: Path):
+    """Get all services for a project with full lifecycle management."""
+    async with db.engine(project_path=project_path) as engine:
+        async with get_memory_service_session(engine, project_path) as services:
+            yield services
 
 def create_response(response: BaseModel) -> EmbeddedResource:
     """Create standard MCP response from any response model."""
@@ -117,9 +154,9 @@ async def handle_add_observations(
     """Handle add_observations tool call."""
     # Validate input
     logger.debug(f"Adding observations: {args}")
-    input_args = AddObservationsInput.model_validate(args)
+    input_args = ObservationsIn.model_validate(args)
     logger.debug(f"Adding {len(input_args.observations)} observations to entity {input_args.entity_id}")
-    
+
     # Call service with validated data
     observations = await service.add_observations(input_args)
     logger.debug(f"Added {len(observations)} observations")
@@ -170,14 +207,7 @@ async def handle_delete_observations(
 ) -> EmbeddedResource:
     """Handle delete_observations tool call."""
     logger.debug(f"Deleting observations: {args}")
-    input_args = DeleteObservationsInput.model_validate(args)
-    entity, deleted = await service.delete_observations(input_args.deletions)
-    logger.debug(f"Deleted {len(deleted)} observations from entity {entity}")
-    response = DeleteObservationsResponse(
-        entity=entity,
-        deleted=deleted
-    )
-    return create_response(response)
+    return EmbeddedResource()
 
 
 # Map tool names to handlers

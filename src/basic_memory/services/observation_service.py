@@ -28,8 +28,7 @@ class ObservationService:
             return await self.observation_repo.bulk_create([
                 Observation(
                     entity_id=entity_id,
-                    content=observation.content,
-                    context=observation.context
+                    content=observation,
                 )
                 for observation in observations
             ])

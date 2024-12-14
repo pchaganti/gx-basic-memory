@@ -2,8 +2,7 @@
 import pytest
 from basic_memory.services import MemoryService
 from basic_memory.fileio import read_entity_file
-from basic_memory.models import Entity as EntityModel, Observation, Relation
-from basic_memory.schemas import EntityIn, CreateEntitiesInput, CreateRelationsInput, ObservationsIn, RelationIn
+from basic_memory.schemas import CreateEntitiesInput, CreateRelationsInput, ObservationsIn, RelationIn
 
 test_entities_data = [
     {
@@ -60,8 +59,8 @@ async def test_add_observations(memory_service: MemoryService):
     observations_data = {
         "entity_id": entity.id,
         "observations": [
-            {"content": "New observation 1"},
-            {"content": "New observation 2", "context": "test context"}
+            "New observation 1",
+            "New observation 2"
         ]
     }
 
@@ -81,7 +80,6 @@ async def test_add_observations(memory_service: MemoryService):
     assert len(updated_entity.observations) == 4  # 2 original + 2 new
     assert updated_entity.observations[2].content == "New observation 1"
     assert updated_entity.observations[3].content == "New observation 2"
-    assert updated_entity.observations[3].context == "test context"
 
     # Verify database - returns SQLAlchemy Entity
     db_entity = await memory_service.entity_service.get_entity(entity.id)

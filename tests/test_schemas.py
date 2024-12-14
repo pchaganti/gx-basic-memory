@@ -1,14 +1,11 @@
 """Tests for Pydantic schema validation and conversion."""
 import pytest
-from datetime import datetime
 from pydantic import ValidationError
 from basic_memory.schemas import (
     EntityIn,
     EntityOut,
     ObservationIn,
-    ObservationOut,
     RelationIn,
-    RelationOut,
     CreateEntitiesInput,
     SearchNodesInput,
     OpenNodesInput,
@@ -18,7 +15,7 @@ def test_entity_in_minimal():
     """Test creating EntityIn with minimal required fields."""
     data = {
         "name": "test_entity",
-        "entityType": "test"
+        "entity_type": "test"
     }
     entity = EntityIn.model_validate(data)
     assert entity.name == "test_entity"
@@ -31,16 +28,16 @@ def test_entity_in_complete():
     """Test creating EntityIn with all fields."""
     data = {
         "name": "test_entity",
-        "entityType": "test",
+        "entity_type": "test",
         "description": "A test entity",
         "observations": [
             {"content": "Test observation"}
         ],
         "relations": [
             {
-                "fromId": "123",
-                "toId": "456",
-                "relationType": "test_relation"
+                "from_id": "123",
+                "to_id": "456",
+                "relation_type": "test_relation"
             }
         ]
     }
@@ -69,11 +66,9 @@ def test_observation_in_validation():
     # Minimal
     obs = ObservationIn.model_validate({"content": "test"})
     assert obs.content == "test"
-    assert obs.context is None
 
     # With context
     obs = ObservationIn.model_validate({"content": "test", "context": "test context"})
-    assert obs.context == "test context"
 
     # Missing content
     with pytest.raises(ValidationError):
@@ -82,9 +77,9 @@ def test_observation_in_validation():
 def test_relation_in_validation():
     """Test RelationIn validation."""
     data = {
-        "fromId": "123",
-        "toId": "456",
-        "relationType": "test"
+        "from_id": "123",
+        "to_id": "456",
+        "relation_type": "test"
     }
     relation = RelationIn.model_validate(data)
     assert relation.from_id == "123"
@@ -99,7 +94,7 @@ def test_relation_in_validation():
 
     # Missing required fields
     with pytest.raises(ValidationError):
-        RelationIn.model_validate({"fromId": "123", "toId": "456"})  # Missing relationType
+        RelationIn.model_validate({"from_id": "123", "to_id": "456"})  # Missing relationType
 
 def test_create_entities_input():
     """Test CreateEntitiesInput validation."""
@@ -107,11 +102,11 @@ def test_create_entities_input():
         "entities": [
             {
                 "name": "entity1",
-                "entityType": "test"
+                "entity_type": "test"
             },
             {
                 "name": "entity2",
-                "entityType": "test",
+                "entity_type": "test",
                 "description": "test description"
             }
         ]
@@ -123,30 +118,6 @@ def test_create_entities_input():
     # Empty entities list should fail
     with pytest.raises(ValidationError):
         CreateEntitiesInput.model_validate({"entities": []})
-
-def test_snake_case_to_camel():
-    """Test conversion from snake_case to camelCase."""
-    data = {
-        "name": "test",
-        "entityType": "test",
-        "observations": [
-            {"content": "test"}
-        ],
-        "relations": [
-            {
-                "fromId": "123",
-                "toId": "456",
-                "relationType": "test",
-            }
-        ]
-    }
-    entity = EntityIn.model_validate(data)
-    # Access fields using snake_case
-    assert entity.entity_type == "test"
-    rel = entity.relations[0]
-    assert rel.from_id == "123"
-    assert rel.to_id == "456"
-    assert rel.relation_type == "test"
 
 def test_entity_out_from_attributes():
     """Test EntityOut creation from database model attributes."""
@@ -180,7 +151,7 @@ def test_entity_out_from_attributes():
 def test_optional_fields():
     """Test handling of optional fields."""
     # Create with no optional fields
-    entity = EntityIn.model_validate({"name": "test", "entityType": "test"})
+    entity = EntityIn.model_validate({"name": "test", "entity_type": "test"})
     assert entity.description is None
     assert entity.observations == []
     assert entity.relations == []
@@ -188,7 +159,7 @@ def test_optional_fields():
     # Create with empty optional fields
     entity = EntityIn.model_validate({
         "name": "test",
-        "entityType": "test",
+        "entity_type": "test",
         "description": None,
         "observations": [],
         "relations": []
@@ -200,7 +171,7 @@ def test_optional_fields():
     # Create with some optional fields
     entity = EntityIn.model_validate({
         "name": "test",
-        "entityType": "test",
+        "entity_type": "test",
         "description": "test",
         "observations": []
     })
