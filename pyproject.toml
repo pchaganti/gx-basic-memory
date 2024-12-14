@@ -54,5 +54,10 @@ asyncio_default_fixture_loop_scope = "function"
 line-length = 100
 target-version = "py312"
 
+[tool.uv]
+dev-dependencies = [
+    "icecream>=2.1.3",
+]
+
 [tool.uv.sources]
 basic-foundation = { path = "../basic-foundation", editable = true }
