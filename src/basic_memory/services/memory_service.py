@@ -133,9 +133,12 @@ class MemoryService:
 
                 # Write updated entity files (filesystem is source of truth)
                 logger.debug("Writing updated entity files")
+                assert from_entity.id is not None
+                assert to_entity.id is not None
+
                 await asyncio.gather(
-                    write_entity_file(self.entities_path, from_entity.id, from_entity),
-                    write_entity_file(self.entities_path, to_entity.id, to_entity)
+                    *[write_entity_file(self.entities_path, from_entity.id, from_entity),
+                    write_entity_file(self.entities_path, to_entity.id, to_entity)]
                 )
                 logger.debug("Wrote updated entity files")
 

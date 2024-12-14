@@ -176,17 +176,17 @@ async def read_entity_file(project_entities_path: Path, entity_id: str) -> Entit
             relation_type = parts[0]
             context = parts[1] if len(parts) > 1 else None
 
-            relations.append(RelationIn(
-                from_id=entity_id,
-                to_id=target_id,
-                relation_type=relation_type,
+            relations.append(RelationIn(  # pyright: ignore [reportCallIssue]
+                from_id=entity_id,  # pyright: ignore [reportCallIssue]
+                to_id=target_id,  # pyright: ignore [reportCallIssue]
+                relation_type=relation_type,  # pyright: ignore [reportCallIssue]
                 context=context
             ))
     
-    return EntityIn(
+    return EntityIn(  # pyright: ignore [reportCallIssue]
         id=entity_id,
         name=name,
-        entity_type=entity_type,
+        entity_type=entity_type,  # pyright: ignore [reportCallIssue]
         observations=observations,
         relations=relations
     )

@@ -3,7 +3,7 @@ import pytest
 from basic_memory.services import MemoryService
 from basic_memory.fileio import read_entity_file
 from basic_memory.models import Entity as EntityModel, Observation, Relation
-from basic_memory.schemas import EntityIn, CreateEntitiesInput, AddObservationsInput, CreateRelationsInput
+from basic_memory.schemas import EntityIn, CreateEntitiesInput, CreateRelationsInput, ObservationsIn, RelationIn
 
 test_entities_data = [
     {
@@ -66,7 +66,7 @@ async def test_add_observations(memory_service: MemoryService):
     }
 
     # Add observations - returns List[models.Observation]
-    observation_input = AddObservationsInput.model_validate(observations_data)
+    observation_input = ObservationsIn.model_validate(observations_data)
     added_observations = await memory_service.add_observations(observation_input)
 
     # Check the SQLAlchemy model results
@@ -96,7 +96,7 @@ async def test_add_observations_nonexistent_entity(memory_service: MemoryService
     }
     
     with pytest.raises(Exception) as exc:  # We might want to define a specific error type
-        observation_input = AddObservationsInput.model_validate(observations_data)
+        observation_input = ObservationsIn.model_validate(observations_data)
         await memory_service.add_observations(observation_input)
 
 @pytest.mark.asyncio
@@ -197,4 +197,4 @@ async def test_create_relations_with_invalid_entity_id(memory_service: MemorySer
     }
     
     with pytest.raises(Exception) as exc:  # We might want to define a specific error type
-        await memory_service.create_relations([bad_relation])
+        await memory_service.create_relations([RelationIn.model_validate(bad_relation)])

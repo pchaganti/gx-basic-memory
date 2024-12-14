@@ -96,6 +96,9 @@ class EntityService:
             logger.exception(f"Failed to get entity by type/name: {entity_type}/{name}")
             raise
 
+    async def get_all(self) -> Sequence[Entity]:
+        return await self.entity_repo.find_all()
+
     async def delete_entity(self, entity_id: str) -> bool:
         """Delete entity from database."""
         logger.debug(f"Deleting entity: {entity_id}")
@@ -106,3 +109,4 @@ class EntityService:
         except Exception:
             logger.exception(f"Failed to delete entity: {entity_id}")
             raise
+

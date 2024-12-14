@@ -1,14 +1,11 @@
 """Tests for the MCP server implementation."""
 import pytest
-from pathlib import Path
 
 from mcp.types import EmbeddedResource
 from mcp.shared.exceptions import McpError
 from basic_memory.mcp.server import MemoryServer, MIME_TYPE, BASIC_MEMORY_URI
-from basic_memory.config import ProjectConfig
 from basic_memory.schemas import (
-    CreateEntitiesResponse, SearchNodesResponse, OpenNodesResponse,
-    AddObservationsResponse
+    CreateEntitiesResponse, SearchNodesResponse, AddObservationsResponse,
 )
 
 @pytest.fixture
