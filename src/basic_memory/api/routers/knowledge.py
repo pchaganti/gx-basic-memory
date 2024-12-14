@@ -1,8 +1,9 @@
 """Router for knowledge graph operations."""
-from fastapi import APIRouter
+from typing import Annotated
+from fastapi import APIRouter, Depends
 
 
-from basic_memory.api.deps import MemoryServiceDep
+from basic_memory.deps import MemoryServiceDep
 from basic_memory.schemas import (
     CreateEntitiesInput, CreateEntitiesResponse,
     SearchNodesInput, SearchNodesResponse,
@@ -11,7 +12,6 @@ from basic_memory.schemas import (
 )
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
-
 
 @router.post("/entities", response_model=CreateEntitiesResponse)
 async def create_entities(
@@ -22,6 +22,7 @@ async def create_entities(
     entities = await memory_service.create_entities(data.entities)
     return CreateEntitiesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
 
+
 @router.get("/entities/{entity_id}", response_model=EntityOut)
 async def get_entity(
     entity_id: str,
@@ -31,6 +32,7 @@ async def get_entity(
     entity = await memory_service.get_entity(entity_id)
     return EntityOut.model_validate(entity)
 
+
 @router.post("/relations", response_model=CreateRelationsResponse)
 async def create_relations(
     data: CreateRelationsInput,
@@ -39,6 +41,7 @@ async def create_relations(
     """Create relations between entities."""
     relations = await memory_service.create_relations(data.relations)
     return CreateRelationsResponse(relations=[RelationOut.model_validate(relation) for relation in relations])
+
 
 @router.post("/observations", response_model=ObservationsOut)
 async def add_observations(

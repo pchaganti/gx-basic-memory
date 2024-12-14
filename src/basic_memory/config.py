@@ -38,4 +38,3 @@ class ProjectConfig(BaseSettings):
 
 # Load project config
 config = ProjectConfig()
-project_path = Path(config.path)

@@ -1,11 +1,9 @@
 """FastAPI application for basic-memory knowledge graph API."""
-from pathlib import Path
 
 from fastapi import FastAPI
 from loguru import logger
 
 from .routers import knowledge
-from ..config import ProjectConfig
 
 
 # Initialize FastAPI app

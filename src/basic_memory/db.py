@@ -1,10 +1,11 @@
 """Database configuration and initialization for basic-memory."""
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Optional, AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncEngine
+from loguru import logger
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncEngine, AsyncSession
 from sqlalchemy.pool import StaticPool
 
 from basic_memory.models import Base
@@ -14,7 +15,7 @@ class DatabaseType(Enum):
     MEMORY = "memory"      # In-memory SQLite for testing
     FILESYSTEM = "file"    # File-based SQLite for projects
 
-def get_database_url(db_type: DatabaseType, project_path: Optional[Path] = None) -> str:
+def get_database_url(project_path: Path, db_type: DatabaseType, ) -> str:
     """
     Get database URL based on type and optional project path.
     
@@ -77,7 +78,19 @@ async def init_database(url: str, echo: bool = False) -> AsyncEngine:
     return engine
 
 @asynccontextmanager
-async def get_session(engine: AsyncEngine):
+async def engine(project_path: Path, db_type=DatabaseType.FILESYSTEM) -> AsyncGenerator[AsyncEngine, None]:
+    """Get database engine for project with proper lifecycle management."""
+    url = get_database_url(project_path, db_type=db_type)
+    engine = await init_database(url, echo=True)
+    engine = await init_database(url)
+    logger.debug(f"engine url: {engine.url}")
+    try:
+        yield engine
+    finally:
+        await engine.dispose()
+
+@asynccontextmanager
+async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     """
     Get database session with proper lifecycle management.
     
