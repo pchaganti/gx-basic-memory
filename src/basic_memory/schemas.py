@@ -27,7 +27,7 @@ class ObservationsOut(SQLAlchemyOut):
     observations: List[ObservationOut]
     model_config = ConfigDict(populate_by_name=True)
 
-class RelationIn(BaseModel):
+class Relation(BaseModel):
     """
     Represents a directed edge between entities in the knowledge graph.
     Relations are always stored in active voice (e.g. "created", "teaches", etc.)
@@ -67,7 +67,7 @@ class EntityIn(EntityBase):
     associated observations.
     """
     observations: List[str] = []
-    relations: List[RelationIn] = []
+    relations: List[Relation] = []
     model_config = ConfigDict(populate_by_name=True)
 
 class EntityOut(EntityBase, SQLAlchemyOut):
@@ -95,7 +95,7 @@ class AddObservationsInput(ObservationsIn):
 
 class CreateRelationsInput(BaseModel):
     """Input schema for create_relations tool."""
-    relations: List[RelationIn]
+    relations: List[Relation]
 
 class DeleteEntitiesInput(BaseModel):
     """Input schema for delete_entities tool."""

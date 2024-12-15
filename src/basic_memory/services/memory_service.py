@@ -5,7 +5,7 @@ from pathlib import Path
 
 from basic_memory.models import Entity, Observation, Relation
 from basic_memory.schemas import (
-    ObservationsIn, EntityIn, RelationIn
+    ObservationsIn, EntityIn, Relation
 )
 from basic_memory.fileio import write_entity_file, read_entity_file, EntityNotFoundError
 from basic_memory.services import EntityService, RelationService, ObservationService
@@ -112,7 +112,7 @@ class MemoryService:
         logger.debug(f"Found entity {entity}")
         return entity
 
-    async def create_relations(self, relations_data: List[RelationIn]) -> List[Relation]:
+    async def create_relations(self, relations_data: List[Relation]) -> List[Relation]:
         """Create multiple relations between entities."""
         logger.debug(f"Creating {len(relations_data)} relations")
 

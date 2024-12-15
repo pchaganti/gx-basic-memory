@@ -3,8 +3,8 @@ from pathlib import Path
 
 from basic_memory.models import Relation
 from basic_memory.repository.relation_repository import RelationRepository
-from basic_memory.schemas import EntityIn, RelationIn
-from . import ServiceError, DatabaseSyncError, RelationError
+from basic_memory.schemas import EntityIn, Relation
+from . import DatabaseSyncError
 
 
 class RelationService:
@@ -17,7 +17,7 @@ class RelationService:
         self.project_path = project_path
         self.relation_repo = relation_repo
 
-    async def create_relation(self, relation: RelationIn) -> Relation:
+    async def create_relation(self, relation: Relation) -> Relation:
         """Create a new relation in the database."""
         try:
             return await self.relation_repo.create(relation.model_dump())

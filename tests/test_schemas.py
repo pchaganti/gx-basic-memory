@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from basic_memory.schemas import (
     EntityIn,
     EntityOut,
-    RelationIn,
+    Relation,
     CreateEntitiesInput,
     SearchNodesInput,
     OpenNodesInput,
@@ -67,7 +67,7 @@ def test_relation_in_validation():
         "to_id": "456",
         "relation_type": "test"
     }
-    relation = RelationIn.model_validate(data)
+    relation = Relation.model_validate(data)
     assert relation.from_id == "123"
     assert relation.to_id == "456"
     assert relation.relation_type == "test"
@@ -75,12 +75,12 @@ def test_relation_in_validation():
 
     # With context
     data["context"] = "test context"
-    relation = RelationIn.model_validate(data)
+    relation = Relation.model_validate(data)
     assert relation.context == "test context"
 
     # Missing required fields
     with pytest.raises(ValidationError):
-        RelationIn.model_validate({"from_id": "123", "to_id": "456"})  # Missing relationType
+        Relation.model_validate({"from_id": "123", "to_id": "456"})  # Missing relationType
 
 def test_create_entities_input():
     """Test CreateEntitiesInput validation."""

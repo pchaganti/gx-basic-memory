@@ -3,22 +3,18 @@ import tempfile
 from pathlib import Path
 
 import pytest_asyncio
-from loguru import logger
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
-from basic_memory import deps, db
+from basic_memory import db
 from basic_memory.db import DatabaseType
-from basic_memory.models import Base
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.deps import (
     get_entity_service,
     get_observation_service,
     get_relation_service,
-    get_memory_service, get_relation_repo, get_observation_repo, get_entity_repo, get_engine
+    get_relation_repo, get_observation_repo, get_entity_repo
 )
 from basic_memory.schemas import EntityIn
-from basic_memory.debug_utils import dump_db_state
 from basic_memory.config import ProjectConfig
 from basic_memory.services import MemoryService
 
