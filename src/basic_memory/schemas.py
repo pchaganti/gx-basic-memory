@@ -4,7 +4,7 @@ from annotated_types import Len
 from pydantic import BaseModel, ConfigDict
 
 # Base output model for SQLAlchemy attribute conversion
-class SQLAlchemyOut(BaseModel):
+class SQLAlchemyModel(BaseModel):
     """Base class for models that read from SQLAlchemy attributes."""
     model_config = ConfigDict(from_attributes=True)
 
@@ -16,18 +16,18 @@ class AddObservationsRequest(BaseModel):
     observations: List[str]
     model_config = ConfigDict(populate_by_name=True)
 
-class ObservationOut(SQLAlchemyOut):
+class ObservationResponse(SQLAlchemyModel):
     """Schema for observation data returned from the service."""
     id: int
     content: str
 
-class ObservationsOut(SQLAlchemyOut):
+class ObservationsResponse(SQLAlchemyModel):
     """Schema for bulk observation operation results."""
     entity_id: str
-    observations: List[ObservationOut]
+    observations: List[ObservationResponse]
     model_config = ConfigDict(populate_by_name=True)
 
-class RelationIn(BaseModel):
+class RelationRequest(BaseModel):
     """
     Represents a directed edge between entities in the knowledge graph.
     Relations are always stored in active voice (e.g. "created", "teaches", etc.)
@@ -39,7 +39,7 @@ class RelationIn(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-class RelationOut(SQLAlchemyOut):
+class RelationResponse(SQLAlchemyModel):
     id: int
     from_id: str
     to_id: str
@@ -60,26 +60,26 @@ class EntityBase(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class EntityIn(EntityBase):
+class EntityRequest(EntityBase):
     """
     Represents a node in our knowledge graph - could be a person, project,
     concept, etc. Each entity has a unique name, a type, and a list of
     associated observations.
     """
     observations: List[str] = []
-    relations: List[RelationIn] = []
+    relations: List[RelationRequest] = []
     model_config = ConfigDict(populate_by_name=True)
 
-class EntityOut(EntityBase, SQLAlchemyOut):
+class EntityResponse(EntityBase, SQLAlchemyModel):
     """Schema for entity data returned from the service."""
-    observations: List[ObservationOut] = []
-    relations: List[RelationOut] = []
+    observations: List[ObservationResponse] = []
+    relations: List[RelationResponse] = []
     model_config = ConfigDict(populate_by_name=True)
 
 # Tool Input Schemas
 class CreateEntitiesRequest(BaseModel):
     """Input schema for create_entities tool."""
-    entities: Annotated[List[EntityIn], Len(min_length=1)]
+    entities: Annotated[List[EntityRequest], Len(min_length=1)]
 
 class SearchNodesRequest(BaseModel):
     """Input schema for search_nodes tool."""
@@ -91,7 +91,7 @@ class OpenNodesRequest(BaseModel):
 
 class CreateRelationsRequest(BaseModel):
     """Input schema for create_relations tool."""
-    relations: List[RelationIn]
+    relations: List[RelationRequest]
 
 class DeleteEntitiesRequest(BaseModel):
     """Input schema for delete_entities tool."""
@@ -102,33 +102,33 @@ class DeleteObservationsRequest(BaseModel):
     entity_id: str
     deletions: List[str]  # TODO: Make this more specific
 
-class CreateEntitiesResponse(SQLAlchemyOut):
+class CreateEntitiesResponse(SQLAlchemyModel):
     """Response for create_entities tool."""
-    entities: List[EntityOut]
+    entities: List[EntityResponse]
 
-class SearchNodesResponse(SQLAlchemyOut):
+class SearchNodesResponse(SQLAlchemyModel):
     """Response for search_nodes tool."""
-    matches: List[EntityOut]
+    matches: List[EntityResponse]
     query: str
 
-class OpenNodesResponse(SQLAlchemyOut):
+class OpenNodesResponse(SQLAlchemyModel):
     """Response for open_nodes tool."""
-    entities: List[EntityOut]
+    entities: List[EntityResponse]
 
-class AddObservationsResponse(SQLAlchemyOut):
+class AddObservationsResponse(SQLAlchemyModel):
     """Response for add_observations tool."""
     entity_id: str
-    observations: List[ObservationOut]
+    observations: List[ObservationResponse]
 
-class CreateRelationsResponse(SQLAlchemyOut):
+class CreateRelationsResponse(SQLAlchemyModel):
     """Response for create_relations tool."""
-    relations: List[RelationOut]
+    relations: List[RelationResponse]
 
-class DeleteEntitiesResponse(SQLAlchemyOut):
+class DeleteEntitiesResponse(SQLAlchemyModel):
     """Response for delete_entities tool."""
     deleted: List[str]
 
-class DeleteObservationsResponse(SQLAlchemyOut):
+class DeleteObservationsResponse(SQLAlchemyModel):
     """Response for delete_observations tool."""
     entity_id: str
     deleted: List[str]

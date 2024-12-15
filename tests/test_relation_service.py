@@ -2,7 +2,7 @@
 import pytest
 import pytest_asyncio
 
-from basic_memory.schemas import EntityIn, RelationIn
+from basic_memory.schemas import EntityRequest, RelationRequest
 
 pytestmark = pytest.mark.asyncio
 
@@ -10,13 +10,13 @@ pytestmark = pytest.mark.asyncio
 @pytest_asyncio.fixture
 async def sample_entities(entity_service):
     """Create two sample entities for testing relations"""
-    entity1_data = EntityIn(
+    entity1_data = EntityRequest(
         name="test_entity_1",
         entity_type="test_type",
         observations=[],
         relations=[]
     )
-    entity2_data = EntityIn(
+    entity2_data = EntityRequest(
         name="test_entity_2",
         entity_type="test_type",
         observations=[],
@@ -36,7 +36,7 @@ async def test_create_relation(relation_service, sample_entities):
     """Test creating a basic relation between two entities"""
     entity1, entity2 = sample_entities
     
-    relation_data = RelationIn(
+    relation_data = RelationRequest(
         from_id=entity1.id,
         to_id=entity2.id,
         relation_type="test_relation"
@@ -62,7 +62,7 @@ async def test_create_relation_with_context(relation_service, sample_entities):
     """Test creating a relation with context information"""
     entity1, entity2 = sample_entities
     
-    relation_data = RelationIn(
+    relation_data = RelationRequest(
         from_id=entity1.id,
         to_id=entity2.id,
         relation_type="test_relation",

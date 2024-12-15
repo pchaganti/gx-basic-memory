@@ -5,7 +5,7 @@ from pathlib import Path
 
 from basic_memory.models import Entity, Observation
 from basic_memory.schemas import (
-    AddObservationsRequest, EntityIn, RelationIn
+    AddObservationsRequest, EntityRequest, RelationRequest
 )
 from basic_memory.fileio import write_entity_file, read_entity_file, EntityNotFoundError
 from basic_memory.services import EntityService, RelationService, ObservationService
@@ -32,12 +32,12 @@ class MemoryService:
         self.observation_service = observation_service
         logger.debug(f"Initialized MemoryService with path: {project_path}")
 
-    async def create_entities(self, entities_in: List[EntityIn]) -> List[Entity]:
+    async def create_entities(self, entities_in: List[EntityRequest]) -> List[Entity]:
         """Create multiple entities with their observations."""
         logger.debug(f"Creating {len(entities_in)} entities")
 
         # Write files in parallel (filesystem is source of truth)
-        async def write_file(entity: EntityIn):
+        async def write_file(entity: EntityRequest):
             try:
                 existing = await self.entity_service.get_by_type_and_name(
                     entity.entity_type,
@@ -60,7 +60,7 @@ class MemoryService:
         await asyncio.gather(*file_writes)
         logger.debug("Completed all file writes")
 
-        async def create_entity_in_db(entity_in: EntityIn):
+        async def create_entity_in_db(entity_in: EntityRequest):
             logger.debug(f"Creating entity in DB: {entity_in}")
             try:
                 # Create base entity
@@ -112,7 +112,7 @@ class MemoryService:
         logger.debug(f"Found entity {entity}")
         return entity
 
-    async def create_relations(self, relations_data: List[RelationIn]) -> List[RelationIn]:
+    async def create_relations(self, relations_data: List[RelationRequest]) -> List[RelationRequest]:
         """Create multiple relations between entities."""
         logger.debug(f"Creating {len(relations_data)} relations")
 
@@ -214,11 +214,11 @@ class MemoryService:
             logger.exception(f"Failed to search nodes with query: {query}")
             raise
 
-    async def open_nodes(self, names: List[str]) -> List[EntityIn]:
+    async def open_nodes(self, names: List[str]) -> List[EntityRequest]:
         """Get specific nodes and their relationships."""
         logger.debug(f"Opening nodes: {names}")
 
-        async def read_node(name: str) -> Optional[EntityIn]:
+        async def read_node(name: str) -> Optional[EntityRequest]:
             try:
                 # Get ID from name first
                 logger.debug(f"Looking up entity: {name}")

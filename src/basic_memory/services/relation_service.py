@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from basic_memory.repository.relation_repository import RelationRepository
-from basic_memory.schemas import EntityIn, RelationIn
+from basic_memory.schemas import EntityRequest, RelationRequest
 from . import DatabaseSyncError
 
 
@@ -16,14 +16,14 @@ class RelationService:
         self.project_path = project_path
         self.relation_repo = relation_repo
 
-    async def create_relation(self, relation: RelationIn) -> RelationIn:
+    async def create_relation(self, relation: RelationRequest) -> RelationRequest:
         """Create a new relation in the database."""
         try:
             return await self.relation_repo.create(relation.model_dump())
         except Exception as e:
             raise DatabaseSyncError(f"Failed to sync relation to database: {str(e)}") from e
 
-    async def delete_relation(self, from_entity: EntityIn, to_entity: EntityIn, relation_type: str) -> bool:
+    async def delete_relation(self, from_entity: EntityRequest, to_entity: EntityRequest, relation_type: str) -> bool:
         """Delete a specific relation between entities."""
         try:
             # Use repository to find and delete the relation

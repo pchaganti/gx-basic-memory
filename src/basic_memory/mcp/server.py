@@ -27,7 +27,7 @@ from basic_memory.schemas import (
     # Tool responses
     CreateEntitiesResponse, SearchNodesResponse, OpenNodesResponse,
     AddObservationsResponse, CreateRelationsResponse, DeleteEntitiesResponse,
-    EntityOut, ObservationOut, RelationOut, AddObservationsRequest
+    EntityResponse, ObservationResponse, RelationResponse, AddObservationsRequest
 )
 from basic_memory.services import EntityService, ObservationService, RelationService
 from basic_memory.services.memory_service import MemoryService
@@ -111,7 +111,7 @@ async def handle_create_entities(
     logger.debug(f"Created {len(entities)} entities")
     
     # Format response
-    response = CreateEntitiesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
+    response = CreateEntitiesResponse(entities=[EntityResponse.model_validate(entity) for entity in entities])
     logger.debug("Formatted create_entities response")
     return create_response(response)
 
@@ -126,7 +126,7 @@ async def handle_search_nodes(
     results = await service.search_nodes(input_args.query)
     logger.debug(f"Found {len(results)} matches for query '{input_args.query}'")
     response = SearchNodesResponse(
-        matches=[EntityOut.model_validate(entity) for entity in results],
+        matches=[EntityResponse.model_validate(entity) for entity in results],
         query=input_args.query
     )
     return create_response(response)
@@ -141,7 +141,7 @@ async def handle_open_nodes(
     input_args = OpenNodesRequest.model_validate(args)
     entities = await service.open_nodes(input_args.names)
     logger.debug(f"Opened {len(entities)} entities")
-    response = OpenNodesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
+    response = OpenNodesResponse(entities=[EntityResponse.model_validate(entity) for entity in entities])
     return create_response(response)
 
 
@@ -162,7 +162,7 @@ async def handle_add_observations(
     # Format response
     response = AddObservationsResponse(
         entity_id=input_args.entity_id,
-        observations=[ObservationOut.model_validate(obs) for obs in observations]
+        observations=[ObservationResponse.model_validate(obs) for obs in observations]
     )
     return create_response(response)
 
@@ -182,7 +182,7 @@ async def handle_create_relations(
     logger.debug(f"Created {len(created)} relations")
     
     # Format response
-    response = CreateRelationsResponse(relations=[RelationOut.model_validate(relation) for relation in created])
+    response = CreateRelationsResponse(relations=[RelationResponse.model_validate(relation) for relation in created])
     return create_response(response)
 
 

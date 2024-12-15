@@ -7,7 +7,7 @@ from basic_memory.schemas import (
     CreateEntitiesRequest, CreateEntitiesResponse,
     SearchNodesRequest, SearchNodesResponse,
     CreateRelationsRequest, CreateRelationsResponse,
-    EntityOut, RelationOut, AddObservationsRequest, ObservationOut,
+    EntityResponse, RelationResponse, AddObservationsRequest, ObservationResponse,
     OpenNodesRequest, OpenNodesResponse,
     DeleteEntitiesResponse,
     DeleteObservationsRequest, DeleteObservationsResponse, AddObservationsResponse
@@ -23,17 +23,17 @@ async def create_entities(
 ) -> CreateEntitiesResponse:
     """Create new entities in the knowledge graph."""
     entities = await memory_service.create_entities(data.entities)
-    return CreateEntitiesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
+    return CreateEntitiesResponse(entities=[EntityResponse.model_validate(entity) for entity in entities])
 
 
-@router.get("/entities/{entity_id:path}", response_model=EntityOut)
+@router.get("/entities/{entity_id:path}", response_model=EntityResponse)
 async def get_entity(
     entity_id: str,
     memory_service: MemoryServiceDep
-) -> EntityOut:
+) -> EntityResponse:
     """Get a specific entity by ID."""
     entity = await memory_service.get_entity(entity_id)
-    return EntityOut.model_validate(entity)
+    return EntityResponse.model_validate(entity)
 
 
 @router.delete("/entities/{entity_id}", response_model=DeleteEntitiesResponse)
@@ -53,7 +53,7 @@ async def open_nodes(
 ) -> OpenNodesResponse:
     """Open specific nodes by their names."""
     entities = await memory_service.open_nodes(data.names)
-    return OpenNodesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
+    return OpenNodesResponse(entities=[EntityResponse.model_validate(entity) for entity in entities])
 
 
 @router.post("/relations", response_model=CreateRelationsResponse)
@@ -63,7 +63,7 @@ async def create_relations(
 ) -> CreateRelationsResponse:
     """Create relations between entities."""
     relations = await memory_service.create_relations(data.relations)
-    return CreateRelationsResponse(relations=[RelationOut.model_validate(relation) for relation in relations])
+    return CreateRelationsResponse(relations=[RelationResponse.model_validate(relation) for relation in relations])
 
 
 @router.delete("/relations/{relation_id}", response_model=DeleteEntitiesResponse)
@@ -83,7 +83,7 @@ async def add_observations(
 ) -> AddObservationsResponse:
     """Add observations to an entity."""
     observations = await memory_service.add_observations(data)
-    return AddObservationsResponse(entity_id=data.entity_id, observations=[ObservationOut.model_validate(observation) for observation in observations])
+    return AddObservationsResponse(entity_id=data.entity_id, observations=[ObservationResponse.model_validate(observation) for observation in observations])
 
 
 @router.delete("/observations", response_model=DeleteObservationsResponse)
@@ -103,4 +103,4 @@ async def search_nodes(
 ) -> SearchNodesResponse:
     """Search for entities in the knowledge graph."""
     matches = await memory_service.search_nodes(data.query)
-    return SearchNodesResponse(matches=[EntityOut.model_validate(entity) for entity in matches], query=data.query)
+    return SearchNodesResponse(matches=[EntityResponse.model_validate(entity) for entity in matches], query=data.query)

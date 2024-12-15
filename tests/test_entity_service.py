@@ -3,14 +3,14 @@ import pytest
 
 from basic_memory.fileio import EntityNotFoundError
 from basic_memory.models import Entity
-from basic_memory.schemas import EntityIn
+from basic_memory.schemas import EntityRequest
 
 pytestmark = pytest.mark.asyncio
 
 
 async def test_create_entity_success(entity_service):
     """Test successful entity creation."""
-    entity_data = EntityIn(
+    entity_data = EntityRequest(
         name="Test Entity",
         entity_type="test",
         description="A test entity description"
@@ -33,14 +33,14 @@ async def test_create_entity_success(entity_service):
 async def test_get_by_type_and_name(entity_service):
     """Test finding entity by type and name combination."""
     # Create two entities with same name but different types
-    entity1_data = EntityIn(
+    entity1_data = EntityRequest(
         name="Test Entity",
         entity_type="type1",
         description="First test entity"
     )
     entity1 = await entity_service.create_entity(entity1_data)
 
-    entity2_data = EntityIn(
+    entity2_data = EntityRequest(
         name="Test Entity",  # Same name
         entity_type="type2",  # Different type
         description="Second test entity"
@@ -67,7 +67,7 @@ async def test_get_by_type_and_name(entity_service):
 
 async def test_create_entity_no_description(entity_service):
     """Test creating entity without description (should be None)."""
-    entity_data = EntityIn(
+    entity_data = EntityRequest(
         name="Test Entity",
         entity_type="test",
     )
@@ -82,7 +82,7 @@ async def test_create_entity_no_description(entity_service):
 async def test_get_entity_success(entity_service):
     """Test successful entity retrieval."""
     # Arrange
-    entity_data = EntityIn(
+    entity_data = EntityRequest(
         name="Test Entity",
         entity_type="test",
         description="Test description"
@@ -103,7 +103,7 @@ async def test_get_entity_success(entity_service):
 async def test_update_entity_description(entity_service):
     """Test updating an entity's description."""
     # Create entity with description
-    entity_data = EntityIn(
+    entity_data = EntityRequest(
         name="Test Entity",
         entity_type="test",
         description="Initial description"
@@ -121,7 +121,7 @@ async def test_update_entity_description(entity_service):
 async def test_update_entity_description_to_none(entity_service):
     """Test updating an entity's description to None."""
     # Create entity with description
-    entity_data = EntityIn(
+    entity_data = EntityRequest(
         name="Test Entity",
         entity_type="test",
         description="Initial description"
@@ -139,7 +139,7 @@ async def test_update_entity_description_to_none(entity_service):
 async def test_delete_entity_success(entity_service):
     """Test successful entity deletion."""
     # Arrange
-    entity_data = EntityIn(
+    entity_data = EntityRequest(
         name="Test Entity",
         entity_type="test",
     )
@@ -167,7 +167,7 @@ async def test_create_entity_db_error(entity_service, monkeypatch):
         raise Exception("Mock DB error")
     monkeypatch.setattr(entity_service.entity_repo, "create", mock_create)
 
-    entity_data = EntityIn(
+    entity_data = EntityRequest(
         name="Test Entity",
         entity_type="test",
         description="Test description"
@@ -188,7 +188,7 @@ async def test_create_entity_with_special_chars(entity_service):
     """Test entity creation with special characters in name and description."""
     name = "Test & Entity! With @ Special #Chars"
     description = "Description with $pecial chars & symbols!"
-    entity_data = EntityIn(
+    entity_data = EntityRequest(
         name=name,
         entity_type="test",
         description=description
@@ -204,7 +204,7 @@ async def test_create_entity_with_special_chars(entity_service):
 
 async def test_entity_id_generation(entity_service):
     """Test that entities get unique IDs generated correctly."""
-    entity_data = EntityIn(
+    entity_data = EntityRequest(
         name="Test Entity",
         entity_type="test",
         description="Test description",
@@ -219,7 +219,7 @@ async def test_entity_id_generation(entity_service):
 async def test_create_entity_long_description(entity_service):
     """Test creating entity with a long description."""
     long_description = "A" * 1000  # 1000 character description
-    entity_data = EntityIn(
+    entity_data = EntityRequest(
         name="Test Entity",
         entity_type="test",
         description=long_description

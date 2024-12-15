@@ -1,9 +1,9 @@
 """Service for managing entities in the database."""
 from pathlib import Path
-from typing import List, Dict, Any, Sequence
+from typing import Dict, Any, Sequence
 
 from basic_memory.repository.entity_repository import EntityRepository
-from basic_memory.schemas import EntityIn
+from basic_memory.schemas import EntityRequest
 from basic_memory.models import Entity
 from basic_memory.fileio import EntityNotFoundError
 from loguru import logger
@@ -31,7 +31,7 @@ class EntityService:
             logger.exception(f"Failed to search entities with query: {query}")
             raise
 
-    async def create_entity(self, entity: EntityIn) -> Entity:
+    async def create_entity(self, entity: EntityRequest) -> Entity:
         """Create a new entity in the database."""
         logger.debug(f"Creating entity in DB: {entity}")
         try:
