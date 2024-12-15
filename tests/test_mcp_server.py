@@ -3,7 +3,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
-from mcp.types import EmbeddedResource
+from mcp.types import EmbeddedResource, INVALID_PARAMS
 from mcp.shared.exceptions import McpError
 from basic_memory.mcp.server import MemoryServer, MIME_TYPE, BASIC_MEMORY_URI
 from basic_memory.api.app import app as fastapi_app
@@ -221,11 +221,11 @@ class TestInputValidation:
 
         with pytest.raises(McpError) as exc:
             await server.handle_call_tool("create_entities", {"entities": []})
-        assert "validation error" in str(exc.value).lower()
+        assert INVALID_PARAMS == exc.value.args[0]
 
         with pytest.raises(McpError) as exc:
             await server.handle_call_tool("open_nodes", {"names": []})
-        assert "validation error" in str(exc.value).lower()
+        assert INVALID_PARAMS == exc.value.args[0]
 
     async def test_invalid_field_types(self):
         """Test validation when fields have wrong types."""
