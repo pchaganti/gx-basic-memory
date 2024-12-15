@@ -62,10 +62,14 @@ class DeleteEntityRequest(BaseModel):
     """Request schema for delete_entities tool."""
     names: List[str]
 
+class DeleteRelationsRequest(BaseModel):
+    """Request schema for delete_relations tool."""
+    relations: List[Relation]
+
 class DeleteObservationsRequest(BaseModel):
     """Request schema for delete_observations tool."""
     entity_id: str
-    deletions: List[str]  # TODO: Make this more specific
+    deletions: List[Observation]
 
 # response output models
 
@@ -120,9 +124,12 @@ class CreateRelationsResponse(SQLAlchemyModel):
 
 class DeleteEntityResponse(SQLAlchemyModel):
     """Response for delete_entities tool."""
-    deleted: List[str]
+    deleted: bool
+
+class DeleteRelationsResponse(SQLAlchemyModel):
+    """Response for delete_relations tool."""
+    deleted: bool
 
 class DeleteObservationsResponse(SQLAlchemyModel):
     """Response for delete_observations tool."""
-    entity_id: str
-    deleted: List[Observation]
+    deleted: bool

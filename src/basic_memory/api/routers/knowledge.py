@@ -1,16 +1,17 @@
 """Router for knowledge graph operations."""
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from basic_memory.deps import MemoryServiceDep
+from basic_memory.fileio import EntityNotFoundError
 from basic_memory.schemas import (
     CreateEntityRequest, CreateEntityResponse,
     SearchNodesRequest, SearchNodesResponse,
     CreateRelationsRequest, CreateRelationsResponse,
     EntityResponse, AddObservationsRequest, ObservationResponse,
     OpenNodesRequest, OpenNodesResponse,
-    DeleteEntityResponse,
-    DeleteObservationsRequest, DeleteObservationsResponse, AddObservationsResponse, RelationResponse,
-    DeleteRelationRequest
+    DeleteEntityResponse, DeleteObservationsRequest, DeleteObservationsResponse,
+    DeleteRelationsRequest, DeleteRelationsResponse,
+    AddObservationsResponse, RelationResponse
 )
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -32,18 +33,21 @@ async def get_entity(
     memory_service: MemoryServiceDep
 ) -> EntityResponse:
     """Get a specific entity by ID."""
-    entity = await memory_service.get_entity(entity_id)
-    return EntityResponse.model_validate(entity)
+    try:
+        entity = await memory_service.get_entity(entity_id)
+        return EntityResponse.model_validate(entity)
+    except EntityNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Entity {entity_id} not found")
 
 
-@router.delete("/entities/{entity_id}", response_model=DeleteEntityResponse)
+@router.delete("/entities/{entity_id:path}", response_model=DeleteEntityResponse)
 async def delete_entity(
     entity_id: str,
     memory_service: MemoryServiceDep
 ) -> DeleteEntityResponse:
     """Delete a specific entity by ID."""
     deleted = await memory_service.delete_entities([entity_id])
-    return DeleteEntityResponse(deleted=deleted)  # pyright: ignore [reportArgumentType]
+    return DeleteEntityResponse(deleted=deleted)
 
 
 @router.post("/nodes", response_model=OpenNodesResponse)
@@ -66,17 +70,22 @@ async def create_relations(
     return CreateRelationsResponse(relations=[RelationResponse.model_validate(relation) for relation in relations])
 
 
-@router.delete("/relations/{from_id:path}/{to_id:path}", response_model=DeleteEntityResponse)
-async def delete_relation(
-    memory_service: MemoryServiceDep,
-    from_id: str,
-    to_id: str,
-    relation_type: str | None = None,
-) -> DeleteEntityResponse:
-    """Delete relations between entities, optionally filtered by type."""
-    request = DeleteRelationRequest(from_id=from_id, to_id=to_id, relation_type=relation_type)
-    deleted = await memory_service.delete_relations([request])
-    return DeleteEntityResponse(deleted=deleted)
+@router.post("/relations/delete", response_model=DeleteRelationsResponse)
+async def delete_relations(
+    data: DeleteRelationsRequest,
+    memory_service: MemoryServiceDep
+) -> DeleteRelationsResponse:
+    """Delete relations between entities."""
+    to_delete = [
+        {
+            "from_id": relation.from_id,
+            "to_id": relation.to_id,
+            "relation_type": relation.relation_type
+        }
+        for relation in data.relations
+    ]
+    deleted = await memory_service.delete_relations(to_delete)
+    return DeleteRelationsResponse(deleted=deleted)
 
 
 @router.post("/observations", response_model=AddObservationsResponse)
@@ -89,17 +98,14 @@ async def add_observations(
     return AddObservationsResponse(entity_id=data.entity_id, observations=[ObservationResponse.model_validate(observation) for observation in observations])
 
 
-@router.delete("/entities/{entity_id:path}/observations", response_model=DeleteObservationsResponse)
+@router.post("/entities/{entity_id:path}/observations/delete", response_model=DeleteObservationsResponse)
 async def delete_observations(
     entity_id: str,
-    data: DeleteObservationsRequest,
+    data: DeleteObservationsRequest, 
     memory_service: MemoryServiceDep
 ) -> DeleteObservationsResponse:
     """Delete observations from an entity."""
-    # Ensure entity_id matches the request
-    if data.entity_id != entity_id:
-        data.entity_id = entity_id
-    deleted = await memory_service.delete_observations(data)
+    deleted = await memory_service.delete_observations(entity_id, data.deletions)
     return DeleteObservationsResponse(deleted=deleted)
 
 
