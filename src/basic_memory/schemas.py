@@ -1,8 +1,4 @@
-"""
-Core pydantic models for basic-memory entities, observations, and relations.
-These models define the schema for our core data types while remaining 
-independent from storage/persistence concerns.
-"""
+"""Core pydantic models for basic-memory entities, observations, and relations."""
 from typing import List, Optional, Dict, Any, Annotated
 from annotated_types import Len
 from pydantic import BaseModel, ConfigDict
@@ -13,11 +9,6 @@ class SQLAlchemyOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 # Base Models
-# TODO remove
-class ObservationIn(BaseModel):
-    """Schema for creating a single observation."""
-    content: str
-
 class ObservationsIn(BaseModel):
     """Schema for adding observations to an entity."""
     entity_id: str
@@ -25,9 +16,10 @@ class ObservationsIn(BaseModel):
     observations: List[str]
     model_config = ConfigDict(populate_by_name=True)
 
-class ObservationOut(ObservationIn, SQLAlchemyOut):
+class ObservationOut(SQLAlchemyOut):
     """Schema for observation data returned from the service."""
     id: int
+    content: str
 
 class ObservationsOut(SQLAlchemyOut):
     """Schema for bulk observation operation results."""
@@ -97,11 +89,9 @@ class OpenNodesInput(BaseModel):
     """Input schema for open_nodes tool."""
     names: Annotated[List[str], Len(min_length=1)]
 
-class AddObservationsInput(BaseModel):
+class AddObservationsInput(ObservationsIn):
     """Input schema for add_observations tool."""
-    entity_id: str
-    observations: List[ObservationIn]
-    model_config = ConfigDict(populate_by_name=True)
+    pass
 
 class CreateRelationsInput(BaseModel):
     """Input schema for create_relations tool."""

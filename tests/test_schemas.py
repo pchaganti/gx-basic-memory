@@ -4,7 +4,6 @@ from pydantic import ValidationError
 from basic_memory.schemas import (
     EntityIn,
     EntityOut,
-    ObservationIn,
     RelationIn,
     CreateEntitiesInput,
     SearchNodesInput,
@@ -60,19 +59,6 @@ def test_entity_in_validation():
 
     with pytest.raises(ValidationError):
         EntityIn.model_validate({"entityType": "test"})  # Missing name
-
-def test_observation_in_validation():
-    """Test ObservationIn validation."""
-    # Minimal
-    obs = ObservationIn.model_validate({"content": "test"})
-    assert obs.content == "test"
-
-    # With context
-    obs = ObservationIn.model_validate({"content": "test", "context": "test context"})
-
-    # Missing content
-    with pytest.raises(ValidationError):
-        ObservationIn.model_validate({})
 
 def test_relation_in_validation():
     """Test RelationIn validation."""

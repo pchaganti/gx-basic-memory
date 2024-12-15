@@ -90,12 +90,14 @@ async def test_create_directory_entity(test_directory_entity_data, memory_servic
     assert result[0].type == "resource"
     
     # Verify entity creation
-    response = CreateEntitiesResponse.model_validate_json(result[0].resource.text)
+    response = CreateEntitiesResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert len(response.entities) == 1
     assert response.entities[0].name == "Directory Organization"
     assert response.entities[0].entity_type == "memory"
     assert len(response.entities[0].observations) == 3
 
+
+# noinspection DuplicatedCode
 @pytest.mark.anyio
 async def test_create_entities_snake_case(test_entity_snake_case, memory_service, test_config):
     """Test creating an entity with snake_case data (like internal usage)."""
@@ -113,7 +115,7 @@ async def test_create_entities_snake_case(test_entity_snake_case, memory_service
     assert str(result[0].resource.uri) == str(BASIC_MEMORY_URI)
     assert result[0].resource.mimeType == MIME_TYPE
     
-    response = CreateEntitiesResponse.model_validate_json(result[0].resource.text)
+    response = CreateEntitiesResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert len(response.entities) == 1
     assert response.entities[0].name == "Test Entity"
     assert response.entities[0].entity_type == "test"
@@ -145,7 +147,7 @@ async def test_search_nodes(test_entity_data, memory_service, test_config):
     assert str(result[0].resource.uri) == str(BASIC_MEMORY_URI)
     assert result[0].resource.mimeType == MIME_TYPE
     
-    response = SearchNodesResponse.model_validate_json(result[0].resource.text)
+    response = SearchNodesResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert len(response.matches) == 1
     assert response.matches[0].name == "Test Entity"
     assert response.query == "Test Entity"
@@ -162,7 +164,7 @@ async def test_add_observations(test_entity_data, memory_service, test_config):
         memory_service=memory_service
     )
     
-    create_response = CreateEntitiesResponse.model_validate_json(create_result[0].resource.text)
+    create_response = CreateEntitiesResponse.model_validate_json(create_result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     entity_id = create_response.entities[0].id
     
     # Add new observations using camelCase
@@ -182,7 +184,7 @@ async def test_add_observations(test_entity_data, memory_service, test_config):
     assert str(result[0].resource.uri) == str(BASIC_MEMORY_URI)
     assert result[0].resource.mimeType == MIME_TYPE
     
-    response = AddObservationsResponse.model_validate_json(result[0].resource.text)
+    response = AddObservationsResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert response.entity_id == entity_id
     assert len(response.added_observations) == 1
     assert response.added_observations[0].content == "A new observation"

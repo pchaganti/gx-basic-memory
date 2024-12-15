@@ -5,7 +5,7 @@ from pathlib import Path
 
 from basic_memory.models import Entity, Observation, Relation
 from basic_memory.schemas import (
-    ObservationsIn, EntityIn, RelationIn, ObservationIn
+    ObservationsIn, EntityIn, RelationIn
 )
 from basic_memory.fileio import write_entity_file, read_entity_file, EntityNotFoundError
 from basic_memory.services import EntityService, RelationService, ObservationService
@@ -166,8 +166,7 @@ class MemoryService:
             logger.debug(f"Read entity from filesystem: {db_entity.id}")
 
             # Create new observations for the entity
-            for obs in observations_in.observations:
-                entity.observations.append(ObservationIn(content=obs))
+            entity.observations += observations_in.observations
             logger.debug(f"Added {len(observations_in.observations)} observations to entity")
 
             # Write updated entity file
