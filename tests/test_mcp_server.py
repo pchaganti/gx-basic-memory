@@ -5,7 +5,7 @@ from mcp.types import EmbeddedResource
 from mcp.shared.exceptions import McpError
 from basic_memory.mcp.server import MemoryServer, MIME_TYPE, BASIC_MEMORY_URI
 from basic_memory.schemas import (
-    CreateEntitiesResponse, SearchNodesResponse, AddObservationsResponse,
+    CreateEntityResponse, SearchNodesResponse, AddObservationsResponse,
 )
 
 @pytest.fixture
@@ -90,7 +90,7 @@ async def test_create_directory_entity(test_directory_entity_data, memory_servic
     assert result[0].type == "resource"
     
     # Verify entity creation
-    response = CreateEntitiesResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
+    response = CreateEntityResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert len(response.entities) == 1
     assert response.entities[0].name == "Directory Organization"
     assert response.entities[0].entity_type == "memory"
@@ -115,7 +115,7 @@ async def test_create_entities_snake_case(test_entity_snake_case, memory_service
     assert str(result[0].resource.uri) == str(BASIC_MEMORY_URI)
     assert result[0].resource.mimeType == MIME_TYPE
     
-    response = CreateEntitiesResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
+    response = CreateEntityResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert len(response.entities) == 1
     assert response.entities[0].name == "Test Entity"
     assert response.entities[0].entity_type == "test"
@@ -164,7 +164,7 @@ async def test_add_observations(test_entity_data, memory_service, test_config):
         memory_service=memory_service
     )
     
-    create_response = CreateEntitiesResponse.model_validate_json(create_result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
+    create_response = CreateEntityResponse.model_validate_json(create_result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     entity_id = create_response.entities[0].id
     
     # Add new observations using camelCase

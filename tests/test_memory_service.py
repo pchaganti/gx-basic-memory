@@ -2,7 +2,7 @@
 import pytest
 from basic_memory.services import MemoryService
 from basic_memory.fileio import read_entity_file
-from basic_memory.schemas import CreateEntitiesRequest, CreateRelationsRequest, AddObservationsRequest, RelationRequest
+from basic_memory.schemas import CreateEntityRequest, CreateRelationsRequest, AddObservationsRequest, RelationRequest
 
 test_entities_data = [
     {
@@ -21,7 +21,7 @@ test_entities_data = [
 async def test_create_entities(memory_service: MemoryService):
     """Should create multiple entities in parallel with their observations."""
 
-    entity_input = CreateEntitiesRequest.model_validate({"entities": test_entities_data})
+    entity_input = CreateEntityRequest.model_validate({"entities": test_entities_data})
     entities = await memory_service.create_entities(entity_input.entities)
 
     # Verify the SQLAlchemy models were created
@@ -51,7 +51,7 @@ async def test_create_entities(memory_service: MemoryService):
 @pytest.mark.asyncio
 async def test_add_observations(memory_service: MemoryService):
     """Should add observations to an existing entity."""
-    entity_input = CreateEntitiesRequest.model_validate({"entities": test_entities_data})
+    entity_input = CreateEntityRequest.model_validate({"entities": test_entities_data})
     entities = await memory_service.create_entities([entity_input.entities[0]])
     entity = entities[0]
 
@@ -100,7 +100,7 @@ async def test_add_observations_nonexistent_entity(memory_service: MemoryService
 @pytest.mark.asyncio
 async def test_create_relations(memory_service: MemoryService):
     """Should create relations between entities and update both filesystem and database."""
-    entity_input = CreateEntitiesRequest.model_validate({"entities": test_entities_data})
+    entity_input = CreateEntityRequest.model_validate({"entities": test_entities_data})
     entities = await memory_service.create_entities(entity_input.entities)
     entity1, entity2 = entities
 
@@ -183,7 +183,7 @@ async def test_create_relations(memory_service: MemoryService):
 async def test_create_relations_with_invalid_entity_id(memory_service: MemoryService):
     """Should raise an appropriate error when trying to create relations with non-existent entity IDs."""
     # Create one entity - returns SQLAlchemy Entity
-    entity_input = CreateEntitiesRequest.model_validate({"entities": test_entities_data})
+    entity_input = CreateEntityRequest.model_validate({"entities": test_entities_data})
     entities = await memory_service.create_entities([entity_input.entities[0]])
     entity1 = entities[0]
 

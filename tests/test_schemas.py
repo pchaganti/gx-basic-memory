@@ -5,7 +5,7 @@ from basic_memory.schemas import (
     EntityRequest,
     EntityResponse,
     RelationRequest,
-    CreateEntitiesRequest,
+    CreateEntityRequest,
     SearchNodesRequest,
     OpenNodesRequest,
 )
@@ -97,13 +97,13 @@ def test_create_entities_input():
             }
         ]
     }
-    create_input = CreateEntitiesRequest.model_validate(data)
+    create_input = CreateEntityRequest.model_validate(data)
     assert len(create_input.entities) == 2
     assert create_input.entities[1].description == "test description"
 
     # Empty entities list should fail
     with pytest.raises(ValidationError):
-        CreateEntitiesRequest.model_validate({"entities": []})
+        CreateEntityRequest.model_validate({"entities": []})
 
 def test_entity_out_from_attributes():
     """Test EntityOut creation from database model attributes."""

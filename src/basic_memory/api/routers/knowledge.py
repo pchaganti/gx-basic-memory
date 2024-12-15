@@ -4,26 +4,26 @@ from fastapi import APIRouter
 
 from basic_memory.deps import MemoryServiceDep
 from basic_memory.schemas import (
-    CreateEntitiesRequest, CreateEntitiesResponse,
+    CreateEntityRequest, CreateEntityResponse,
     SearchNodesRequest, SearchNodesResponse,
     CreateRelationsRequest, CreateRelationsResponse,
     EntityResponse, RelationResponse, AddObservationsRequest, ObservationResponse,
     OpenNodesRequest, OpenNodesResponse,
-    DeleteEntitiesResponse,
+    DeleteEntityResponse,
     DeleteObservationsRequest, DeleteObservationsResponse, AddObservationsResponse
 )
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 
-@router.post("/entities", response_model=CreateEntitiesResponse)
+@router.post("/entities", response_model=CreateEntityResponse)
 async def create_entities(
-    data: CreateEntitiesRequest,
+    data: CreateEntityRequest,
     memory_service: MemoryServiceDep
-) -> CreateEntitiesResponse:
+) -> CreateEntityResponse:
     """Create new entities in the knowledge graph."""
     entities = await memory_service.create_entities(data.entities)
-    return CreateEntitiesResponse(entities=[EntityResponse.model_validate(entity) for entity in entities])
+    return CreateEntityResponse(entities=[EntityResponse.model_validate(entity) for entity in entities])
 
 
 @router.get("/entities/{entity_id:path}", response_model=EntityResponse)
@@ -36,14 +36,14 @@ async def get_entity(
     return EntityResponse.model_validate(entity)
 
 
-@router.delete("/entities/{entity_id}", response_model=DeleteEntitiesResponse)
+@router.delete("/entities/{entity_id}", response_model=DeleteEntityResponse)
 async def delete_entity(
     entity_id: str,
     memory_service: MemoryServiceDep
-) -> DeleteEntitiesResponse:
+) -> DeleteEntityResponse:
     """Delete a specific entity by ID."""
     deleted = await memory_service.delete_entities([entity_id])
-    return DeleteEntitiesResponse(deleted=deleted)  # pyright: ignore [reportArgumentType]
+    return DeleteEntityResponse(deleted=deleted)  # pyright: ignore [reportArgumentType]
 
 
 @router.post("/nodes", response_model=OpenNodesResponse)
@@ -66,11 +66,11 @@ async def create_relations(
     return CreateRelationsResponse(relations=[RelationResponse.model_validate(relation) for relation in relations])
 
 
-@router.delete("/relations/{relation_id}", response_model=DeleteEntitiesResponse)
+@router.delete("/relations/{relation_id}", response_model=DeleteEntityResponse)
 async def delete_relation(
     relation_id: int,
     memory_service: MemoryServiceDep
-) -> DeleteEntitiesResponse:
+) -> DeleteEntityResponse:
     """Delete a specific relation by ID."""
     # TODO: Implement delete_relation in memory service
     raise NotImplementedError("Delete relation not implemented yet")

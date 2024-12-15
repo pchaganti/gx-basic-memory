@@ -21,12 +21,12 @@ from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.schemas import (
     # Tool inputs
-    CreateEntitiesRequest, SearchNodesRequest, OpenNodesRequest,
-    CreateRelationsRequest, DeleteEntitiesRequest,
+    CreateEntityRequest, SearchNodesRequest, OpenNodesRequest,
+    CreateRelationsRequest, DeleteEntityRequest,
     DeleteObservationsRequest,
     # Tool responses
-    CreateEntitiesResponse, SearchNodesResponse, OpenNodesResponse,
-    AddObservationsResponse, CreateRelationsResponse, DeleteEntitiesResponse,
+    CreateEntityResponse, SearchNodesResponse, OpenNodesResponse,
+    AddObservationsResponse, CreateRelationsResponse, DeleteEntityResponse,
     EntityResponse, ObservationResponse, RelationResponse, AddObservationsRequest
 )
 from basic_memory.services import EntityService, ObservationService, RelationService
@@ -103,7 +103,7 @@ async def handle_create_entities(
     """Handle create_entities tool call."""
     # Validate input
     logger.debug(f"Creating entities with args: {args}")
-    input_args = CreateEntitiesRequest.model_validate(args)
+    input_args = CreateEntityRequest.model_validate(args)
     logger.debug(f"Validated input: {len(input_args.entities)} entities")
     
     # Call service with validated data
@@ -111,7 +111,7 @@ async def handle_create_entities(
     logger.debug(f"Created {len(entities)} entities")
     
     # Format response
-    response = CreateEntitiesResponse(entities=[EntityResponse.model_validate(entity) for entity in entities])
+    response = CreateEntityResponse(entities=[EntityResponse.model_validate(entity) for entity in entities])
     logger.debug("Formatted create_entities response")
     return create_response(response)
 
@@ -192,10 +192,10 @@ async def handle_delete_entities(
 ) -> EmbeddedResource:
     """Handle delete_entities tool call."""
     logger.debug(f"Deleting entities: {args}")
-    input_args = DeleteEntitiesRequest.model_validate(args)
+    input_args = DeleteEntityRequest.model_validate(args)
     deleted = await service.delete_entities(input_args.names)
     logger.debug(f"Deleted entities: {deleted}")
-    response = DeleteEntitiesResponse(deleted=deleted)
+    response = DeleteEntityResponse(deleted=deleted)
     return create_response(response)
 
 
@@ -240,7 +240,7 @@ class MemoryServer(Server):
                 Tool(
                     name="create_entities",
                     description="Create multiple new entities in the knowledge graph",
-                    inputSchema=CreateEntitiesRequest.model_json_schema()
+                    inputSchema=CreateEntityRequest.model_json_schema()
                 ),
                 Tool(
                     name="search_nodes", 
@@ -265,7 +265,7 @@ class MemoryServer(Server):
                 Tool(
                     name="delete_entities",
                     description="Delete entities from the knowledge graph",
-                    inputSchema=DeleteEntitiesRequest.model_json_schema()
+                    inputSchema=DeleteEntityRequest.model_json_schema()
                 ),
                 Tool(
                     name="delete_observations",

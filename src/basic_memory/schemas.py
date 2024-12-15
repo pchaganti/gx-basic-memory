@@ -76,33 +76,33 @@ class EntityResponse(EntityBase, SQLAlchemyModel):
     relations: List[RelationResponse] = []
     model_config = ConfigDict(populate_by_name=True)
 
-# Tool Input Schemas
-class CreateEntitiesRequest(BaseModel):
-    """Input schema for create_entities tool."""
+# Tool Request schemas
+class CreateEntityRequest(BaseModel):
+    """Request schema for create_entities tool."""
     entities: Annotated[List[EntityRequest], Len(min_length=1)]
 
 class SearchNodesRequest(BaseModel):
-    """Input schema for search_nodes tool."""
+    """Request schema for search_nodes tool."""
     query: str
 
 class OpenNodesRequest(BaseModel):
-    """Input schema for open_nodes tool."""
+    """Request schema for open_nodes tool."""
     names: Annotated[List[str], Len(min_length=1)]
 
 class CreateRelationsRequest(BaseModel):
-    """Input schema for create_relations tool."""
+    """Request schema for create_relations tool."""
     relations: List[RelationRequest]
 
-class DeleteEntitiesRequest(BaseModel):
-    """Input schema for delete_entities tool."""
+class DeleteEntityRequest(BaseModel):
+    """Request schema for delete_entities tool."""
     names: List[str]
 
 class DeleteObservationsRequest(BaseModel):
-    """Input schema for delete_observations tool."""
+    """Request schema for delete_observations tool."""
     entity_id: str
     deletions: List[str]  # TODO: Make this more specific
 
-class CreateEntitiesResponse(SQLAlchemyModel):
+class CreateEntityResponse(SQLAlchemyModel):
     """Response for create_entities tool."""
     entities: List[EntityResponse]
 
@@ -124,7 +124,7 @@ class CreateRelationsResponse(SQLAlchemyModel):
     """Response for create_relations tool."""
     relations: List[RelationResponse]
 
-class DeleteEntitiesResponse(SQLAlchemyModel):
+class DeleteEntityResponse(SQLAlchemyModel):
     """Response for delete_entities tool."""
     deleted: List[str]
 
