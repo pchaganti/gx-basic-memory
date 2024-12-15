@@ -4,10 +4,10 @@ from pydantic import ValidationError
 from basic_memory.schemas import (
     EntityIn,
     EntityOut,
-    Relation,
-    CreateEntitiesInput,
-    SearchNodesInput,
-    OpenNodesInput,
+    RelationIn,
+    CreateEntitiesRequest,
+    SearchNodesRequest,
+    OpenNodesRequest,
 )
 
 def test_entity_in_minimal():
@@ -67,7 +67,7 @@ def test_relation_in_validation():
         "to_id": "456",
         "relation_type": "test"
     }
-    relation = Relation.model_validate(data)
+    relation = RelationIn.model_validate(data)
     assert relation.from_id == "123"
     assert relation.to_id == "456"
     assert relation.relation_type == "test"
@@ -75,12 +75,12 @@ def test_relation_in_validation():
 
     # With context
     data["context"] = "test context"
-    relation = Relation.model_validate(data)
+    relation = RelationIn.model_validate(data)
     assert relation.context == "test context"
 
     # Missing required fields
     with pytest.raises(ValidationError):
-        Relation.model_validate({"from_id": "123", "to_id": "456"})  # Missing relationType
+        RelationIn.model_validate({"from_id": "123", "to_id": "456"})  # Missing relationType
 
 def test_create_entities_input():
     """Test CreateEntitiesInput validation."""
@@ -97,13 +97,13 @@ def test_create_entities_input():
             }
         ]
     }
-    create_input = CreateEntitiesInput.model_validate(data)
+    create_input = CreateEntitiesRequest.model_validate(data)
     assert len(create_input.entities) == 2
     assert create_input.entities[1].description == "test description"
 
     # Empty entities list should fail
     with pytest.raises(ValidationError):
-        CreateEntitiesInput.model_validate({"entities": []})
+        CreateEntitiesRequest.model_validate({"entities": []})
 
 def test_entity_out_from_attributes():
     """Test EntityOut creation from database model attributes."""
@@ -167,17 +167,17 @@ def test_optional_fields():
 
 def test_search_nodes_input():
     """Test SearchNodesInput validation."""
-    search = SearchNodesInput.model_validate({"query": "test query"})
+    search = SearchNodesRequest.model_validate({"query": "test query"})
     assert search.query == "test query"
 
     with pytest.raises(ValidationError):
-        SearchNodesInput.model_validate({})  # Missing required query
+        SearchNodesRequest.model_validate({})  # Missing required query
 
 def test_open_nodes_input():
     """Test OpenNodesInput validation."""
-    open_input = OpenNodesInput.model_validate({"names": ["entity1", "entity2"]})
+    open_input = OpenNodesRequest.model_validate({"names": ["entity1", "entity2"]})
     assert len(open_input.names) == 2
 
     # Empty names list should fail
     with pytest.raises(ValidationError):
-        OpenNodesInput.model_validate({"names": []})
+        OpenNodesRequest.model_validate({"names": []})

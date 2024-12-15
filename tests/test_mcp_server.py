@@ -186,8 +186,8 @@ async def test_add_observations(test_entity_data, memory_service, test_config):
     
     response = AddObservationsResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert response.entity_id == entity_id
-    assert len(response.added_observations) == 1
-    assert response.added_observations[0].content == "A new observation"
+    assert len(response.observations) == 1
+    assert response.observations[0].content == "A new observation"
 
 @pytest.mark.anyio
 async def test_invalid_tool_name(test_config):

@@ -21,15 +21,13 @@ from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.schemas import (
     # Tool inputs
-    CreateEntitiesInput, SearchNodesInput, OpenNodesInput,
-    AddObservationsInput, CreateRelationsInput, DeleteEntitiesInput,
-    DeleteObservationsInput,
+    CreateEntitiesRequest, SearchNodesRequest, OpenNodesRequest,
+    CreateRelationsRequest, DeleteEntitiesRequest,
+    DeleteObservationsRequest,
     # Tool responses
     CreateEntitiesResponse, SearchNodesResponse, OpenNodesResponse,
     AddObservationsResponse, CreateRelationsResponse, DeleteEntitiesResponse,
-    DeleteObservationsResponse,
-    # Base models
-    EntityOut, ObservationOut, RelationOut, ObservationsIn
+    EntityOut, ObservationOut, RelationOut, AddObservationsRequest
 )
 from basic_memory.services import EntityService, ObservationService, RelationService
 from basic_memory.services.memory_service import MemoryService
@@ -105,7 +103,7 @@ async def handle_create_entities(
     """Handle create_entities tool call."""
     # Validate input
     logger.debug(f"Creating entities with args: {args}")
-    input_args = CreateEntitiesInput.model_validate(args)
+    input_args = CreateEntitiesRequest.model_validate(args)
     logger.debug(f"Validated input: {len(input_args.entities)} entities")
     
     # Call service with validated data
@@ -124,7 +122,7 @@ async def handle_search_nodes(
 ) -> EmbeddedResource:
     """Handle search_nodes tool call."""
     logger.debug(f"Searching nodes with query: {args.get('query')}")
-    input_args = SearchNodesInput.model_validate(args)
+    input_args = SearchNodesRequest.model_validate(args)
     results = await service.search_nodes(input_args.query)
     logger.debug(f"Found {len(results)} matches for query '{input_args.query}'")
     response = SearchNodesResponse(
@@ -140,7 +138,7 @@ async def handle_open_nodes(
 ) -> EmbeddedResource:
     """Handle open_nodes tool call."""
     logger.debug(f"Opening nodes: {args.get('names')}")
-    input_args = OpenNodesInput.model_validate(args)
+    input_args = OpenNodesRequest.model_validate(args)
     entities = await service.open_nodes(input_args.names)
     logger.debug(f"Opened {len(entities)} entities")
     response = OpenNodesResponse(entities=[EntityOut.model_validate(entity) for entity in entities])
@@ -154,7 +152,7 @@ async def handle_add_observations(
     """Handle add_observations tool call."""
     # Validate input
     logger.debug(f"Adding observations: {args}")
-    input_args = ObservationsIn.model_validate(args)
+    input_args = AddObservationsRequest.model_validate(args)
     logger.debug(f"Adding {len(input_args.observations)} observations to entity {input_args.entity_id}")
 
     # Call service with validated data
@@ -164,7 +162,7 @@ async def handle_add_observations(
     # Format response
     response = AddObservationsResponse(
         entity_id=input_args.entity_id,
-        added_observations=[ObservationOut.model_validate(obs) for obs in observations]
+        observations=[ObservationOut.model_validate(obs) for obs in observations]
     )
     return create_response(response)
 
@@ -176,7 +174,7 @@ async def handle_create_relations(
     """Handle create_relations tool call."""
     # Validate input
     logger.debug(f"Creating relations: {args}")
-    input_args = CreateRelationsInput.model_validate(args)
+    input_args = CreateRelationsRequest.model_validate(args)
     logger.debug(f"Creating {len(input_args.relations)} relations")
     
     # Call service with validated data
@@ -194,7 +192,7 @@ async def handle_delete_entities(
 ) -> EmbeddedResource:
     """Handle delete_entities tool call."""
     logger.debug(f"Deleting entities: {args}")
-    input_args = DeleteEntitiesInput.model_validate(args)
+    input_args = DeleteEntitiesRequest.model_validate(args)
     deleted = await service.delete_entities(input_args.names)
     logger.debug(f"Deleted entities: {deleted}")
     response = DeleteEntitiesResponse(deleted=deleted)
@@ -242,37 +240,37 @@ class MemoryServer(Server):
                 Tool(
                     name="create_entities",
                     description="Create multiple new entities in the knowledge graph",
-                    inputSchema=CreateEntitiesInput.model_json_schema()
+                    inputSchema=CreateEntitiesRequest.model_json_schema()
                 ),
                 Tool(
                     name="search_nodes", 
                     description="Search for nodes in the knowledge graph",
-                    inputSchema=SearchNodesInput.model_json_schema()
+                    inputSchema=SearchNodesRequest.model_json_schema()
                 ),
                 Tool(
                     name="open_nodes",
                     description="Open specific nodes by their names",
-                    inputSchema=OpenNodesInput.model_json_schema()
+                    inputSchema=OpenNodesRequest.model_json_schema()
                 ),
                 Tool(
                     name="add_observations",
                     description="Add observations to existing entities",
-                    inputSchema=AddObservationsInput.model_json_schema()
+                    inputSchema=AddObservationsRequest.model_json_schema()
                 ),
                 Tool(
                     name="create_relations",
                     description="Create relations between entities",
-                    inputSchema=CreateRelationsInput.model_json_schema()
+                    inputSchema=CreateRelationsRequest.model_json_schema()
                 ),
                 Tool(
                     name="delete_entities",
                     description="Delete entities from the knowledge graph",
-                    inputSchema=DeleteEntitiesInput.model_json_schema()
+                    inputSchema=DeleteEntitiesRequest.model_json_schema()
                 ),
                 Tool(
                     name="delete_observations",
                     description="Delete observations from entities",
-                    inputSchema=DeleteObservationsInput.model_json_schema()
+                    inputSchema=DeleteObservationsRequest.model_json_schema()
                 )
             ]
             logger.debug(f"Returning {len(tools)} available tools")

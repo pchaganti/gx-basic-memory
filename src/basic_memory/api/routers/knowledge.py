@@ -4,13 +4,13 @@ from fastapi import APIRouter
 
 from basic_memory.deps import MemoryServiceDep
 from basic_memory.schemas import (
-    CreateEntitiesInput, CreateEntitiesResponse,
-    SearchNodesInput, SearchNodesResponse,
-    CreateRelationsInput, CreateRelationsResponse,
-    EntityOut, RelationOut, ObservationsIn, ObservationsOut, ObservationOut,
-    OpenNodesInput, OpenNodesResponse,
+    CreateEntitiesRequest, CreateEntitiesResponse,
+    SearchNodesRequest, SearchNodesResponse,
+    CreateRelationsRequest, CreateRelationsResponse,
+    EntityOut, RelationOut, AddObservationsRequest, ObservationOut,
+    OpenNodesRequest, OpenNodesResponse,
     DeleteEntitiesResponse,
-    DeleteObservationsInput, DeleteObservationsResponse
+    DeleteObservationsRequest, DeleteObservationsResponse, AddObservationsResponse
 )
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 @router.post("/entities", response_model=CreateEntitiesResponse)
 async def create_entities(
-    data: CreateEntitiesInput,
+    data: CreateEntitiesRequest,
     memory_service: MemoryServiceDep
 ) -> CreateEntitiesResponse:
     """Create new entities in the knowledge graph."""
@@ -48,7 +48,7 @@ async def delete_entity(
 
 @router.post("/nodes", response_model=OpenNodesResponse)
 async def open_nodes(
-    data: OpenNodesInput,
+    data: OpenNodesRequest,
     memory_service: MemoryServiceDep
 ) -> OpenNodesResponse:
     """Open specific nodes by their names."""
@@ -58,7 +58,7 @@ async def open_nodes(
 
 @router.post("/relations", response_model=CreateRelationsResponse)
 async def create_relations(
-    data: CreateRelationsInput,
+    data: CreateRelationsRequest,
     memory_service: MemoryServiceDep
 ) -> CreateRelationsResponse:
     """Create relations between entities."""
@@ -76,19 +76,19 @@ async def delete_relation(
     raise NotImplementedError("Delete relation not implemented yet")
 
 
-@router.post("/observations", response_model=ObservationsOut)
+@router.post("/observations", response_model=AddObservationsResponse)
 async def add_observations(
-    data: ObservationsIn,
+    data: AddObservationsRequest,
     memory_service: MemoryServiceDep
-) -> ObservationsOut:
+) -> AddObservationsResponse:
     """Add observations to an entity."""
     observations = await memory_service.add_observations(data)
-    return ObservationsOut(entity_id=data.entity_id, observations=[ObservationOut.model_validate(observation) for observation in observations])
+    return AddObservationsResponse(entity_id=data.entity_id, observations=[ObservationOut.model_validate(observation) for observation in observations])
 
 
 @router.delete("/observations", response_model=DeleteObservationsResponse)
 async def delete_observations(
-    data: DeleteObservationsInput,
+    data: DeleteObservationsRequest,
     memory_service: MemoryServiceDep
 ) -> DeleteObservationsResponse:
     """Delete observations from an entity."""
@@ -98,7 +98,7 @@ async def delete_observations(
 
 @router.post("/search", response_model=SearchNodesResponse)
 async def search_nodes(
-    data: SearchNodesInput,
+    data: SearchNodesRequest,
     memory_service: MemoryServiceDep
 ) -> SearchNodesResponse:
     """Search for entities in the knowledge graph."""

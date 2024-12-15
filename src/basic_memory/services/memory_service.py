@@ -3,9 +3,9 @@ import asyncio
 from typing import List, Dict, Any, Optional, Sequence
 from pathlib import Path
 
-from basic_memory.models import Entity, Observation, Relation
+from basic_memory.models import Entity, Observation
 from basic_memory.schemas import (
-    ObservationsIn, EntityIn, Relation
+    AddObservationsRequest, EntityIn, RelationIn
 )
 from basic_memory.fileio import write_entity_file, read_entity_file, EntityNotFoundError
 from basic_memory.services import EntityService, RelationService, ObservationService
@@ -112,7 +112,7 @@ class MemoryService:
         logger.debug(f"Found entity {entity}")
         return entity
 
-    async def create_relations(self, relations_data: List[Relation]) -> List[Relation]:
+    async def create_relations(self, relations_data: List[RelationIn]) -> List[RelationIn]:
         """Create multiple relations between entities."""
         logger.debug(f"Creating {len(relations_data)} relations")
 
@@ -153,7 +153,7 @@ class MemoryService:
         logger.debug(f"Successfully created {len(relations)} relations")
         return relations
 
-    async def add_observations(self, observations_in: ObservationsIn) -> List[Observation]:
+    async def add_observations(self, observations_in: AddObservationsRequest) -> List[Observation]:
         """Add observations to an existing entity."""
         logger.debug(f"Adding observations to entity: {observations_in.entity_id}")
         try:

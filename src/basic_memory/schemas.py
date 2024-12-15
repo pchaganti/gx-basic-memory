@@ -1,5 +1,5 @@
 """Core pydantic models for basic-memory entities, observations, and relations."""
-from typing import List, Optional, Dict, Any, Annotated
+from typing import List, Optional, Annotated
 from annotated_types import Len
 from pydantic import BaseModel, ConfigDict
 
@@ -9,7 +9,7 @@ class SQLAlchemyOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 # Base Models
-class ObservationsIn(BaseModel):
+class AddObservationsRequest(BaseModel):
     """Schema for adding observations to an entity."""
     entity_id: str
     context: Optional[str] = None
@@ -27,7 +27,7 @@ class ObservationsOut(SQLAlchemyOut):
     observations: List[ObservationOut]
     model_config = ConfigDict(populate_by_name=True)
 
-class Relation(BaseModel):
+class RelationIn(BaseModel):
     """
     Represents a directed edge between entities in the knowledge graph.
     Relations are always stored in active voice (e.g. "created", "teaches", etc.)
@@ -67,7 +67,7 @@ class EntityIn(EntityBase):
     associated observations.
     """
     observations: List[str] = []
-    relations: List[Relation] = []
+    relations: List[RelationIn] = []
     model_config = ConfigDict(populate_by_name=True)
 
 class EntityOut(EntityBase, SQLAlchemyOut):
@@ -77,36 +77,31 @@ class EntityOut(EntityBase, SQLAlchemyOut):
     model_config = ConfigDict(populate_by_name=True)
 
 # Tool Input Schemas
-class CreateEntitiesInput(BaseModel):
+class CreateEntitiesRequest(BaseModel):
     """Input schema for create_entities tool."""
     entities: Annotated[List[EntityIn], Len(min_length=1)]
 
-class SearchNodesInput(BaseModel):
+class SearchNodesRequest(BaseModel):
     """Input schema for search_nodes tool."""
     query: str
 
-class OpenNodesInput(BaseModel):
+class OpenNodesRequest(BaseModel):
     """Input schema for open_nodes tool."""
     names: Annotated[List[str], Len(min_length=1)]
 
-class AddObservationsInput(ObservationsIn):
-    """Input schema for add_observations tool."""
-    pass
-
-class CreateRelationsInput(BaseModel):
+class CreateRelationsRequest(BaseModel):
     """Input schema for create_relations tool."""
-    relations: List[Relation]
+    relations: List[RelationIn]
 
-class DeleteEntitiesInput(BaseModel):
+class DeleteEntitiesRequest(BaseModel):
     """Input schema for delete_entities tool."""
     names: List[str]
 
-class DeleteObservationsInput(BaseModel):
+class DeleteObservationsRequest(BaseModel):
     """Input schema for delete_observations tool."""
     entity_id: str
-    deletions: List[Dict[str, Any]]  # TODO: Make this more specific
+    deletions: List[str]  # TODO: Make this more specific
 
-# Tool Response Schemas
 class CreateEntitiesResponse(SQLAlchemyOut):
     """Response for create_entities tool."""
     entities: List[EntityOut]
@@ -123,7 +118,7 @@ class OpenNodesResponse(SQLAlchemyOut):
 class AddObservationsResponse(SQLAlchemyOut):
     """Response for add_observations tool."""
     entity_id: str
-    added_observations: List[ObservationOut]
+    observations: List[ObservationOut]
 
 class CreateRelationsResponse(SQLAlchemyOut):
     """Response for create_relations tool."""

@@ -2,7 +2,7 @@
 import pytest
 from basic_memory.services import MemoryService
 from basic_memory.fileio import read_entity_file
-from basic_memory.schemas import CreateEntitiesInput, CreateRelationsInput, ObservationsIn, Relation
+from basic_memory.schemas import CreateEntitiesRequest, CreateRelationsRequest, AddObservationsRequest, RelationIn
 
 test_entities_data = [
     {
@@ -21,7 +21,7 @@ test_entities_data = [
 async def test_create_entities(memory_service: MemoryService):
     """Should create multiple entities in parallel with their observations."""
 
-    entity_input = CreateEntitiesInput.model_validate({"entities": test_entities_data})
+    entity_input = CreateEntitiesRequest.model_validate({"entities": test_entities_data})
     entities = await memory_service.create_entities(entity_input.entities)
 
     # Verify the SQLAlchemy models were created
@@ -51,7 +51,7 @@ async def test_create_entities(memory_service: MemoryService):
 @pytest.mark.asyncio
 async def test_add_observations(memory_service: MemoryService):
     """Should add observations to an existing entity."""
-    entity_input = CreateEntitiesInput.model_validate({"entities": test_entities_data})
+    entity_input = CreateEntitiesRequest.model_validate({"entities": test_entities_data})
     entities = await memory_service.create_entities([entity_input.entities[0]])
     entity = entities[0]
 
@@ -65,7 +65,7 @@ async def test_add_observations(memory_service: MemoryService):
     }
 
     # Add observations - returns List[models.Observation]
-    observation_input = ObservationsIn.model_validate(observations_data)
+    observation_input = AddObservationsRequest.model_validate(observations_data)
     added_observations = await memory_service.add_observations(observation_input)
 
     # Check the SQLAlchemy model results
@@ -94,13 +94,13 @@ async def test_add_observations_nonexistent_entity(memory_service: MemoryService
     }
     
     with pytest.raises(Exception) as exc:  # We might want to define a specific error type
-        observation_input = ObservationsIn.model_validate(observations_data)
+        observation_input = AddObservationsRequest.model_validate(observations_data)
         await memory_service.add_observations(observation_input)
 
 @pytest.mark.asyncio
 async def test_create_relations(memory_service: MemoryService):
     """Should create relations between entities and update both filesystem and database."""
-    entity_input = CreateEntitiesInput.model_validate({"entities": test_entities_data})
+    entity_input = CreateEntitiesRequest.model_validate({"entities": test_entities_data})
     entities = await memory_service.create_entities(entity_input.entities)
     entity1, entity2 = entities
 
@@ -120,7 +120,7 @@ async def test_create_relations(memory_service: MemoryService):
     ]
 
     # Create relations - returns List[models.Relation]
-    input_args = CreateRelationsInput.model_validate({"relations": test_relations_data})
+    input_args = CreateRelationsRequest.model_validate({"relations": test_relations_data})
     relations = await memory_service.create_relations(input_args.relations)
 
     # Verify SQLAlchemy Relation models were created
@@ -183,7 +183,7 @@ async def test_create_relations(memory_service: MemoryService):
 async def test_create_relations_with_invalid_entity_id(memory_service: MemoryService):
     """Should raise an appropriate error when trying to create relations with non-existent entity IDs."""
     # Create one entity - returns SQLAlchemy Entity
-    entity_input = CreateEntitiesInput.model_validate({"entities": test_entities_data})
+    entity_input = CreateEntitiesRequest.model_validate({"entities": test_entities_data})
     entities = await memory_service.create_entities([entity_input.entities[0]])
     entity1 = entities[0]
 
@@ -195,4 +195,4 @@ async def test_create_relations_with_invalid_entity_id(memory_service: MemorySer
     }
     
     with pytest.raises(Exception) as exc:  # We might want to define a specific error type
-        await memory_service.create_relations([Relation.model_validate(bad_relation)])
+        await memory_service.create_relations([RelationIn.model_validate(bad_relation)])
