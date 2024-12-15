@@ -14,7 +14,6 @@ class AddObservationsRequest(BaseModel):
     entity_id: str
     context: Optional[str] = None
     observations: List[str]
-    model_config = ConfigDict(populate_by_name=True)
 
 class ObservationResponse(SQLAlchemyModel):
     """Schema for observation data returned from the service."""
@@ -25,7 +24,6 @@ class ObservationsResponse(SQLAlchemyModel):
     """Schema for bulk observation operation results."""
     entity_id: str
     observations: List[ObservationResponse]
-    model_config = ConfigDict(populate_by_name=True)
 
 class RelationRequest(BaseModel):
     """
@@ -37,7 +35,6 @@ class RelationRequest(BaseModel):
     relation_type: str
     context: Optional[str] = None
 
-    model_config = ConfigDict(populate_by_name=True)
 
 class RelationResponse(SQLAlchemyModel):
     id: int
@@ -45,7 +42,6 @@ class RelationResponse(SQLAlchemyModel):
     to_id: str
     relation_type: str
     context: Optional[str] = None
-    model_config = ConfigDict(populate_by_name=True)
 
 class EntityBase(BaseModel):
     id: Optional[str] = None
@@ -58,7 +54,6 @@ class EntityBase(BaseModel):
         """The relative file path for this entity."""
         return f"{id}.md"
 
-    model_config = ConfigDict(from_attributes=True)
 
 class EntityRequest(EntityBase):
     """
@@ -68,13 +63,11 @@ class EntityRequest(EntityBase):
     """
     observations: List[str] = []
     relations: List[RelationRequest] = []
-    model_config = ConfigDict(populate_by_name=True)
 
 class EntityResponse(EntityBase, SQLAlchemyModel):
     """Schema for entity data returned from the service."""
     observations: List[ObservationResponse] = []
     relations: List[RelationResponse] = []
-    model_config = ConfigDict(populate_by_name=True)
 
 # Tool Request schemas
 class CreateEntityRequest(BaseModel):
