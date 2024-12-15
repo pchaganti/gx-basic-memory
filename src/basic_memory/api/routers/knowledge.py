@@ -1,7 +1,6 @@
 """Router for knowledge graph operations."""
 from fastapi import APIRouter
 
-
 from basic_memory.deps import MemoryServiceDep
 from basic_memory.schemas import (
     CreateEntityRequest, CreateEntityResponse,
@@ -10,7 +9,8 @@ from basic_memory.schemas import (
     EntityResponse, AddObservationsRequest, ObservationResponse,
     OpenNodesRequest, OpenNodesResponse,
     DeleteEntityResponse,
-    DeleteObservationsRequest, DeleteObservationsResponse, AddObservationsResponse, RelationResponse
+    DeleteObservationsRequest, DeleteObservationsResponse, AddObservationsResponse, RelationResponse,
+    DeleteRelationRequest
 )
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -66,14 +66,17 @@ async def create_relations(
     return CreateRelationsResponse(relations=[RelationResponse.model_validate(relation) for relation in relations])
 
 
-@router.delete("/relations/{relation_id}", response_model=DeleteEntityResponse)
+@router.delete("/relations/{from_id:path}/{to_id:path}", response_model=DeleteEntityResponse)
 async def delete_relation(
-    relation_id: int,
+    from_id: str,
+    to_id: str,
+    relation_type: str | None = None,
     memory_service: MemoryServiceDep
 ) -> DeleteEntityResponse:
-    """Delete a specific relation by ID."""
-    # TODO: Implement delete_relation in memory service
-    raise NotImplementedError("Delete relation not implemented yet")
+    """Delete relations between entities, optionally filtered by type."""
+    request = DeleteRelationRequest(from_id=from_id, to_id=to_id, relation_type=relation_type)
+    deleted = await memory_service.delete_relations([request])
+    return DeleteEntityResponse(deleted=deleted)
 
 
 @router.post("/observations", response_model=AddObservationsResponse)
@@ -86,14 +89,18 @@ async def add_observations(
     return AddObservationsResponse(entity_id=data.entity_id, observations=[ObservationResponse.model_validate(observation) for observation in observations])
 
 
-@router.delete("/observations", response_model=DeleteObservationsResponse)
+@router.delete("/entities/{entity_id:path}/observations", response_model=DeleteObservationsResponse)
 async def delete_observations(
+    entity_id: str,
     data: DeleteObservationsRequest,
     memory_service: MemoryServiceDep
 ) -> DeleteObservationsResponse:
     """Delete observations from an entity."""
-    # TODO: Implement delete_observations in memory service
-    raise NotImplementedError("Delete observations not implemented yet")
+    # Ensure entity_id matches the request
+    if data.entity_id != entity_id:
+        data.entity_id = entity_id
+    deleted = await memory_service.delete_observations(data)
+    return DeleteObservationsResponse(deleted=deleted)
 
 
 @router.post("/search", response_model=SearchNodesResponse)

@@ -1,6 +1,6 @@
 """Repository for managing Observation objects."""
-from typing import Sequence
-from sqlalchemy import select
+from typing import Sequence, Dict, Any
+from sqlalchemy import select, and_, delete
 
 from basic_memory.models import Observation
 from basic_memory.repository import Repository
@@ -23,3 +23,11 @@ class ObservationRepository(Repository[Observation]):
         query = select(Observation).filter(Observation.context == context)
         result = await self.execute_query(query)
         return result.scalars().all()
+
+    async def delete_by_fields(self, **filters: Dict[str, Any]) -> bool:
+        """Delete observations matching the given field values."""
+        conditions = [getattr(Observation, field) == value for field, value in filters.items()]
+        query = delete(Observation).where(and_(*conditions))
+        result = await self.execute_query(query)
+        await self.session.flush()
+        return result.rowcount > 0  # pyright: ignore [reportAttributeAccessIssue]
