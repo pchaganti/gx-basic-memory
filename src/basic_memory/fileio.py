@@ -6,7 +6,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from basic_memory.schemas import EntityRequest, RelationRequest
+from basic_memory.schemas import Entity, Relation
 
 
 class FileOperationError(Exception):
@@ -34,7 +34,7 @@ def get_entity_path(project_entities_path: Path, entity_id: str) -> Path:
     return Path(f"{project_entities_path}/{entity_id}.md")
 
 
-async def write_entity_file(project_entities_path: Path, entity_id: str, entity: EntityRequest) -> bool:
+async def write_entity_file(project_entities_path: Path, entity_id: str, entity: Entity) -> bool:
     """
     Write entity to filesystem in markdown format.
     
@@ -102,7 +102,7 @@ async def write_entity_file(project_entities_path: Path, entity_id: str, entity:
     return True
 
 
-async def read_entity_file(project_entities_path: Path, entity_id: str) -> EntityRequest:
+async def read_entity_file(project_entities_path: Path, entity_id: str) -> Entity:
     """
     Read entity data from filesystem.
     
@@ -174,14 +174,14 @@ async def read_entity_file(project_entities_path: Path, entity_id: str) -> Entit
             relation_type = parts[0]
             context = parts[1] if len(parts) > 1 else None
 
-            relations.append(RelationRequest(  # pyright: ignore [reportCallIssue]
+            relations.append(Relation(  # pyright: ignore [reportCallIssue]
                 from_id=entity_id,  # pyright: ignore [reportCallIssue]
                 to_id=target_id,  # pyright: ignore [reportCallIssue]
                 relation_type=relation_type,  # pyright: ignore [reportCallIssue]
                 context=context
             ))
     
-    return EntityRequest(  # pyright: ignore [reportCallIssue]
+    return Entity(  # pyright: ignore [reportCallIssue]
         id=entity_id,
         name=name,
         entity_type=entity_type,  # pyright: ignore [reportCallIssue]

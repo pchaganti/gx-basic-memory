@@ -3,9 +3,9 @@ import asyncio
 from typing import List, Dict, Any, Optional, Sequence
 from pathlib import Path
 
-from basic_memory.models import Entity, Observation
+from basic_memory.models import Entity as EntityModel, Observation as ObservationModel, Relation as RelationModel
 from basic_memory.schemas import (
-    AddObservationsRequest, EntityRequest, RelationRequest
+    AddObservationsRequest, Entity, Relation
 )
 from basic_memory.fileio import write_entity_file, read_entity_file, EntityNotFoundError
 from basic_memory.services import EntityService, RelationService, ObservationService
@@ -32,12 +32,12 @@ class MemoryService:
         self.observation_service = observation_service
         logger.debug(f"Initialized MemoryService with path: {project_path}")
 
-    async def create_entities(self, entities_in: List[EntityRequest]) -> List[Entity]:
+    async def create_entities(self, entities_in: List[Entity]) -> List[EntityModel]:
         """Create multiple entities with their observations."""
         logger.debug(f"Creating {len(entities_in)} entities")
 
         # Write files in parallel (filesystem is source of truth)
-        async def write_file(entity: EntityRequest):
+        async def write_file(entity: Entity):
             try:
                 existing = await self.entity_service.get_by_type_and_name(
                     entity.entity_type,
@@ -52,7 +52,7 @@ class MemoryService:
                 pass
 
             # Generate ID and write file
-            entity_id = Entity.generate_id(entity.entity_type, entity.name)
+            entity_id = EntityModel.generate_id(entity.entity_type, entity.name)
             await write_entity_file(self.entities_path, entity_id, entity)
 
         file_writes = [write_file(entity) for entity in entities_in]
@@ -60,7 +60,7 @@ class MemoryService:
         await asyncio.gather(*file_writes)
         logger.debug("Completed all file writes")
 
-        async def create_entity_in_db(entity_in: EntityRequest):
+        async def create_entity_in_db(entity_in: Entity):
             logger.debug(f"Creating entity in DB: {entity_in}")
             try:
                 # Create base entity
@@ -98,7 +98,7 @@ class MemoryService:
             logger.exception("Failed to create entities in DB")
             for entity in entities_in:
                 try:
-                    entity_id = Entity.generate_id(entity.entity_type, entity.name)
+                    entity_id = EntityModel.generate_id(entity.entity_type, entity.name)
                     path = self.entities_path / entity_id
                     if path.exists():
                         path.unlink()
@@ -112,7 +112,7 @@ class MemoryService:
         logger.debug(f"Found entity {entity}")
         return entity
 
-    async def create_relations(self, relations_data: List[RelationRequest]) -> List[RelationRequest]:
+    async def create_relations(self, relations_data: List[Relation]) -> List[RelationModel]:
         """Create multiple relations between entities."""
         logger.debug(f"Creating {len(relations_data)} relations")
 
@@ -153,7 +153,7 @@ class MemoryService:
         logger.debug(f"Successfully created {len(relations)} relations")
         return relations
 
-    async def add_observations(self, observations_in: AddObservationsRequest) -> List[Observation]:
+    async def add_observations(self, observations_in: AddObservationsRequest) -> List[ObservationModel]:
         """Add observations to an existing entity."""
         logger.debug(f"Adding observations to entity: {observations_in.entity_id}")
         try:
@@ -192,7 +192,7 @@ class MemoryService:
     async def delete_relations(self, relations: List[Dict[str, Any]]) -> None:
         pass
 
-    async def read_graph(self) -> Sequence[Entity]:
+    async def read_graph(self) -> Sequence[EntityModel]:
         """Read the entire knowledge graph."""
         logger.debug("Reading entire knowledge graph")
         try:
@@ -203,7 +203,7 @@ class MemoryService:
             logger.exception("Failed to read graph")
             raise
 
-    async def search_nodes(self, query: str) -> Sequence[Entity]:
+    async def search_nodes(self, query: str) -> Sequence[EntityModel]:
         """Search for nodes in the knowledge graph."""
         logger.debug(f"Searching nodes with query: {query}")
         try:
@@ -214,11 +214,11 @@ class MemoryService:
             logger.exception(f"Failed to search nodes with query: {query}")
             raise
 
-    async def open_nodes(self, names: List[str]) -> List[EntityRequest]:
+    async def open_nodes(self, names: List[str]) -> List[Entity]:
         """Get specific nodes and their relationships."""
         logger.debug(f"Opening nodes: {names}")
 
-        async def read_node(name: str) -> Optional[EntityRequest]:
+        async def read_node(name: str) -> Optional[Entity]:
             try:
                 # Get ID from name first
                 logger.debug(f"Looking up entity: {name}")

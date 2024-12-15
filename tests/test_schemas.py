@@ -2,9 +2,9 @@
 import pytest
 from pydantic import ValidationError
 from basic_memory.schemas import (
-    EntityRequest,
+    Entity,
     EntityResponse,
-    RelationRequest,
+    Relation,
     CreateEntityRequest,
     SearchNodesRequest,
     OpenNodesRequest,
@@ -16,7 +16,7 @@ def test_entity_in_minimal():
         "name": "test_entity",
         "entity_type": "test"
     }
-    entity = EntityRequest.model_validate(data)
+    entity = Entity.model_validate(data)
     assert entity.name == "test_entity"
     assert entity.entity_type == "test"
     assert entity.description is None
@@ -40,7 +40,7 @@ def test_entity_in_complete():
             }
         ]
     }
-    entity = EntityRequest.model_validate(data)
+    entity = Entity.model_validate(data)
     assert entity.name == "test_entity"
     assert entity.entity_type == "test"
     assert entity.description == "A test entity"
@@ -52,13 +52,13 @@ def test_entity_in_complete():
 def test_entity_in_validation():
     """Test validation errors for EntityIn."""
     with pytest.raises(ValidationError):
-        EntityRequest.model_validate({})  # Missing required fields
+        Entity.model_validate({})  # Missing required fields
 
     with pytest.raises(ValidationError):
-        EntityRequest.model_validate({"name": "test"})  # Missing entityType
+        Entity.model_validate({"name": "test"})  # Missing entityType
 
     with pytest.raises(ValidationError):
-        EntityRequest.model_validate({"entityType": "test"})  # Missing name
+        Entity.model_validate({"entityType": "test"})  # Missing name
 
 def test_relation_in_validation():
     """Test RelationIn validation."""
@@ -67,7 +67,7 @@ def test_relation_in_validation():
         "to_id": "456",
         "relation_type": "test"
     }
-    relation = RelationRequest.model_validate(data)
+    relation = Relation.model_validate(data)
     assert relation.from_id == "123"
     assert relation.to_id == "456"
     assert relation.relation_type == "test"
@@ -75,12 +75,12 @@ def test_relation_in_validation():
 
     # With context
     data["context"] = "test context"
-    relation = RelationRequest.model_validate(data)
+    relation = Relation.model_validate(data)
     assert relation.context == "test context"
 
     # Missing required fields
     with pytest.raises(ValidationError):
-        RelationRequest.model_validate({"from_id": "123", "to_id": "456"})  # Missing relationType
+        Relation.model_validate({"from_id": "123", "to_id": "456"})  # Missing relationType
 
 def test_create_entities_input():
     """Test CreateEntitiesInput validation."""
@@ -132,18 +132,17 @@ def test_entity_out_from_attributes():
     assert len(entity.observations) == 1
     assert entity.observations[0].id == 1
     assert len(entity.relations) == 1
-    assert entity.relations[0].id == 1
 
 def test_optional_fields():
     """Test handling of optional fields."""
     # Create with no optional fields
-    entity = EntityRequest.model_validate({"name": "test", "entity_type": "test"})
+    entity = Entity.model_validate({"name": "test", "entity_type": "test"})
     assert entity.description is None
     assert entity.observations == []
     assert entity.relations == []
 
     # Create with empty optional fields
-    entity = EntityRequest.model_validate({
+    entity = Entity.model_validate({
         "name": "test",
         "entity_type": "test",
         "description": None,
@@ -155,7 +154,7 @@ def test_optional_fields():
     assert entity.relations == []
 
     # Create with some optional fields
-    entity = EntityRequest.model_validate({
+    entity = Entity.model_validate({
         "name": "test",
         "entity_type": "test",
         "description": "test",

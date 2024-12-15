@@ -3,8 +3,8 @@ from pathlib import Path
 from typing import Dict, Any, Sequence
 
 from basic_memory.repository.entity_repository import EntityRepository
-from basic_memory.schemas import EntityRequest
-from basic_memory.models import Entity
+from basic_memory.schemas import Entity
+from basic_memory.models import Entity as EntityModel
 from basic_memory.fileio import EntityNotFoundError
 from loguru import logger
 
@@ -20,7 +20,7 @@ class EntityService:
         self.entity_repo = entity_repo
         logger.debug(f"Initialized EntityService with path: {project_path}")
 
-    async def search(self, query: str) -> Sequence[Entity]:
+    async def search(self, query: str) -> Sequence[EntityModel]:
         """Search entities using LIKE pattern matching."""
         logger.debug(f"Searching entities with query: {query}")
         try:
@@ -31,7 +31,7 @@ class EntityService:
             logger.exception(f"Failed to search entities with query: {query}")
             raise
 
-    async def create_entity(self, entity: EntityRequest) -> Entity:
+    async def create_entity(self, entity: Entity) -> EntityModel:
         """Create a new entity in the database."""
         logger.debug(f"Creating entity in DB: {entity}")
         try:
@@ -46,7 +46,7 @@ class EntityService:
             logger.exception(f"Failed to create entity: {entity}")
             raise
 
-    async def update_entity(self, entity_id: str, update_data: Dict[str, Any]) -> Entity:
+    async def update_entity(self, entity_id: str, update_data: Dict[str, Any]) -> EntityModel:
         """Update an entity's fields."""
         logger.debug(f"Updating entity {entity_id} with data: {update_data}")
         try:
@@ -62,7 +62,7 @@ class EntityService:
             logger.exception(f"Failed to update entity: {entity_id}")
             raise
 
-    async def get_entity(self, entity_id: str) -> Entity:
+    async def get_entity(self, entity_id: str) -> EntityModel:
         """Get entity by ID."""
         logger.debug(f"Getting entity by ID: {entity_id}")
         try:
@@ -79,7 +79,7 @@ class EntityService:
             logger.exception(f"Failed to get entity: {entity_id}")
             raise
 
-    async def get_by_type_and_name(self, entity_type: str, name: str) -> Entity:
+    async def get_by_type_and_name(self, entity_type: str, name: str) -> EntityModel:
         """Get entity by type and name combination."""
         logger.debug(f"Getting entity by type/name: {entity_type}/{name}")
         try:
@@ -96,7 +96,7 @@ class EntityService:
             logger.exception(f"Failed to get entity by type/name: {entity_type}/{name}")
             raise
 
-    async def get_all(self) -> Sequence[Entity]:
+    async def get_all(self) -> Sequence[EntityModel]:
         return await self.entity_repo.find_all()
 
     async def delete_entity(self, entity_id: str) -> bool:

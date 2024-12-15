@@ -105,6 +105,8 @@ async def test_create_relations(client: AsyncClient):
         }]
     })
 
+    logger.debug("response: %s", response.json())
+
     # Verify relation
     assert response.status_code == 200
     data = response.json()

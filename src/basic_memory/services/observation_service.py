@@ -3,10 +3,13 @@ from pathlib import Path
 from typing import List, Sequence
 from sqlalchemy import select
 
-from basic_memory.models import Observation
+from basic_memory.models import Observation as ObservationModel
 from basic_memory.repository.observation_repository import ObservationRepository
 from . import DatabaseSyncError
+from basic_memory.schemas import Observation
 
+
+#from basic_memory.schemas import Observation
 
 class ObservationService:
     """
@@ -18,14 +21,14 @@ class ObservationService:
         self.project_path = project_path
         self.observation_repo = observation_repo
         
-    async def add_observations(self, entity_id: str, observations: List[str]) -> List[Observation]:
+    async def add_observations(self, entity_id: str, observations: List[Observation]) -> List[ObservationModel]:
         """
         Add multiple observations to an entity.
         Returns the created observations with IDs set.
         """
         try:
             return await self.observation_repo.bulk_create([
-                Observation(
+                ObservationModel(
                     entity_id=entity_id,
                     content=observation,
                 )
@@ -34,7 +37,7 @@ class ObservationService:
         except Exception as e:
             raise DatabaseSyncError(f"Failed to add observations to database: {str(e)}") from e
 
-    async def search_observations(self, query: str) -> List[Observation]:
+    async def search_observations(self, query: str) -> List[ObservationModel]:
         """
         Search for observations across all entities.
         
@@ -45,15 +48,15 @@ class ObservationService:
             List of matching observations with their entity contexts
         """
         result = await self.observation_repo.execute_query(
-            select(Observation).filter(
-                Observation.content.contains(query)
+            select(ObservationModel).filter(
+                ObservationModel.content.contains(query)
             )
         )
         return [
-            Observation(content=obs.content)
+            ObservationModel(content=obs.content)
             for obs in result.scalars().all()
         ]
         
-    async def get_observations_by_context(self, context: str) -> Sequence[Observation]:
+    async def get_observations_by_context(self, context: str) -> Sequence[ObservationModel]:
         """Get all observations with a specific context."""
         return await self.observation_repo.find_by_context(context)

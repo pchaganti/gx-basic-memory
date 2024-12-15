@@ -7,10 +7,10 @@ from basic_memory.schemas import (
     CreateEntityRequest, CreateEntityResponse,
     SearchNodesRequest, SearchNodesResponse,
     CreateRelationsRequest, CreateRelationsResponse,
-    EntityResponse, RelationResponse, AddObservationsRequest, ObservationResponse,
+    EntityResponse, AddObservationsRequest, ObservationResponse,
     OpenNodesRequest, OpenNodesResponse,
     DeleteEntityResponse,
-    DeleteObservationsRequest, DeleteObservationsResponse, AddObservationsResponse
+    DeleteObservationsRequest, DeleteObservationsResponse, AddObservationsResponse, RelationResponse
 )
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])

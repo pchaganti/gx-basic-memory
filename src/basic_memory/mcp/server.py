@@ -27,7 +27,7 @@ from basic_memory.schemas import (
     # Tool responses
     CreateEntityResponse, SearchNodesResponse, OpenNodesResponse,
     AddObservationsResponse, CreateRelationsResponse, DeleteEntityResponse,
-    EntityResponse, ObservationResponse, RelationResponse, AddObservationsRequest
+    EntityResponse, ObservationResponse, Relation, AddObservationsRequest
 )
 from basic_memory.services import EntityService, ObservationService, RelationService
 from basic_memory.services.memory_service import MemoryService
@@ -182,7 +182,7 @@ async def handle_create_relations(
     logger.debug(f"Created {len(created)} relations")
     
     # Format response
-    response = CreateRelationsResponse(relations=[RelationResponse.model_validate(relation) for relation in created])
+    response = CreateRelationsResponse(relations=[Relation.model_validate(relation) for relation in created])
     return create_response(response)
 
 

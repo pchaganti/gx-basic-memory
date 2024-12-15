@@ -14,7 +14,7 @@ from basic_memory.deps import (
     get_relation_service,
     get_relation_repo, get_observation_repo, get_entity_repo
 )
-from basic_memory.schemas import EntityRequest
+from basic_memory.schemas import Entity
 from basic_memory.config import ProjectConfig
 from basic_memory.services import MemoryService
 
@@ -115,7 +115,7 @@ async def sample_entity(entity_repository: EntityRepository):
 @pytest_asyncio.fixture
 async def test_entity(entity_service):
     """Create a test entity for reuse in tests."""
-    entity_data = EntityRequest(  # pyright: ignore [reportCallIssue]
+    entity_data = Entity(  # pyright: ignore [reportCallIssue]
         name="Test Entity",
         entity_type="test",  # pyright: ignore [reportCallIssue]
     )

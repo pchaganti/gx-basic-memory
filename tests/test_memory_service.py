@@ -2,7 +2,7 @@
 import pytest
 from basic_memory.services import MemoryService
 from basic_memory.fileio import read_entity_file
-from basic_memory.schemas import CreateEntityRequest, CreateRelationsRequest, AddObservationsRequest, RelationRequest
+from basic_memory.schemas import CreateEntityRequest, CreateRelationsRequest, AddObservationsRequest, Relation
 
 test_entities_data = [
     {
@@ -195,4 +195,4 @@ async def test_create_relations_with_invalid_entity_id(memory_service: MemorySer
     }
     
     with pytest.raises(Exception) as exc:  # We might want to define a specific error type
-        await memory_service.create_relations([RelationRequest.model_validate(bad_relation)])
+        await memory_service.create_relations([Relation.model_validate(bad_relation)])
