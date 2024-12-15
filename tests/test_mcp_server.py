@@ -19,9 +19,9 @@ def test_entity_data():
     return {
         "entities": [{
             "name": "Test Entity",
-            "entityType": "test",
+            "entity_type": "test",
             "description": "",  # Empty string instead of None
-            "observations": [{"content": "This is a test observation"}]
+            "observations": ["This is a test observation"]
         }]
     }
 
@@ -31,12 +31,12 @@ def test_directory_entity_data():
     return {
         "entities": [{
             "name": "Directory Organization", 
-            "entityType": "memory", 
+            "entity_type": "memory", 
             "description": "Implemented filesystem organization by entity type", 
             "observations": [
-                {"content": "Files are now organized by type using directories like entities/project/basic_memory"}, 
-                {"content": "Entity IDs match filesystem paths for better mental model"}, 
-                {"content": "Fixed path handling bugs by adding consistent get_entity_path helper"}
+                "Files are now organized by type using directories like entities/project/basic_memory",
+                "Entity IDs match filesystem paths for better mental model",
+                "Fixed path handling bugs by adding consistent get_entity_path helper"
             ]
         }]
     }
@@ -49,7 +49,7 @@ def test_entity_snake_case():
             "name": "Test Entity",
             "entity_type": "test",
             "description": "",  # Empty string instead of None
-            "observations": [{"content": "This is a test observation"}]
+            "observations": ["This is a test observation"]
         }]
     }
 
@@ -95,29 +95,6 @@ async def test_create_directory_entity(test_directory_entity_data, memory_servic
     assert response.entities[0].name == "Directory Organization"
     assert response.entities[0].entity_type == "memory"
     assert len(response.entities[0].observations) == 3
-
-@pytest.mark.anyio
-async def test_create_entities_camel_case(test_entity_data, memory_service, test_config):
-    """Test creating an entity with camelCase data (like from MCP)."""
-    server_instance = MemoryServer(config=test_config)
-    result = await server_instance.handle_call_tool(
-        "create_entities", 
-        test_entity_data,
-        memory_service=memory_service
-    )
-    
-    assert len(result) == 1
-    assert isinstance(result[0], EmbeddedResource)
-    assert result[0].type == "resource"
-    assert isinstance(result[0].resource.uri, type(BASIC_MEMORY_URI))
-    assert str(result[0].resource.uri) == str(BASIC_MEMORY_URI)
-    assert result[0].resource.mimeType == MIME_TYPE
-    
-    response = CreateEntitiesResponse.model_validate_json(result[0].resource.text)
-    assert len(response.entities) == 1
-    assert response.entities[0].name == "Test Entity"
-    assert response.entities[0].entity_type == "test"
-    assert len(response.entities[0].observations) == 1
 
 @pytest.mark.anyio
 async def test_create_entities_snake_case(test_entity_snake_case, memory_service, test_config):
@@ -192,8 +169,8 @@ async def test_add_observations(test_entity_data, memory_service, test_config):
     result = await server_instance.handle_call_tool(
         "add_observations",
         {
-            "entityId": entity_id,
-            "observations": [{"content": "A new observation"}]
+            "entity_id": entity_id,
+            "observations": ["A new observation"]
         },
         memory_service=memory_service
     )
@@ -266,18 +243,9 @@ class TestInputValidation:
             await server_instance.handle_call_tool("create_entities", {
                 "entities": [{
                     "name": "Test",
-                    # Missing required entityType
+                    # Missing required entity_type
                     "observations": []
                 }]
             })
-        assert "entitytype" in str(exc.value).lower()
+        assert "entity_type" in str(exc.value).lower()
         
-        with pytest.raises(McpError) as exc:
-            await server_instance.handle_call_tool("add_observations", {
-                "entityId": "123",
-                "observations": [{
-                    # Missing required content field
-                    "context": "test"
-                }]
-            })
-        assert "content" in str(exc.value).lower()

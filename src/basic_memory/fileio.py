@@ -6,7 +6,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from basic_memory.schemas import EntityIn, ObservationIn, RelationIn
+from basic_memory.schemas import EntityIn, RelationIn
 
 
 class FileOperationError(Exception):
@@ -158,7 +158,7 @@ async def read_entity_file(project_entities_path: Path, entity_id: str) -> Entit
             parts = line.split(" | ", 1)
             content = parts[0]
             context = parts[1] if len(parts) > 1 else None
-            observations.append(ObservationIn(content=content))
+            observations.append(content)
         elif in_relations and line.startswith("- "):
             # Parse relation line: - [target_id] relation_type | context
             line = line[2:]  # Remove the bullet point

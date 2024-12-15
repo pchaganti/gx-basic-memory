@@ -74,7 +74,7 @@ class EntityIn(EntityBase):
     concept, etc. Each entity has a unique name, a type, and a list of
     associated observations.
     """
-    observations: List[ObservationIn] = []
+    observations: List[str] = []
     relations: List[RelationIn] = []
     model_config = ConfigDict(populate_by_name=True)
 

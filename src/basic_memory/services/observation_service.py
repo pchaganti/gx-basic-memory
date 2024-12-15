@@ -5,7 +5,6 @@ from sqlalchemy import select
 
 from basic_memory.models import Observation
 from basic_memory.repository.observation_repository import ObservationRepository
-from basic_memory.schemas import ObservationIn
 from . import DatabaseSyncError
 
 
@@ -19,7 +18,7 @@ class ObservationService:
         self.project_path = project_path
         self.observation_repo = observation_repo
         
-    async def add_observations(self, entity_id: str, observations: List[ObservationIn]) -> List[Observation]:
+    async def add_observations(self, entity_id: str, observations: List[str]) -> List[Observation]:
         """
         Add multiple observations to an entity.
         Returns the created observations with IDs set.

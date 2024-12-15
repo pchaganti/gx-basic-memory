@@ -31,7 +31,7 @@ def test_entity_in_complete():
         "entity_type": "test",
         "description": "A test entity",
         "observations": [
-            {"content": "Test observation"}
+            "Test observation"
         ],
         "relations": [
             {
@@ -46,7 +46,7 @@ def test_entity_in_complete():
     assert entity.entity_type == "test"
     assert entity.description == "A test entity"
     assert len(entity.observations) == 1
-    assert entity.observations[0].content == "Test observation"
+    assert entity.observations[0] == "Test observation"
     assert len(entity.relations) == 1
     assert entity.relations[0].from_id == "123"
 

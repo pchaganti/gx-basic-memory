@@ -2,19 +2,15 @@
 import pytest
 
 from basic_memory.models import Observation
-from basic_memory.schemas import ObservationIn
 
 pytestmark = pytest.mark.asyncio
 
 
 async def test_add_observation_success(observation_service, test_entity):
     """Test successful observation addition."""
-    observation_data = ObservationIn(
-        content="New observation",
-    )
 
     # Act
-    observations = await observation_service.add_observations(test_entity.id, [observation_data])
+    observations = await observation_service.add_observations(test_entity.id, ["New observation"])
     
     # Assert
     assert len(observations) == 1
@@ -34,7 +30,7 @@ async def test_search_observations(observation_service, test_entity):
     # Arrange
     await observation_service.add_observations(
         test_entity.id,
-        [ObservationIn(content="Unique test content"), ObservationIn(content="Other content")]
+        ["Unique test content", "Other content"]
     )
 
     # Act
@@ -53,7 +49,7 @@ async def test_observation_with_special_characters(observation_service, test_ent
     """Test handling observations with special characters."""
     content = "Test & observation with @#$% special chars!"
 
-    observations = await observation_service.add_observations(test_entity.id, [ObservationIn(content=content)])
+    observations = await observation_service.add_observations(test_entity.id, [content])
     assert observations[0].content == content
 
 
@@ -61,6 +57,6 @@ async def test_very_long_observation(observation_service, test_entity):
     """Test handling very long observation content."""
     long_content = "Very long observation " * 100  # ~1800 characters
 
-    observations = await observation_service.add_observations(test_entity.id, [ObservationIn(content=long_content)])
+    observations = await observation_service.add_observations(test_entity.id, [long_content])
     assert observations[0].content == long_content
     
