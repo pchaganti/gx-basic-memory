@@ -5,8 +5,6 @@ from basic_memory.services import MemoryService
 from basic_memory.fileio import read_entity_file
 from basic_memory.schemas import CreateEntityRequest, CreateRelationsRequest, AddObservationsRequest, Relation
 
-from basic_memory.models import Relation
-
 test_create_entity_input = [
     {
         "name": "Test_Entity_1",
