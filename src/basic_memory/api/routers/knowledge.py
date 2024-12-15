@@ -68,10 +68,10 @@ async def create_relations(
 
 @router.delete("/relations/{from_id:path}/{to_id:path}", response_model=DeleteEntityResponse)
 async def delete_relation(
+    memory_service: MemoryServiceDep,
     from_id: str,
     to_id: str,
     relation_type: str | None = None,
-    memory_service: MemoryServiceDep
 ) -> DeleteEntityResponse:
     """Delete relations between entities, optionally filtered by type."""
     request = DeleteRelationRequest(from_id=from_id, to_id=to_id, relation_type=relation_type)

@@ -61,3 +61,18 @@ dev-dependencies = [
 
 [tool.uv.sources]
 basic-foundation = { path = "../basic-foundation", editable = true }
+
+[tool.pyright]
+include = [
+    "src/",
+]
+exclude = [
+    "**/__pycache__",
+]
+ignore = [
+    "test/",
+]
+defineConstant = { DEBUG = true }
+reportMissingImports = "error"
+reportMissingTypeStubs = false
+pythonVersion = "3.12"

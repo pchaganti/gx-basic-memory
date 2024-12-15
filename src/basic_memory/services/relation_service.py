@@ -1,5 +1,6 @@
 """Service for managing relations in the database."""
 from pathlib import Path
+from typing import List, Dict, Any
 
 from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.schemas import Entity, Relation
@@ -47,3 +48,31 @@ class RelationService:
             
         except Exception as e:
             raise DatabaseSyncError(f"Failed to delete relation: {str(e)}") from e
+
+    async def delete_relations(self, relations: List[Dict[str, Any]]) -> bool:
+        """
+        Delete relations matching specified criteria.
+        
+        Args:
+            relations: List of dicts with from_id, to_id, and optional relation_type
+            
+        Returns:
+            True if any relations were deleted
+        """
+        try:
+            deleted = False
+            for relation in relations:
+                filters = {
+                    'from_id': relation['from_id'],
+                    'to_id': relation['to_id']
+                }
+                if 'relation_type' in relation:
+                    filters['relation_type'] = relation['relation_type']
+                    
+                result = await self.relation_repo.delete_by_fields(**filters)
+                if result:
+                    deleted = True
+                    
+            return deleted
+        except Exception as e:
+            raise DatabaseSyncError(f"Failed to delete relations: {str(e)}") from e

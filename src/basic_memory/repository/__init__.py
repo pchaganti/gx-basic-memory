@@ -1,6 +1,6 @@
 """Base repository implementation."""
-from typing import Type, Optional, Any, Sequence, TypeVar, List
-from sqlalchemy import select, func, Select, Executable, inspect, Result, Column, insert
+from typing import Type, Optional, Any, Sequence, TypeVar, List, Dict
+from sqlalchemy import select, func, Select, Executable, inspect, Result, Column, insert, and_, delete
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped
@@ -22,6 +22,17 @@ class Repository[T: Base]:
 
         logger.debug(f"Initialized {self.__class__.__name__} for {Model.__name__}")
         logger.debug(f"Valid columns: {self.valid_columns}")
+    
+    def select(self, *entities: Any) -> Select:
+        """Create a new SELECT statement.
+        
+        Returns:
+            A SQLAlchemy Select object configured with the provided entities
+            or this repository's model if no entities provided.
+        """
+        if not entities:
+            entities = (self.Model,)
+        return select(*entities)
 
     async def refresh(self, instance: T, relationships: list[str] | None = None) -> None:
         """Refresh instance and optionally specified relationships."""
@@ -160,6 +171,29 @@ class Repository[T: Base]:
             return False
         except Exception as e:
             logger.exception(f"Failed to delete {self.Model.__name__}: {entity_id}")
+            raise
+
+    async def delete_by_fields(self, **filters: Dict[str, Any]) -> bool:
+        """
+        Delete records matching given field values.
+        
+        Args:
+            **filters: Field names and values to filter by
+
+        Returns:
+            bool: True if any records were deleted
+        """
+        logger.debug(f"Deleting {self.Model.__name__} by fields: {filters}")
+        try:
+            conditions = [getattr(self.Model, field) == value for field, value in filters.items()]
+            query = delete(self.Model).where(and_(*conditions))
+            result = await self.execute_query(query)
+            await self.session.flush()
+            deleted = result.rowcount > 0
+            logger.debug(f"Deleted {result.rowcount} records")
+            return deleted  # pyright: ignore [reportAttributeAccessIssue]
+        except Exception as e:
+            logger.exception(f"Failed to delete {self.Model.__name__} by fields")
             raise
 
     async def count(self, query: Executable | None = None) -> int:
