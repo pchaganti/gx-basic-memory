@@ -121,27 +121,3 @@ async def test_entity(entity_service):
     )
     return await entity_service.create_entity(entity_data)
 
-# Test data fixtures
-@pytest_asyncio.fixture
-def test_entity_data():
-    """Sample data for creating a test entity using camelCase (like MCP will)."""
-    return {
-        "entities": [{
-            "name": "Test Entity",
-            "entityType": "test",
-            "description": "",  # Empty string instead of None
-            "observations": [{"content": "This is a test observation"}]
-        }]
-    }
-
-@pytest_asyncio.fixture
-def test_entity_snake_case():
-    """Same test data but using snake_case to test schema flexibility."""
-    return {
-        "entities": [{
-            "name": "Test Entity",
-            "entity_type": "test",
-            "description": "",  # Empty string instead of None
-            "observations": [{"content": "This is a test observation"}]
-        }]
-    }

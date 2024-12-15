@@ -7,7 +7,7 @@ from basic_memory.models import Entity as EntityModel, Observation as Observatio
 from basic_memory.schemas import (
     AddObservationsRequest, Entity, Relation
 )
-from basic_memory.fileio import write_entity_file, read_entity_file, EntityNotFoundError
+from basic_memory.fileio import write_entity_file, read_entity_file, EntityNotFoundError, get_entity_path
 from basic_memory.services import EntityService, RelationService, ObservationService
 from loguru import logger
 
@@ -31,6 +31,9 @@ class MemoryService:
         self.relation_service = relation_service
         self.observation_service = observation_service
         logger.debug(f"Initialized MemoryService with path: {project_path}")
+
+    def get_entity_file_path(self, entity_id: str) -> Path:
+        return get_entity_path(self.entities_path, entity_id)
 
     async def create_entities(self, entities_in: List[Entity]) -> List[EntityModel]:
         """Create multiple entities with their observations."""
@@ -183,14 +186,111 @@ class MemoryService:
             logger.exception(f"Failed to add observations to entity: {observations_in.entity_id}")
             raise
 
-    async def delete_entities(self, entity_names: List[str]) -> None:
-       pass
+    async def delete_entities(self, entity_ids: List[str]) -> bool:
+        """Delete entities and their files."""
+        logger.debug(f"Deleting entities: {entity_ids}")
+        try:
+            deleted = False
+            for entity_id in entity_ids:
+                # First read the entity to make sure it exists
+                try:
+                    entity = await read_entity_file(self.entities_path, entity_id)
+                except EntityNotFoundError:
+                    logger.debug(f"Entity file not found: {entity_id}")
+                    continue
 
-    async def delete_observations(self, deletions: List[Dict[str, Any]]) -> None:
-        pass
+                # Delete the file first since it's source of truth
+                file_path = self.get_entity_file_path(entity_id)
+                if file_path.exists():
+                    file_path.unlink()
+                    logger.debug(f"Deleted entity {entity_id} file: {file_path}")
+                
+                # Then update database
+                result = await self.entity_service.delete_entity(entity_id)
+                if result:
+                    deleted = True
+                    logger.debug(f"Deleted entity from database: {entity_id}")
 
-    async def delete_relations(self, relations: List[Dict[str, Any]]) -> None:
-        pass
+            return deleted
+        except Exception:
+            logger.exception("Failed to delete entities")
+            raise
+
+    async def delete_observations(self, entity_id: str, contents: List[str]) -> bool:
+        """Delete specific observations from an entity."""
+        logger.debug(f"Deleting observations from entity: {entity_id}")
+        try:
+            # First read the entity
+            entity = await read_entity_file(self.entities_path, entity_id)
+            
+            # Remove observations from entity
+            original_count = len(entity.observations)
+            entity.observations = [
+                obs for obs in entity.observations 
+                if obs not in contents
+            ]
+            
+            # Only write file if we actually removed anything
+            if len(entity.observations) < original_count:
+                # Write updated entity file first (source of truth)
+                await write_entity_file(self.entities_path, entity_id, entity)
+                logger.debug(f"Updated entity file: {entity_id}")
+                
+                # Then update database
+                result = await self.observation_service.delete_observations(entity_id, contents)
+                logger.debug(f"Deleted observations from database: {result}")
+                return True
+
+            return False
+        except Exception:
+            logger.exception("Failed to delete observations")
+            raise
+
+    async def delete_relations(self, relations: List[Dict[str, Any]]) -> bool:
+        """Delete relations between entities."""
+        logger.debug(f"Deleting relations: {relations}")
+        try:
+            deleted = False
+            for relation in relations:
+                # First read the source entity
+                try:
+                    from_entity = await read_entity_file(self.entities_path, relation['from_id'])
+                except EntityNotFoundError:
+                    logger.debug(f"Source entity not found: {relation['from_id']}")
+                    continue
+
+                # Update the entity's relations
+                if hasattr(from_entity, 'relations'):
+                    original_count = len(from_entity.relations)
+                    relation_type = relation.get('relation_type')
+                    
+                    if relation_type:
+                        from_entity.relations = [
+                            r for r in from_entity.relations
+                            if not (r.to_id == relation['to_id'] and r.relation_type == relation_type)
+                        ]
+                    else:
+                        from_entity.relations = [
+                            r for r in from_entity.relations
+                            if r.to_id != relation['to_id']
+                        ]
+
+                    # Only write file if we actually removed any relations
+                    if len(from_entity.relations) < original_count:
+                        # Write updated entity file first (source of truth)
+                        await write_entity_file(self.entities_path, from_entity.id, from_entity)
+                        logger.debug(f"Updated source entity file: {from_entity.id}")
+
+                        # Then update database
+                        result = await self.relation_service.delete_relations([relation])
+                        if result:
+                            deleted = True
+                            logger.debug("Deleted relations from database")
+
+            return deleted
+        except Exception:
+            logger.exception("Failed to delete relations")
+            raise
 
     async def read_graph(self) -> Sequence[EntityModel]:
         """Read the entire knowledge graph."""
@@ -214,32 +314,31 @@ class MemoryService:
             logger.exception(f"Failed to search nodes with query: {query}")
             raise
 
-    async def open_nodes(self, names: List[str]) -> List[Entity]:
+    async def open_nodes(self, entity_ids: List[str]) -> List[Entity]:
         """Get specific nodes and their relationships."""
-        logger.debug(f"Opening nodes: {names}")
+        logger.debug(f"Opening nodes entity_ids: {entity_ids}")
 
-        async def read_node(name: str) -> Optional[Entity]:
+        async def read_node(id: str) -> Optional[Entity]:
             try:
                 # Get ID from name first
-                logger.debug(f"Looking up entity: {name}")
-                db_entity = await self.entity_service.get_entity(name)
+                logger.debug(f"Looking up entity: {id}")
+                db_entity = await self.entity_service.get_entity(id)
                 if db_entity:
                     logger.debug(f"Found entity in DB: {db_entity.id}")
                     entity = await read_entity_file(self.entities_path, db_entity.id)
                     logger.debug(f"Read entity from filesystem: {entity.id}")
                     return entity
-                logger.debug(f"Entity not found: {name}")
+                logger.debug(f"Entity not found: {id}")
                 return None
             except Exception:
-                logger.exception(f"Failed to read node: {name}")
+                logger.exception(f"Failed to read node: {id}")
                 return None
 
         try:
-            entities = [entity for entity in await asyncio.gather(*(read_node(name) for name in names))
+            entities = [entity for entity in await asyncio.gather(*(read_node(id) for id in entity_ids))
                        if entity is not None]
             logger.debug(f"Opened {len(entities)} entities")
             return entities
         except Exception:
             logger.exception("Failed to open nodes")
             raise
-

@@ -98,7 +98,7 @@ async def write_entity_file(project_entities_path: Path, entity_id: str, entity:
     except Exception as e:
         raise FileOperationError(f"Failed to finalize entity file: {str(e)}") from e
 
-    logger.debug(f"Wrote entity file: {entity_id}")
+    logger.debug(f"Wrote entity {entity_id} file: {entity_path}")
     return True
 
 
