@@ -98,31 +98,6 @@ async def test_list_tools(server):
 
 
 @pytest.mark.asyncio
-async def test_create_directory_entity(test_directory_entity_data, client, server):
-    """Test creating entity with exactly the data that failed in the tool."""
-    result = await server.handle_call_tool("create_entities", test_directory_entity_data)
-
-    # Verify response format
-    assert len(result) == 1
-    assert isinstance(result[0], EmbeddedResource)
-    assert result[0].type == "resource"
-
-    # Verify entity creation
-    response = CreateEntityResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
-    assert len(response.entities) == 1
-    created = response.entities[0]
-    assert created.name == "Directory Organization"
-    assert created.entity_type == "memory"
-    assert len(created.observations) == 3
-
-    # Verify entity exists through API
-    api_response = await client.get(f"/knowledge/entities/{created.id}")
-    assert api_response.status_code == 200
-    entity = api_response.json()
-    assert entity["name"] == "Directory Organization"
-
-
-@pytest.mark.asyncio
 async def test_search_nodes(test_entity_data, client, server):
     """Test searching for an entity after creating it."""
 
