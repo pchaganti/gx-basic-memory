@@ -39,8 +39,8 @@ class MemoryService:
         """Create multiple entities with their observations."""
         logger.debug(f"Creating {len(entities_in)} entities")
 
-        # Write files in parallel (filesystem is source of truth)
-        async def write_file(entity: Entity):
+        # TODO this could be better
+        for entity in entities_in:
             try:
                 existing = await self.entity_service.get_by_type_and_name(
                     entity.entity_type,
@@ -54,6 +54,8 @@ class MemoryService:
                 # Good - entity doesn't exist yet
                 pass
 
+        # Write files in parallel (filesystem is source of truth)
+        async def write_file(entity: Entity):
             # Generate ID and write file
             entity_id = EntityModel.generate_id(entity.entity_type, entity.name)
             await write_entity_file(self.entities_path, entity_id, entity)
@@ -278,7 +280,7 @@ class MemoryService:
                     # Only write file if we actually removed any relations
                     if len(from_entity.relations) < original_count:
                         # Write updated entity file first (source of truth)
-                        await write_entity_file(self.entities_path, from_entity.id, from_entity)
+                        await write_entity_file(self.entities_path, from_entity.id, from_entity)  # pyright: ignore [reportArgumentType]
                         logger.debug(f"Updated source entity file: {from_entity.id}")
 
                         # Then update database
