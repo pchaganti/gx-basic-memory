@@ -3,10 +3,15 @@
 from typing import List, Optional, Annotated, TypeAlias
 
 from annotated_types import Len
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, BeforeValidator
+
+from basic_memory.utils import normalize_entity_id
 
 # Base Models
 Observation: TypeAlias = str
+
+# Custom field types with validation
+EntityId = Annotated[str, BeforeValidator(normalize_entity_id)]
 
 
 class Relation(BaseModel):
@@ -15,8 +20,8 @@ class Relation(BaseModel):
     Relations are always stored in active voice (e.g. "created", "teaches", etc.)
     """
 
-    from_id: str
-    to_id: str
+    from_id: EntityId
+    to_id: EntityId
     relation_type: str
     context: Optional[str] = None
 
@@ -28,7 +33,7 @@ class Entity(BaseModel):
     associated observations.
     """
 
-    id: Optional[str] = None
+    id: Optional[EntityId] = None
     name: str
     entity_type: str
     description: Optional[str] = None
@@ -47,7 +52,7 @@ class Entity(BaseModel):
 class AddObservationsRequest(BaseModel):
     """Schema for adding observations to an entity."""
 
-    entity_id: str
+    entity_id: EntityId
     context: Optional[str] = None
     observations: List[Observation]
 
@@ -67,7 +72,7 @@ class SearchNodesRequest(BaseModel):
 class OpenNodesRequest(BaseModel):
     """Request schema for open_nodes tool."""
 
-    names: Annotated[List[str], Len(min_length=1)]
+    names: Annotated[List[EntityId], Len(min_length=1)]
 
 
 class CreateRelationsRequest(BaseModel):
@@ -82,7 +87,7 @@ class CreateRelationsRequest(BaseModel):
 class DeleteEntityRequest(BaseModel):
     """Request schema for delete_entities tool."""
 
-    entity_ids: List[str]
+    entity_ids: List[EntityId]
 
 
 class DeleteRelationsRequest(BaseModel):
@@ -94,7 +99,7 @@ class DeleteRelationsRequest(BaseModel):
 class DeleteObservationsRequest(BaseModel):
     """Request schema for delete_observations tool."""
 
-    entity_id: str
+    entity_id: EntityId
     deletions: List[Observation]
 
 
@@ -118,7 +123,7 @@ class ObservationResponse(SQLAlchemyModel):
 class ObservationsResponse(SQLAlchemyModel):
     """Schema for bulk observation operation results."""
 
-    entity_id: str
+    entity_id: EntityId
     observations: List[ObservationResponse]
 
 
@@ -129,7 +134,7 @@ class RelationResponse(Relation, SQLAlchemyModel):
 class EntityResponse(SQLAlchemyModel):
     """Schema for entity data returned from the service."""
 
-    id: str
+    id: EntityId
     name: str
     entity_type: str
     description: Optional[str] = None
@@ -159,7 +164,7 @@ class OpenNodesResponse(SQLAlchemyModel):
 class AddObservationsResponse(SQLAlchemyModel):
     """Response for add_observations tool."""
 
-    entity_id: str
+    entity_id: EntityId
     observations: List[ObservationResponse]
 
 

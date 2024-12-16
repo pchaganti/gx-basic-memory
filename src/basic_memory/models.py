@@ -5,6 +5,8 @@ from sqlalchemy import String, DateTime, ForeignKey, Text, Integer, text, Unique
 from sqlalchemy.orm import Mapped, mapped_column, relationship, DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
+from basic_memory.utils import normalize_entity_id
+
 
 class Base(AsyncAttrs, DeclarativeBase):
     """Base class for all models"""
@@ -68,8 +70,8 @@ class Entity(Base):
     @classmethod
     def generate_id(cls, entity_type: str, name: str) -> str:
         """Generate a filesystem path-based ID for this entity."""
-        # Normalize name for filesystem (handle spaces, special chars etc)
-        safe_name = name.lower().replace(" ", "_")
+        # Use common normalization for filesystem safety
+        safe_name = normalize_entity_id(name)
         return f"{entity_type}/{safe_name}"
 
     def get_file_path(self) -> str:
