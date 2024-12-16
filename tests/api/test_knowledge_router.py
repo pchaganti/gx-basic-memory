@@ -6,13 +6,13 @@ from typing import AsyncGenerator, List
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
-from basic_memory.deps import get_project_config, get_engine
+from basic_memory.deps import get_project_config, get_engine_factory
 from basic_memory.schemas import EntityResponse, CreateEntityResponse, AddObservationsResponse, ObservationResponse, \
     CreateRelationsResponse, Relation
 
 
 @pytest_asyncio.fixture
-def app(test_config, engine) -> FastAPI:
+def app(test_config, engine_session_factory) -> FastAPI:
     """Create FastAPI test application."""
     # Lazy import router to avoid app startup issues
     from basic_memory.api.routers.knowledge import router
@@ -21,7 +21,7 @@ def app(test_config, engine) -> FastAPI:
     app.include_router(router)
 
     app.dependency_overrides[get_project_config] = lambda: test_config
-    app.dependency_overrides[get_engine] = lambda: engine
+    app.dependency_overrides[get_engine_factory] = lambda: engine_session_factory
     return app
 
 

@@ -1,9 +1,10 @@
 """Common test fixtures."""
 import tempfile
 from pathlib import Path
+from typing import AsyncGenerator
 
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, AsyncEngine
 
 from basic_memory import db
 from basic_memory.db import DatabaseType
@@ -34,17 +35,17 @@ def test_config(tmp_path):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def engine(test_config):
+async def engine_session_factory(test_config)-> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
     """Create an async engine using in-memory SQLite database"""
-    async with db.engine(project_path=test_config.path, db_type=DatabaseType.MEMORY) as engine:
-        yield engine
+    async with db.engine_session_factory(project_path=test_config.path, db_type=DatabaseType.MEMORY) as (engine, session_factory):
+        yield engine, session_factory
 
 
 @pytest_asyncio.fixture(scope="function")
-async def session(engine):
+async def session(engine_session_factory):
     """Create an async session factory and yield a session"""
-    async_session = async_sessionmaker(engine, expire_on_commit=False)
-    async with async_session() as session:
+    engine, session_factory = engine_session_factory
+    async with session_factory() as session:
         yield session
 
 @pytest_asyncio.fixture

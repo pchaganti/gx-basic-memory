@@ -5,7 +5,7 @@ from typing import AsyncGenerator, Annotated
 
 from fastapi import Depends
 from loguru import logger
-from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, async_sessionmaker
 
 from basic_memory.config import ProjectConfig, config
 from basic_memory.repository.entity_repository import EntityRepository
@@ -23,14 +23,15 @@ def get_project_path(project_config: ProjectConfigDep) -> Path:
 ProjectPathDep = Annotated[Path, Depends(get_project_path)]
 
 
-async def get_engine(project_path: ProjectPathDep, db_type=db.DatabaseType.FILESYSTEM) -> AsyncGenerator[AsyncEngine, None]:
-    async with db.engine(project_path, db_type) as engine:
-        yield engine
+async def get_engine_factory(project_path: ProjectPathDep, db_type=db.DatabaseType.FILESYSTEM) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
+    async with db.engine_session_factory(project_path, db_type) as (engine, factory):
+        yield engine, factory
 
-EngineDep = Annotated[AsyncEngine, Depends(get_engine)]
+EngineFactoryDep = Annotated[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], Depends(get_engine_factory)]
 
-async def get_session(engine: EngineDep) -> AsyncGenerator[AsyncSession, None]:
-    async with db.session(engine) as session:
+async def get_session(engine_factory: EngineFactoryDep) -> AsyncGenerator[AsyncSession, None]:
+    _, factory = engine_factory
+    async with db.session(factory) as session:
         yield session
 
 AsyncSessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -106,8 +107,3 @@ async def get_memory_service(
         yield service
 
 MemoryServiceDep = Annotated[MemoryService, Depends(get_memory_service)]
-
-
-
-
-

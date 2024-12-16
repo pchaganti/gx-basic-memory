@@ -1,7 +1,7 @@
 """Database configuration and initialization for basic-memory."""
 from enum import Enum
 from pathlib import Path
-from typing import Optional, AsyncGenerator
+from typing import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from loguru import logger
@@ -44,7 +44,7 @@ def get_database_url(project_path: Path, db_type: DatabaseType, ) -> str:
             db_path = data_dir / "memory.db"
             return f"sqlite+aiosqlite:///{db_path}"
 
-async def init_database(url: str, echo: bool = False) -> AsyncEngine:
+async def init_database(url: str, echo: bool = False) -> tuple[AsyncEngine, async_sessionmaker]:
     """
     Initialize database with schema.
     
@@ -53,7 +53,7 @@ async def init_database(url: str, echo: bool = False) -> AsyncEngine:
         echo: Whether to echo SQL statements
         
     Returns:
-        Configured async engine
+        Configured async engine and session factory
     """
     # Configure engine based on URL
     connect_args = {"check_same_thread": False}
@@ -74,40 +74,39 @@ async def init_database(url: str, echo: bool = False) -> AsyncEngine:
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Create session factory for this engine
+    session_factory = async_sessionmaker(
+        engine,
+        expire_on_commit=False
+    )
         
-    return engine
+    return engine, session_factory
 
 @asynccontextmanager
-async def engine(project_path: Path, db_type=DatabaseType.FILESYSTEM) -> AsyncGenerator[AsyncEngine, None]:
-    """Get database engine for project with proper lifecycle management."""
+async def engine_session_factory(project_path: Path, db_type=DatabaseType.FILESYSTEM) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
+    """Get database engine and session factory with proper lifecycle management."""
     url = get_database_url(project_path, db_type=db_type)
-    engine = await init_database(url, echo=True)
-    engine = await init_database(url)
+    engine, session_factory = await init_database(url)
     logger.debug(f"engine url: {engine.url}")
     try:
-        yield engine
+        yield engine, session_factory
     finally:
         await engine.dispose()
 
 @asynccontextmanager
-async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+async def session(session_factory: async_sessionmaker[AsyncSession]) -> AsyncGenerator[AsyncSession, None]:
     """
     Get database session with proper lifecycle management.
     
     Args:
-        engine: Async engine to create session from
+        session_factory: Async session factory to create session from
         
     Yields:
         AsyncSession configured for engine
     """
-    # Create session factory
-    async_session = async_sessionmaker(
-        engine,
-        expire_on_commit=False
-    )
-    
     # Create and yield session
-    session = async_session()
+    session = session_factory()
     try:
         yield session
         await session.commit()

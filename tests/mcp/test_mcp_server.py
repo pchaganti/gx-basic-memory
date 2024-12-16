@@ -8,16 +8,16 @@ from mcp.types import EmbeddedResource, INVALID_PARAMS
 from mcp.shared.exceptions import McpError
 from basic_memory.mcp.server import MemoryServer, MIME_TYPE, BASIC_MEMORY_URI
 from basic_memory.api.app import app as fastapi_app
-from basic_memory.deps import get_project_config, get_engine
+from basic_memory.deps import get_project_config, get_engine_factory
 from basic_memory.schemas import CreateEntityResponse, SearchNodesResponse, AddObservationsResponse
 
 
 @pytest_asyncio.fixture
-def app(test_config, engine) -> FastAPI:
+def app(test_config, engine_session_factory) -> FastAPI:
     """Create test FastAPI application."""
     app = fastapi_app
     app.dependency_overrides[get_project_config] = lambda: test_config
-    app.dependency_overrides[get_engine] = lambda: engine
+    app.dependency_overrides[get_engine_factory] = lambda: engine_session_factory
     return app
 
 @pytest_asyncio.fixture()
