@@ -20,9 +20,6 @@ class Repository[T: Base]:
         self.primary_key: Column[Any] = self.mapper.primary_key[0]
         self.valid_columns = [column.key for column in self.mapper.columns]
 
-        logger.debug(f"Initialized {self.__class__.__name__} for {Model.__name__}")
-        logger.debug(f"Valid columns: {self.valid_columns}")
-    
     def select(self, *entities: Any) -> Select:
         """Create a new SELECT statement.
         
@@ -40,7 +37,7 @@ class Repository[T: Base]:
         try:
             await self.session.refresh(instance, relationships or [])
             logger.debug(f"Refreshed relationships: {relationships}")
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to refresh {self.Model.__name__} instance")
             raise
 
@@ -54,7 +51,7 @@ class Repository[T: Base]:
             items = result.scalars().all()
             logger.debug(f"Found {len(items)} {self.Model.__name__} records")
             return items
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to find all {self.Model.__name__}")
             raise
 
@@ -71,7 +68,7 @@ class Repository[T: Base]:
         except NoResultFound:
             logger.debug(f"No {self.Model.__name__} found with ID: {entity_id}")
             return None
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to find {self.Model.__name__} by ID: {entity_id}")
             raise
 
@@ -98,12 +95,12 @@ class Repository[T: Base]:
             # Create insert statement with only provided data
             stmt = insert(model).values(**model_data).returning(model)
             result = await self.session.execute(stmt)
-            entity = result.scalar_one()
+            entity: T = result.scalar_one()  # pyright: ignore [reportAssignmentType]
 
             logger.debug(f"Created {model.__name__}: {getattr(entity, 'id', None)}")
             return entity
 
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to create {model.__name__}")
             raise
     
@@ -114,7 +111,7 @@ class Repository[T: Base]:
             self.session.add(instance)
             await self.session.flush()
             return instance
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to create {self.Model.__name__}")
             raise
 
@@ -126,7 +123,7 @@ class Repository[T: Base]:
                 self.session.add(instance)
             await self.session.flush()
             return instances
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to bulk create {self.Model.__name__}")
             raise
 
@@ -149,7 +146,7 @@ class Repository[T: Base]:
         except NoResultFound:
             logger.debug(f"No {self.Model.__name__} found to update: {entity_id}")
             return None
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to update {self.Model.__name__}: {entity_id}")
             raise
 
@@ -169,7 +166,7 @@ class Repository[T: Base]:
         except NoResultFound:
             logger.debug(f"No {self.Model.__name__} found to delete: {entity_id}")
             return False
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to delete {self.Model.__name__}: {entity_id}")
             raise
 
@@ -189,10 +186,10 @@ class Repository[T: Base]:
             query = delete(self.Model).where(and_(*conditions))
             result = await self.execute_query(query)
             await self.session.flush()
-            deleted = result.rowcount > 0
-            logger.debug(f"Deleted {result.rowcount} records")
+            deleted = result.rowcount > 0  # pyright: ignore [reportAttributeAccessIssue]
+            logger.debug(f"Deleted {result.rowcount} records")  # pyright: ignore [reportAttributeAccessIssue]
             return deleted  # pyright: ignore [reportAttributeAccessIssue]
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to delete {self.Model.__name__} by fields")
             raise
 
@@ -207,7 +204,7 @@ class Repository[T: Base]:
             
             logger.debug(f"Counted {count} {self.Model.__name__} records")
             return count
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to count {self.Model.__name__}")
             raise
 
@@ -218,7 +215,7 @@ class Repository[T: Base]:
             result = await self.session.execute(query)
             logger.debug("Query executed successfully")
             return result
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to execute query")
             raise
 
@@ -233,6 +230,6 @@ class Repository[T: Base]:
             else:
                 logger.debug(f"No {self.Model.__name__} found")
             return entity
-        except Exception as e:
+        except Exception:
             logger.exception(f"Failed to find one {self.Model.__name__}")
             raise

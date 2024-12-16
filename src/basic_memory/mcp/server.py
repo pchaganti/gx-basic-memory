@@ -3,24 +3,36 @@
 Creates a server that handles MCP tool calls and forwards them to our FastAPI endpoints.
 Uses proper lifecycle management and logging to ensure reliable operation.
 """
+
 import asyncio
 import json
 import sys
-from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
 
 from httpx import AsyncClient, ASGITransport
 from loguru import logger
 from mcp import McpError
 from mcp.server import Server
-from mcp.types import Tool, EmbeddedResource, TextResourceContents, METHOD_NOT_FOUND, INVALID_PARAMS, INTERNAL_ERROR
+from mcp.types import (
+    Tool,
+    EmbeddedResource,
+    TextResourceContents,
+    METHOD_NOT_FOUND,
+    INVALID_PARAMS,
+    INTERNAL_ERROR,
+)
 from pydantic import TypeAdapter, AnyUrl
 
 from basic_memory.api.app import app as fastapi_app
 from basic_memory.schemas import (
-    CreateEntityRequest, SearchNodesRequest, OpenNodesRequest,
-    AddObservationsRequest, CreateRelationsRequest, DeleteEntityRequest,
-    DeleteObservationsRequest
+    CreateEntityRequest,
+    SearchNodesRequest,
+    OpenNodesRequest,
+    AddObservationsRequest,
+    CreateRelationsRequest,
+    DeleteEntityRequest,
+    DeleteObservationsRequest,
+    DeleteRelationsRequest,
 )
 
 # URI constants
@@ -37,13 +49,13 @@ def create_response(data: Dict[str, Any]) -> EmbeddedResource:
             uri=BASIC_MEMORY_URI,
             mimeType=MIME_TYPE,
             text=json.dumps(data),
-        )
+        ),
     )
 
 
 class MemoryServer(Server):
     """MCP server that forwards requests to FastAPI endpoints.
-    
+
     Handles proper lifecycle management and maintains a single client connection.
     """
 
@@ -61,7 +73,7 @@ class MemoryServer(Server):
         self.client = AsyncClient(
             transport=ASGITransport(app=fastapi_app),
             base_url="http://test",
-            timeout=30.0  # 30 second timeout
+            timeout=30.0,  # 30 second timeout
         )
         await self.client.__aenter__()
         self.ready = True
@@ -91,45 +103,47 @@ class MemoryServer(Server):
                 Tool(
                     name="create_entities",
                     description="Create multiple new entities",
-                    inputSchema=CreateEntityRequest.model_json_schema()
+                    inputSchema=CreateEntityRequest.model_json_schema(),
                 ),
                 Tool(
                     name="search_nodes",
                     description="Search for nodes",
-                    inputSchema=SearchNodesRequest.model_json_schema()
+                    inputSchema=SearchNodesRequest.model_json_schema(),
                 ),
                 Tool(
                     name="open_nodes",
                     description="Open specific nodes",
-                    inputSchema=OpenNodesRequest.model_json_schema()
+                    inputSchema=OpenNodesRequest.model_json_schema(),
                 ),
                 Tool(
                     name="add_observations",
                     description="Add observations",
-                    inputSchema=AddObservationsRequest.model_json_schema()
+                    inputSchema=AddObservationsRequest.model_json_schema(),
                 ),
                 Tool(
                     name="create_relations",
                     description="Create relations",
-                    inputSchema=CreateRelationsRequest.model_json_schema()
+                    inputSchema=CreateRelationsRequest.model_json_schema(),
                 ),
                 Tool(
                     name="delete_entities",
                     description="Delete entities",
-                    inputSchema=DeleteEntityRequest.model_json_schema()
+                    inputSchema=DeleteEntityRequest.model_json_schema(),
                 ),
                 Tool(
                     name="delete_observations",
                     description="Delete observations",
-                    inputSchema=DeleteObservationsRequest.model_json_schema()
-                )
+                    inputSchema=DeleteObservationsRequest.model_json_schema(),
+                ),
+                Tool(
+                    name="delete_relations",
+                    description="Delete relations",
+                    inputSchema=DeleteRelationsRequest.model_json_schema(),
+                ),
             ]
 
         @self.call_tool()
-        async def handle_call_tool(
-            name: str,
-            arguments: Dict[str, Any]
-        ) -> List[EmbeddedResource]:
+        async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[EmbeddedResource]:
             """Forward tool calls to FastAPI endpoints."""
             # Check server is ready
             if not self.ready or not self.client:
@@ -138,7 +152,7 @@ class MemoryServer(Server):
             try:
                 logger.info(f"Tool call: {name}")
                 logger.debug(f"Arguments: {arguments}")
-                
+
                 # Map tools to FastAPI endpoints
                 handlers = {
                     "create_entities": lambda c, a: c.post("/knowledge/entities", json=a),
@@ -146,8 +160,9 @@ class MemoryServer(Server):
                     "open_nodes": lambda c, a: c.post("/knowledge/nodes", json=a),
                     "add_observations": lambda c, a: c.post("/knowledge/observations", json=a),
                     "create_relations": lambda c, a: c.post("/knowledge/relations", json=a),
-                    "delete_entities": lambda c, a: c.delete(f"/knowledge/entities/{a['names'][0]}"),
-                    "delete_observations": lambda c, a: c.delete("/knowledge/observations", json=a)
+                    "delete_entities": lambda c, a: c.post(f"/knowledge/entities/{a['names'][0]}"),
+                    "delete_observations": lambda c, a: c.post("/knowledge/observations", json=a),
+                    "delete_relations": lambda c, a: c.post("/knowledge/entities/", json=a),
                 }
 
                 # Get handler for tool
@@ -165,7 +180,9 @@ class MemoryServer(Server):
                     if response.status_code == 404:
                         raise McpError(METHOD_NOT_FOUND, error_data.get("detail", "Not found"))
                     elif response.status_code == 422:
-                        raise McpError(INVALID_PARAMS, error_data.get("detail", "Invalid parameters"))
+                        raise McpError(
+                            INVALID_PARAMS, error_data.get("detail", "Invalid parameters")
+                        )
                     else:
                         raise McpError(INTERNAL_ERROR, error_data.get("detail", "Internal error"))
 
@@ -173,7 +190,7 @@ class MemoryServer(Server):
                 result = create_response(response.json())
                 logger.debug(f"Tool call successful: {result}")
                 return [result]
-                
+
             except ValueError as e:
                 logger.error(f"Validation error: {e}")
                 raise McpError(INVALID_PARAMS, str(e))
@@ -202,7 +219,7 @@ def setup_logging(log_file: str = "basic-memory-mcp.log"):
         backtrace=True,
         diagnose=True,
         enqueue=True,  # Thread-safe logging
-        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
     )
 
     # Add stdout handler for INFO and above
@@ -210,7 +227,7 @@ def setup_logging(log_file: str = "basic-memory-mcp.log"):
         sys.stdout,
         level="INFO",
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <white>{message}</white>",
-        colorize=True
+        colorize=True,
     )
 
 
@@ -225,19 +242,19 @@ if __name__ == "__main__":
         """Run the MCP server with proper initialization and cleanup."""
         setup_logging()
         logger.info("Starting Basic Memory MCP server")
-        
+
         try:
             # Initialize server
             options = server.create_initialization_options()
             logger.debug(f"Server initialization options: {options}")
             await server.setup()
-            
+
             # Run server
             logger.info("Server initialized, waiting for client connection")
             async with stdio_server() as (read_stream, write_stream):
                 logger.debug("STDIO streams established")
                 await server.run(read_stream, write_stream, options)
-                
+
         except Exception as e:
             logger.error(f"Server error: {e}")
             raise

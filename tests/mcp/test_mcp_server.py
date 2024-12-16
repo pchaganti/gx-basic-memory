@@ -1,14 +1,15 @@
 """Tests for the MCP server implementation using FastAPI TestClient."""
+
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
-
-from mcp.types import EmbeddedResource, INVALID_PARAMS
 from mcp.shared.exceptions import McpError
-from basic_memory.mcp.server import MemoryServer, MIME_TYPE, BASIC_MEMORY_URI
+from mcp.types import EmbeddedResource, INVALID_PARAMS
+
 from basic_memory.api.app import app as fastapi_app
 from basic_memory.deps import get_project_config, get_engine_factory
+from basic_memory.mcp.server import MemoryServer, MIME_TYPE, BASIC_MEMORY_URI
 from basic_memory.schemas import CreateEntityResponse, SearchNodesResponse, AddObservationsResponse
 
 
@@ -20,19 +21,18 @@ def app(test_config, engine_session_factory) -> FastAPI:
     app.dependency_overrides[get_engine_factory] = lambda: engine_session_factory
     return app
 
+
 @pytest_asyncio.fixture()
 async def server(app) -> MemoryServer:
     server = MemoryServer()
     await server.setup()
     return server
 
+
 @pytest_asyncio.fixture
 async def client(app: FastAPI):
     """Create test client that both MCP and tests will use."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 
@@ -40,12 +40,14 @@ async def client(app: FastAPI):
 def test_entity_data():
     """Sample data for creating a test entity."""
     return {
-        "entities": [{
-            "name": "Test Entity",
-            "entity_type": "test",
-            "description": "",  # Empty string instead of None
-            "observations": ["This is a test observation"]
-        }]
+        "entities": [
+            {
+                "name": "Test Entity",
+                "entity_type": "test",
+                "description": "",  # Empty string instead of None
+                "observations": ["This is a test observation"],
+            }
+        ]
     }
 
 
@@ -53,16 +55,18 @@ def test_entity_data():
 def test_directory_entity_data():
     """Real data that caused failure in the tool."""
     return {
-        "entities": [{
-            "name": "Directory Organization",
-            "entity_type": "memory",
-            "description": "Implemented filesystem organization by entity type",
-            "observations": [
-                "Files are now organized by type using directories like entities/project/basic_memory",
-                "Entity IDs match filesystem paths for better mental model",
-                "Fixed path handling bugs by adding consistent get_entity_path helper"
-            ]
-        }]
+        "entities": [
+            {
+                "name": "Directory Organization",
+                "entity_type": "memory",
+                "description": "Implemented filesystem organization by entity type",
+                "observations": [
+                    "Files are now organized by type using directories like entities/project/basic_memory",
+                    "Entity IDs match filesystem paths for better mental model",
+                    "Fixed path handling bugs by adding consistent get_entity_path helper",
+                ],
+            }
+        ]
     }
 
 
@@ -74,9 +78,14 @@ async def test_list_tools(server):
 
     # Check each expected tool is present
     expected_tools = {
-        "create_entities", "search_nodes", "open_nodes",
-        "add_observations", "create_relations",
-        "delete_entities", "delete_observations"
+        "create_entities",
+        "search_nodes",
+        "open_nodes",
+        "add_observations",
+        "create_relations",
+        "delete_entities",
+        "delete_observations",
+        "delete_relations",
     }
 
     found_tools = {t.name: t for t in tools}
@@ -91,10 +100,7 @@ async def test_list_tools(server):
 @pytest.mark.asyncio
 async def test_create_directory_entity(test_directory_entity_data, client, server):
     """Test creating entity with exactly the data that failed in the tool."""
-    result = await server.handle_call_tool(
-        "create_entities",
-        test_directory_entity_data
-    )
+    result = await server.handle_call_tool("create_entities", test_directory_entity_data)
 
     # Verify response format
     assert len(result) == 1
@@ -124,10 +130,7 @@ async def test_search_nodes(test_entity_data, client, server):
     await server.handle_call_tool("create_entities", test_entity_data)
 
     # Then search for it
-    result = await server.handle_call_tool(
-        "search_nodes",
-        {"query": "Test Entity"}
-    )
+    result = await server.handle_call_tool("search_nodes", {"query": "Test Entity"})
 
     # Verify response format
     assert len(result) == 1
@@ -162,11 +165,7 @@ async def test_add_observations(test_entity_data, client, server):
 
     # Add new observation
     result = await server.handle_call_tool(
-        "add_observations",
-        {
-            "entity_id": entity_id,
-            "observations": ["A new observation"]
-        }
+        "add_observations", {"entity_id": entity_id, "observations": ["A new observation"]}
     )
 
     # Verify response format
@@ -237,11 +236,16 @@ class TestInputValidation:
         """Test validation of nested object fields."""
 
         with pytest.raises(McpError) as exc:
-            await server.handle_call_tool("create_entities", {
-                "entities": [{
-                    "name": "Test",
-                    # Missing required entity_type
-                    "observations": []
-                }]
-            })
+            await server.handle_call_tool(
+                "create_entities",
+                {
+                    "entities": [
+                        {
+                            "name": "Test",
+                            # Missing required entity_type
+                            "observations": [],
+                        }
+                    ]
+                },
+            )
         assert "entity_type" in str(exc.value).lower()
