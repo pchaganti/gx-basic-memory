@@ -4,58 +4,59 @@ import pytest
 from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS
 
+from basic_memory.mcp.server import handle_call_tool
 from basic_memory.schemas import CreateEntityResponse, SearchNodesResponse
 
 
 @pytest.mark.asyncio
-async def test_invalid_tool_name(server):
+async def test_invalid_tool_name(app):
     """Test calling a non-existent tool."""
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool("not_a_tool", {})
+        await handle_call_tool("not_a_tool", {})
     assert "Unknown tool" in str(exc.value)
 
 
 @pytest.mark.asyncio
-async def test_missing_required_field(server):
+async def test_missing_required_field(app):
     """Test validation when required fields are missing."""
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool("search_nodes", {})
+        await handle_call_tool("search_nodes", {})
     assert "query" in str(exc.value).lower()
 
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool("create_entities", {})
+        await handle_call_tool("create_entities", {})
     assert "entities" in str(exc.value).lower()
 
 
 @pytest.mark.asyncio
-async def test_empty_arrays(server):
+async def test_empty_arrays(app):
     """Test validation of array fields that can't be empty."""
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool("create_entities", {"entities": []})
+        await handle_call_tool("create_entities", {"entities": []})
     assert INVALID_PARAMS == exc.value.args[0]
 
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool("open_nodes", {"entity_ids": []})
+        await handle_call_tool("open_nodes", {"entity_ids": []})
     assert INVALID_PARAMS == exc.value.args[0]
 
 
 @pytest.mark.asyncio
-async def test_invalid_field_types(server):
+async def test_invalid_field_types(app):
     """Test validation when fields have wrong types."""
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool("search_nodes", {"query": 123})
+        await handle_call_tool("search_nodes", {"query": 123})
     assert "str" in str(exc.value).lower()
 
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool("create_entities", {"entities": "not an array"})
+        await handle_call_tool("create_entities", {"entities": "not an array"})
     assert "array" in str(exc.value).lower() or "list" in str(exc.value).lower()
 
 
 @pytest.mark.asyncio
-async def test_invalid_nested_fields(server):
+async def test_invalid_nested_fields(app):
     """Test validation of nested object fields."""
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool(
+        await handle_call_tool(
             "create_entities",
             {
                 "entities": [
@@ -71,10 +72,10 @@ async def test_invalid_nested_fields(server):
 
 
 @pytest.mark.asyncio
-async def test_invalid_relation_format_to_id(server):
+async def test_invalid_relation_format_to_id(app):
     """Test validation of relation data."""
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool(
+        await handle_call_tool(
             "create_relations",
             {
                 "relations": [
@@ -90,10 +91,10 @@ async def test_invalid_relation_format_to_id(server):
 
 
 @pytest.mark.asyncio
-async def test_invalid_relation_format_relation_type(server):
+async def test_invalid_relation_format_relation_type(app):
     # Invalid relation type
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool(
+        await handle_call_tool(
             "create_relations",
             {
                 "relations": [
@@ -109,11 +110,11 @@ async def test_invalid_relation_format_relation_type(server):
 
 
 @pytest.mark.asyncio
-async def test_observation_validation_len(server):
+async def test_observation_validation_len(app):
     """Test validation specific to observations."""
     # Empty observations
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool(
+        await handle_call_tool(
             "add_observations",
             {
                 "entity_id": "test/entity1",
@@ -124,10 +125,10 @@ async def test_observation_validation_len(server):
 
 
 @pytest.mark.asyncio
-async def test_observation_validation_delete(server):
+async def test_observation_validation_delete(app):
     # Empty deletions
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool(
+        await handle_call_tool(
             "delete_observations",
             {
                 "entity_id": "test/entity1",
@@ -138,18 +139,18 @@ async def test_observation_validation_delete(server):
 
 
 @pytest.mark.asyncio
-async def test_edge_case_validation_search_len(server):
+async def test_edge_case_validation_search_len(app):
     """Test edge cases in validation."""
     # Very long strings
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool(
+        await handle_call_tool(
             "search_nodes",
             {"query": "x" * 10000},  # Extremely long query
         )
 
 
 @pytest.mark.asyncio
-async def test_edge_case_validation_name_sanitization(server):
+async def test_edge_case_validation_name_sanitization(app):
     """Test that entity names are properly sanitized for IDs."""
     # Test cases for different sanitization scenarios
     test_cases = [
@@ -176,7 +177,7 @@ async def test_edge_case_validation_name_sanitization(server):
     ]
 
     for test in test_cases:
-        result = await server.handle_call_tool(
+        result = await handle_call_tool(
             "create_entities",
             {
                 "entities": [
@@ -189,7 +190,7 @@ async def test_edge_case_validation_name_sanitization(server):
             },
         )
 
-        response = CreateEntityResponse.model_validate_json(result[0].resource.text)
+        response = CreateEntityResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
         entity = response.entities[0]
 
         # Original name should be preserved
@@ -198,6 +199,6 @@ async def test_edge_case_validation_name_sanitization(server):
         assert entity.id == test["expected_id"]
 
         # Verify we can find it with original name
-        search_result = await server.handle_call_tool("search_nodes", {"query": test["name"]})
-        search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)
+        search_result = await handle_call_tool("search_nodes", {"query": test["name"]})
+        search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
         assert len(search_response.matches) > 0

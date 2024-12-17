@@ -3,12 +3,12 @@
 import pytest
 from mcp.types import EmbeddedResource
 
-from basic_memory.mcp.server import MIME_TYPE
+from basic_memory.mcp.server import MIME_TYPE, handle_call_tool
 from basic_memory.schemas import OpenNodesResponse
 
 
 @pytest.mark.asyncio
-async def test_open_nodes(server):
+async def test_open_nodes(app):
     """Test retrieving specific nodes by name."""
     # Create test entities
     entity_data = {
@@ -31,10 +31,10 @@ async def test_open_nodes(server):
         ]
     }
 
-    await server.handle_call_tool("create_entities", entity_data)
+    await handle_call_tool("create_entities", entity_data)
 
     # Open specific nodes
-    result = await server.handle_call_tool(
+    result = await handle_call_tool(
         "open_nodes", {"entity_ids": ["test/opentesta", "test/opentestb"]}
     )
 
@@ -45,7 +45,7 @@ async def test_open_nodes(server):
     assert result[0].resource.mimeType == MIME_TYPE
 
     # Verify entities returned
-    response = OpenNodesResponse.model_validate_json(result[0].resource.text)
+    response = OpenNodesResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert len(response.entities) == 2
 
     # Entities should be returned in same order as requested

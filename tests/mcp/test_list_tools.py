@@ -2,12 +2,14 @@
 
 import pytest
 
+from basic_memory.mcp.server import handle_list_tools
+
 
 @pytest.mark.asyncio
-async def test_list_tools(server):
+async def test_list_tools(app):
     """Test that server exposes expected tools."""
 
-    tools = await server.handle_list_tools()
+    tools = await handle_list_tools()
 
     # Check each expected tool is present
     expected_tools = {

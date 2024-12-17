@@ -3,19 +3,19 @@
 import pytest
 from mcp.types import EmbeddedResource
 
-from basic_memory.mcp.server import MIME_TYPE, BASIC_MEMORY_URI
+from basic_memory.mcp.server import MIME_TYPE, BASIC_MEMORY_URI, handle_call_tool
 from basic_memory.schemas import SearchNodesResponse
 
 
 @pytest.mark.asyncio
-async def test_search_nodes(test_entity_data, client, server):
+async def test_search_nodes(app, test_entity_data, client):
     """Test searching for an entity after creating it."""
 
     # First create an entity
-    await server.handle_call_tool("create_entities", test_entity_data)
+    await handle_call_tool("create_entities", test_entity_data)
 
     # Then search for it
-    result = await server.handle_call_tool("search_nodes", {"query": "Test Entity"})
+    result = await handle_call_tool("search_nodes", {"query": "Test Entity"})
 
     # Verify response format
     assert len(result) == 1
@@ -26,7 +26,7 @@ async def test_search_nodes(test_entity_data, client, server):
     assert result[0].resource.mimeType == MIME_TYPE
 
     # Verify search results
-    response = SearchNodesResponse.model_validate_json(result[0].resource.text)
+    response = SearchNodesResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert len(response.matches) == 1
     assert response.matches[0].name == "Test Entity"
     assert response.query == "Test Entity"

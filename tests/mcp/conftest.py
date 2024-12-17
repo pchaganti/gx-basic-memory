@@ -6,7 +6,6 @@ from httpx import AsyncClient, ASGITransport
 
 from basic_memory.api.app import app as fastapi_app
 from basic_memory.deps import get_project_config, get_engine_factory
-from basic_memory.mcp.server import MemoryServer
 
 
 @pytest_asyncio.fixture
@@ -16,13 +15,6 @@ def app(test_config, engine_session_factory) -> FastAPI:
     app.dependency_overrides[get_project_config] = lambda: test_config
     app.dependency_overrides[get_engine_factory] = lambda: engine_session_factory
     return app
-
-
-@pytest_asyncio.fixture()
-async def server(app) -> MemoryServer:
-    server = MemoryServer()
-    await server.setup()
-    return server
 
 
 @pytest_asyncio.fixture

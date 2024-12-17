@@ -3,12 +3,12 @@
 import pytest
 from mcp.types import EmbeddedResource
 
-from basic_memory.mcp.server import MIME_TYPE
+from basic_memory.mcp.server import MIME_TYPE, handle_call_tool
 from basic_memory.schemas import CreateEntityResponse, SearchNodesResponse
 
 
 @pytest.mark.asyncio
-async def test_create_single_entity(server):
+async def test_create_single_entity(app):
     """Test creating a single entity."""
     entity_data = {
         "entities": [
@@ -16,7 +16,7 @@ async def test_create_single_entity(server):
         ]
     }
 
-    result = await server.handle_call_tool("create_entities", entity_data)
+    result = await handle_call_tool("create_entities", entity_data)
 
     # Verify response format
     assert len(result) == 1
@@ -25,7 +25,7 @@ async def test_create_single_entity(server):
     assert result[0].resource.mimeType == MIME_TYPE
 
     # Verify entity creation
-    response = CreateEntityResponse.model_validate_json(result[0].resource.text)
+    response = CreateEntityResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert len(response.entities) == 1
     entity = response.entities[0]
     assert entity.name == "SingleTest"
@@ -35,14 +35,14 @@ async def test_create_single_entity(server):
     assert entity.id == "test/singletest"
 
     # Verify entity can be found via search
-    search_result = await server.handle_call_tool("search_nodes", {"query": "SingleTest"})
-    search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)
+    search_result = await handle_call_tool("search_nodes", {"query": "SingleTest"})
+    search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert len(search_response.matches) == 1
     assert search_response.matches[0].name == "SingleTest"
 
 
 @pytest.mark.asyncio
-async def test_create_multiple_entities(server):
+async def test_create_multiple_entities(app):
     """Test creating multiple entities in one call."""
     entity_data = {
         "entities": [
@@ -52,11 +52,11 @@ async def test_create_multiple_entities(server):
         ]
     }
 
-    result = await server.handle_call_tool("create_entities", entity_data)
+    result = await handle_call_tool("create_entities", entity_data)
 
     # Verify response
     assert len(result) == 1
-    response = CreateEntityResponse.model_validate_json(result[0].resource.text)
+    response = CreateEntityResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
 
     # Verify all entities were created
     assert len(response.entities) == 3
@@ -77,13 +77,13 @@ async def test_create_multiple_entities(server):
     assert entities["BulkTest1"].observations[0].content == "First bulk test"
 
     # Verify entities can be found via search
-    search_result = await server.handle_call_tool("search_nodes", {"query": "BulkTest"})
-    search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)
+    search_result = await handle_call_tool("search_nodes", {"query": "BulkTest"})
+    search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
     assert len(search_response.matches) == 3
 
 
 @pytest.mark.asyncio
-async def test_create_entity_with_all_fields(server):
+async def test_create_entity_with_all_fields(app):
     """Test creating entity with all possible fields populated."""
     entity_data = {
         "entities": [
@@ -96,8 +96,8 @@ async def test_create_entity_with_all_fields(server):
         ]
     }
 
-    result = await server.handle_call_tool("create_entities", entity_data)
-    response = CreateEntityResponse.model_validate_json(result[0].resource.text)
+    result = await handle_call_tool("create_entities", entity_data)
+    response = CreateEntityResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
 
     entity = response.entities[0]
     assert entity.name == "FullEntity"

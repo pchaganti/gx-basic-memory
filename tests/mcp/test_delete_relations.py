@@ -2,11 +2,12 @@
 
 import pytest
 
+from basic_memory.mcp.server import handle_call_tool
 from basic_memory.schemas import SearchNodesResponse
 
 
 @pytest.mark.asyncio
-async def test_delete_relations(server):
+async def test_delete_relations(app):
     """Test deleting relations between entities."""
     # Create test entities with relation
     entities = {
@@ -15,7 +16,7 @@ async def test_delete_relations(server):
             {"name": "RelTarget", "entity_type": "test", "observations": ["Target entity"]},
         ]
     }
-    await server.handle_call_tool("create_entities", entities)
+    await handle_call_tool("create_entities", entities)
 
     # Create relation
     relation = {
@@ -27,10 +28,10 @@ async def test_delete_relations(server):
             }
         ]
     }
-    await server.handle_call_tool("create_relations", relation)
+    await handle_call_tool("create_relations", relation)
 
     # Delete the relation
-    await server.handle_call_tool(
+    await handle_call_tool(
         "delete_relations",
         {
             "relations": [
@@ -44,8 +45,8 @@ async def test_delete_relations(server):
     )
 
     # Verify through search
-    search_result = await server.handle_call_tool("search_nodes", {"query": "relsource"})
-    search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)
+    search_result = await handle_call_tool("search_nodes", {"query": "relsource"})
+    search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
 
     # Source entity should exist but have no relations
     assert len(search_response.matches) == 1

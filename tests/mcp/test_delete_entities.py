@@ -2,11 +2,12 @@
 
 import pytest
 
+from basic_memory.mcp.server import handle_call_tool
 from basic_memory.schemas import SearchNodesResponse
 
 
 @pytest.mark.asyncio
-async def test_delete_entities(server):
+async def test_delete_entities(app):
     """Test deleting entities."""
     # Create test entities
     entities = {
@@ -15,14 +16,14 @@ async def test_delete_entities(server):
             {"name": "DeleteTest2", "entity_type": "test", "observations": ["To be deleted 2"]},
         ]
     }
-    await server.handle_call_tool("create_entities", entities)
+    await handle_call_tool("create_entities", entities)
 
     # Delete first entity
-    await server.handle_call_tool("delete_entities", {"entity_ids": ["test/deletetest1"]})
+    await handle_call_tool("delete_entities", {"entity_ids": ["test/deletetest1"]})
 
     # Verify through search
-    search_result = await server.handle_call_tool("search_nodes", {"query": "DeleteTest"})
-    search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)
+    search_result = await handle_call_tool("search_nodes", {"query": "DeleteTest"})
+    search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
 
     # Only second entity should remain
     assert len(search_response.matches) == 1

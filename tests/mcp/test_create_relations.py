@@ -2,11 +2,12 @@
 
 import pytest
 
+from basic_memory.mcp.server import handle_call_tool
 from basic_memory.schemas import SearchNodesResponse
 
 
 @pytest.mark.asyncio
-async def test_create_relations(test_entity_data, client, server):
+async def test_create_relations(app):
     """Test creating relations between entities."""
     # Create two test entities
     entity_data = {
@@ -16,7 +17,7 @@ async def test_create_relations(test_entity_data, client, server):
         ]
     }
 
-    await server.handle_call_tool("create_entities", entity_data)
+    await handle_call_tool("create_entities", entity_data)
 
     # Create relation between them
     relation_data = {
@@ -29,11 +30,11 @@ async def test_create_relations(test_entity_data, client, server):
         ]
     }
 
-    result = await server.handle_call_tool("create_relations", relation_data)
+    result = await handle_call_tool("create_relations", relation_data)
 
     # Verify through search
-    search_result = await server.handle_call_tool("search_nodes", {"query": "TestEntityA"})
-    response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)
+    search_result = await handle_call_tool("search_nodes", {"query": "TestEntityA"})
+    response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
 
     assert len(response.matches) == 1
     entity = response.matches[0]
