@@ -17,9 +17,9 @@ def lower_strip_whitespace(val: str) -> str:
 
 Observation = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(1000)]
 
-EntityType = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(20)]
+EntityType = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(200)]
 
-RelationType = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(20)]
+RelationType = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(200)]
 
 # Custom field types with validation
 EntityId = Annotated[str, BeforeValidator(lower_strip_whitespace)]
@@ -83,7 +83,7 @@ class SearchNodesRequest(BaseModel):
 class OpenNodesRequest(BaseModel):
     """Request schema for open_nodes tool."""
 
-    entity_ids: Annotated[List[str], MinLen(1)]
+    entity_ids: Annotated[List[EntityId], MinLen(1)]
 
 
 class CreateRelationsRequest(BaseModel):
