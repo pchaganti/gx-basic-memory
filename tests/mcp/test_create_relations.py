@@ -3,7 +3,6 @@
 import pytest
 
 from basic_memory.schemas import SearchNodesResponse
-from basic_memory.utils import sanitize_name
 
 
 @pytest.mark.asyncio
@@ -39,5 +38,5 @@ async def test_create_relations(test_entity_data, client, server):
     assert len(response.matches) == 1
     entity = response.matches[0]
     assert len(entity.relations) == 1
-    assert entity.relations[0].to_id == sanitize_name("test/TestEntityB")
+    assert entity.relations[0].to_id == "test/testentityb"
     assert entity.relations[0].relation_type == "relates_to"

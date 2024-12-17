@@ -5,12 +5,14 @@ from typing import List, Optional, Annotated
 from annotated_types import MinLen, MaxLen
 from pydantic import BaseModel, ConfigDict, BeforeValidator
 
-from basic_memory.utils import sanitize_name
-
 
 # Strip whitespace
 def strip_whitespace(obs: str) -> str:
     return obs.strip()
+
+
+def lower_strip_whitespace(val: str) -> str:
+    return strip_whitespace(val.lower())
 
 
 Observation = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(1000)]
@@ -20,7 +22,7 @@ EntityType = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen
 RelationType = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(20)]
 
 # Custom field types with validation
-EntityId = Annotated[str, BeforeValidator(sanitize_name)]
+EntityId = Annotated[str, BeforeValidator(lower_strip_whitespace)]
 
 
 class Relation(BaseModel):
@@ -81,7 +83,7 @@ class SearchNodesRequest(BaseModel):
 class OpenNodesRequest(BaseModel):
     """Request schema for open_nodes tool."""
 
-    names: Annotated[List[EntityId], MinLen(1)]
+    entity_ids: Annotated[List[str], MinLen(1)]
 
 
 class CreateRelationsRequest(BaseModel):
@@ -165,9 +167,9 @@ class SearchNodesResponse(SQLAlchemyModel):
 
 
 class OpenNodesResponse(SQLAlchemyModel):
-    """Response for open_nodes tool."""
+    """Response for open_nodes tool. This returns the Entity object because it is read from a file"""
 
-    entities: List[EntityResponse]
+    entities: List[Entity]
 
 
 class AddObservationsResponse(SQLAlchemyModel):

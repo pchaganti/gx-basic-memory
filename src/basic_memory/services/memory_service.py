@@ -1,29 +1,40 @@
 """Service for orchestrating entity, relation, and observation operations."""
-import asyncio
-from typing import List, Dict, Any, Optional, Sequence
-from pathlib import Path
 
-from basic_memory.models import Entity as EntityModel, Observation as ObservationModel, Relation as RelationModel
-from basic_memory.schemas import (
-    AddObservationsRequest, Entity, Relation
-)
-from basic_memory.fileio import write_entity_file, read_entity_file, EntityNotFoundError, get_entity_path
-from basic_memory.services import EntityService, RelationService, ObservationService
+import asyncio
+from pathlib import Path
+from typing import List, Dict, Any, Optional, Sequence
+
 from loguru import logger
+
+from basic_memory.fileio import (
+    write_entity_file,
+    read_entity_file,
+    EntityNotFoundError,
+    get_entity_path,
+)
+from basic_memory.models import (
+    Entity as EntityModel,
+    Observation as ObservationModel,
+    Relation as RelationModel,
+)
+from basic_memory.schemas import AddObservationsRequest, Entity, Relation
+from basic_memory.services import EntityService, RelationService, ObservationService
 
 
 class MemoryService:
     """Orchestrates entity, relation, and observation operations with filesystem handling."""
-    
+
     def __init__(
         self,
         project_path: Optional[Path],
         entity_service: EntityService,
         relation_service: RelationService,
-        observation_service: ObservationService
+        observation_service: ObservationService,
     ):
         if project_path:
-            assert project_path.is_dir(), "Path does not exist or is not a directory: {project_path}"
+            assert (
+                project_path.is_dir()
+            ), "Path does not exist or is not a directory: {project_path}"
             self.project_path = project_path
             self.entities_path = project_path / "entities"
 
@@ -40,15 +51,15 @@ class MemoryService:
         logger.debug(f"Creating {len(entities_in)} entities")
 
         # TODO this could be better
-        for entity in entities_in:
+        for e in entities_in:
+            # Generate ID and write file
             try:
-                existing = await self.entity_service.get_by_type_and_name(
-                    entity.entity_type,
-                    entity.name
+                existing = await self.entity_service.get_entity(
+                    EntityModel.generate_id(e.entity_type, e.name)
                 )
                 if existing:
                     raise ValueError(
-                        f"Entity already exists: {entity.entity_type}/{entity.name}"
+                        f"Entity {e.entity_type}/{e.name} already exists, id: {EntityModel.generate_id(e.entity_type, e.name)}"
                     )
             except EntityNotFoundError:
                 # Good - entity doesn't exist yet
@@ -65,28 +76,34 @@ class MemoryService:
         await asyncio.gather(*file_writes)
         logger.debug("Completed all file writes")
 
-        async def create_entity_in_db(entity_in: Entity):
-            logger.debug(f"Creating entity in DB: {entity_in}")
+        async def create_entity_in_db(entity_create: Entity):
+            logger.debug(f"Creating entity in DB: {entity_create}")
             try:
                 # Create base entity
-                created_entity = await self.entity_service.create_entity(entity_in)
+                created_entity = await self.entity_service.create_entity(entity_create)
                 logger.debug(f"Created base entity: {created_entity.id}")
 
                 # Add observations
-                await self.observation_service.add_observations(created_entity.id, entity_in.observations)
-                logger.debug(f"Added {len(entity_in.observations)} observations to {created_entity.id}")
+                await self.observation_service.add_observations(
+                    created_entity.id, entity_create.observations
+                )
+                logger.debug(
+                    f"Added {len(entity_create.observations)} observations to {created_entity.id}"
+                )
 
                 # Add relations
-                for relation in entity_in.relations:
+                for relation in entity_create.relations:
                     await self.relation_service.create_relation(relation)
-                logger.debug(f"Added {len(entity_in.relations)} relations for {created_entity.id}")
+                logger.debug(
+                    f"Added {len(entity_create.relations)} relations for {created_entity.id}"
+                )
 
                 # Query final state
                 final_entity = await self.entity_service.get_entity(created_entity.id)
                 logger.debug(f"Retrieved final entity state: {final_entity}")
                 return final_entity
             except Exception:
-                logger.exception(f"Failed to create entity in DB: {entity_in}")
+                logger.exception(f"Failed to create entity in DB: {entity_create}")
                 raise
 
         # Update database index sequentially
@@ -126,12 +143,12 @@ class MemoryService:
             logger.debug(f"Processing relation: {relation.from_id} -> {relation.to_id}")
             try:
                 # First read complete entities from filesystem
-                from_entity = await read_entity_file(self.entities_path, relation.from_id) 
+                from_entity = await read_entity_file(self.entities_path, relation.from_id)
                 to_entity = await read_entity_file(self.entities_path, relation.to_id)
                 logger.debug(f"Read entities for relation: {from_entity.id}, {to_entity.id}")
 
                 # Add the new relation to the source entity
-                if not hasattr(from_entity, 'relations'):
+                if not hasattr(from_entity, "relations"):
                     from_entity.relations = []
                 from_entity.relations.append(relation)
                 logger.debug(f"Added relation to source entity: {from_entity.id}")
@@ -142,8 +159,10 @@ class MemoryService:
                 assert to_entity.id is not None
 
                 await asyncio.gather(
-                    *[write_entity_file(self.entities_path, from_entity.id, from_entity),
-                    write_entity_file(self.entities_path, to_entity.id, to_entity)]
+                    *[
+                        write_entity_file(self.entities_path, from_entity.id, from_entity),
+                        write_entity_file(self.entities_path, to_entity.id, to_entity),
+                    ]
                 )
                 logger.debug("Wrote updated entity files")
 
@@ -158,14 +177,16 @@ class MemoryService:
         logger.debug(f"Successfully created {len(relations)} relations")
         return relations
 
-    async def add_observations(self, observations_in: AddObservationsRequest) -> List[ObservationModel]:
+    async def add_observations(
+        self, observations_in: AddObservationsRequest
+    ) -> List[ObservationModel]:
         """Add observations to an existing entity."""
         logger.debug(f"Adding observations to entity: {observations_in.entity_id}")
         try:
             # First get the entity from DB to get its ID
             db_entity = await self.entity_service.get_entity(observations_in.entity_id)
             logger.debug(f"Found entity in DB: {db_entity.id}")
-            
+
             # Read entity from filesystem using the ID
             entity = await read_entity_file(self.entities_path, db_entity.id)
             logger.debug(f"Read entity from filesystem: {db_entity.id}")
@@ -178,9 +199,11 @@ class MemoryService:
             logger.debug("Writing updated entity file")
             await write_entity_file(self.entities_path, db_entity.id, entity)
             logger.debug("Wrote updated entity file")
-            
+
             # Update database index
-            added_observations = await self.observation_service.add_observations(db_entity.id, observations_in.observations)
+            added_observations = await self.observation_service.add_observations(
+                db_entity.id, observations_in.observations
+            )
             logger.debug(f"Added {len(added_observations)} observations to DB")
 
             return added_observations
@@ -206,7 +229,7 @@ class MemoryService:
                 if file_path.exists():
                     file_path.unlink()
                     logger.debug(f"Deleted entity {entity_id} file: {file_path}")
-                
+
                 # Then update database
                 result = await self.entity_service.delete_entity(entity_id)
                 if result:
@@ -224,20 +247,17 @@ class MemoryService:
         try:
             # First read the entity
             entity = await read_entity_file(self.entities_path, entity_id)
-            
+
             # Remove observations from entity
             original_count = len(entity.observations)
-            entity.observations = [
-                obs for obs in entity.observations 
-                if obs not in contents
-            ]
-            
+            entity.observations = [obs for obs in entity.observations if obs not in contents]
+
             # Only write file if we actually removed anything
             if len(entity.observations) < original_count:
                 # Write updated entity file first (source of truth)
                 await write_entity_file(self.entities_path, entity_id, entity)
                 logger.debug(f"Updated entity file: {entity_id}")
-                
+
                 # Then update database
                 result = await self.observation_service.delete_observations(entity_id, contents)
                 logger.debug(f"Deleted observations from database: {result}")
@@ -256,25 +276,27 @@ class MemoryService:
             for relation in relations:
                 # First read the source entity
                 try:
-                    from_entity = await read_entity_file(self.entities_path, relation['from_id'])
+                    from_entity = await read_entity_file(self.entities_path, relation["from_id"])
                 except EntityNotFoundError:
                     logger.debug(f"Source entity not found: {relation['from_id']}")
                     continue
 
                 # Update the entity's relations
-                if hasattr(from_entity, 'relations'):
+                if hasattr(from_entity, "relations"):
                     original_count = len(from_entity.relations)
-                    relation_type = relation.get('relation_type')
-                    
+                    relation_type = relation.get("relation_type")
+
                     if relation_type:
                         from_entity.relations = [
-                            r for r in from_entity.relations
-                            if not (r.to_id == relation['to_id'] and r.relation_type == relation_type)
+                            r
+                            for r in from_entity.relations
+                            if not (
+                                r.to_id == relation["to_id"] and r.relation_type == relation_type
+                            )
                         ]
                     else:
                         from_entity.relations = [
-                            r for r in from_entity.relations
-                            if r.to_id != relation['to_id']
+                            r for r in from_entity.relations if r.to_id != relation["to_id"]
                         ]
 
                     # Only write file if we actually removed any relations
@@ -337,8 +359,11 @@ class MemoryService:
                 return None
 
         try:
-            entities = [entity for entity in await asyncio.gather(*(read_node(id) for id in entity_ids))
-                       if entity is not None]
+            entities = [
+                entity
+                for entity in await asyncio.gather(*(read_node(id) for id in entity_ids))
+                if entity is not None
+            ]
             logger.debug(f"Opened {len(entities)} entities")
             return entities
         except Exception:

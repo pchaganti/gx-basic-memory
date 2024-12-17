@@ -3,7 +3,6 @@
 import pytest
 
 from basic_memory.schemas import SearchNodesResponse
-from basic_memory.utils import sanitize_name
 
 
 @pytest.mark.asyncio
@@ -22,8 +21,8 @@ async def test_delete_relations(server):
     relation = {
         "relations": [
             {
-                "from_id": sanitize_name("test/RelSource"),
-                "to_id": sanitize_name("test/RelTarget"),
+                "from_id": "test/relsource",
+                "to_id": "test/reltarget",
                 "relation_type": "relates_to",
             }
         ]
@@ -36,8 +35,8 @@ async def test_delete_relations(server):
         {
             "relations": [
                 {
-                    "from_id": sanitize_name("test/RelSource"),
-                    "to_id": sanitize_name("test/RelTarget"),
+                    "from_id": "test/relsource",
+                    "to_id": "test/reltarget",
                     "relation_type": "relates_to",
                 }
             ]
@@ -45,7 +44,7 @@ async def test_delete_relations(server):
     )
 
     # Verify through search
-    search_result = await server.handle_call_tool("search_nodes", {"query": "RelSource"})
+    search_result = await server.handle_call_tool("search_nodes", {"query": "relsource"})
     search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)
 
     # Source entity should exist but have no relations

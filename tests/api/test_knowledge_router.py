@@ -257,9 +257,7 @@ async def test_delete_observations(client, observation_repository):
 
     # Delete specific observations
     request_data = {"entity_id": entity.id, "deletions": [observations[0].content]}
-    response = await client.post(
-        f"/knowledge/entities/{entity.id}/observations/delete", json=request_data
-    )
+    response = await client.post("/knowledge/observations/delete", json=request_data)
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
 
@@ -312,9 +310,7 @@ async def test_delete_nonexistent_observations(client):
     entity = await create_entity(client)
 
     request_data = {"entity_id": entity.id, "deletions": ["Nonexistent observation"]}
-    response = await client.post(
-        f"/knowledge/entities/{entity.id}/observations/delete", json=request_data
-    )
+    response = await client.post("/knowledge/observations/delete", json=request_data)
     assert response.status_code == 200
     assert response.json() == {"deleted": False}
 

@@ -3,7 +3,6 @@
 import pytest
 
 from basic_memory.schemas import SearchNodesResponse
-from basic_memory.utils import sanitize_name
 
 
 @pytest.mark.asyncio
@@ -19,9 +18,7 @@ async def test_delete_entities(server):
     await server.handle_call_tool("create_entities", entities)
 
     # Delete first entity
-    await server.handle_call_tool(
-        "delete_entities", {"entity_ids": [sanitize_name("test/DeleteTest1")]}
-    )
+    await server.handle_call_tool("delete_entities", {"entity_ids": ["test/deletetest1"]})
 
     # Verify through search
     search_result = await server.handle_call_tool("search_nodes", {"query": "DeleteTest"})

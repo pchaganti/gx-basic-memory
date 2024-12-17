@@ -24,6 +24,7 @@ from basic_memory.schemas import (
     AddObservationsResponse,
     RelationResponse,
     DeleteEntityRequest,
+    Entity,
 )
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -94,10 +95,8 @@ async def search_nodes(
 @router.post("/nodes", response_model=OpenNodesResponse)
 async def open_nodes(data: OpenNodesRequest, memory_service: MemoryServiceDep) -> OpenNodesResponse:
     """Open specific nodes by their names."""
-    entities = await memory_service.open_nodes(data.names)
-    return OpenNodesResponse(
-        entities=[EntityResponse.model_validate(entity) for entity in entities]
-    )
+    entities = await memory_service.open_nodes(data.entity_ids)
+    return OpenNodesResponse(entities=[Entity.model_validate(entity) for entity in entities])
 
 
 ## Delete endpoints

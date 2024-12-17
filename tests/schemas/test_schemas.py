@@ -1,6 +1,8 @@
 """Tests for Pydantic schema validation and conversion."""
+
 import pytest
 from pydantic import ValidationError
+
 from basic_memory.schemas import (
     Entity,
     EntityResponse,
@@ -10,12 +12,10 @@ from basic_memory.schemas import (
     OpenNodesRequest,
 )
 
+
 def test_entity_in_minimal():
     """Test creating EntityIn with minimal required fields."""
-    data = {
-        "name": "test_entity",
-        "entity_type": "test"
-    }
+    data = {"name": "test_entity", "entity_type": "test"}
     entity = Entity.model_validate(data)
     assert entity.name == "test_entity"
     assert entity.entity_type == "test"
@@ -23,22 +23,15 @@ def test_entity_in_minimal():
     assert entity.observations == []
     assert entity.relations == []
 
+
 def test_entity_in_complete():
     """Test creating EntityIn with all fields."""
     data = {
         "name": "test_entity",
         "entity_type": "test",
         "description": "A test entity",
-        "observations": [
-            "Test observation"
-        ],
-        "relations": [
-            {
-                "from_id": "123",
-                "to_id": "456",
-                "relation_type": "test_relation"
-            }
-        ]
+        "observations": ["Test observation"],
+        "relations": [{"from_id": "123", "to_id": "456", "relation_type": "test_relation"}],
     }
     entity = Entity.model_validate(data)
     assert entity.name == "test_entity"
@@ -48,6 +41,7 @@ def test_entity_in_complete():
     assert entity.observations[0] == "Test observation"
     assert len(entity.relations) == 1
     assert entity.relations[0].from_id == "123"
+
 
 def test_entity_in_validation():
     """Test validation errors for EntityIn."""
@@ -60,13 +54,10 @@ def test_entity_in_validation():
     with pytest.raises(ValidationError):
         Entity.model_validate({"entityType": "test"})  # Missing name
 
+
 def test_relation_in_validation():
     """Test RelationIn validation."""
-    data = {
-        "from_id": "123",
-        "to_id": "456",
-        "relation_type": "test"
-    }
+    data = {"from_id": "123", "to_id": "456", "relation_type": "test"}
     relation = Relation.model_validate(data)
     assert relation.from_id == "123"
     assert relation.to_id == "456"
@@ -82,19 +73,13 @@ def test_relation_in_validation():
     with pytest.raises(ValidationError):
         Relation.model_validate({"from_id": "123", "to_id": "456"})  # Missing relationType
 
+
 def test_create_entities_input():
     """Test CreateEntitiesInput validation."""
     data = {
         "entities": [
-            {
-                "name": "entity1",
-                "entity_type": "test"
-            },
-            {
-                "name": "entity2",
-                "entity_type": "test",
-                "description": "test description"
-            }
+            {"name": "entity1", "entity_type": "test"},
+            {"name": "entity2", "entity_type": "test", "description": "test description"},
         ]
     }
     create_input = CreateEntityRequest.model_validate(data)
@@ -105,6 +90,7 @@ def test_create_entities_input():
     with pytest.raises(ValidationError):
         CreateEntityRequest.model_validate({"entities": []})
 
+
 def test_entity_out_from_attributes():
     """Test EntityOut creation from database model attributes."""
     # Simulate database model attributes
@@ -113,18 +99,10 @@ def test_entity_out_from_attributes():
         "name": "test",
         "entity_type": "test",
         "description": "test description",
-        "observations": [
-            {"id": 1, "content": "test obs", "context": None}
-        ],
+        "observations": [{"id": 1, "content": "test obs", "context": None}],
         "relations": [
-            {
-                "id": 1,
-                "from_id": "123",
-                "to_id": "456",
-                "relation_type": "test",
-                "context": None
-            }
-        ]
+            {"id": 1, "from_id": "123", "to_id": "456", "relation_type": "test", "context": None}
+        ],
     }
     entity = EntityResponse.model_validate(db_data)
     assert entity.id == "123"
@@ -132,6 +110,7 @@ def test_entity_out_from_attributes():
     assert len(entity.observations) == 1
     assert entity.observations[0].id == 1
     assert len(entity.relations) == 1
+
 
 def test_optional_fields():
     """Test handling of optional fields."""
@@ -142,27 +121,27 @@ def test_optional_fields():
     assert entity.relations == []
 
     # Create with empty optional fields
-    entity = Entity.model_validate({
-        "name": "test",
-        "entity_type": "test",
-        "description": None,
-        "observations": [],
-        "relations": []
-    })
+    entity = Entity.model_validate(
+        {
+            "name": "test",
+            "entity_type": "test",
+            "description": None,
+            "observations": [],
+            "relations": [],
+        }
+    )
     assert entity.description is None
     assert entity.observations == []
     assert entity.relations == []
 
     # Create with some optional fields
-    entity = Entity.model_validate({
-        "name": "test",
-        "entity_type": "test",
-        "description": "test",
-        "observations": []
-    })
+    entity = Entity.model_validate(
+        {"name": "test", "entity_type": "test", "description": "test", "observations": []}
+    )
     assert entity.description == "test"
     assert entity.observations == []
     assert entity.relations == []
+
 
 def test_search_nodes_input():
     """Test SearchNodesInput validation."""
@@ -172,11 +151,12 @@ def test_search_nodes_input():
     with pytest.raises(ValidationError):
         SearchNodesRequest.model_validate({})  # Missing required query
 
+
 def test_open_nodes_input():
     """Test OpenNodesInput validation."""
-    open_input = OpenNodesRequest.model_validate({"names": ["entity1", "entity2"]})
-    assert len(open_input.names) == 2
+    open_input = OpenNodesRequest.model_validate({"entity_ids": ["entity1", "entity2"]})
+    assert len(open_input.entity_ids) == 2
 
     # Empty names list should fail
     with pytest.raises(ValidationError):
-        OpenNodesRequest.model_validate({"names": []})
+        OpenNodesRequest.model_validate({"entity_ids": []})

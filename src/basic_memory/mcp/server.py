@@ -173,7 +173,7 @@ class MemoryServer(Server):
                     raise McpError(METHOD_NOT_FOUND, f"Unknown tool: {name}")
 
                 # Make API call
-                logger.debug(f"Calling API endpoint for {name}")
+                logger.debug(f"Calling API endpoint for {name} with arguments: {arguments}")
                 response = await handler(self.client, arguments)
 
                 # Handle HTTP errors

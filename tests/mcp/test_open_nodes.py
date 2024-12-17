@@ -5,7 +5,6 @@ from mcp.types import EmbeddedResource
 
 from basic_memory.mcp.server import MIME_TYPE
 from basic_memory.schemas import OpenNodesResponse
-from basic_memory.utils import sanitize_name
 
 
 @pytest.mark.asyncio
@@ -36,7 +35,7 @@ async def test_open_nodes(server):
 
     # Open specific nodes
     result = await server.handle_call_tool(
-        "open_nodes", {"names": ["test/opentesta", "test/opentestb"]}
+        "open_nodes", {"entity_ids": ["test/opentesta", "test/opentestb"]}
     )
 
     # Verify response format
@@ -55,7 +54,7 @@ async def test_open_nodes(server):
 
     # Verify entity content
     entity = response.entities[0]
-    assert entity.id == sanitize_name("test/OpenTestA")
+    assert entity.id == "test/opentesta"
     assert entity.entity_type == "test"
     assert len(entity.observations) == 1
-    assert entity.observations[0].content == "First test entity"
+    assert entity.observations[0] == "First test entity"

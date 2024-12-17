@@ -35,7 +35,7 @@ async def test_empty_arrays(server):
     assert INVALID_PARAMS == exc.value.args[0]
 
     with pytest.raises(McpError) as exc:
-        await server.handle_call_tool("open_nodes", {"names": []})
+        await server.handle_call_tool("open_nodes", {"entity_ids": []})
     assert INVALID_PARAMS == exc.value.args[0]
 
 
