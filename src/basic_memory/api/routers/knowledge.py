@@ -112,13 +112,12 @@ async def delete_entity(
     return DeleteEntityResponse(deleted=deleted)
 
 
-@router.post(
-    "/entities/{entity_id:path}/observations/delete", response_model=DeleteObservationsResponse
-)
+@router.post("/observations/delete", response_model=DeleteObservationsResponse)
 async def delete_observations(
-    entity_id: str, data: DeleteObservationsRequest, memory_service: MemoryServiceDep
+    data: DeleteObservationsRequest, memory_service: MemoryServiceDep
 ) -> DeleteObservationsResponse:
     """Delete observations from an entity."""
+    entity_id = data.entity_id
     deleted = await memory_service.delete_observations(entity_id, data.deletions)
     return DeleteObservationsResponse(deleted=deleted)
 

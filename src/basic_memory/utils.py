@@ -1,13 +1,29 @@
 """Utility functions for basic-memory."""
 
-def normalize_entity_id(entity_id: str) -> str:
+import re
+import unicodedata
+
+
+def sanitize_name(name: str) -> str:
     """
-    Normalize an entity ID by converting to lowercase and replacing spaces with underscores.
-    
-    Args:
-        entity_id: Raw entity ID to normalize
-        
-    Returns:
-        Normalized entity ID suitable for filesystem and database use
+    Sanitize a name for filesystem use:
+    - Convert to lowercase
+    - Replace spaces/punctuation with underscores
+    - Remove emojis and other special characters
+    - Collapse multiple underscores
+    - Trim leading/trailing underscores
     """
-    return entity_id.lower().replace(" ", "_")
+    # Normalize unicode to compose characters where possible
+    name = unicodedata.normalize("NFKD", name)
+    # Remove emojis and other special characters, keep only letters, numbers, spaces
+    name = "".join(c for c in name if c.isalnum() or c.isspace())
+    # Replace spaces with underscores
+    name = name.replace(" ", "_")
+    # Remove newline
+    name = name.replace("\n", "")
+    # Convert to lowercase
+    name = name.lower()
+    # Collapse multiple underscores and trim
+    name = re.sub(r"_+", "_", name).strip("_")
+
+    return name

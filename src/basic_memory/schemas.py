@@ -1,17 +1,26 @@
 """Core pydantic models for basic-memory entities, observations, and relations."""
 
-from typing import List, Optional, Annotated, TypeAlias
+from typing import List, Optional, Annotated
 
-from annotated_types import Len
+from annotated_types import MinLen, MaxLen
 from pydantic import BaseModel, ConfigDict, BeforeValidator
 
-from basic_memory.utils import normalize_entity_id
+from basic_memory.utils import sanitize_name
 
-# Base Models
-Observation: TypeAlias = str
+
+# Strip whitespace
+def strip_whitespace(obs: str) -> str:
+    return obs.strip()
+
+
+Observation = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(1000)]
+
+EntityType = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(20)]
+
+RelationType = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(20)]
 
 # Custom field types with validation
-EntityId = Annotated[str, BeforeValidator(normalize_entity_id)]
+EntityId = Annotated[str, BeforeValidator(sanitize_name)]
 
 
 class Relation(BaseModel):
@@ -22,7 +31,7 @@ class Relation(BaseModel):
 
     from_id: EntityId
     to_id: EntityId
-    relation_type: str
+    relation_type: RelationType
     context: Optional[str] = None
 
 
@@ -35,7 +44,7 @@ class Entity(BaseModel):
 
     id: Optional[EntityId] = None
     name: str
-    entity_type: str
+    entity_type: EntityType
     description: Optional[str] = None
     observations: List[Observation] = []
     relations: List[Relation] = []
@@ -60,19 +69,19 @@ class AddObservationsRequest(BaseModel):
 class CreateEntityRequest(BaseModel):
     """Request schema for create_entities tool."""
 
-    entities: Annotated[List[Entity], Len(min_length=1)]
+    entities: Annotated[List[Entity], MinLen(1)]
 
 
 class SearchNodesRequest(BaseModel):
     """Request schema for search_nodes tool."""
 
-    query: str
+    query: Annotated[str, MinLen(1), MaxLen(200)]
 
 
 class OpenNodesRequest(BaseModel):
     """Request schema for open_nodes tool."""
 
-    names: Annotated[List[EntityId], Len(min_length=1)]
+    names: Annotated[List[EntityId], MinLen(1)]
 
 
 class CreateRelationsRequest(BaseModel):
@@ -87,7 +96,7 @@ class CreateRelationsRequest(BaseModel):
 class DeleteEntityRequest(BaseModel):
     """Request schema for delete_entities tool."""
 
-    entity_ids: List[EntityId]
+    entity_ids: Annotated[List[EntityId], MinLen(1)]
 
 
 class DeleteRelationsRequest(BaseModel):
@@ -100,7 +109,7 @@ class DeleteObservationsRequest(BaseModel):
     """Request schema for delete_observations tool."""
 
     entity_id: EntityId
-    deletions: List[Observation]
+    deletions: Annotated[List[Observation], MinLen(1)]
 
 
 # response output models
@@ -134,7 +143,7 @@ class RelationResponse(Relation, SQLAlchemyModel):
 class EntityResponse(SQLAlchemyModel):
     """Schema for entity data returned from the service."""
 
-    id: EntityId
+    id: str
     name: str
     entity_type: str
     description: Optional[str] = None

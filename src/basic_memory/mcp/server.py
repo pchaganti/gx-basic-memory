@@ -160,9 +160,11 @@ class MemoryServer(Server):
                     "open_nodes": lambda c, a: c.post("/knowledge/nodes", json=a),
                     "add_observations": lambda c, a: c.post("/knowledge/observations", json=a),
                     "create_relations": lambda c, a: c.post("/knowledge/relations", json=a),
-                    "delete_entities": lambda c, a: c.post(f"/knowledge/entities/{a['names'][0]}"),
-                    "delete_observations": lambda c, a: c.post("/knowledge/observations", json=a),
-                    "delete_relations": lambda c, a: c.post("/knowledge/entities/", json=a),
+                    "delete_entities": lambda c, a: c.post("/knowledge/entities/delete", json=a),
+                    "delete_observations": lambda c, a: c.post(
+                        "/knowledge/observations/delete", json=a
+                    ),
+                    "delete_relations": lambda c, a: c.post("/knowledge/relations/delete", json=a),
                 }
 
                 # Get handler for tool
