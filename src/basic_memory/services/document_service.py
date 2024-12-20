@@ -2,7 +2,7 @@
 
 import hashlib
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from loguru import logger
 
@@ -44,6 +44,32 @@ class DocumentService(BaseService[DocumentRepository]):
         """Compute SHA-256 checksum of content."""
         return hashlib.sha256(content.encode()).hexdigest()
 
+    async def ensure_parent_directory(self, path: Path) -> None:
+        """
+        Ensure parent directory exists and is writable.
+
+        Args:
+            path: Path to check
+
+        Raises:
+            DocumentWriteError: If directory cannot be created or is not writable
+        """
+        parent = path.parent
+        try:
+            if not parent.exists():
+                parent.mkdir(parents=True)
+
+            # Verify we can write to it
+            test_file = parent / ".write_test"
+            test_file.touch()
+            test_file.unlink()
+        except Exception as e:
+            raise DocumentWriteError(f"Directory not writable: {parent}: {e}")
+
+    async def list_documents(self) -> List[Document]:
+        """List all documents in the database."""
+        return await self.repository.find_all()
+
     async def create_document(
         self, path: str, content: str, metadata: Optional[Dict[str, Any]] = None
     ) -> Document:
@@ -63,9 +89,9 @@ class DocumentService(BaseService[DocumentRepository]):
         """
         logger.debug(f"Creating document at {path}")
 
-        # Ensure parent directories exist
+        # Ensure parent directories exist and are writable
         file_path = Path(path)
-        file_path.parent.mkdir(parents=True, exist_ok=True)
+        await self.ensure_parent_directory(file_path)
 
         # Write file first
         try:
@@ -164,9 +190,11 @@ class DocumentService(BaseService[DocumentRepository]):
         checksum = await self.compute_checksum(content)
         update_data = {"checksum": checksum}
         if metadata is not None:
-            update_data["doc_metadata"] = metadata  # pyright: ignore [reportArgumentType]
+            update_data["doc_metadata"] = metadata
 
-        return await self.repository.update(doc.id, update_data)
+        updated_document = await self.repository.update(doc.id, update_data)
+        assert updated_document is not None, f"Could not update document {doc.id}"
+        return updated_document
 
     async def delete_document(self, path: str) -> None:
         """

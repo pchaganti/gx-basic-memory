@@ -1,8 +1,10 @@
 """Tests for DocumentService."""
 
+import os
 import pytest
 import pytest_asyncio
 from pathlib import Path
+import stat
 
 from basic_memory.services.document_service import (
     DocumentService,
@@ -45,18 +47,25 @@ async def test_create_document_file_first(document_service, test_doc_path):
 @pytest.mark.asyncio
 async def test_create_document_unwriteable_directory(document_service, tmp_path):
     """Test error when trying to write to an unwriteable directory."""
-    # Try to create in non-existent parent
-    bad_path = tmp_path / "nonexistent" / "test.md"
+    # Create parent directory without write permissions
+    parent_dir = tmp_path / "unwriteable"
+    parent_dir.mkdir()
+    parent_dir.chmod(stat.S_IREAD)  # Read-only
     
+    bad_path = parent_dir / "test.md"
     content = "# Test"
+    
     with pytest.raises(DocumentWriteError):
         await document_service.create_document(str(bad_path), content)
     
-    # Verify no file was created
-    assert not bad_path.exists()
+    # Verify directory is still read-only
+    assert not os.access(parent_dir, os.W_OK)
     # Verify no database record
     doc = await document_service.repository.find_by_path(str(bad_path))
     assert doc is None
+    
+    # Clean up - make writable again so it can be deleted
+    parent_dir.chmod(stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
 
 
 @pytest.mark.asyncio
