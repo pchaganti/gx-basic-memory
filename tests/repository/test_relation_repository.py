@@ -4,18 +4,13 @@ import pytest
 import pytest_asyncio
 import sqlalchemy
 
+from basic_memory import db
 from basic_memory.models import Entity, Relation
 from basic_memory.repository.relation_repository import RelationRepository
 
 
 @pytest_asyncio.fixture
-async def relation_repo(session):
-    """Create a RelationRepository with test DB session."""
-    return RelationRepository(session)
-
-
-@pytest_asyncio.fixture
-async def source_entity(session):
+async def source_entity(session_maker):
     """Create a source entity for testing relations."""
     entity = Entity(
         id="source/test_entity",
@@ -23,13 +18,14 @@ async def source_entity(session):
         entity_type="source",
         description="Source entity",
     )
-    session.add(entity)
-    await session.flush()
-    return entity
+    async with db.scoped_session(session_maker) as session:
+        session.add(entity)
+        await session.flush()
+        return entity
 
 
 @pytest_asyncio.fixture
-async def target_entity(session):
+async def target_entity(session_maker):
     """Create a target entity for testing relations."""
     entity = Entity(
         id="target/test_entity",
@@ -37,21 +33,23 @@ async def target_entity(session):
         entity_type="target",
         description="Target entity",
     )
-    session.add(entity)
-    await session.flush()
-    return entity
+    async with db.scoped_session(session_maker) as session:
+        session.add(entity)
+        await session.flush()
+        return entity
 
 
 @pytest_asyncio.fixture
-async def test_relations(session, source_entity, target_entity):
+async def test_relations(session_maker, source_entity, target_entity):
     """Create test relations."""
     relations = [
         Relation(from_id=source_entity.id, to_id=target_entity.id, relation_type="connects_to"),
         Relation(from_id=source_entity.id, to_id=target_entity.id, relation_type="depends_on"),
     ]
-    session.add_all(relations)
-    await session.flush()
-    return relations
+    async with db.scoped_session(session_maker) as session:
+        session.add_all(relations)
+        await session.flush()
+        return relations
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -242,50 +240,52 @@ async def test_delete_by_fields_all_fields(
 
 
 @pytest.mark.asyncio
-async def test_delete_relation_by_id(relation_repo, test_relations):
+async def test_delete_relation_by_id(relation_repository, test_relations):
     """Test deleting a relation by ID."""
     relation = test_relations[0]
 
-    result = await relation_repo.delete(relation.id)
+    result = await relation_repository.delete(relation.id)
     assert result is True
 
     # Verify deletion
-    remaining = await relation_repo.find_one(
-        relation_repo.select(Relation).filter(Relation.id == relation.id)
+    remaining = await relation_repository.find_one(
+        relation_repository.select(Relation).filter(Relation.id == relation.id)
     )
     assert remaining is None
 
 
 @pytest.mark.asyncio
-async def test_delete_relations_by_type(relation_repo, test_relations):
+async def test_delete_relations_by_type(relation_repository, test_relations):
     """Test deleting relations by type."""
-    result = await relation_repo.delete_by_fields(relation_type="connects_to")
+    result = await relation_repository.delete_by_fields(relation_type="connects_to")
     assert result is True
 
     # Verify specific type was deleted
-    remaining = await relation_repo.find_by_type("connects_to")
+    remaining = await relation_repository.find_by_type("connects_to")
     assert len(remaining) == 0
 
     # Verify other type still exists
-    others = await relation_repo.find_by_type("depends_on")
+    others = await relation_repository.find_by_type("depends_on")
     assert len(others) == 1
 
 
 @pytest.mark.asyncio
 async def test_delete_relations_by_entities(
-    relation_repo, test_relations, source_entity, target_entity
+    relation_repository, test_relations, source_entity, target_entity
 ):
     """Test deleting relations between specific entities."""
-    result = await relation_repo.delete_by_fields(from_id=source_entity.id, to_id=target_entity.id)
+    result = await relation_repository.delete_by_fields(
+        from_id=source_entity.id, to_id=target_entity.id
+    )
     assert result is True
 
     # Verify all relations between entities were deleted
-    remaining = await relation_repo.find_by_entities(source_entity.id, target_entity.id)
+    remaining = await relation_repository.find_by_entities(source_entity.id, target_entity.id)
     assert len(remaining) == 0
 
 
 @pytest.mark.asyncio
-async def test_delete_nonexistent_relation(relation_repo):
+async def test_delete_nonexistent_relation(relation_repository):
     """Test deleting a relation that doesn't exist."""
-    result = await relation_repo.delete_by_fields(relation_type="nonexistent")
+    result = await relation_repository.delete_by_fields(relation_type="nonexistent")
     assert result is False

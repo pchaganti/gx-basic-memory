@@ -5,22 +5,26 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, AsyncEngine
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import (
+    async_sessionmaker,
+    AsyncSession,
+    AsyncEngine,
+)
 
 from basic_memory import db
 from basic_memory.config import ProjectConfig
 from basic_memory.db import DatabaseType
-from basic_memory.deps import (
-    get_entity_service,
-    get_observation_service,
-    get_relation_service,
-    get_relation_repo,
-    get_observation_repo,
-    get_entity_repo,
-)
+from basic_memory.models import Base, Entity as EntityModel
 from basic_memory.repository.entity_repository import EntityRepository
+from basic_memory.repository.observation_repository import ObservationRepository
+from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.schemas import Entity
-from basic_memory.services import MemoryService
+from basic_memory.services import (
+    EntityService,
+    ObservationService,
+    RelationService,
+)
 
 
 @pytest_asyncio.fixture
@@ -39,22 +43,27 @@ def test_config(tmp_path):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def engine_session_factory(
+async def engine_factory(
     test_config,
 ) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
-    """Create an async engine using in-memory SQLite database"""
+    """Create engine and session factory using in-memory SQLite database."""
     async with db.engine_session_factory(
         project_path=test_config.path, db_type=DatabaseType.MEMORY
-    ) as (engine, session_factory):
-        yield engine, session_factory
+    ) as (engine, session_maker):
+        # Initialize database
+        async with db.scoped_session(session_maker) as session:
+            await session.execute(text("PRAGMA foreign_keys=ON"))
+            conn = await session.connection()
+            await conn.run_sync(Base.metadata.create_all)
+
+        yield engine, session_maker
 
 
-@pytest_asyncio.fixture(scope="function")
-async def session(engine_session_factory):
-    """Create an async session factory and yield a session"""
-    engine, session_factory = engine_session_factory
-    async with db.session(session_factory) as session:
-        yield session
+@pytest_asyncio.fixture
+async def session_maker(engine_factory) -> async_sessionmaker[AsyncSession]:
+    """Get session maker for tests."""
+    _, session_maker = engine_factory
+    return session_maker
 
 
 @pytest_asyncio.fixture
@@ -68,52 +77,50 @@ async def test_project_path():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def entity_repository(session: AsyncSession):
-    """Create an EntityRepository instance"""
-    return await get_entity_repo(session)
+async def entity_repository(session_maker: async_sessionmaker[AsyncSession]) -> EntityRepository:
+    """Create an EntityRepository instance."""
+    return EntityRepository(session_maker)
 
 
 @pytest_asyncio.fixture(scope="function")
-async def observation_repository(session: AsyncSession):
-    """Create an ObservationRepository instance"""
-    return await get_observation_repo(session)
+async def observation_repository(
+    session_maker: async_sessionmaker[AsyncSession],
+) -> ObservationRepository:
+    """Create an ObservationRepository instance."""
+    return ObservationRepository(session_maker)
 
 
 @pytest_asyncio.fixture(scope="function")
-async def relation_repository(session: AsyncSession):
-    """Create a RelationRepository instance"""
-    return await get_relation_repo(session)
+async def relation_repository(
+    session_maker: async_sessionmaker[AsyncSession],
+) -> RelationRepository:
+    """Create a RelationRepository instance."""
+    return RelationRepository(session_maker)
 
 
 @pytest_asyncio.fixture
-async def entity_service(test_project_path, entity_repository):
-    """Fixture providing initialized EntityService."""
-    return await get_entity_service(test_project_path, entity_repository)
+async def entity_service(entity_repository: EntityRepository) -> EntityService:
+    """Create EntityService with repository."""
+    return EntityService(entity_repository)
 
 
 @pytest_asyncio.fixture
-async def relation_service(test_project_path, relation_repository):
-    """Fixture providing initialized RelationService."""
-    return await get_relation_service(test_project_path, relation_repository)
+async def relation_service(relation_repository: RelationRepository) -> RelationService:
+    """Create RelationService with repository."""
+    return RelationService(relation_repository)
 
 
 @pytest_asyncio.fixture
-async def observation_service(test_project_path, observation_repository):
-    """Fixture providing initialized RelationService."""
-    return await get_observation_service(test_project_path, observation_repository)
-
-
-@pytest_asyncio.fixture
-async def memory_service(test_project_path, entity_service, relation_service, observation_service):
-    """Fixture providing initialized MemoryService."""
-    return MemoryService(test_project_path, entity_service, relation_service, observation_service)
+async def observation_service(observation_repository: ObservationRepository) -> ObservationService:
+    """Create ObservationService with repository."""
+    return ObservationService(observation_repository)
 
 
 @pytest_asyncio.fixture(scope="function")
-async def sample_entity(entity_repository: EntityRepository):
-    """Create a sample entity for testing"""
+async def sample_entity(entity_repository: EntityRepository) -> EntityModel:
+    """Create a sample entity for testing."""
     entity_data = {
-        "id": "20240102-test-entity",
+        "id": "test/test_entity",
         "name": "Test Entity",
         "entity_type": "test",
         "description": "A test entity",
@@ -122,10 +129,7 @@ async def sample_entity(entity_repository: EntityRepository):
 
 
 @pytest_asyncio.fixture
-async def test_entity(entity_service):
+async def test_entity(entity_service: EntityService) -> EntityModel:
     """Create a test entity for reuse in tests."""
-    entity_data = Entity(  # pyright: ignore [reportCallIssue]
-        name="Test Entity",
-        entity_type="test",  # pyright: ignore [reportCallIssue]
-    )
+    entity_data = Entity(name="Test Entity", entity_type="test", observations=[])
     return await entity_service.create_entity(entity_data)

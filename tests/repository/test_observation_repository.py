@@ -3,8 +3,9 @@
 import pytest
 import pytest_asyncio
 import sqlalchemy
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from basic_memory import db
 from basic_memory.models import Entity, Observation
 from basic_memory.repository.observation_repository import ObservationRepository
 
@@ -82,20 +83,19 @@ async def test_find_by_context(
 
 
 @pytest.mark.asyncio
-async def test_delete_observations(session: AsyncSession, repo):
+async def test_delete_observations(session_maker: async_sessionmaker, repo):
     """Test deleting observations by entity_id."""
     # Create test entity
-    entity = Entity(
-        id="test/test_entity", name="test_entity", entity_type="test", description="Test entity"
-    )
-    session.add(entity)
-    await session.flush()
+    async with db.scoped_session(session_maker) as session:
+        entity = Entity(
+            id="test/test_entity", name="test_entity", entity_type="test", description="Test entity"
+        )
+        session.add(entity)
 
-    # Create test observations
-    obs1 = Observation(entity_id=entity.id, content="Test observation 1")
-    obs2 = Observation(entity_id=entity.id, content="Test observation 2")
-    session.add_all([obs1, obs2])
-    await session.flush()
+        # Create test observations
+        obs1 = Observation(entity_id=entity.id, content="Test observation 1")
+        obs2 = Observation(entity_id=entity.id, content="Test observation 2")
+        session.add_all([obs1, obs2])
 
     # Test deletion by entity_id
     deleted = await repo.delete_by_fields(entity_id=entity.id)
@@ -107,19 +107,18 @@ async def test_delete_observations(session: AsyncSession, repo):
 
 
 @pytest.mark.asyncio
-async def test_delete_observation_by_id(session: AsyncSession, repo):
+async def test_delete_observation_by_id(session_maker: async_sessionmaker, repo):
     """Test deleting a single observation by its ID."""
     # Create test entity
-    entity = Entity(
-        id="test/test_entity", name="test_entity", entity_type="test", description="Test entity"
-    )
-    session.add(entity)
-    await session.flush()
+    async with db.scoped_session(session_maker) as session:
+        entity = Entity(
+            id="test/test_entity", name="test_entity", entity_type="test", description="Test entity"
+        )
+        session.add(entity)
 
-    # Create test observation
-    obs = Observation(entity_id=entity.id, content="Test observation")
-    session.add(obs)
-    await session.flush()
+        # Create test observation
+        obs = Observation(entity_id=entity.id, content="Test observation")
+        session.add(obs)
 
     # Test deletion by ID
     deleted = await repo.delete(obs.id)
@@ -131,20 +130,19 @@ async def test_delete_observation_by_id(session: AsyncSession, repo):
 
 
 @pytest.mark.asyncio
-async def test_delete_observation_by_content(session: AsyncSession, repo):
+async def test_delete_observation_by_content(session_maker: async_sessionmaker, repo):
     """Test deleting observations by content."""
     # Create test entity
-    entity = Entity(
-        id="test/test_entity", name="test_entity", entity_type="test", description="Test entity"
-    )
-    session.add(entity)
-    await session.flush()
+    async with db.scoped_session(session_maker) as session:
+        entity = Entity(
+            id="test/test_entity", name="test_entity", entity_type="test", description="Test entity"
+        )
+        session.add(entity)
 
-    # Create test observations
-    obs1 = Observation(entity_id=entity.id, content="Delete this observation")
-    obs2 = Observation(entity_id=entity.id, content="Keep this observation")
-    session.add_all([obs1, obs2])
-    await session.flush()
+        # Create test observations
+        obs1 = Observation(entity_id=entity.id, content="Delete this observation")
+        obs2 = Observation(entity_id=entity.id, content="Keep this observation")
+        session.add_all([obs1, obs2])
 
     # Test deletion by content
     deleted = await repo.delete_by_fields(content="Delete this observation")

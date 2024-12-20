@@ -57,4 +57,4 @@ async def test_open_nodes(app):
     assert entity.id == "test/opentesta"
     assert entity.entity_type == "test"
     assert len(entity.observations) == 1
-    assert entity.observations[0] == "First test entity"
+    assert entity.observations[0].content == "First test entity"

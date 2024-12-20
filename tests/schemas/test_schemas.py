@@ -21,7 +21,6 @@ def test_entity_in_minimal():
     assert entity.entity_type == "test"
     assert entity.description is None
     assert entity.observations == []
-    assert entity.relations == []
 
 
 def test_entity_in_complete():
@@ -31,7 +30,6 @@ def test_entity_in_complete():
         "entity_type": "test",
         "description": "A test entity",
         "observations": ["Test observation"],
-        "relations": [{"from_id": "123", "to_id": "456", "relation_type": "test_relation"}],
     }
     entity = Entity.model_validate(data)
     assert entity.name == "test_entity"
@@ -39,8 +37,6 @@ def test_entity_in_complete():
     assert entity.description == "A test entity"
     assert len(entity.observations) == 1
     assert entity.observations[0] == "Test observation"
-    assert len(entity.relations) == 1
-    assert entity.relations[0].from_id == "123"
 
 
 def test_entity_in_validation():
@@ -118,7 +114,6 @@ def test_optional_fields():
     entity = Entity.model_validate({"name": "test", "entity_type": "test"})
     assert entity.description is None
     assert entity.observations == []
-    assert entity.relations == []
 
     # Create with empty optional fields
     entity = Entity.model_validate(
@@ -127,12 +122,10 @@ def test_optional_fields():
             "entity_type": "test",
             "description": None,
             "observations": [],
-            "relations": [],
         }
     )
     assert entity.description is None
     assert entity.observations == []
-    assert entity.relations == []
 
     # Create with some optional fields
     entity = Entity.model_validate(
@@ -140,7 +133,6 @@ def test_optional_fields():
     )
     assert entity.description == "test"
     assert entity.observations == []
-    assert entity.relations == []
 
 
 def test_search_nodes_input():

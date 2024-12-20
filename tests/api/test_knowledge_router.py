@@ -20,7 +20,7 @@ from basic_memory.schemas import (
 
 
 @pytest_asyncio.fixture
-def app(test_config, engine_session_factory) -> FastAPI:
+def app(test_config, engine_factory) -> FastAPI:
     """Create FastAPI test application."""
     # Lazy import router to avoid app startup issues
     from basic_memory.api.routers.knowledge import router
@@ -29,7 +29,7 @@ def app(test_config, engine_session_factory) -> FastAPI:
     app.include_router(router)
 
     app.dependency_overrides[get_project_config] = lambda: test_config
-    app.dependency_overrides[get_engine_factory] = lambda: engine_session_factory
+    app.dependency_overrides[get_engine_factory] = lambda: engine_factory
     return app
 
 
@@ -40,9 +40,12 @@ async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
         yield client
 
 
-async def create_entity(
-    client, data={"name": "Test Entity", "entity_type": "test"}
-) -> EntityResponse:
+async def create_entity(client) -> EntityResponse:
+    data = {
+        "name": "Test Entity",
+        "entity_type": "test",
+        "observations": ["First observation", "Second observation"],
+    }
     # Create an entity
     response = await client.post("/knowledge/entities", json={"entities": [data]})
     # Verify creation
@@ -55,6 +58,8 @@ async def create_entity(
     assert entity["name"] == data["name"]
     entity_type = entity.get("entity_type")
     assert entity_type == data["entity_type"]
+
+    assert len(entity["observations"]) == 2
 
     create_response = CreateEntityResponse.model_validate(response_data)
     return create_response.entities[0]
@@ -194,6 +199,35 @@ async def test_search_nodes(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_open_nodes(client: AsyncClient):
+    """Should search for entities in the knowledge graph."""
+    # Create a few entities with different names
+    entities = [
+        {"name": "Alpha Test", "entity_type": "test"},
+        {"name": "Beta Test", "entity_type": "test"},
+    ]
+    await client.post("/knowledge/entities", json={"entities": entities})
+
+    # open nodes
+    response = await client.post(
+        "/knowledge/nodes",
+        json={
+            "entity_ids": [
+                "test/alpha_test",
+            ]
+        },
+    )
+
+    # Verify search results
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entities"]) == 1
+    entity = data["entities"][0]
+    assert entity["name"] == "Alpha Test"
+    assert entity["entity_type"] == "test"
+
+
+@pytest.mark.asyncio
 async def test_delete_entity(client: AsyncClient):
     """Test DELETE /knowledge/entities/{entity_id}."""
     # Create test entity
@@ -214,7 +248,12 @@ async def test_delete_entity_bulk(client: AsyncClient):
     """Test DELETE /knowledge/entities/{entity_id}."""
     # Create test entity
     entity1 = await create_entity(client)
-    entity2 = await create_entity(client, data={"name": "Test Entity2", "entity_type": "test"})
+
+    e2_response = await client.post(
+        "/knowledge/entities", json={"entities": [{"name": "Test Entity2", "entity_type": "test"}]}
+    )
+    create_response = CreateEntityResponse.model_validate(e2_response.json())
+    entity2 = create_response.entities[0]
 
     # Test deletion
     response = await client.post(
@@ -253,7 +292,7 @@ async def test_delete_observations(client, observation_repository):
     """Test DELETE /knowledge/entities/{entity_id}/observations."""
     # Create test data
     entity = await create_entity(client)
-    observations = await add_observations(client, entity.id)
+    observations = await add_observations(client, entity.id)  # adds 2
 
     # Delete specific observations
     request_data = {"entity_id": entity.id, "deletions": [observations[0].content]}
@@ -263,7 +302,7 @@ async def test_delete_observations(client, observation_repository):
 
     # Verify only specified observations were deleted
     remaining = await observation_repository.find_by_entity(entity.id)
-    assert len(remaining) == 1
+    assert len(remaining) == 2  # because entity originally had 1
     assert remaining[0].content == observations[1].content
 
 
@@ -332,27 +371,6 @@ async def test_delete_nonexistent_relations(client):
     assert response.json() == {"deleted": False}
 
 
-# @pytest.mark.asyncio
-# TODO should this be a 404?
-# - should we check the file system first
-# - should we fail if the entity is not found in the db
-# async def test_delete_observations_entity_does_not_exist(client):
-#     """Test when entity_id in path doesn't match request body."""
-#     # Create test entity
-#     entity = await create_entity(client)
-#
-#     # Try to delete with mismatched IDs
-#     request_data = {
-#         "entity_id": "different/id",
-#         "deletions": ["Some observation"]
-#     }
-#     response = await client.post(
-#         f"/knowledge/entities/{entity.id}/observations/delete",
-#         json=request_data
-#     )
-#     assert response.status_code == 404
-
-
 @pytest.mark.asyncio
 async def test_full_knowledge_flow(client: AsyncClient):
     """Test a complete knowledge graph flow with multiple operations."""
@@ -367,9 +385,9 @@ async def test_full_knowledge_flow(client: AsyncClient):
         },
     )
     assert main_response.status_code == 200
-    entity0_id = main_response.json()["entities"][0]["id"]
-    entity1_id = main_response.json()["entities"][1]["id"]
-    assert entity0_id is not None
+    main_entity_id = "test/main_entity"
+    non_entity_id = "n_a/non_entity"
+    assert main_entity_id is not None
 
     # 2. Create related entities
     related_response = await client.post(
@@ -391,8 +409,16 @@ async def test_full_knowledge_flow(client: AsyncClient):
         "/knowledge/relations",
         json={
             "relations": [
-                {"from_id": entity0_id, "to_id": related_ids[0], "relation_type": "connects_to"},
-                {"from_id": entity0_id, "to_id": related_ids[1], "relation_type": "connects_to"},
+                {
+                    "from_id": main_entity_id,
+                    "to_id": related_ids[0],
+                    "relation_type": "connects_to",
+                },
+                {
+                    "from_id": main_entity_id,
+                    "to_id": related_ids[1],
+                    "relation_type": "connects_to",
+                },
             ]
         },
     )
@@ -403,7 +429,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     await client.post(
         "/knowledge/observations",
         json={
-            "entity_id": entity0_id,
+            "entity_id": main_entity_id,
             "observations": [
                 "Connected to first related entity",
                 "Connected to second related entity",
@@ -412,7 +438,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     )
 
     # 5. Verify full graph structure
-    main_get = await client.get(f"/knowledge/entities/{entity0_id}")
+    main_get = await client.get(f"/knowledge/entities/{main_entity_id}")
     main_entity = main_get.json()
 
     # Check entity structure
@@ -427,7 +453,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
 
     # 7. delete entities
     response = await client.post(
-        "/knowledge/entities/delete", json={"entity_ids": [entity0_id, entity1_id]}
+        "/knowledge/entities/delete", json={"entity_ids": [main_entity_id, non_entity_id]}
     )
 
     assert response.status_code == 200

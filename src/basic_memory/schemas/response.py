@@ -15,12 +15,12 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
-from basic_memory.schemas.base import Observation, EntityId, Relation, Entity
+from basic_memory.schemas.base import Observation, EntityId, Relation
 
 
 class SQLAlchemyModel(BaseModel):
     """Base class for models that read from SQLAlchemy attributes.
-    
+
     This base class handles conversion of SQLAlchemy model attributes
     to Pydantic model fields. All response models extend this to ensure
     proper handling of database results.
@@ -229,7 +229,7 @@ class OpenNodesResponse(SQLAlchemyModel):
     }
     """
 
-    entities: List[Entity]
+    entities: List[EntityResponse]
 
 
 class AddObservationsResponse(SQLAlchemyModel):

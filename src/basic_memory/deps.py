@@ -1,109 +1,113 @@
 """Dependency injection functions for basic-memory services."""
-from contextlib import asynccontextmanager
+
 from pathlib import Path
-from typing import AsyncGenerator, Annotated
+from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends
-from loguru import logger
-from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    AsyncEngine,
+    async_sessionmaker,
+)
 
+from basic_memory import db
 from basic_memory.config import ProjectConfig, config
+from basic_memory.db import DatabaseType
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
-from basic_memory.services import EntityService, ObservationService, RelationService, MemoryService
-from basic_memory import db
+from basic_memory.services import EntityService, ObservationService, RelationService
+
 
 def get_project_config() -> ProjectConfig:
     return config
+
+
 ProjectConfigDep = Annotated[ProjectConfig, Depends(get_project_config)]
+
 
 def get_project_path(project_config: ProjectConfigDep) -> Path:
     return Path(project_config.path)
+
+
 ProjectPathDep = Annotated[Path, Depends(get_project_path)]
 
 
-async def get_engine_factory(project_path: ProjectPathDep, db_type=db.DatabaseType.FILESYSTEM) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
-    async with db.engine_session_factory(project_path, db_type) as (engine, factory):
-        yield engine, factory
-
-EngineFactoryDep = Annotated[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], Depends(get_engine_factory)]
-
-async def get_session(engine_factory: EngineFactoryDep) -> AsyncGenerator[AsyncSession, None]:
-    _, factory = engine_factory
-    async with db.session(factory) as session:
-        yield session
-
-AsyncSessionDep = Annotated[AsyncSession, Depends(get_session)]
+async def get_engine_factory(
+    project_path: ProjectPathDep, db_type=DatabaseType.FILESYSTEM
+) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
+    async with db.engine_session_factory(project_path=project_path, db_type=db_type) as (
+        engine,
+        session_maker,
+    ):
+        yield engine, session_maker
 
 
-async def get_entity_repo(session: AsyncSessionDep) -> EntityRepository:
-    """Get an EntityRepository instance."""
-    return EntityRepository(session)  # Entity type is handled in EntityRepository.__init__
+EngineFactoryDep = Annotated[
+    tuple[AsyncEngine, async_sessionmaker[AsyncSession]], Depends(get_engine_factory)
+]
 
-EntityRepositoryDep = Annotated[EntityRepository, Depends(get_entity_repo)]
 
-async def get_observation_repo(session: AsyncSessionDep) -> ObservationRepository:
-    """Get an ObservationRepository instance."""
-    return ObservationRepository(session)
+async def get_session_maker(engine_factory: EngineFactoryDep) -> async_sessionmaker[AsyncSession]:
+    """Get session maker for tests."""
+    _, session_maker = engine_factory
+    return session_maker
 
-ObservationRepositoryDep = Annotated[ObservationRepository, Depends(get_observation_repo)]
 
-async def get_relation_repo(session: AsyncSessionDep) -> RelationRepository:
-    """Get a RelationRepository instance."""
-    return RelationRepository(session)
+SessionMakerDep = Annotated[async_sessionmaker, Depends(get_session_maker)]
 
-RelationRepositoryDep = Annotated[RelationRepository, Depends(get_relation_repo)]
 
-async def get_entity_service(
-    project_path: ProjectPathDep,
-    entity_repo: EntityRepositoryDep
-) -> EntityService:
-    """Get an EntityService instance."""
-    return EntityService(project_path, entity_repo)
+async def get_entity_repository(
+    session_maker: SessionMakerDep,
+) -> EntityRepository:
+    """Create an EntityRepository instance."""
+    return EntityRepository(session_maker)
+
+
+EntityRepositoryDep = Annotated[EntityRepository, Depends(get_entity_repository)]
+
+
+async def get_observation_repository(
+    session_maker: SessionMakerDep,
+) -> ObservationRepository:
+    """Create an ObservationRepository instance."""
+    return ObservationRepository(session_maker)
+
+
+ObservationRepositoryDep = Annotated[ObservationRepository, Depends(get_observation_repository)]
+
+
+async def get_relation_repository(
+    session_maker: SessionMakerDep,
+) -> RelationRepository:
+    """Create a RelationRepository instance."""
+    return RelationRepository(session_maker)
+
+
+RelationRepositoryDep = Annotated[RelationRepository, Depends(get_relation_repository)]
+
+
+async def get_entity_service(entity_repository: EntityRepositoryDep) -> EntityService:
+    """Create EntityService with repository."""
+    return EntityService(entity_repository)
+
 
 EntityServiceDep = Annotated[EntityService, Depends(get_entity_service)]
 
+
 async def get_observation_service(
-    project_path: ProjectPathDep,
-    observation_repo: ObservationRepositoryDep
+    observation_repository: ObservationRepositoryDep,
 ) -> ObservationService:
-    """Get an ObservationService instance."""
-    return ObservationService(project_path, observation_repo)
+    """Create ObservationService with repository."""
+    return ObservationService(observation_repository)
+
 
 ObservationServiceDep = Annotated[ObservationService, Depends(get_observation_service)]
 
-async def get_relation_service(
-    project_path: ProjectPathDep,
-    relation_repo: RelationRepositoryDep
-) -> RelationService:
-    """Get a RelationService instance."""
-    return RelationService(project_path, relation_repo)
+
+async def get_relation_service(relation_repository: RelationRepositoryDep) -> RelationService:
+    """Create RelationService with repository."""
+    return RelationService(relation_repository)
+
 
 RelationServiceDep = Annotated[RelationService, Depends(get_relation_service)]
-
-@asynccontextmanager
-async def memory_service(
-    project_path: ProjectPathDep,
-    entity_service: EntityServiceDep,
-    relation_service: RelationServiceDep,
-    observation_service: ObservationServiceDep
-) -> AsyncGenerator[MemoryService, None]:
-    """Get a fully configured MemoryService instance."""
-    yield MemoryService(
-        project_path=project_path,
-        entity_service=entity_service,
-        relation_service=relation_service,
-        observation_service=observation_service
-    )
-
-async def get_memory_service(
-        project_path: ProjectPathDep,
-        entity_service: EntityServiceDep,
-        relation_service: RelationServiceDep,
-        observation_service: ObservationServiceDep
-) -> AsyncGenerator[MemoryService, None]:
-    async with memory_service(project_path, entity_service, relation_service, observation_service) as service:
-        yield service
-
-MemoryServiceDep = Annotated[MemoryService, Depends(get_memory_service)]

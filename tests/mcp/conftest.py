@@ -9,11 +9,11 @@ from basic_memory.deps import get_project_config, get_engine_factory
 
 
 @pytest_asyncio.fixture
-def app(test_config, engine_session_factory) -> FastAPI:
+def app(test_config, engine_factory) -> FastAPI:
     """Create test FastAPI application."""
     app = fastapi_app
     app.dependency_overrides[get_project_config] = lambda: test_config
-    app.dependency_overrides[get_engine_factory] = lambda: engine_session_factory
+    app.dependency_overrides[get_engine_factory] = lambda: engine_factory
     return app
 
 

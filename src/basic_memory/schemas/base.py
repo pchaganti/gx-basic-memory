@@ -1,7 +1,7 @@
 """Core pydantic models for basic-memory entities, observations, and relations.
 
 This module defines the foundational data structures for the knowledge graph system.
-The graph consists of entities (nodes) connected by relations (edges), where each 
+The graph consists of entities (nodes) connected by relations (edges), where each
 entity can have multiple observations (facts) attached to it.
 
 Key Concepts:
@@ -106,7 +106,7 @@ Names are normalized by:
 
 class Relation(BaseModel):
     """Represents a directed edge between entities in the knowledge graph.
-    
+
     Relations are directed connections stored in active voice (e.g., "created", "depends_on").
     The from_id represents the source or actor entity, while to_id represents the target
     or recipient entity.
@@ -212,7 +212,6 @@ class Entity(BaseModel):
     entity_type: EntityType
     description: Optional[str] = None
     observations: List[Observation] = []
-    relations: List[Relation] = []
 
     @property
     def file_path(self) -> str:
