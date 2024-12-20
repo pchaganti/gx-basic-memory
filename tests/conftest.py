@@ -16,6 +16,7 @@ from basic_memory import db
 from basic_memory.config import ProjectConfig
 from basic_memory.db import DatabaseType
 from basic_memory.models import Base, Entity as EntityModel
+from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
@@ -74,6 +75,12 @@ async def test_project_path():
         entities_path = project_path / "entities"
         entities_path.mkdir(parents=True)
         yield project_path
+
+
+@pytest_asyncio.fixture(scope="function")
+async def document_repository(session_maker: async_sessionmaker[AsyncSession]) -> DocumentRepository:
+    """Create a DocumentRepository instance."""
+    return DocumentRepository(session_maker)
 
 
 @pytest_asyncio.fixture(scope="function")
