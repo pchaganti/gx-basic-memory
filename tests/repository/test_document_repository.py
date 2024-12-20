@@ -26,6 +26,39 @@ async def sample_doc(session_maker):
 
 
 @pytest.mark.asyncio
+async def test_basic_document_operations(document_repository: DocumentRepository):
+    """Smoke test for basic document operations."""
+    # Create
+    doc_data = {
+        "path": "test/basic.md",
+        "checksum": "test123",
+        "doc_metadata": {"type": "test"}
+    }
+    doc = await document_repository.create(doc_data)
+    assert doc.path == "test/basic.md"
+
+    # Read
+    found = await document_repository.find_by_path("test/basic.md")
+    assert found is not None
+    assert found.checksum == "test123"
+
+    # Update
+    updated = await document_repository.update(
+        doc.id, 
+        {"checksum": "changed123"}
+    )
+    assert updated.checksum == "changed123"
+
+    # Delete
+    result = await document_repository.delete(doc.id)
+    assert result is True
+
+    # Verify deletion
+    not_found = await document_repository.find_by_path("test/basic.md")
+    assert not_found is None
+
+
+@pytest.mark.asyncio
 async def test_create_document(document_repository: DocumentRepository):
     """Test creating a new document."""
     doc_data = {
