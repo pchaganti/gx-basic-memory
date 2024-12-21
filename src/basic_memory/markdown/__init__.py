@@ -1,5 +1,23 @@
-"""Markdown parsing and handling for basic-memory."""
+"""Basic Memory markdown parsing."""
 
-from .parser import EntityParser, ParseError
+from .exceptions import ParseError
+from .parser import EntityParser
+from .schemas import (
+    Entity,
+    EntityFrontmatter,
+    EntityContent,
+    EntityMetadata,
+    Observation,
+    Relation,
+)
 
-__all__ = ["EntityParser", "ParseError"]
+__all__ = [
+    'ParseError',
+    'EntityParser',
+    'Entity',
+    'EntityFrontmatter', 
+    'EntityContent',
+    'EntityMetadata',
+    'Observation',
+    'Relation',
+]

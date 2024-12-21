@@ -6,6 +6,9 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
+from basic_memory.markdown.schemas.observation import Observation
+from basic_memory.markdown.schemas.relation import Relation
+
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -40,5 +43,5 @@ class Entity(BaseModel):
     """Complete entity combining frontmatter, content, and metadata."""
 
     frontmatter: EntityFrontmatter
-    content: EntityContent
+    content: EntityContent 
     metadata: EntityMetadata = EntityMetadata()
