@@ -36,5 +36,6 @@ projects/*.db
 projects/*.db-journal
 /.coverage
 
+**/.DS_Store
 
 *.log

@@ -19,6 +19,8 @@ dependencies = [
     "loguru>=0.7.3",
     "pyright>=1.1.390",
     "basic-foundation",
+    "markdown-it-py>=3.0.0",
+    "python-frontmatter>=1.1.0"
 ]
 
 [project.optional-dependencies]
