@@ -2,6 +2,7 @@
 
 import pytest
 
+from basic_memory.markdown import Relation
 from basic_memory.markdown.parser import EntityParser, ParseError
 
 
@@ -9,7 +10,7 @@ def test_parse_relation_basic():
     """Test basic relation parsing."""
     parser = EntityParser()
 
-    rel = parser._parse_relation("- implements [[Auth Service]]")
+    rel = Relation.from_line("- implements [[Auth Service]]")
     assert rel is not None
     assert rel.type == "implements"
     assert rel.target == "Auth Service"
@@ -20,7 +21,7 @@ def test_parse_relation_with_context():
     """Test relation parsing with context."""
     parser = EntityParser()
 
-    rel = parser._parse_relation("- depends_on [[Database]] (Required for persistence)")
+    rel = Relation.from_line("- depends_on [[Database]] (Required for persistence)")
     assert rel is not None
     assert rel.type == "depends_on"
     assert rel.target == "Database"
@@ -32,17 +33,17 @@ def test_parse_relation_edge_cases():
     parser = EntityParser()
 
     # Multiple word type
-    rel = parser._parse_relation("- is used by [[Client App]] (Primary consumer)")
+    rel = Relation.from_line("- is used by [[Client App]] (Primary consumer)")
     assert rel is not None
     assert rel.type == "is used by"
 
     # Brackets in context
-    rel = parser._parse_relation("- implements [[API]] (Follows [OpenAPI] spec)")
+    rel = Relation.from_line("- implements [[API]] (Follows [OpenAPI] spec)")
     assert rel is not None
     assert rel.context == "Follows [OpenAPI] spec"
 
     # Extra spaces
-    rel = parser._parse_relation("-   specifies   [[Format]]   (Documentation)")
+    rel = Relation.from_line("-   specifies   [[Format]]   (Documentation)")
     assert rel is not None
     assert rel.type == "specifies"
     assert rel.target == "Format"
@@ -54,8 +55,8 @@ def test_parse_relation_errors():
 
     # Missing target brackets
     with pytest.raises(ParseError, match="missing \\[\\["):
-        parser._parse_relation("- implements Auth Service")
+        Relation.from_line("- implements Auth Service")
 
     # Unclosed target
     with pytest.raises(ParseError, match="missing ]]"):
-        parser._parse_relation("- implements [[Auth Service")
+        Relation.from_line("- implements [[Auth Service")

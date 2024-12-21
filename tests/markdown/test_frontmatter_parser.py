@@ -1,12 +1,13 @@
 """Tests for frontmatter parsing."""
 
-from datetime import datetime
+from datetime import datetime, UTC
 from textwrap import dedent
 
 import pytest
 
+from basic_memory.markdown import EntityFrontmatter
 from basic_memory.markdown.exceptions import ParseError
-from basic_memory.markdown.frontmatter_parser import FrontmatterParser
+
 
 def test_parse_frontmatter():
     """Test parsing basic frontmatter."""
@@ -15,17 +16,17 @@ def test_parse_frontmatter():
         id: test/basic
         created: 2024-12-21T14:00:00Z
         modified: 2024-12-21T14:00:00Z
-        tags: [test, base]
+        tags: test, base
     """)
 
-    parser = FrontmatterParser()
-    result = parser.parse(text)
+    result = EntityFrontmatter.from_text(text)
 
     assert result.type == "component"
     assert result.id == "test/basic"
-    assert result.created == datetime(2024, 12, 21, 14, 0)
-    assert result.modified == datetime(2024, 12, 21, 14, 0)
+    assert result.created == datetime(2024, 12, 21, 14, 0, tzinfo=UTC)
+    assert result.modified == datetime(2024, 12, 21, 14, 0, tzinfo=UTC)
     assert result.tags == ["test", "base"]
+
 
 def test_parse_frontmatter_comma_tags():
     """Test parsing frontmatter with comma-separated tags."""
@@ -37,10 +38,10 @@ def test_parse_frontmatter_comma_tags():
         tags: first, second, third
     """)
 
-    parser = FrontmatterParser()
-    result = parser.parse(text)
+    result = EntityFrontmatter.from_text(text)
 
     assert result.tags == ["first", "second", "third"]
+
 
 def test_parse_frontmatter_missing_required():
     """Test error on missing required fields."""
@@ -52,9 +53,9 @@ def test_parse_frontmatter_missing_required():
         tags: []
     """)
 
-    parser = FrontmatterParser()
     with pytest.raises(ParseError):
-        parser.parse(text)
+        EntityFrontmatter.from_text(text)
+
 
 def test_parse_frontmatter_invalid_date():
     """Test error on invalid date format."""
@@ -63,12 +64,12 @@ def test_parse_frontmatter_invalid_date():
         id: test/dates
         created: not-a-date
         modified: 2024-12-21T14:00:00Z
-        tags: []
+        tags: 
     """)
 
-    parser = FrontmatterParser()
     with pytest.raises(ParseError):
-        parser.parse(text)
+        EntityFrontmatter.from_text(text)
+
 
 def test_parse_frontmatter_whitespace():
     """Test handling of various whitespace in frontmatter."""
@@ -77,11 +78,10 @@ def test_parse_frontmatter_whitespace():
         id:     test/whitespace    
         created:     2024-12-21T14:00:00Z    
         modified:    2024-12-21T14:00:00Z       
-        tags:     [  one,  two  ,   three  ]    
+        tags:     one,  two  ,   three      
     """)
 
-    parser = FrontmatterParser()
-    result = parser.parse(text)
+    result = EntityFrontmatter.from_text(text)
 
     assert result.type == "component"
     assert result.id == "test/whitespace"
