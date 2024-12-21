@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import List
 
 from markdown_it import MarkdownIt
 
@@ -34,7 +33,6 @@ class EntityParser:
 
     def __init__(self):
         self.md = MarkdownIt()
-        self.debug = False
 
     def parse_file(self, path: Path, encoding: str = "utf-8") -> Entity:
         """Parse an entity markdown file."""
@@ -42,29 +40,16 @@ class EntityParser:
             raise ParseError(f"File does not exist: {path}")
 
         try:
-            # Read file content
+            # Read file content and split sections
             with open(path, "r", encoding=encoding) as f:
                 raw_content = f.read()
-
-            # Split into sections and debug
             sections = debug_sections(raw_content)
 
-            if len(sections) < 4:  # Needs at least empty,frontmatter,content,empty for no metadata
+            if len(sections) < 4:  # Needs at least empty,frontmatter,content,empty
                 raise ParseError("Missing required document sections")
 
-            # Parse frontmatter (first yaml section)
-            frontmatter_text = sections[1].strip()
-            frontmatter_data = {}
-
-            for line in frontmatter_text.split("\n"):
-                if ":" in line:
-                    key, value = line.split(":", 1)
-                    frontmatter_data[key.strip()] = value.strip()
-
-            if isinstance(frontmatter_data.get("tags"), str):
-                frontmatter_data["tags"] = [t.strip() for t in frontmatter_data["tags"].split(",")]
-
-            frontmatter = EntityFrontmatter(**frontmatter_data)
+            # Parse each section using schema methods
+            frontmatter = EntityFrontmatter.from_text(sections[1])
 
             # Parse markdown content (middle section)
             content_tokens = self.md.parse(sections[2].strip())
@@ -72,8 +57,8 @@ class EntityParser:
             # State for content parsing
             title = ""
             description = ""
-            observations: List[Observation] = []
-            relations: List[Relation] = []
+            observations = []
+            relations = []
             current_section = None
 
             # Track list items
@@ -110,10 +95,10 @@ class EntityParser:
                     item_content = " ".join(t.content for t in list_item_tokens)
                     try:
                         if current_section == "observations":
-                            if obs := Observation.parse_observation(item_content):
+                            if obs := Observation.from_line(item_content):
                                 observations.append(obs)
                         elif current_section == "relations":
-                            if rel := Relation.parse_relation(item_content):
+                            if rel := Relation.from_line(item_content):
                                 relations.append(rel)
                     except ParseError:
                         # Skip malformed items
@@ -128,23 +113,21 @@ class EntityParser:
                 relations=relations,
             )
 
-            # Parse metadata (final section if exists)
-            metadata = {}
-            if len(sections) >= 5:  # Has backmatter section
+            # Parse metadata from final section
+            metadata_obj = EntityMetadata(metadata={})
+            if len(sections) >= 5:
                 metadata_text = sections[4].strip()
                 logger.debug(f"Metadata text: {metadata_text}")
                 for line in metadata_text.split("\n"):
                     if ":" in line:
                         key, value = line.split(":", 1)
-                        metadata[key.strip()] = value.strip()
-
-            metadata_obj = EntityMetadata(metadata=metadata)
+                        metadata_obj.metadata[key.strip()] = value.strip()
 
             return Entity(frontmatter=frontmatter, content=content, metadata=metadata_obj)
 
         except UnicodeError as e:
             if encoding == "utf-8":
                 return self.parse_file(path, encoding="utf-16")
-            raise ParseError(f"Failed to read {path} with encoding {encoding}: {str(e)}")
+            raise ParseError(f"Failed to parse {path}: {str(e)}") from e
         except Exception as e:
             raise ParseError(f"Failed to parse {path}: {str(e)}") from e

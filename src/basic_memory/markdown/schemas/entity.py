@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
+from basic_memory.markdown.exceptions import ParseError
 from basic_memory.markdown.schemas.observation import Observation
 from basic_memory.markdown.schemas.relation import Relation
 
@@ -21,6 +22,24 @@ class EntityFrontmatter(BaseModel):
     created: datetime
     modified: datetime
     tags: List[str]
+
+    @classmethod
+    def from_text(cls, text: str) -> "EntityFrontmatter":
+        """Parse frontmatter from YAML-style text."""
+        try:
+            frontmatter_data = {}
+            for line in text.strip().split("\n"):
+                if ":" in line:
+                    key, value = line.split(":", 1)
+                    frontmatter_data[key.strip()] = value.strip()
+
+            # Handle tags specially
+            if isinstance(frontmatter_data.get("tags"), str):
+                frontmatter_data["tags"] = [t.strip() for t in frontmatter_data["tags"].split(",")]
+
+            return cls(**frontmatter_data)
+        except Exception as e:
+            raise ParseError(f"Failed to parse frontmatter: {e}") from e
 
 
 class EntityMetadata(BaseModel):

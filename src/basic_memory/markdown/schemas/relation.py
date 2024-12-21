@@ -20,7 +20,7 @@ class Relation(BaseModel):
     context: Optional[str] = None
 
     @classmethod
-    def parse_relation(cls, content: str) -> Optional["Relation"]:
+    def from_line(cls, content: str) -> Optional["Relation"]:
         """Parse a relation line."""
         try:
             if not content.strip():

@@ -21,7 +21,7 @@ class Observation(BaseModel):
     context: Optional[str] = None
 
     @classmethod
-    def parse_observation(cls, content: str) -> Optional["Observation"]:
+    def from_line(cls, content: str) -> Optional["Observation"]:
         """Parse an observation line."""
         try:
             if not content.strip():
