@@ -1,10 +1,10 @@
 """Document model for tracking files in the knowledge base."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from sqlalchemy import String, DateTime, text, JSON
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from basic_memory.models.base import Base
 
@@ -31,6 +31,13 @@ class Document(Base):
         DateTime, 
         server_default=text("CURRENT_TIMESTAMP"),
         onupdate=text("CURRENT_TIMESTAMP")
+    )
+
+    # Relationships
+    entities: Mapped[List["Entity"]] = relationship(
+        "Entity",
+        back_populates="document",
+        cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

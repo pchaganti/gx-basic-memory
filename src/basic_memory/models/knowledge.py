@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from sqlalchemy import (
     String, DateTime, ForeignKey, Text, Integer, 
-    text, UniqueConstraint, ForeignKeyConstraint
+    text, UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -51,6 +51,10 @@ class Entity(Base):
     )
 
     # Relationships
+    document: Mapped["Document"] = relationship(
+        "Document",
+        back_populates="entities"
+    )
     observations: Mapped[List["Observation"]] = relationship(
         "Observation",
         back_populates="entity",
