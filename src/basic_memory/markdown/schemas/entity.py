@@ -10,23 +10,6 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class Observation(BaseModel):
-    """An observation about an entity."""
-
-    category: str
-    content: str
-    tags: List[str]
-    context: Optional[str] = None
-
-
-class Relation(BaseModel):
-    """A relation between entities."""
-
-    target: str  # The entity being linked to
-    type: str  # The type of relation
-    context: Optional[str] = None
-
-
 class EntityFrontmatter(BaseModel):
     """Required frontmatter fields for an entity."""
 
@@ -57,5 +40,5 @@ class Entity(BaseModel):
     """Complete entity combining frontmatter, content, and metadata."""
 
     frontmatter: EntityFrontmatter
-    content: EntityContent 
+    content: EntityContent
     metadata: EntityMetadata = EntityMetadata()
