@@ -9,9 +9,9 @@ from basic_memory.services.file_sync_service import FileSyncService, SyncError
 
 
 @pytest_asyncio.fixture
-async def file_sync_service(document_service) -> FileSyncService:
+async def file_sync_service(document_repository) -> FileSyncService:
     """Create FileSyncService instance."""
-    return FileSyncService(document_service)
+    return FileSyncService(document_repository)
 
 
 @pytest_asyncio.fixture

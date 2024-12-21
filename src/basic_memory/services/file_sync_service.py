@@ -1,12 +1,13 @@
 """Service for syncing files with the database."""
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Set
 
 from loguru import logger
 
-from basic_memory.services.document_service import DocumentService
+from basic_memory.repository.document_repository import DocumentRepository
 
 
 @dataclass
@@ -37,8 +38,12 @@ class SyncError(Exception):
 class FileSyncService:
     """Service for keeping files and database in sync."""
 
-    def __init__(self, document_service: DocumentService):
-        self.document_service = document_service
+    def __init__(self, document_repository: DocumentRepository):
+        self.repository = document_repository
+
+    async def compute_checksum(self, content: str) -> str:
+        """Compute SHA-256 checksum of content."""
+        return hashlib.sha256(content.encode()).hexdigest()
 
     async def scan_files(self, directory: Path) -> dict[str, str]:
         """
@@ -62,7 +67,7 @@ class FileSyncService:
             if path.is_file():
                 try:
                     content = path.read_text()
-                    checksum = await self.document_service.compute_checksum(content)
+                    checksum = await self.compute_checksum(content)
                     # Store path relative to root directory
                     rel_path = str(path.relative_to(directory))
                     files[rel_path] = checksum
@@ -88,7 +93,7 @@ class FileSyncService:
         logger.debug("Finding changes")
         
         # Get all documents from DB
-        db_documents = await self.document_service.list_documents()
+        db_documents = await self.repository.find_all()
         db_files = {
             doc.path: doc.checksum 
             for doc in db_documents
@@ -118,8 +123,11 @@ class FileSyncService:
         full_path = directory / path
         try:
             content = full_path.read_text()
-            # Use relative path for document
-            await self.document_service.create_document(path, content)
+            checksum = await self.compute_checksum(content)
+            await self.repository.create({
+                "path": path,
+                "checksum": checksum
+            })
         except Exception as e:
             raise SyncError(f"Failed to sync new file {path}: {e}")
 
@@ -137,8 +145,15 @@ class FileSyncService:
         full_path = directory / path
         try:
             content = full_path.read_text()
-            # Use relative path for document
-            await self.document_service.update_document(path, content)
+            checksum = await self.compute_checksum(content)
+            doc = await self.repository.find_by_path(path)
+            if doc:
+                await self.repository.update(doc.id, {"checksum": checksum})
+            else:
+                await self.repository.create({
+                    "path": path,
+                    "checksum": checksum
+                })
         except Exception as e:
             raise SyncError(f"Failed to sync modified file {path}: {e}")
 
@@ -182,8 +197,9 @@ class FileSyncService:
         # Process deleted files
         for path in changes.deleted:
             logger.debug(f"Processing deleted file: {path}")
-            # Use relative path for deletion
-            await self.document_service.delete_document(path)
+            doc = await self.repository.find_by_path(path)
+            if doc:
+                await self.repository.delete(doc.id)
 
         logger.info("Sync completed successfully")
         return changes
