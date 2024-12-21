@@ -63,6 +63,7 @@ class FileSyncService:
                 try:
                     content = path.read_text()
                     checksum = await self.document_service.compute_checksum(content)
+                    # Store path relative to root directory
                     rel_path = str(path.relative_to(directory))
                     files[rel_path] = checksum
                 except Exception as e:
@@ -117,6 +118,7 @@ class FileSyncService:
         full_path = directory / path
         try:
             content = full_path.read_text()
+            # Use relative path for document
             await self.document_service.create_document(path, content)
         except Exception as e:
             raise SyncError(f"Failed to sync new file {path}: {e}")
@@ -135,6 +137,7 @@ class FileSyncService:
         full_path = directory / path
         try:
             content = full_path.read_text()
+            # Use relative path for document
             await self.document_service.update_document(path, content)
         except Exception as e:
             raise SyncError(f"Failed to sync modified file {path}: {e}")
@@ -179,6 +182,7 @@ class FileSyncService:
         # Process deleted files
         for path in changes.deleted:
             logger.debug(f"Processing deleted file: {path}")
+            # Use relative path for deletion
             await self.document_service.delete_document(path)
 
         logger.info("Sync completed successfully")
