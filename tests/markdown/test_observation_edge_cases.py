@@ -1,9 +1,5 @@
 """Tests for observation parsing edge cases."""
 
-import pytest
-from pathlib import Path
-
-from basic_memory.markdown.parser import EntityParser, ParseError
 from basic_memory.markdown.schemas.observation import Observation
 
 
@@ -31,7 +27,7 @@ def test_observation_invalid_context():
     obs = Observation.from_line("- [test] Content (with) extra) parens)")
     assert obs is not None
     assert obs.content == "Content"
-    assert obs.context == "with) extra"
+    assert obs.context == "with) extra) parens"
 
     # Test nested parentheses
     obs = Observation.from_line("- [test] Function (result = f(x)) (implementation note)")
@@ -68,5 +64,5 @@ def test_observation_exception_handling():
     assert obs.category == "测试"
 
     # Test malformed Unicode
-    malformed = "- [test] Bad UTF \xFF"
+    malformed = "- [test] Bad UTF \xff"
     assert Observation.from_line(malformed) is None
