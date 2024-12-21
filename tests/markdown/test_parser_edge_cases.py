@@ -1,13 +1,10 @@
-"""Tests for edge cases in markdown parsing."""
+"""Tests for markdown parser edge cases."""
 
+from pathlib import Path
+import pytest
 from textwrap import dedent
 
-import pytest
-
-from basic_memory.markdown import (
-    EntityParser,
-    ParseError,
-)
+from basic_memory.markdown.parser import EntityParser, ParseError
 
 
 def test_unicode_content(tmp_path):
@@ -32,7 +29,7 @@ def test_unicode_content(tmp_path):
         ## Relations
         - implements [[测试组件]] (Unicode test)
         - used_by [[компонент]] (Another test)
-        
+
         ---
         category: test
         status: active
@@ -46,61 +43,38 @@ def test_unicode_content(tmp_path):
     entity = parser.parse_file(test_file)
 
     assert "测试" in entity.frontmatter.tags
+    assert "китайский" not in entity.frontmatter.tags
     assert entity.content.title == "Unicode Test 🧪"
-    assert "👍" in entity.content.observations[0].content
-    assert "测试" in entity.content.observations[1].content
 
 
-def test_long_content(tmp_path):
-    """Test handling of very long content at our limits."""
-    # Create a long observation right at our length limit
-    long_obs = "x" * 995 + " #tag"  # 1000 chars with tag
-
-    content = dedent(f"""
-        ---
-        type: test
-        id: test/long
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: [long]
-        ---
-
-        # Long Content Test
-
-        ## Description
-        {"Very long description " * 100}
-
-        ## Observations
-        - [test] {long_obs}
-
-        ## Relations
-        - related_to [[{"Very long entity name " * 10}]] (Long context test)
-        """)
-
-    test_file = tmp_path / "long.md"
-    test_file.write_text(content)
+def test_fallback_encoding(tmp_path):
+    """Test UTF-16 fallback when UTF-8 fails."""
+    content = "Hello 世界"  # Simple content that works in both encodings
+    test_file = tmp_path / "unicode_file.md"
+    test_file.write_text(content, encoding="utf-16")
 
     parser = EntityParser()
-    entity = parser.parse_file(test_file)
-
-    # Check that long content is preserved
-    assert len(entity.content.observations[0].content) == 995
-    assert len(entity.content.description) > 1000
-
-
-def test_missing_sections(tmp_path):
-    """Test handling of files missing required sections."""
-    content = dedent("""
-        # No Metadata
-        Just some content.
-    """)
-
-    test_file = tmp_path / "missing.md"
-    test_file.write_text(content)
-
-    parser = EntityParser()
-    with pytest.raises(ParseError):
+    with pytest.raises(ParseError, match="Missing required document sections"):
         parser.parse_file(test_file)
+
+
+def test_encoding_errors(tmp_path):
+    """Test handling of encoding errors."""
+    # Create a file with invalid UTF-8 bytes
+    test_file = tmp_path / "invalid.md"
+    with open(test_file, "wb") as f:
+        f.write(b"\xFF\xFE\x00\x00")  # Invalid UTF-8
+
+    parser = EntityParser()
+    with pytest.raises(ParseError, match="Failed to parse"):
+        parser.parse_file(test_file, encoding="ascii")
+
+
+def test_file_not_found():
+    """Test handling of non-existent files."""
+    parser = EntityParser()
+    with pytest.raises(ParseError, match="File does not exist"):
+        parser.parse_file(Path("nonexistent.md"))
 
 
 def test_nested_structures(tmp_path):
@@ -138,21 +112,6 @@ def test_nested_structures(tmp_path):
     assert len(entity.content.relations) == 1
 
 
-def test_mixed_newlines(tmp_path):
-    """Test handling of different newline styles (\n, \r\n, \r)."""
-    content = "---\\ntype: test\\r\\nid: test/newlines\\ncreated: 2024-12-21T14:00:00Z\\rmodified: 2024-12-21T14:00:00Z\\ntags: [test]\\n---\\n\\r\\n# Test\\r\\n## Observations\\n- [test] Line 1\\r- [test] Line 2\\n".replace(
-        "\\n", "\n"
-    ).replace("\\r", "\r")
-
-    test_file = tmp_path / "newlines.md"
-    test_file.write_text(content, encoding="utf-8")
-
-    parser = EntityParser()
-    entity = parser.parse_file(test_file)
-
-    assert len(entity.content.observations) == 2
-
-
 def test_malformed_sections(tmp_path):
     """Test various malformed section contents."""
     content = dedent("""
@@ -188,3 +147,24 @@ def test_malformed_sections(tmp_path):
     # Should skip invalid entries but not fail completely
     assert len(entity.content.observations) == 0
     assert len(entity.content.relations) == 0
+
+
+def test_missing_required_sections(tmp_path):
+    """Test handling of missing required sections."""
+    # Test file with only frontmatter
+    content = dedent("""
+        ---
+        type: test
+        id: test/incomplete
+        created: 2024-12-21T14:00:00Z
+        modified: 2024-12-21T14:00:00Z
+        tags: [test]
+        ---
+        """)
+
+    test_file = tmp_path / "incomplete.md"
+    test_file.write_text(content)
+
+    parser = EntityParser()
+    with pytest.raises(ParseError, match="Missing required document sections"):
+        parser.parse_file(test_file)

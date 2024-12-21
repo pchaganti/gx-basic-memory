@@ -27,10 +27,24 @@ class Observation(BaseModel):
             if not content.strip():
                 return None
 
+            # Basic UTF-8 validation
+            try:
+                if "\xff" in content or "\xfe" in content:
+                    return None
+                if not content.isprintable():
+                    return None
+            except UnicodeError:
+                return None
+
+            # Break up extremely long content
+            if len(content) > 10000:  # Arbitrary large limit
+                logger.warning("Content too long, truncating: %s", content[:100])
+                return None
+
             # Check for unclosed category first
             if "[" in content and "]" not in content:
                 raise ParseError("unclosed category")
-                
+
             # Then check for missing category
             match = re.match(r"^\s*(?:-\s*)?\[([^\]]*)\](.*)", content)
             if not match:
