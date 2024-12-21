@@ -27,7 +27,11 @@ class Observation(BaseModel):
             if not content.strip():
                 return None
 
-            # Parse category [type]
+            # Check for unclosed category first
+            if "[" in content and "]" not in content:
+                raise ParseError("unclosed category")
+                
+            # Then check for missing category
             match = re.match(r"^\s*(?:-\s*)?\[([^\]]*)\](.*)", content)
             if not match:
                 raise ParseError("missing category")

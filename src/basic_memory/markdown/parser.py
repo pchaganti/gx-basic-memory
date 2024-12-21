@@ -17,11 +17,12 @@ logger = logging.getLogger(__name__)
 
 def debug_sections(text):
     """Debug helper to show section contents."""
-    sections = text.split("---\n")
+    # Split on triple-dash and newline combinations to be more lenient
+    sections = [s.strip() for s in text.replace("\r\n", "\n").split("---")]
     logger.debug("File sections:")
     for i, section in enumerate(sections):
         logger.debug(f"\n=== Section {i} ===\n{section.strip()}\n")
-    return sections
+    return [s for s in sections if s.strip()]  # Remove empty sections
 
 
 class EntityParser:
@@ -38,13 +39,15 @@ class EntityParser:
                 raw_content = f.read()
             sections = debug_sections(raw_content)
 
-            if len(sections) < 4:  # Needs at least empty,frontmatter,content,empty
+            if len(sections) < 2:  # Need at least frontmatter and content
                 raise ParseError("Missing required document sections")
 
             # Parse each section using schema methods
-            frontmatter = EntityFrontmatter.from_text(sections[1])
-            content = EntityContent.from_markdown(sections[2])
-            metadata = EntityMetadata.from_text(sections[4] if len(sections) >= 5 else "")
+            frontmatter = EntityFrontmatter.from_text(sections[0])
+            content = EntityContent.from_markdown(sections[1])
+            
+            # Handle optional metadata section
+            metadata = EntityMetadata.from_text(sections[2] if len(sections) > 2 else "")
 
             return Entity(frontmatter=frontmatter, content=content, metadata=metadata)
 

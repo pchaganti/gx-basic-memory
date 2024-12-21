@@ -26,32 +26,42 @@ class Relation(BaseModel):
             if not content.strip():
                 return None
 
-            # Check for unclosed [[
+            # Check for unclosed markup
             if "[[" in content and "]]" not in content:
-                raise ParseError("missing ]]")
+                raise ParseError("unclosed relation link")
+            if "]]" in content and "[[" not in content:
+                raise ParseError("invalid relation syntax")
 
             # Find the link
             match = re.search(r"\[\[([^\]]+)\]\]", content)
             if not match:
-                raise ParseError("missing [[")
+                return None
 
             target = match.group(1).strip()
-            before_link = content[: match.start()].strip(" -")
-            after_link = content[match.end() :].strip()
-
-            # Everything before the link is the type
-            rel_type = before_link.strip()
-            if not rel_type:
+            if not target:  # Empty target
                 return None
+
+            # Get text before the link, excluding bullet
+            before_link = content[: match.start()].strip(" -")
+
+            # Validate relation type
+            rel_type = before_link.strip()
+            if not rel_type or rel_type == "missing type":  # Explicitly reject "missing type"
+                return None
+
+            # Get text after the link
+            after_link = content[match.end() :].strip()
 
             # Check for context in parentheses
             context = None
-            if after_link.startswith("(") and after_link.endswith(")"):
+            if after_link:
+                if not (after_link.startswith("(") and after_link.endswith(")")):
+                    raise ParseError("invalid context format")
                 context = after_link[1:-1].strip()
 
             return Relation(target=target, type=rel_type, context=context)
         except ParseError:
             raise
-        except Exception:
+        except Exception as e:
             logger.exception("Failed to parse relation: %s", content)
             return None

@@ -1,6 +1,7 @@
 """Models for the markdown parser."""
 
 import logging
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -32,35 +33,21 @@ class EntityFrontmatter(BaseModel):
             for line in text.strip().split("\n"):
                 if ":" in line:
                     key, value = line.split(":", 1)
-                    frontmatter_data[key.strip()] = value.strip()
+                    
+                    # Handle tag arrays in YAML format [tag1, tag2]
+                    if key.strip() == "tags" and "[" in value and "]" in value:
+                        tags = value.strip()[1:-1].split(",")  # Remove [] and split
+                        frontmatter_data["tags"] = [t.strip() for t in tags]
+                    else:
+                        frontmatter_data[key.strip()] = value.strip()
 
-            # Handle tags specially
+            # Handle non-array tags format
             if isinstance(frontmatter_data.get("tags"), str):
                 frontmatter_data["tags"] = [t.strip() for t in frontmatter_data["tags"].split(",")]
-
+                
             return cls(**frontmatter_data)
         except Exception as e:
             raise ParseError(f"Failed to parse frontmatter: {e}") from e
-
-
-class EntityMetadata(BaseModel):
-    """Optional metadata fields for an entity (backmatter)."""
-
-    metadata: Dict[str, Any] = {}
-
-    @classmethod
-    def from_text(cls, text: str) -> "EntityMetadata":
-        """Parse metadata from text."""
-        try:
-            metadata = {}
-            if text:  # Only parse if there's content
-                for line in text.strip().split("\n"):
-                    if ":" in line:
-                        key, value = line.split(":", 1)
-                        metadata[key.strip()] = value.strip()
-            return cls(metadata=metadata)
-        except Exception as e:
-            raise ParseError(f"Failed to parse metadata: {e}") from e
 
 
 class EntityContent(BaseModel):
@@ -86,9 +73,10 @@ class EntityContent(BaseModel):
             relations: List[Relation] = []
             current_section = None
 
-            # Track list items
+            # Track list items and nesting level
             in_list_item = False
             list_item_tokens = []
+            nesting_level = 0
 
             for token in tokens:
                 if token.type == "heading_open":
@@ -96,6 +84,13 @@ class EntityContent(BaseModel):
                         current_section = "title"
                     elif token.tag == "h2":
                         current_section = "section_name"
+                        nesting_level = 0
+
+                elif token.type == "bullet_list_open":
+                    nesting_level += 1
+
+                elif token.type == "bullet_list_close":
+                    nesting_level -= 1
 
                 elif token.type == "inline":
                     content = token.content.strip()
@@ -117,17 +112,19 @@ class EntityContent(BaseModel):
                     list_item_tokens = []
 
                 elif token.type == "list_item_close":
-                    item_content = " ".join(t.content for t in list_item_tokens)
-                    try:
-                        if current_section == "observations":
-                            if obs := Observation.from_line(item_content):
-                                observations.append(obs)
-                        elif current_section == "relations":
-                            if rel := Relation.from_line(item_content):
-                                relations.append(rel)
-                    except ParseError:
-                        # Skip malformed items
-                        pass
+                    # Only process top-level items
+                    if nesting_level <= 1:
+                        item_content = " ".join(t.content for t in list_item_tokens)
+                        try:
+                            if current_section == "observations":
+                                if obs := Observation.from_line(item_content):
+                                    observations.append(obs)
+                            elif current_section == "relations":
+                                if rel := Relation.from_line(item_content):
+                                    relations.append(rel)
+                        except ParseError:
+                            # Skip malformed items
+                            pass
                     in_list_item = False
 
             return cls(
@@ -139,6 +136,43 @@ class EntityContent(BaseModel):
 
         except Exception as e:
             raise ParseError(f"Failed to parse markdown content: {e}") from e
+
+
+class EntityMetadata(BaseModel):
+    """Optional metadata fields for an entity (backmatter)."""
+
+    metadata: Dict[str, Any] = {}
+
+    @classmethod
+    def from_text(cls, text: str) -> "EntityMetadata":
+        """Parse metadata from text."""
+        try:
+            metadata = {}
+            if text:  # Only parse if there's content
+                current_key = None
+                current_value = []
+                
+                for line in text.strip().split("\n"):
+                    if ":" in line and not line.startswith(" "):  # New key-value pair
+                        if current_key:  # Save previous key-value pair
+                            metadata[current_key] = "\n".join(current_value)
+                        key, value = line.split(":", 1)
+                        current_key = key.strip()
+                        current_value = [value.strip()]
+                    elif current_key and line.startswith(" "):  # Continuation of multiline value
+                        current_value.append(line.strip())
+                    elif current_key:  # End of current value
+                        metadata[current_key] = "\n".join(current_value)
+                        current_key = None
+                        current_value = []
+                
+                # Handle last value if any
+                if current_key:
+                    metadata[current_key] = "\n".join(current_value)
+                    
+            return cls(metadata=metadata)
+        except Exception as e:
+            raise ParseError(f"Failed to parse metadata: {e}") from e
 
 
 class Entity(BaseModel):
