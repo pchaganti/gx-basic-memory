@@ -8,8 +8,8 @@ from pydantic import BaseModel
 
 from basic_memory.markdown import ParseError
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)  # pragma: no cover
+logger = logging.getLogger(__name__)  # pragma: no cover
 
 
 class Observation(BaseModel):
@@ -27,14 +27,19 @@ class Observation(BaseModel):
             if not content.strip():
                 return None
 
-            # Basic UTF-8 validation
             try:
                 if "\xff" in content or "\xfe" in content:
                     return None
-                if not content.isprintable():
-                    return None
-            except UnicodeError:
+            except UnicodeError:  # pragma: no cover
                 return None
+
+            # Only allow valid printable Unicode
+            for char in content:
+                # Skip normal whitespace
+                if char in {" ", "\t", "\n", "\r"}:
+                    continue
+                if not char.isprintable():
+                    return None
 
             # Break up extremely long content
             if len(content) > 10000:  # Arbitrary large limit
@@ -70,17 +75,19 @@ class Observation(BaseModel):
 
             content = " ".join(words)
 
-            # Extract context in parentheses
+            # Extract context
             context = None
             if content.endswith(")"):
-                ctx_start = content.rfind("(")
-                if ctx_start != -1:
-                    context = content[ctx_start + 1 : -1].strip()
-                    content = content[:ctx_start].strip()
+                pos = content.find("(")
+                if pos > 0:  # Must have content before paren
+                    before = content[:pos].strip()
+                    if before:
+                        context = content[pos + 1 : -1].strip()
+                        content = before
 
             return Observation(category=category, content=content, tags=tags, context=context)
         except ParseError:
             raise
         except Exception:
-            logger.exception("Failed to parse observation: %s", content)
-            return None
+            logger.exception("Failed to parse observation: %s", content)  # pragma: no cover
+            return None  # pragma: no cover

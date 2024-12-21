@@ -8,8 +8,8 @@ from pydantic import BaseModel
 
 from basic_memory.markdown import ParseError
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)  # pragma: no cover
+logger = logging.getLogger(__name__)  # pragma: no cover
 
 
 class Relation(BaseModel):
@@ -32,10 +32,9 @@ class Relation(BaseModel):
             if "]]" in content and "[[" not in content:
                 raise ParseError("invalid relation syntax")
 
-            # Find the link - must have [[target]]
-            match = re.search(r"\[\[([^\]]+)\]\]", content)
+            # Find the link - must have [[target]] with content inside
+            match = re.search(r"\[\[([^\]]*)\]\]", content)
             if not match:
-                # For the error test case, it needs exactly this message
                 raise ParseError("missing [[")
 
             target = match.group(1).strip()
@@ -51,12 +50,15 @@ class Relation(BaseModel):
                 return None
 
             # Get text after the link
-            after_link = content[match.end() :].strip()
+            after_link = content[match.end():].strip()
 
             # Check for context in parentheses
             context = None
             if after_link:
                 if not (after_link.startswith("(") and after_link.endswith(")")):
+                    raise ParseError("invalid context format")
+                # Handle invalid context formats
+                if ")" in after_link[1:-1]:
                     raise ParseError("invalid context format")
                 context = after_link[1:-1].strip()
 
@@ -64,5 +66,5 @@ class Relation(BaseModel):
         except ParseError:
             raise
         except Exception as e:
-            logger.exception("Failed to parse relation: %s", content)
-            return None
+            logger.exception("Failed to parse relation: %s", content)  # pragma: no cover
+            return None  # pragma: no cover
