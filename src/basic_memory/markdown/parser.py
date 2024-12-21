@@ -115,10 +115,16 @@ class EntityParser:
 
     def _parse_metadata_line(self, line: str) -> Optional[Tuple[str, str]]:
         """Parse a metadata line into key-value pair."""
-        if ":" not in line:
+        if not line.strip():
             return None
-        key, value = line.split(":", 1)
-        return key.strip(), value.strip()
+        try:
+            # Split on first colon
+            if ":" not in line:
+                return None
+            key, value = line.split(":", 1)
+            return key.strip(), value.strip()
+        except ValueError:
+            return None
 
     def parse_file(self, path: Path, encoding: str = "utf-8") -> Entity:
         """Parse an entity markdown file."""
@@ -157,18 +163,11 @@ class EntityParser:
             list_item_level = None
             base_list_level = None
 
-            # Track metadata continuation state
-            current_meta_key = None
-            current_meta_value = []
+            # Track metadata state
+            in_metadata_para = False
 
             for token in tokens:
                 if token.type == "heading_open":
-                    # Handle any pending metadata
-                    if current_meta_key:
-                        metadata[current_meta_key] = " ".join(current_meta_value).strip()
-                        current_meta_key = None
-                        current_meta_value = []
-
                     if token.tag == "h1":
                         current_section = "title"
                     elif token.tag == "h2":
@@ -186,24 +185,12 @@ class EntityParser:
                         current_section = "description"
                     elif current_section == "section_name":
                         section = content.lower()
-                        if section == "description":
-                            description_tokens = []
                         current_section = section
                     elif current_section == "description":
                         description_tokens.append(token)
                     elif current_section == "metadata":
-                        # Parse metadata line
-                        if ":" in content:
-                            # Save previous key if exists
-                            if current_meta_key:
-                                metadata[current_meta_key] = " ".join(current_meta_value).strip()
-                            # Start new key
-                            key, value = content.split(":", 1)
-                            current_meta_key = key.strip()
-                            current_meta_value = [value.strip()]
-                        elif content.strip() and current_meta_key:
-                            # Continue previous value
-                            current_meta_value.append(content.strip())
+                        if parsed := self._parse_metadata_line(content):
+                            metadata[parsed[0]] = parsed[1]
                     elif in_list_item:
                         list_item_tokens.append(token)
                 
@@ -231,13 +218,15 @@ class EntityParser:
                     in_list_item = False
                     list_item_tokens = []
 
+                elif token.type == "paragraph_open":
+                    in_metadata_para = current_section == "metadata"
+
+                elif token.type == "paragraph_close":
+                    in_metadata_para = False
+
             # Handle any remaining description
             if current_section == "description" and description_tokens:
                 description = " ".join(t.content for t in description_tokens)
-
-            # Handle any remaining metadata
-            if current_meta_key:
-                metadata[current_meta_key] = " ".join(current_meta_value).strip()
 
             # Create entity
             content_data = EntityContent(

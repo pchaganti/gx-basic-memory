@@ -1,3 +1,5 @@
+"""Models for the markdown parser."""
+
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -26,23 +28,19 @@ class Relation(BaseModel):
 
 
 class EntityFrontmatter(BaseModel):
-    """Frontmatter metadata for an entity."""
+    """Required frontmatter fields for an entity."""
 
     type: str
     id: str
     created: datetime
     modified: datetime
     tags: List[str]
-    status: Optional[str] = None
-    version: Optional[int] = None
-    priority: Optional[str] = None
-    domain: Optional[str] = None
-    maturity: Optional[str] = None
-    owner: Optional[str] = None
-    review_interval: Optional[str] = None
-    last_reviewed: Optional[datetime] = None
-    confidence: Optional[str] = None
-    aliases: Optional[List[str]] = None
+
+
+class EntityMetadata(BaseModel):
+    """Optional metadata fields for an entity (backmatter)."""
+
+    metadata: Dict[str, Any] = {}
 
 
 class EntityContent(BaseModel):
@@ -53,11 +51,11 @@ class EntityContent(BaseModel):
     observations: List[Observation] = []
     relations: List[Relation] = []
     context: Optional[str] = None
-    metadata: Dict[str, Any] = {}
 
 
 class Entity(BaseModel):
-    """Complete entity combining frontmatter and content."""
+    """Complete entity combining frontmatter, content, and metadata."""
 
     frontmatter: EntityFrontmatter
-    content: EntityContent
+    content: EntityContent 
+    metadata: EntityMetadata = EntityMetadata()
