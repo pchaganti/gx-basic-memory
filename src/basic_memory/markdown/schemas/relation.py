@@ -1,70 +1,69 @@
 """Models for the markdown parser."""
-
 import logging
 import re
 from typing import Optional
 
 from pydantic import BaseModel
 
-from basic_memory.markdown import ParseError
+from basic_memory.utils.file_utils import ParseError
 
-logging.basicConfig(level=logging.DEBUG)  # pragma: no cover
-logger = logging.getLogger(__name__)  # pragma: no cover
+logger = logging.getLogger(__name__)
 
 
 class Relation(BaseModel):
     """A relation between entities."""
-
-    target: str  # The entity being linked to
-    type: str  # The type of relation
+    type: str
+    target: str
     context: Optional[str] = None
 
     @classmethod
-    def from_line(cls, content: str) -> Optional["Relation"]:
-        """Parse a relation line."""
+    def from_line(cls, line: str) -> Optional["Relation"]:
+        """
+        Parse a relation from a line.
+
+        Format must be:
+        - relation_type [[Target Entity]] (optional context)
+        
+        Leading spaces before bullet are allowed.
+        """
         try:
-            if not content.strip():
+            line = line.strip()
+            
+            # Skip empty or non-bullet lines
+            if not line or not line.startswith("-"):
                 return None
 
-            # Check for unclosed markup
-            if "[[" in content and "]]" not in content:
-                raise ParseError("missing ]]")
-            if "]]" in content and "[[" not in content:
-                raise ParseError("invalid relation syntax")
+            # Remove bullet and trim
+            line = line[1:].lstrip()
 
-            # Find the link - must have [[target]] with content inside
-            match = re.search(r"\[\[([^\]]*)\]\]", content)
-            if not match:
-                raise ParseError("missing [[")
-
-            target = match.group(1).strip()
-            if not target:  # Empty target
-                return None
-
-            # Get text before the link, excluding bullet
-            before_link = content[: match.start()].strip(" -")
-
-            # Validate relation type
-            rel_type = before_link.strip()
-            if not rel_type or rel_type == "missing type":  # Explicitly reject "missing type"
-                return None
-
-            # Get text after the link
-            after_link = content[match.end():].strip()
-
-            # Check for context in parentheses
+            # Extract context from parens at end if present
             context = None
-            if after_link:
-                if not (after_link.startswith("(") and after_link.endswith(")")):
-                    raise ParseError("invalid context format")
-                # Handle invalid context formats
-                if ")" in after_link[1:-1]:
-                    raise ParseError("invalid context format")
-                context = after_link[1:-1].strip()
+            if line.endswith(")"):
+                context_start = line.rfind("(")
+                if context_start > 0:
+                    context = line[context_start + 1:-1].strip()
+                    line = line[:context_start].strip()
 
-            return Relation(target=target, type=rel_type, context=context)
-        except ParseError:
-            raise
+            # Look for [[target]]
+            match = re.match(r"^(\w+)\s+\[\[([^\]]+)\]\]", line)
+            if not match:
+                raise ParseError("Invalid format - must be 'relation_type [[Target]]'")
+
+            rel_type = match.group(1).strip()
+            target = match.group(2).strip()
+
+            if not rel_type:
+                raise ParseError("Relation type cannot be empty")
+            if not target:
+                raise ParseError("Target cannot be empty")
+
+            return cls(
+                type=rel_type,
+                target=target,
+                context=context
+            )
+
         except Exception as e:
-            logger.exception("Failed to parse relation: %s", content)  # pragma: no cover
-            return None  # pragma: no cover
+            if not isinstance(e, ParseError):
+                raise ParseError(f"Failed to parse relation: {line}: {str(e)}") from e
+            raise

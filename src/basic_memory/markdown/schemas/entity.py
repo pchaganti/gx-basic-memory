@@ -1,58 +1,25 @@
 """Models for the markdown parser."""
-
-import logging
-import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-from markdown_it import MarkdownIt
 from pydantic import BaseModel
 
-from basic_memory.markdown.exceptions import ParseError
+from basic_memory.utils.file_utils import ParseError
 from basic_memory.markdown.schemas.observation import Observation
 from basic_memory.markdown.schemas.relation import Relation
-
-logging.basicConfig(level=logging.DEBUG)  # pragma: no cover
-logger = logging.getLogger(__name__)  # pragma: no cover
 
 
 class EntityFrontmatter(BaseModel):
     """Required frontmatter fields for an entity."""
-
     type: str
     id: str
     created: datetime
     modified: datetime
     tags: List[str]
 
-    @classmethod
-    def from_text(cls, text: str) -> "EntityFrontmatter":
-        """Parse frontmatter from YAML-style text."""
-        try:
-            frontmatter_data = {}
-            for line in text.strip().split("\n"):
-                if ":" in line:
-                    key, value = line.split(":", 1)
-                    
-                    # Handle tag arrays in YAML format [tag1, tag2]
-                    if key.strip() == "tags" and "[" in value and "]" in value:
-                        tags = value.strip()[1:-1].split(",")  # Remove [] and split
-                        frontmatter_data["tags"] = [t.strip() for t in tags]
-                    else:
-                        frontmatter_data[key.strip()] = value.strip()
-
-            # Handle non-array tags format
-            if isinstance(frontmatter_data.get("tags"), str):
-                frontmatter_data["tags"] = [t.strip() for t in frontmatter_data["tags"].split(",")]
-                
-            return cls(**frontmatter_data)
-        except Exception as e:
-            raise ParseError(f"Failed to parse frontmatter: {e}") from e  # pragma: no cover
-
 
 class EntityContent(BaseModel):
     """Content sections of an entity markdown file."""
-
     title: str
     description: Optional[str] = None
     observations: List[Observation] = []
@@ -61,124 +28,87 @@ class EntityContent(BaseModel):
 
     @classmethod
     def from_markdown(cls, text: str) -> "EntityContent":
-        """Parse content from markdown text."""
+        """
+        Parse content sections from markdown.
+        
+        Required sections:
+        - Title (# Title)
+        - Observations (## Observations)
+        """
         try:
-            md = MarkdownIt()
-            tokens = md.parse(text.strip())
+            lines = text.strip().split("\n")
+            if not lines:
+                raise ParseError("Content is empty")
 
-            # State for parsing
+            # Parse title (must start with # )
             title = ""
+            for i, line in enumerate(lines):
+                if line.startswith("# "):
+                    title = line[2:].strip()
+                    description_start = i + 1
+                    break
+            if not title:
+                raise ParseError("Missing title section (must start with '# ')")
+
+            # Find section boundaries
             desc_lines = []
-            observations: List[Observation] = []
-            relations: List[Relation] = []
-            current_section = None
+            obs_lines = []
+            rel_lines = []
+            
+            current_section = "description"
+            
+            for line in lines[description_start:]:
+                if line.startswith("## Observations"):
+                    current_section = "observations"
+                    continue
+                elif line.startswith("## Relations"):
+                    current_section = "relations"
+                    continue
+                
+                if line.strip():  # Skip empty lines
+                    if current_section == "description":
+                        desc_lines.append(line)
+                    elif current_section == "observations":
+                        obs_lines.append(line)
+                    elif current_section == "relations":
+                        rel_lines.append(line)
 
-            # Track list items and nesting level
-            in_list_item = False
-            list_item_tokens = []
-            nesting_level = 0
+            # Parse observations
+            observations = []
+            for line in obs_lines:
+                if obs := Observation.from_line(line):
+                    observations.append(obs)
 
-            for token in tokens:
-                if token.type == "heading_open":
-                    if token.tag == "h1":
-                        current_section = "title"
-                    elif token.tag == "h2":
-                        current_section = "section_name"
-                        nesting_level = 0
+            # Parse relations
+            relations = []
+            for line in rel_lines:
+                if rel := Relation.from_line(line):
+                    relations.append(rel)
 
-                elif token.type == "bullet_list_open":
-                    nesting_level += 1
-
-                elif token.type == "bullet_list_close":
-                    nesting_level -= 1
-
-                elif token.type == "inline":
-                    content = token.content.strip()
-
-                    if current_section == "title":
-                        title = content
-                        current_section = "description"
-                    elif current_section == "section_name":
-                        current_section = content.lower()
-                    elif current_section == "description":
-                        if content:
-                            desc_lines.append(content)
-                    elif in_list_item:
-                        list_item_tokens.append(token)
-
-                elif token.type == "list_item_open":
-                    in_list_item = True
-                    list_item_tokens = []
-
-                elif token.type == "list_item_close":
-                    # Only process top-level items
-                    if nesting_level <= 1:
-                        item_content = " ".join(t.content for t in list_item_tokens)
-                        try:
-                            if current_section == "observations":
-                                if obs := Observation.from_line(item_content):
-                                    observations.append(obs)
-                            elif current_section == "relations":
-                                if rel := Relation.from_line(item_content):
-                                    relations.append(rel)
-                        except ParseError:
-                            # Skip malformed items
-                            pass
-                    in_list_item = False
-
-            description = " ".join(desc_lines) if desc_lines else None
+            # Must have at least an observations section
+            if not obs_lines:
+                raise ParseError("Missing observations section")
 
             return cls(
                 title=title,
-                description=description,
+                description="\n".join(desc_lines).strip() if desc_lines else None,
                 observations=observations,
                 relations=relations,
             )
 
-        except Exception as e:  # pragma: no cover
-            raise ParseError(f"Failed to parse markdown content: {e}") from e  # pragma: no cover
+        except Exception as e:
+            if not isinstance(e, ParseError):
+                raise ParseError(f"Failed to parse content: {str(e)}") from e
+            raise
 
 
 class EntityMetadata(BaseModel):
     """Optional metadata fields for an entity (backmatter)."""
-
-    metadata: Dict[str, Any] = {}
-
-    @classmethod
-    def from_text(cls, text: str) -> "EntityMetadata":
-        """Parse metadata from text."""
-        try:
-            metadata = {}
-            if text:  # Only parse if there's content
-                current_key = None
-                current_value = []
-                
-                for line in text.strip().split("\n"):
-                    if ":" in line and not line.startswith(" "):  # New key-value pair
-                        if current_key:  # Save previous key-value pair
-                            metadata[current_key] = "\n".join(current_value)
-                        key, value = line.split(":", 1)
-                        current_key = key.strip()
-                        current_value = [value.strip()]
-                    elif current_key and line.startswith(" "):  # Continuation of multiline value
-                        current_value.append(line.strip())
-                    elif current_key:  # End of current value
-                        metadata[current_key] = "\n".join(current_value)  # pragma: no cover
-                        current_key = None  # pragma: no cover
-                        current_value = []  # pragma: no cover
-                
-                # Handle last value if any
-                if current_key:
-                    metadata[current_key] = "\n".join(current_value)
-                    
-            return cls(metadata=metadata)
-        except Exception as e:  # pragma: no cover
-            raise ParseError(f"Failed to parse metadata: {e}") from e  # pragma: no cover
+    metadata: dict = {}
 
 
 class Entity(BaseModel):
     """Complete entity combining frontmatter, content, and metadata."""
-
     frontmatter: EntityFrontmatter
-    content: EntityContent 
+    content: EntityContent
     metadata: EntityMetadata = EntityMetadata()

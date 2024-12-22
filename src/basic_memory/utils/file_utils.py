@@ -116,19 +116,26 @@ async def parse_frontmatter(content: str) -> Tuple[Dict[str, Any], str]:
         ParseError: If frontmatter parsing fails
     """
     try:
-        if not content.startswith("---\n"):
-            return {}, content
+        # Ensure we have frontmatter
+        if not content.strip().startswith("---"):
+            return {}, content.strip()
             
-        try:
-            _, fm, content = content.split("---\n", 2)
-        except ValueError as e:
-            raise ParseError("Invalid frontmatter format") from e
+        # Split on first two occurrences of ---
+        parts = content.split("---", 2)
+        if len(parts) < 3:
+            raise ParseError("Invalid frontmatter format")
             
+        # Parse YAML (skipping empty first part)
         try:
-            metadata = yaml.safe_load(fm)
-            return metadata or {}, content.strip()
+            frontmatter = yaml.safe_load(parts[1])
+            if not isinstance(frontmatter, dict):
+                raise ParseError("Frontmatter must be a YAML dictionary")
+                
+            # Return parsed frontmatter and rest of content
+            return frontmatter, parts[2].strip()
+            
         except yaml.YAMLError as e:
-            raise ParseError(f"Invalid YAML in frontmatter: {e}") from e
+            raise ParseError(f"Invalid YAML in frontmatter: {e}")
             
     except Exception as e:
         if not isinstance(e, ParseError):

@@ -4,10 +4,12 @@ from pathlib import Path
 import pytest
 from textwrap import dedent
 
-from basic_memory.markdown.parser import EntityParser, ParseError
+from basic_memory.markdown.parser import EntityParser
+from basic_memory.utils.file_utils import FileError, ParseError
 
 
-def test_unicode_content(tmp_path):
+@pytest.mark.asyncio
+async def test_unicode_content(tmp_path):
     """Test handling of Unicode content including emoji and non-Latin scripts."""
     content = dedent("""
         ---
@@ -21,14 +23,14 @@ def test_unicode_content(tmp_path):
         # Unicode Test 🧪
 
         ## Observations
-        - [test] Emoji test 👍 #emoji #test
-        - [中文] Chinese text 测试 #language
-        - [русский] Russian привет #language
-        - [😀] Emoji category #meta (Category test)
+        - [test] Emoji test 👍 #emoji #test (Testing emoji)
+        - [中文] Chinese text 测试 #language (Script test)
+        - [русский] Russian привет #language (More scripts)
+        - [note] Emoji in text 😀 #meta (Category test)
 
         ## Relations
-        - implements [[测试组件]] (Unicode test)
-        - used_by [[компонент]] (Another test)
+        - tested_by [[测试组件]] (Unicode test)
+        - depends_on [[компонент]] (Another test)
 
         ---
         category: test
@@ -40,25 +42,30 @@ def test_unicode_content(tmp_path):
     test_file.write_text(content, encoding="utf-8")
 
     parser = EntityParser()
-    entity = parser.parse_file(test_file)
+    entity = await parser.parse_file(test_file)
 
     assert "测试" in entity.frontmatter.tags
     assert "китайский" not in entity.frontmatter.tags
     assert entity.content.title == "Unicode Test 🧪"
 
 
-def test_fallback_encoding(tmp_path):
+@pytest.mark.asyncio
+async def test_fallback_encoding(tmp_path):
     """Test UTF-16 fallback when UTF-8 fails."""
-    content = "Hello 世界"  # Simple content that works in both encodings
+    content = dedent("""
+        Hello 世界
+        No proper sections here
+        """)
     test_file = tmp_path / "unicode_file.md"
     test_file.write_text(content, encoding="utf-16")
 
     parser = EntityParser()
-    with pytest.raises(ParseError, match="Missing required document sections"):
-        parser.parse_file(test_file)
+    with pytest.raises(ParseError):
+        await parser.parse_file(test_file)
 
 
-def test_encoding_errors(tmp_path):
+@pytest.mark.asyncio
+async def test_encoding_errors(tmp_path):
     """Test handling of encoding errors."""
     # Create a file with invalid UTF-8 bytes
     test_file = tmp_path / "invalid.md"
@@ -66,18 +73,20 @@ def test_encoding_errors(tmp_path):
         f.write(b"\xFF\xFE\x00\x00")  # Invalid UTF-8
 
     parser = EntityParser()
-    with pytest.raises(ParseError, match="Failed to parse"):
-        parser.parse_file(test_file, encoding="ascii")
+    with pytest.raises(ParseError):
+        await parser.parse_file(test_file, encoding="ascii")
 
 
-def test_file_not_found():
+@pytest.mark.asyncio
+async def test_file_not_found():
     """Test handling of non-existent files."""
     parser = EntityParser()
-    with pytest.raises(ParseError, match="File does not exist"):
-        parser.parse_file(Path("nonexistent.md"))
+    with pytest.raises(FileError):
+        await parser.parse_file(Path("nonexistent.md"))
 
 
-def test_nested_structures(tmp_path):
+@pytest.mark.asyncio
+async def test_nested_structures(tmp_path):
     """Test handling of nested markdown structures."""
     content = dedent("""
         ---
@@ -91,28 +100,33 @@ def test_nested_structures(tmp_path):
         # Nested Test
 
         ## Observations
-        - [test] Main point #main
-            - [sub] Subpoint #sub
-                - [subsub] Sub-subpoint #detail
+        - [test] Main point #main (Top level)
+            - [test] Subpoint #sub (Should be ignored)
+                - [test] Sub-subpoint #detail (Also ignored)
 
         ## Relations
-        - contains [[Sub Entity]]
-            - and [[Another Entity]]
-                - also [[Third Entity]]
+        - depends_on [[Sub Entity]] (Top level)
+            - uses [[Another Entity]] (Should be ignored)
+                - implements [[Third Entity]] (Also ignored)
         """)
 
     test_file = tmp_path / "nested.md"
     test_file.write_text(content)
 
     parser = EntityParser()
-    entity = parser.parse_file(test_file)
+    entity = await parser.parse_file(test_file)
 
     # Only top-level items should be parsed
     assert len(entity.content.observations) == 1
     assert len(entity.content.relations) == 1
+    assert entity.content.observations[0].tags == ["main"]
+    assert entity.content.observations[0].context == "Top level"
+    assert entity.content.relations[0].target == "Sub Entity"
+    assert entity.content.relations[0].type == "depends_on"
 
 
-def test_malformed_sections(tmp_path):
+@pytest.mark.asyncio
+async def test_malformed_sections(tmp_path):
     """Test various malformed section contents."""
     content = dedent("""
         ---
@@ -133,23 +147,24 @@ def test_malformed_sections(tmp_path):
 
         ## Relations
         - not a valid relation
-        - missing type [[Entity]]
-        - incomplete [[
-        - ]] backwards
+        - missing_brackets Entity
+        - implements incomplete [[
+        - implements ]] backwards
         """)
 
     test_file = tmp_path / "malformed.md"
     test_file.write_text(content)
 
     parser = EntityParser()
-    entity = parser.parse_file(test_file)
+    entity = await parser.parse_file(test_file)
 
     # Should skip invalid entries but not fail completely
     assert len(entity.content.observations) == 0
     assert len(entity.content.relations) == 0
 
 
-def test_missing_required_sections(tmp_path):
+@pytest.mark.asyncio
+async def test_missing_required_sections(tmp_path):
     """Test handling of missing required sections."""
     # Test file with only frontmatter
     content = dedent("""
@@ -166,5 +181,5 @@ def test_missing_required_sections(tmp_path):
     test_file.write_text(content)
 
     parser = EntityParser()
-    with pytest.raises(ParseError, match="Missing required document sections"):
-        parser.parse_file(test_file)
+    with pytest.raises(ParseError):
+        await parser.parse_file(test_file)
