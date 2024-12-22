@@ -49,21 +49,21 @@ async def list_documents(
     return [DocumentCreateResponse.model_validate(doc.__dict__) for doc in documents]
 
 
-@router.get("/{path:path}", response_model=DocumentResponse)
+@router.get("/{id:int}", response_model=DocumentResponse)
 async def get_document(
-    path: str,
+    id: int,
     service: DocumentServiceDep,
 ) -> DocumentResponse:
-    """Get a document by path."""
+    """Get a document by ID."""
     try:
-        document, content = await service.read_document(path)
+        document, content = await service.read_document_by_id(id)
         doc_dict = document.__dict__ | {"content": content}
         response = DocumentResponse.model_validate(doc_dict)
         return response
     except DocumentNotFoundError:
         raise HTTPException(
             status_code=404, 
-            detail=f"Document not found: {path}"
+            detail=f"Document not found: {id}"
         )
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))

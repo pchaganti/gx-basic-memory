@@ -3,7 +3,7 @@
 import hashlib
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 
 import yaml
 from loguru import logger
@@ -60,18 +60,16 @@ class DocumentService(BaseService[DocumentRepository]):
         except Exception as e:
             raise DocumentWriteError(f"Failed to create directory: {parent}: {e}")
 
-    async def add_frontmatter(self, content: str, doc_id: int, metadata: Optional[Dict[str, Any]] = None) -> str:
+    async def add_frontmatter(
+        self, content: str, doc_id: int, metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Add frontmatter to document content."""
         # Generate frontmatter with timestamps
         now = datetime.now(UTC).isoformat()
-        frontmatter = {
-            "id": doc_id,
-            "created": now,
-            "modified": now
-        }
+        frontmatter = {"id": doc_id, "created": now, "modified": now}
         if metadata:
             frontmatter.update(metadata)
-            
+
         yaml_fm = yaml.dump(frontmatter, sort_keys=False)
         return f"---\n{yaml_fm}---\n\n{content}"
 
@@ -104,10 +102,7 @@ class DocumentService(BaseService[DocumentRepository]):
 
         try:
             # 1. Create initial DB record to get ID
-            doc = await self.repository.create({
-                "path": str(path),
-                "doc_metadata": metadata
-            })
+            doc = await self.repository.create({"path": str(path), "doc_metadata": metadata})
 
             # 2. Add frontmatter with DB-generated ID
             content_with_frontmatter = await self.add_frontmatter(content, doc.id, metadata)
@@ -122,10 +117,40 @@ class DocumentService(BaseService[DocumentRepository]):
 
         except Exception as e:
             # Clean up on any failure
-            if 'doc' in locals():  # DB record was created
+            if "doc" in locals():  # DB record was created
                 await self.repository.delete(doc.id)
             file_path.unlink(missing_ok=True)
             raise DocumentWriteError(f"Failed to create document: {e}")
+
+    async def read_document_by_id(self, id: int) -> Tuple[Document, str]:
+        """
+        Read a document and its content by ID.
+        
+        Args:
+            id: Document ID
+            
+        Returns:
+            Tuple of (document record, content)
+            
+        Raises:
+            DocumentNotFoundError: If document doesn't exist
+            DocumentError: If file read fails
+        """
+        logger.debug(f"Reading document with ID {id}")
+        
+        # Get document record
+        query = select(Document).where(Document.id == id)
+        doc = await self.repository.find_one(query)
+        if not doc:
+            raise DocumentNotFoundError(f"Document not found: {id}")
+            
+        # Read content since file is source of truth
+        try:
+            file_path = Path(doc.path)
+            content = file_path.read_text()
+            return doc, content
+        except Exception as e:
+            raise DocumentError(f"Failed to read document {id}: {e}")
 
     async def read_document(self, path: str) -> tuple[Document, str]:
         """
@@ -167,15 +192,15 @@ class DocumentService(BaseService[DocumentRepository]):
     ) -> Document:
         """
         Update a document using its ID.
-        
+
         Args:
             id: Document ID
             content: New content
             metadata: Optional new metadata
-            
+
         Returns:
             Updated document record
-            
+
         Raises:
             DocumentNotFoundError: If document doesn't exist
             DocumentWriteError: If update fails
@@ -189,11 +214,7 @@ class DocumentService(BaseService[DocumentRepository]):
             raise DocumentNotFoundError(f"Document not found: {id}")
 
         # Use existing path to update file
-        return await self.update_document(
-            path=document.path,
-            content=content,
-            metadata=metadata
-        )
+        return await self.update_document(path=document.path, content=content, metadata=metadata)
 
     async def update_document(
         self, path: str, content: str, metadata: Optional[Dict[str, Any]] = None
@@ -239,7 +260,7 @@ class DocumentService(BaseService[DocumentRepository]):
         checksum = await self.compute_checksum(content)
         update_data = {"checksum": checksum}
         if metadata is not None:
-            update_data["doc_metadata"] = metadata
+            update_data["doc_metadata"] = metadata  # pyright: ignore [reportArgumentType]
 
         updated_document = await self.repository.update(doc.id, update_data)
         assert updated_document is not None, f"Could not update document {doc.id}"

@@ -61,13 +61,14 @@ async def test_get_document(client: AsyncClient, tmp_path: Path):
     assert create_response.status_code == 201
     created = create_response.json()
 
-    # Get document
-    response = await client.get(f"/documents/{test_doc['path']}")
+    # Get document by ID
+    response = await client.get(f"/documents/{created['id']}")
     
     assert response.status_code == 200
     data = response.json()
     assert data["path"] == test_doc["path"]
     assert data["doc_metadata"] == test_doc["doc_metadata"]
+    assert data["id"] == created["id"]
     
     # Content checks - frontmatter followed by original content
     content = data["content"]
@@ -78,9 +79,9 @@ async def test_get_document(client: AsyncClient, tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_get_nonexistent_document(client: AsyncClient, tmp_path: Path):
+async def test_get_nonexistent_document(client: AsyncClient):
     """Test getting a document that doesn't exist."""
-    response = await client.get(f"/documents/{tmp_path}/nonexistent.md")
+    response = await client.get("/documents/99999")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
@@ -109,6 +110,7 @@ async def test_update_document(client: AsyncClient, tmp_path: Path):
 
     data = response.json()
     assert data["doc_metadata"] == update_doc["doc_metadata"]
+    assert data["id"] == created["id"]
     assert "# Updated" in data["content"]
     assert "Updated content" in data["content"]
     
@@ -144,6 +146,7 @@ async def test_delete_document(client: AsyncClient, tmp_path: Path):
     # Create document
     create_response = await client.post("/documents/", json=test_doc)
     assert create_response.status_code == 201
+    created = create_response.json()
 
     # Delete document
     response = await client.delete(f"/documents/{test_doc['path']}")
@@ -154,7 +157,7 @@ async def test_delete_document(client: AsyncClient, tmp_path: Path):
     assert not doc_path.exists()
 
     # Verify 404 on subsequent get
-    get_response = await client.get(f"/documents/{test_doc['path']}")
+    get_response = await client.get(f"/documents/{created['id']}")
     assert get_response.status_code == 404
 
 
