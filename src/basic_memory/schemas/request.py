@@ -1,16 +1,4 @@
-"""Request schemas for interacting with the knowledge graph.
-
-This module defines all the request schemas for creating, retrieving, and managing
-knowledge graph entities. Each schema includes validation rules and clear examples
-of proper usage.
-
-Request Types:
-1. Entity Creation - Create new nodes in the graph
-2. Observation Addition - Add facts to existing entities
-3. Relation Creation - Connect entities with typed edges
-4. Node Search - Find entities across the graph
-5. Node Retrieval - Load specific entities by ID
-"""
+"""Request schemas for interacting with the knowledge graph."""
 
 from typing import List, Optional, Annotated, Dict, Any
 
@@ -220,14 +208,14 @@ class DocumentCreate(BaseModel):
 
 
 class DocumentUpdate(BaseModel):
-    id: int
-    checksum: str
+    """Update an existing document by ID."""
+
+    id: int  # Document ID is required for updates
     content: str
     doc_metadata: Optional[Dict[str, Any]] = None
 
 
 class DocumentPatch(BaseModel):
     id: int
-    checksum: str
     content: Optional[str] = None
     doc_metadata: Optional[Dict[str, Any]] = None

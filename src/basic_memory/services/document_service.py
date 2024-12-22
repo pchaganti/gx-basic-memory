@@ -3,11 +3,11 @@
 import hashlib
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Optional, Dict, Any, Sequence
+from typing import Optional, Dict, Any, List
 
 import yaml
-from icecream import ic
 from loguru import logger
+from sqlalchemy import select
 
 from basic_memory.models import Document
 from basic_memory.repository.document_repository import DocumentRepository
@@ -16,19 +16,16 @@ from basic_memory.services.service import BaseService
 
 class DocumentError(Exception):
     """Base exception for document operations."""
-
     pass
 
 
 class DocumentNotFoundError(DocumentError):
     """Raised when a document doesn't exist."""
-
     pass
 
 
 class DocumentWriteError(DocumentError):
     """Raised when document file operations fail."""
-
     pass
 
 
@@ -49,41 +46,37 @@ class DocumentService(BaseService[DocumentRepository]):
 
     async def ensure_parent_directory(self, path: Path) -> None:
         """
-        Ensure parent directory exists and is writable.
+        Ensure parent directory exists.
 
         Args:
             path: Path to check
 
         Raises:
-            DocumentWriteError: If directory cannot be created or is not writable
+            DocumentWriteError: If directory cannot be created
         """
         parent = path.parent
         try:
-            if not parent.exists():
-                parent.mkdir(parents=True)
-
-            # Verify we can write to it
-            test_file = parent / ".write_test"
-            test_file.touch()
-            test_file.unlink()
+            parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            raise DocumentWriteError(f"Directory not writable: {parent}: {e}")
+            raise DocumentWriteError(f"Failed to create directory: {parent}: {e}")
 
-    async def add_frontmatter(
-        self, content: str, doc_id: int, metadata: Optional[Dict[str, Any]] = None
-    ) -> str:
+    async def add_frontmatter(self, content: str, doc_id: int, metadata: Optional[Dict[str, Any]] = None) -> str:
         """Add frontmatter to document content."""
         # Generate frontmatter with timestamps
         now = datetime.now(UTC).isoformat()
-        frontmatter = {"id": doc_id, "created": now, "modified": now}
+        frontmatter = {
+            "id": doc_id,
+            "created": now,
+            "modified": now
+        }
         if metadata:
             frontmatter.update(metadata)
-
+            
         yaml_fm = yaml.dump(frontmatter, sort_keys=False)
         return f"---\n{yaml_fm}---\n\n{content}"
 
-    async def list_documents(self) -> Sequence[Document]:
-        """List all documents in the database."""
+    async def list_documents(self) -> List[Document]:
+        """List all documents."""
         return await self.repository.find_all()
 
     async def create_document(
@@ -105,13 +98,16 @@ class DocumentService(BaseService[DocumentRepository]):
         """
         logger.debug(f"Creating document at {path}")
 
-        # Ensure parent directories exist and are writable
+        # Ensure parent directories exist
         file_path = Path(path)
         await self.ensure_parent_directory(file_path)
 
         try:
             # 1. Create initial DB record to get ID
-            doc = await self.repository.create({"path": str(path), "doc_metadata": metadata})
+            doc = await self.repository.create({
+                "path": str(path),
+                "doc_metadata": metadata
+            })
 
             # 2. Add frontmatter with DB-generated ID
             content_with_frontmatter = await self.add_frontmatter(content, doc.id, metadata)
@@ -122,12 +118,11 @@ class DocumentService(BaseService[DocumentRepository]):
             # 4. Update DB with checksum to mark completion
             checksum = await self.compute_checksum(content_with_frontmatter)
             doc = await self.repository.update(doc.id, {"checksum": checksum})
-            ic(doc)
             return doc
 
         except Exception as e:
             # Clean up on any failure
-            if "doc" in locals():  # DB record was created
+            if 'doc' in locals():  # DB record was created
                 await self.repository.delete(doc.id)
             file_path.unlink(missing_ok=True)
             raise DocumentWriteError(f"Failed to create document: {e}")
@@ -166,6 +161,39 @@ class DocumentService(BaseService[DocumentRepository]):
             doc = await self.repository.create({"path": str(path), "checksum": checksum})
 
         return doc, content
+
+    async def update_document_by_id(
+        self, id: int, content: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> Document:
+        """
+        Update a document using its ID.
+        
+        Args:
+            id: Document ID
+            content: New content
+            metadata: Optional new metadata
+            
+        Returns:
+            Updated document record
+            
+        Raises:
+            DocumentNotFoundError: If document doesn't exist
+            DocumentWriteError: If update fails
+        """
+        logger.debug(f"Updating document with ID: {id}")
+
+        # Find document first
+        query = select(Document).where(Document.id == id)
+        document = await self.repository.find_one(query)
+        if not document:
+            raise DocumentNotFoundError(f"Document not found: {id}")
+
+        # Use existing path to update file
+        return await self.update_document(
+            path=document.path,
+            content=content,
+            metadata=metadata
+        )
 
     async def update_document(
         self, path: str, content: str, metadata: Optional[Dict[str, Any]] = None

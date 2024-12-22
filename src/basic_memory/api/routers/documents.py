@@ -22,7 +22,7 @@ async def create_document(
     service: DocumentServiceDep,
 ) -> DocumentCreateResponse:
     """Create a new document.
-
+    
     The document will be created with appropriate frontmatter including:
     - Generated ID
     - Creation timestamp
@@ -35,18 +35,18 @@ async def create_document(
             content=doc.content,
             metadata=doc.doc_metadata,
         )
-        return DocumentCreateResponse.from_orm(document)
+        return DocumentCreateResponse.model_validate(document.__dict__)
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/", response_model=List[DocumentResponse])
+@router.get("/", response_model=List[DocumentCreateResponse])
 async def list_documents(
     service: DocumentServiceDep,
-) -> List[DocumentResponse]:
-    """List all documents."""
+) -> List[DocumentCreateResponse]:
+    """List all documents (without content)."""
     documents = await service.list_documents()
-    return [DocumentResponse.from_orm(doc) for doc in documents]
+    return [DocumentCreateResponse.model_validate(doc.__dict__) for doc in documents]
 
 
 @router.get("/{path:path}", response_model=DocumentResponse)
@@ -57,57 +57,45 @@ async def get_document(
     """Get a document by path."""
     try:
         document, content = await service.read_document(path)
-        response = DocumentResponse.model_validate(document.__dict__ | {"content": content})
+        doc_dict = document.__dict__ | {"content": content}
+        response = DocumentResponse.model_validate(doc_dict)
         return response
     except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Document not found: {path}"
+        )
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.put("/{path:path}", response_model=DocumentResponse)
+@router.put("/{id:int}", response_model=DocumentResponse)
 async def update_document(
-    path: str,
+    id: int,
     doc: DocumentUpdate,
     service: DocumentServiceDep,
 ) -> DocumentResponse:
-    """Update a document's content and/or metadata."""
+    """Update a document by ID."""
+    # Verify IDs match
+    if doc.id != id:
+        raise HTTPException(
+            status_code=400,
+            detail="Document ID in URL must match ID in request body"
+        )
+
     try:
-        document = await service.update_document(
-            path=path,
+        document = await service.update_document_by_id(
+            id=id,
             content=doc.content,
             metadata=doc.doc_metadata,
         )
-        return DocumentResponse.from_orm(document)
+        doc_dict = document.__dict__ | {"content": doc.content}
+        return DocumentResponse.model_validate(doc_dict)
     except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
-    except DocumentWriteError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.patch("/{path:path}", response_model=DocumentResponse)
-async def patch_document(
-    path: str,
-    patch: DocumentPatch,
-    service: DocumentServiceDep,
-) -> DocumentResponse:
-    """Partially update a document."""
-    # Require full content updates for now
-    if patch.content is None:
         raise HTTPException(
-            status_code=400,
-            detail=("Partial content updates not yet implemented. " "Please provide full content."),
+            status_code=404, 
+            detail=f"Document not found: {id}"
         )
-
-    try:
-        document = await service.update_document(
-            path=path,
-            content=patch.content,
-            metadata=patch.doc_metadata,
-        )
-        return DocumentResponse.from_orm(document)
-    except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -121,6 +109,9 @@ async def delete_document(
     try:
         await service.delete_document(path)
     except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document not found: {path}"
+        )
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
