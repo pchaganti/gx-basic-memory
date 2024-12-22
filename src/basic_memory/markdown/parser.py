@@ -1,5 +1,6 @@
 """Parser for Basic Memory entity markdown files."""
 
+from datetime import datetime
 from typing import Dict, Any, Optional
 
 from loguru import logger
@@ -31,22 +32,40 @@ class EntityParser(MarkdownParser[Entity]):
     async def parse_frontmatter(self, frontmatter: Dict[str, Any]) -> EntityFrontmatter:
         """Parse entity frontmatter."""
         try:
+            # Check required fields
+            required_fields = {"type", "id", "created", "modified"}
+            missing = required_fields - set(frontmatter.keys())
+            if missing:
+                raise ParseError(f"Missing required frontmatter fields: {', '.join(missing)}")
+
             # Preprocess fields for schema validation
             processed = frontmatter.copy()
 
             # Ensure id is string
-            if "id" in processed:
-                processed["id"] = str(processed["id"])
+            processed["id"] = str(processed["id"])
 
             # Handle tags field
-            if "tags" in processed:
-                if isinstance(processed["tags"], str):
-                    # Split comma-separated tags and strip whitespace
-                    processed["tags"] = [tag.strip() for tag in processed["tags"].split(",")]
+            if "tags" not in processed:
+                processed["tags"] = []
+            elif isinstance(processed["tags"], str):
+                processed["tags"] = [tag.strip() for tag in processed["tags"].split(",")]
+
+            # Parse dates - let pydantic validation catch invalid formats
+            for date_field in ["created", "modified"]:
+                try:
+                    if not isinstance(processed[date_field], datetime):
+                        # If it's not already a datetime, parse it
+                        datetime.fromisoformat(str(processed[date_field]).replace("Z", "+00:00"))
+                except (ValueError, TypeError) as e:
+                    raise ParseError(
+                        f"Invalid date format for {date_field}: {processed[date_field]}"
+                    ) from e
 
             return EntityFrontmatter(**processed)
 
         except Exception as e:
+            if isinstance(e, ParseError):
+                raise
             logger.error(f"Invalid entity frontmatter: {e}")
             raise ParseError(f"Invalid entity frontmatter: {str(e)}") from e
 
@@ -65,7 +84,7 @@ class EntityParser(MarkdownParser[Entity]):
 
             for line in sections["observations"].splitlines():
                 if line and not line.isspace():
-                    observation = await self._parse_observation(line)
+                    observation = await self.parse_observation(line)
                     if observation:
                         observations.append(observation)
 
@@ -74,7 +93,7 @@ class EntityParser(MarkdownParser[Entity]):
             if "relations" in sections:
                 for line in sections["relations"].splitlines():
                     if line and not line.isspace():
-                        relation = await self._parse_relation(line)
+                        relation = await self.parse_relation(line)
                         if relation:
                             relations.append(relation)
 
