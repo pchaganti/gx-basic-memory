@@ -16,14 +16,14 @@ from basic_memory.schemas import (
     ObservationResponse,
     OpenNodesRequest,
     OpenNodesResponse,
-    DeleteEntityResponse,
+    DeleteEntitiesResponse,
     DeleteObservationsRequest,
     DeleteObservationsResponse,
     DeleteRelationsRequest,
     DeleteRelationsResponse,
     AddObservationsResponse,
     RelationResponse,
-    DeleteEntityRequest,
+    DeleteEntitiesRequest,
 )
 from basic_memory.services.exceptions import EntityNotFoundError
 
@@ -74,8 +74,8 @@ async def add_observations(
 ## Read endpoints
 
 
-@router.get("/entities/{entity_id:path}", response_model=EntityResponse)
-async def get_entity(entity_id: str, entity_service: EntityServiceDep) -> EntityResponse:
+@router.get("/entities/{entity_id}", response_model=EntityResponse)
+async def get_entity(entity_id: int, entity_service: EntityServiceDep) -> EntityResponse:
     """Get a specific entity by ID."""
     try:
         entity = await entity_service.get_entity(entity_id)
@@ -110,13 +110,13 @@ async def open_nodes(data: OpenNodesRequest, entity_service: EntityServiceDep) -
 ## Delete endpoints
 
 
-@router.post("/entities/delete", response_model=DeleteEntityResponse)
+@router.post("/entities/delete", response_model=DeleteEntitiesResponse)
 async def delete_entity(
-    data: DeleteEntityRequest, entity_service: EntityServiceDep
-) -> DeleteEntityResponse:
+    data: DeleteEntitiesRequest, entity_service: EntityServiceDep
+) -> DeleteEntitiesResponse:
     """Delete a specific entity by ID."""
     deleted = await entity_service.delete_entities(data.entity_ids)
-    return DeleteEntityResponse(deleted=deleted)
+    return DeleteEntitiesResponse(deleted=deleted)
 
 
 @router.post("/observations/delete", response_model=DeleteObservationsResponse)

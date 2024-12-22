@@ -129,7 +129,7 @@ class EntityResponse(SQLAlchemyModel):
     }
     """
 
-    id: str
+    id: int
     name: str
     entity_type: str
     description: Optional[str] = None
@@ -282,7 +282,7 @@ class CreateRelationsResponse(SQLAlchemyModel):
     relations: List[Relation]
 
 
-class DeleteEntityResponse(SQLAlchemyModel):
+class DeleteEntitiesResponse(SQLAlchemyModel):
     """Response indicating successful entity deletion.
 
     A simple boolean response confirming the delete operation

@@ -5,7 +5,6 @@ from typing import List
 import pytest
 from httpx import AsyncClient
 
-from basic_memory.models import Entity
 from basic_memory.schemas import (
     EntityResponse,
     CreateEntityResponse,
@@ -30,7 +29,6 @@ async def create_entity(client) -> EntityResponse:
     assert len(response_data["entities"]) == 1
     entity = response_data["entities"][0]
 
-    assert entity["id"] == Entity.generate_id(entity["entity_type"], entity["name"])
     assert entity["name"] == data["name"]
     entity_type = entity.get("entity_type")
     assert entity_type == data["entity_type"]
@@ -182,14 +180,16 @@ async def test_open_nodes(client: AsyncClient):
         {"name": "Alpha Test", "entity_type": "test"},
         {"name": "Beta Test", "entity_type": "test"},
     ]
-    await client.post("/knowledge/entities", json={"entities": entities})
+    create_response = await client.post("/knowledge/entities", json={"entities": entities})
+    created_entities = create_response.json()
+    assert len(created_entities["entities"]) == 2
 
     # open nodes
     response = await client.post(
         "/knowledge/nodes",
         json={
             "entity_ids": [
-                "test/alpha_test",
+                created_entities["entities"][0]["id"],
             ]
         },
     )

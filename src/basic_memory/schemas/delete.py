@@ -24,7 +24,7 @@ from pydantic import BaseModel
 from basic_memory.schemas.base import Relation, Observation
 
 
-class DeleteEntityRequest(BaseModel):
+class DeleteEntitiesRequest(BaseModel):
     """Delete one or more entities from the knowledge graph.
 
     This operation:

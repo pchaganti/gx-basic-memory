@@ -53,10 +53,10 @@ def test_entity_in_validation():
 
 def test_relation_in_validation():
     """Test RelationIn validation."""
-    data = {"from_id": "123", "to_id": "456", "relation_type": "test"}
+    data = {"from_id": 123, "to_id": 456, "relation_type": "test"}
     relation = Relation.model_validate(data)
-    assert relation.from_id == "123"
-    assert relation.to_id == "456"
+    assert relation.from_id == 123
+    assert relation.to_id == 456
     assert relation.relation_type == "test"
     assert relation.context is None
 
@@ -146,7 +146,7 @@ def test_search_nodes_input():
 
 def test_open_nodes_input():
     """Test OpenNodesInput validation."""
-    open_input = OpenNodesRequest.model_validate({"entity_ids": ["entity1", "entity2"]})
+    open_input = OpenNodesRequest.model_validate({"entity_ids": [1, 2]})
     assert len(open_input.entity_ids) == 2
 
     # Empty names list should fail

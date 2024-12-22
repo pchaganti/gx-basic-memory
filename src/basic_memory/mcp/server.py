@@ -33,7 +33,7 @@ from basic_memory.schemas import (
     OpenNodesRequest,
     AddObservationsRequest,
     CreateRelationsRequest,
-    DeleteEntityRequest,
+    DeleteEntitiesRequest,
     DeleteObservationsRequest,
     DeleteRelationsRequest,
 )
@@ -82,7 +82,7 @@ async def handle_list_tools() -> List[Tool]:
         Tool(
             name="delete_entities",
             description="Delete entities",
-            inputSchema=DeleteEntityRequest.model_json_schema(),
+            inputSchema=DeleteEntitiesRequest.model_json_schema(),
         ),
         Tool(
             name="delete_observations",
