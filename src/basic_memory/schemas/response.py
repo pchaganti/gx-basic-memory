@@ -11,7 +11,7 @@ Key Features:
 4. Bulk operations return all affected items
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -324,3 +324,15 @@ class DeleteObservationsResponse(SQLAlchemyModel):
     """
 
     deleted: bool
+
+
+class DocumentResponse(BaseModel):
+    id: int
+    path: str
+    checksum: str
+    doc_metadata: Optional[Dict[str, Any]] = None
+    created_at: str
+    updated_at: str
+
+    class Config:
+        from_attributes = True

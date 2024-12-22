@@ -12,7 +12,7 @@ Request Types:
 5. Node Retrieval - Load specific entities by ID
 """
 
-from typing import List, Optional, Annotated
+from typing import List, Optional, Annotated, Dict, Any
 
 from annotated_types import MinLen, MaxLen
 from pydantic import BaseModel
@@ -112,7 +112,7 @@ class SearchNodesRequest(BaseModel):
     The search looks across multiple fields:
     - Entity names
     - Entity types
-    - Descriptions 
+    - Descriptions
     - Observations
 
     Features:
@@ -159,7 +159,7 @@ class OpenNodesRequest(BaseModel):
     2. Non-existent IDs are silently skipped
     3. Returns complete entity objects
     4. Relations are included in response
-    
+
     Best Practice: Use this to explore the graph by following
     relations between entities that interest you.
     """
@@ -208,3 +208,22 @@ class CreateRelationsRequest(BaseModel):
     """
 
     relations: List[Relation]
+
+
+## document
+
+
+class DocumentCreate(BaseModel):
+    path: str
+    content: str
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class DocumentUpdate(BaseModel):
+    content: str
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class DocumentPatch(BaseModel):
+    content: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None

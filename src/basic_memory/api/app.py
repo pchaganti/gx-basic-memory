@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 from loguru import logger
 
+from .routers import documents
 from .routers import knowledge
 
 # Initialize FastAPI app
@@ -12,6 +13,7 @@ app = FastAPI(
 
 # Include routers
 app.include_router(knowledge.router)
+app.include_router(documents.router)
 
 
 # Add startup event
