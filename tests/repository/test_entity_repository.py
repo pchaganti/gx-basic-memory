@@ -16,9 +16,7 @@ from basic_memory.repository.entity_repository import EntityRepository
 async def test_entity(session_maker):
     """Create a test entity."""
     async with db.scoped_session(session_maker) as session:
-        entity = Entity(
-            id="test/test_entity", name="test_entity", entity_type="test", description="Test entity"
-        )
+        entity = Entity(name="test_entity", entity_type="test", description="Test entity")
         session.add(entity)
         return entity
 
@@ -40,13 +38,11 @@ async def related_entities(session_maker):
     """Create entities with relations between them."""
     async with db.scoped_session(session_maker) as session:
         source = Entity(
-            id="source/test_entity",
             name="source",
             entity_type="source",
             description="Source entity",
         )
         target = Entity(
-            id="target/test_entity",
             name="target",
             entity_type="target",
             description="Target entity",
@@ -70,10 +66,11 @@ async def test_create_entity(entity_repository: EntityRepository):
     entity = await entity_repository.create(entity_data)
 
     # Verify returned object
-    assert entity.id == "test/test"
+    assert entity.id is not None
     assert entity.name == "Test"
     assert entity.description == "Test description"
     assert isinstance(entity.created_at, datetime)
+    assert isinstance(entity.updated_at, datetime)
 
     # Verify in database
     found = await entity_repository.find_by_id(entity.id)
@@ -126,7 +123,6 @@ async def test_entity_type_name_unique_constraint(entity_repository: EntityRepos
     """Test the unique constraint on entity_type + name combination."""
     # Create first entity
     entity1_data = {
-        "id": "20240102-test1",
         "name": "Test Entity",
         "entity_type": "type1",
         "description": "First entity",
@@ -135,7 +131,6 @@ async def test_entity_type_name_unique_constraint(entity_repository: EntityRepos
 
     # Try to create another entity with same type and name
     entity2_data = {
-        "id": "20240102-test2",
         "name": "Test Entity",  # Same name
         "entity_type": "type1",  # Same type
         "description": "Second entity",
@@ -151,7 +146,6 @@ async def test_entity_type_name_unique_constraint(entity_repository: EntityRepos
 async def test_create_entity_null_description(session_maker, entity_repository: EntityRepository):
     """Test creating an entity with null description"""
     entity_data = {
-        "id": "20240102-test",
         "name": "Test",
         "entity_type": "test",
         "description": None,
@@ -185,9 +179,11 @@ async def test_find_by_id(entity_repository: EntityRepository, sample_entity: En
 
 
 @pytest.mark.asyncio
-async def test_find_by_name(entity_repository: EntityRepository, sample_entity: Entity):
+async def test_find_by_type_and_name(entity_repository: EntityRepository, sample_entity: Entity):
     """Test finding an entity by name"""
-    found = await entity_repository.find_by_name(sample_entity.name)
+    found = await entity_repository.get_entity_by_type_and_name(
+        sample_entity.entity_type, sample_entity.name
+    )
     assert found is not None
     assert found.id == sample_entity.id
     assert found.name == sample_entity.name
@@ -307,7 +303,7 @@ async def test_delete_entity_with_relations(entity_repository: EntityRepository,
 @pytest.mark.asyncio
 async def test_delete_nonexistent_entity(entity_repository: EntityRepository):
     """Test deleting an entity that doesn't exist."""
-    result = await entity_repository.delete("nonexistent/id")
+    result = await entity_repository.delete(0)
     assert result is False
 
 
@@ -317,13 +313,11 @@ async def test_search(session_maker, entity_repository: EntityRepository):
     # First create and commit the entities
     async with db.scoped_session(session_maker) as session:
         entity1 = Entity(
-            id="20240102-test1",
             name="Search Test 1",
             entity_type="test",
             description="First test entity",
         )
         entity2 = Entity(
-            id="20240102-test2",
             name="Search Test 2",
             entity_type="other",
             description="Second test entity",
@@ -349,18 +343,18 @@ async def test_search(session_maker, entity_repository: EntityRepository):
         )
 
     # Test search by name
-    results = await entity_repository.search("Search Test")
+    results = await entity_repository.search_entities("Search Test")
     assert len(results) == 2
     names = {e.name for e in results}
     assert "Search Test 1" in names
     assert "Search Test 2" in names
 
     # Test search by type
-    results = await entity_repository.search("other")
+    results = await entity_repository.search_entities("other")
     assert len(results) == 1
     assert results[0].entity_type == "other"
 
     # Test search by observation content
-    results = await entity_repository.search("searchable")
+    results = await entity_repository.search_entities("searchable")
     assert len(results) == 1
     assert results[0].id == entity1.id

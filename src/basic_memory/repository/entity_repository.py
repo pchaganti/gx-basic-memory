@@ -15,6 +15,10 @@ from basic_memory.repository.repository import Repository
 class EntityRepository(Repository[Entity]):
     """Repository for Entity model."""
 
+    def __init__(self, session_maker: async_sessionmaker[AsyncSession]):
+        """Initialize with session maker."""
+        super().__init__(session_maker, Entity)
+
     async def create_entity(
         self, 
         name: str, 
@@ -93,7 +97,7 @@ class EntityRepository(Repository[Entity]):
         updates: Dict[str, Any]
     ) -> Optional[Entity]:
         """Update an entity with the given fields."""
-        return await self.update(str(entity_id), updates)
+        return await self.update(entity_id, updates)
 
     async def delete_entities_by_doc_id(self, doc_id: int) -> bool:
         """Delete all entities associated with a document."""

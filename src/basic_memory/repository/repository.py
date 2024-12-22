@@ -91,7 +91,7 @@ class Repository[T: Base]:
             logger.debug(f"Found {len(items)} {self.Model.__name__} records")
             return items
 
-    async def find_by_id(self, entity_id: str) -> Optional[T]:
+    async def find_by_id(self, entity_id: int) -> Optional[T]:
         """Fetch an entity by its unique identifier."""
         logger.debug(f"Finding {self.Model.__name__} by ID: {entity_id}")
         async with db.scoped_session(self.session_maker) as session:
@@ -117,7 +117,7 @@ class Repository[T: Base]:
             logger.debug(f"No {self.Model.__name__} found")
         return entity
 
-    async def find_by_ids(self, ids: List[str]) -> Sequence[T]:
+    async def find_by_ids(self, ids: List[int]) -> Sequence[T]:
         """Fetch multiple entities by their identifiers in a single query."""
         logger.debug(f"Finding {self.Model.__name__} by IDs: {ids}")
         async with db.scoped_session(self.session_maker) as session:
@@ -146,7 +146,7 @@ class Repository[T: Base]:
             session.add_all(model_list)
             return model_list
 
-    async def update(self, entity_id: str, entity_data: dict) -> Optional[T]:
+    async def update(self, entity_id: int, entity_data: dict) -> Optional[T]:
         """Update an entity with the given data."""
         logger.debug(f"Updating {self.Model.__name__} {entity_id} with data: {entity_data}")
         async with db.scoped_session(self.session_maker) as session:
@@ -169,7 +169,7 @@ class Repository[T: Base]:
                 logger.debug(f"No {self.Model.__name__} found to update: {entity_id}")
                 return None
 
-    async def delete(self, entity_id: str) -> bool:
+    async def delete(self, entity_id: int) -> bool:
         """Delete an entity from the database."""
         logger.debug(f"Deleting {self.Model.__name__}: {entity_id}")
         async with db.scoped_session(self.session_maker) as session:
@@ -186,8 +186,8 @@ class Repository[T: Base]:
                 logger.debug(f"No {self.Model.__name__} found to delete: {entity_id}")
                 return False
 
-    async def delete_by_ids(self, ids: List[str]) -> int:
-        """Delete records matching given field values."""
+    async def delete_by_ids(self, ids: List[int]) -> int:
+        """Delete records matching given IDs."""
         logger.debug(f"Deleting {self.Model.__name__} by ids: {ids}")
         async with db.scoped_session(self.session_maker) as session:
             query = delete(self.Model).where(self.primary_key.in_(ids))
