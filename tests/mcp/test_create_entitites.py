@@ -32,7 +32,7 @@ async def test_create_single_entity(app):
     assert entity.entity_type == "test"
     assert len(entity.observations) == 1
     assert entity.observations[0].content == "Test observation"
-    assert entity.id == "test/singletest"
+    assert entity.id is not None
 
     # Verify entity can be found via search
     search_result = await handle_call_tool("search_nodes", {"query": "SingleTest"})
@@ -68,9 +68,9 @@ async def test_create_multiple_entities(app):
     assert "BulkTest3" in entities
 
     # Verify IDs were generated correctly
-    assert entities["BulkTest1"].id == "test/bulktest1"
-    assert entities["BulkTest2"].id == "test/bulktest2"
-    assert entities["BulkTest3"].id == "demo/bulktest3"
+    assert entities["BulkTest1"].id is not None
+    assert entities["BulkTest2"].id is not None
+    assert entities["BulkTest3"].id is not None
 
     # Verify observations were saved
     assert len(entities["BulkTest1"].observations) == 1

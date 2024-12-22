@@ -3,7 +3,7 @@
 import pytest
 
 from basic_memory.mcp.server import handle_call_tool
-from basic_memory.schemas import SearchNodesResponse
+from basic_memory.schemas import SearchNodesResponse, CreateEntityResponse
 
 
 @pytest.mark.asyncio
@@ -16,10 +16,15 @@ async def test_delete_entities(app):
             {"name": "DeleteTest2", "entity_type": "test", "observations": ["To be deleted 2"]},
         ]
     }
-    await handle_call_tool("create_entities", entities)
+    create_entity_result = await handle_call_tool("create_entities", entities)
+    create_entity_response = CreateEntityResponse.model_validate_json(
+        create_entity_result[0].resource.text  # pyright: ignore [reportAttributeAccessIssue]
+    )
 
     # Delete first entity
-    await handle_call_tool("delete_entities", {"entity_ids": ["test/deletetest1"]})
+    await handle_call_tool(
+        "delete_entities", {"entity_ids": [create_entity_response.entities[0].id]}
+    )
 
     # Verify through search
     search_result = await handle_call_tool("search_nodes", {"query": "DeleteTest"})

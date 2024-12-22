@@ -5,7 +5,6 @@ from mcp.shared.exceptions import McpError
 from mcp.types import INVALID_PARAMS
 
 from basic_memory.mcp.server import handle_call_tool
-from basic_memory.schemas import CreateEntityResponse, SearchNodesResponse
 
 
 @pytest.mark.asyncio
@@ -80,7 +79,7 @@ async def test_invalid_relation_format_to_id(app):
             {
                 "relations": [
                     {
-                        "from_id": "test/entity1",
+                        "from_id": 1,
                         # Missing to_id
                         "relation_type": "relates_to",
                     }
@@ -99,8 +98,8 @@ async def test_invalid_relation_format_relation_type(app):
             {
                 "relations": [
                     {
-                        "from_id": "test/entity1",
-                        "to_id": "test/entity2",
+                        "from_id": 1,
+                        "to_id": 2,
                         "relation_type": "",  # Empty relation type
                     }
                 ]
@@ -117,7 +116,7 @@ async def test_observation_validation_len(app):
         await handle_call_tool(
             "add_observations",
             {
-                "entity_id": "test/entity1",
+                "entity_id": 1,
                 "observations": ["", ""],  # Empty observations
             },
         )
@@ -131,7 +130,7 @@ async def test_observation_validation_delete(app):
         await handle_call_tool(
             "delete_observations",
             {
-                "entity_id": "test/entity1",
+                "entity_id": 1,
                 "deletions": [],  # Empty deletions
             },
         )
@@ -147,58 +146,3 @@ async def test_edge_case_validation_search_len(app):
             "search_nodes",
             {"query": "x" * 10000},  # Extremely long query
         )
-
-
-@pytest.mark.asyncio
-async def test_edge_case_validation_name_sanitization(app):
-    """Test that entity names are properly sanitized for IDs."""
-    # Test cases for different sanitization scenarios
-    test_cases = [
-        {
-            "name": "🧪 FOO & File (1)",  # Emoji and special chars
-            "expected_id": "test/foo_file_1",
-        },
-        {
-            "name": "BARR    Multiple   Spaces",  # Multiple spaces
-            "expected_id": "test/barr_multiple_spaces",
-        },
-        {
-            "name": "LOTSOF@#$Special&*Chars",  # Special characters
-            "expected_id": "test/lotsofspecialchars",
-        },
-        {
-            "name": "\x00null",  # Null byte
-            "expected_id": "test/null",
-        },
-        {
-            "name": "\nline",  # Newline
-            "expected_id": "test/line",
-        },
-    ]
-
-    for test in test_cases:
-        result = await handle_call_tool(
-            "create_entities",
-            {
-                "entities": [
-                    {
-                        "name": test["name"],
-                        "entity_type": "test",
-                        "observations": [],
-                    }
-                ]
-            },
-        )
-
-        response = CreateEntityResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
-        entity = response.entities[0]
-
-        # Original name should be preserved
-        assert entity.name == test["name"]
-        # ID should be sanitized
-        assert entity.id == test["expected_id"]
-
-        # Verify we can find it with original name
-        search_result = await handle_call_tool("search_nodes", {"query": test["name"]})
-        search_response = SearchNodesResponse.model_validate_json(search_result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
-        assert len(search_response.matches) > 0

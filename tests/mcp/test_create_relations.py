@@ -3,7 +3,7 @@
 import pytest
 
 from basic_memory.mcp.server import handle_call_tool
-from basic_memory.schemas import SearchNodesResponse
+from basic_memory.schemas import SearchNodesResponse, CreateEntityResponse
 
 
 @pytest.mark.asyncio
@@ -17,14 +17,19 @@ async def test_create_relations(app):
         ]
     }
 
-    await handle_call_tool("create_entities", entity_data)
+    create_entity_result = await handle_call_tool("create_entities", entity_data)
+    create_entity_response = CreateEntityResponse.model_validate_json(
+        create_entity_result[0].resource.text  # pyright: ignore [reportAttributeAccessIssue]
+    )
 
+    from_entity = create_entity_response.entities[0]
+    to_entity = create_entity_response.entities[1]
     # Create relation between them
     relation_data = {
         "relations": [
             {
-                "from_id": "test/TestEntityA",
-                "to_id": "test/TestEntityB",
+                "from_id": from_entity.id,
+                "to_id": to_entity.id,
                 "relation_type": "relates_to",
             }
         ]
@@ -39,5 +44,5 @@ async def test_create_relations(app):
     assert len(response.matches) == 1
     entity = response.matches[0]
     assert len(entity.relations) == 1
-    assert entity.relations[0].to_id == "test/testentityb"
+    assert entity.relations[0].to_id == to_entity.id
     assert entity.relations[0].relation_type == "relates_to"

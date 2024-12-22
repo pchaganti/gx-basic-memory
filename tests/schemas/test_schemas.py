@@ -97,11 +97,11 @@ def test_entity_out_from_attributes():
         "description": "test description",
         "observations": [{"id": 1, "content": "test obs", "context": None}],
         "relations": [
-            {"id": 1, "from_id": "123", "to_id": "456", "relation_type": "test", "context": None}
+            {"id": 1, "from_id": 123, "to_id": 456, "relation_type": "test", "context": None}
         ],
     }
     entity = EntityResponse.model_validate(db_data)
-    assert entity.id == "123"
+    assert entity.id == 123
     assert entity.description == "test description"
     assert len(entity.observations) == 1
     assert entity.observations[0].id == 1

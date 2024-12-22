@@ -3,7 +3,7 @@
 import pytest
 
 from basic_memory.mcp.server import handle_call_tool
-from basic_memory.schemas import SearchNodesResponse
+from basic_memory.schemas import SearchNodesResponse, CreateEntityResponse
 
 
 @pytest.mark.asyncio
@@ -16,14 +16,19 @@ async def test_delete_relations(app):
             {"name": "RelTarget", "entity_type": "test", "observations": ["Target entity"]},
         ]
     }
-    await handle_call_tool("create_entities", entities)
+    create_entity_result = await handle_call_tool("create_entities", entities)
+    create_entity_response = CreateEntityResponse.model_validate_json(
+        create_entity_result[0].resource.text  # pyright: ignore [reportAttributeAccessIssue]
+    )
+    from_entity = create_entity_response.entities[0]
+    to_entity = create_entity_response.entities[1]
 
     # Create relation
     relation = {
         "relations": [
             {
-                "from_id": "test/relsource",
-                "to_id": "test/reltarget",
+                "from_id": from_entity.id,
+                "to_id": to_entity.id,
                 "relation_type": "relates_to",
             }
         ]
@@ -36,8 +41,8 @@ async def test_delete_relations(app):
         {
             "relations": [
                 {
-                    "from_id": "test/relsource",
-                    "to_id": "test/reltarget",
+                    "from_id": from_entity.id,
+                    "to_id": to_entity.id,
                     "relation_type": "relates_to",
                 }
             ]
