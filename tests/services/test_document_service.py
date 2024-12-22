@@ -93,30 +93,38 @@ async def test_create_document_unwriteable_directory(document_service, tmp_path)
     parent_dir.chmod(stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
 
 
-@pytest.mark.asyncio
-async def test_create_document_cleanup_on_failure(document_service, test_doc_path, monkeypatch):
-    """Test that failed document creation cleans up DB record."""
-    
-    # Mock write_text to fail after DB record creation
-    def mock_write_text(*args):
+@pytest.mark.asyncio 
+async def test_create_document_cleanup_on_write_failure(document_service, test_doc_path):
+    """Test that failed document creation cleans up DB record when file write fails."""
+    def fail_write(self, content):
         raise PermissionError("Mock write failure")
     
-    # Apply the mock to the specific test file
-    monkeypatch.setattr(Path, "write_text", mock_write_text)
+    # Store original write_text method
+    original_write_text = Path.write_text
     
-    with pytest.raises(DocumentWriteError):
-        await document_service.create_document(
-            str(test_doc_path),
-            "content",
-            {"type": "test"}
-        )
-    
-    # Verify no DB record remains
-    doc = await document_service.repository.find_by_path(str(test_doc_path))
-    assert doc is None
-    
-    # Verify no file was created
-    assert not test_doc_path.exists()
+    try:
+        # Replace write_text with our failing version
+        Path.write_text = fail_write
+        
+        with pytest.raises(DocumentWriteError) as exc_info:
+            await document_service.create_document(
+                str(test_doc_path),
+                "test content",
+                {"type": "test"}
+            )
+        
+        assert "Mock write failure" in str(exc_info.value)
+        
+        # Verify DB record was cleaned up
+        doc = await document_service.repository.find_by_path(str(test_doc_path))
+        assert doc is None
+        
+        # Verify no file was created
+        assert not test_doc_path.exists()
+        
+    finally:
+        # Restore original write_text method
+        Path.write_text = original_write_text
 
 
 @pytest.mark.asyncio
