@@ -160,6 +160,9 @@ class Repository[T: Base]:
                     if key in self.valid_columns:
                         setattr(entity, key, value)
 
+                await session.flush()  # Make sure changes are flushed
+                await session.refresh(entity)  # Refresh
+
                 logger.debug(f"Updated {self.Model.__name__}: {entity_id}")
                 return entity
             except NoResultFound:

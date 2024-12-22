@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from basic_memory.deps import DocumentServiceDep
 from basic_memory.schemas.request import DocumentCreate, DocumentUpdate, DocumentPatch
-from basic_memory.schemas.response import DocumentResponse
+from basic_memory.schemas.response import DocumentResponse, DocumentCreateResponse
 from basic_memory.services.document_service import (
     DocumentNotFoundError,
     DocumentWriteError,
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 async def create_document(
     doc: DocumentCreate,
     service: DocumentServiceDep,
-) -> DocumentResponse:
+) -> DocumentCreateResponse:
     """Create a new document.
 
     The document will be created with appropriate frontmatter including:
@@ -35,7 +35,8 @@ async def create_document(
             content=doc.content,
             metadata=doc.doc_metadata,
         )
-        return DocumentResponse.model_validate(document)
+        create_response = DocumentCreateResponse.model_validate(document)
+        return create_response
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -57,8 +58,7 @@ async def get_document(
     """Get a document by path."""
     try:
         document, content = await service.read_document(path)
-        response = DocumentResponse.model_validate(document)
-        response.content = content
+        response = DocumentResponse.model_validate(document, context={"content": content})
         return response
     except DocumentNotFoundError:
         raise HTTPException(status_code=404, detail=f"Document not found: {path}")

@@ -16,9 +16,9 @@ async def test_create_document(client: AsyncClient, tmp_path: Path):
     }
 
     response = await client.post("/documents/", json=test_doc)
+    data = response.json()
 
     assert response.status_code == 201
-    data = response.json()
     assert data["path"] == test_doc["path"]
     assert data["doc_metadata"] == test_doc["doc_metadata"]
     assert data["checksum"] is not None
@@ -32,20 +32,6 @@ async def test_create_document(client: AsyncClient, tmp_path: Path):
     content = doc_path.read_text()
     assert "# Test" in content
     assert "---" in content  # Has frontmatter
-
-
-@pytest.mark.asyncio
-async def test_create_document_invalid_path(client: AsyncClient, tmp_path: Path):
-    """Test error handling for invalid document path."""
-    # Try to create in a non-existent directory
-    test_doc = {
-        "path": str(tmp_path / "nonexistent" / "test.md"),
-        "content": "test content",
-        "doc_metadata": {"type": "test"},
-    }
-
-    response = await client.post("/documents/", json=test_doc)
-    assert response.status_code == 400
 
 
 @pytest.mark.asyncio

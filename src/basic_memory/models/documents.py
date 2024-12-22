@@ -37,4 +37,4 @@ class Document(Base):
     )
 
     def __repr__(self) -> str:
-        return f"Document(id={self.id}, path='{self.path}')"
+        return f"Document(id={self.id}, path='{self.path}',  checksum='{self.checksum}', created_at='{self.created_at}', updated_at='{self.updated_at}')"

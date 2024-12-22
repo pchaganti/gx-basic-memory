@@ -12,7 +12,7 @@ Key Features:
 """
 
 import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -327,8 +327,14 @@ class DeleteObservationsResponse(SQLAlchemyModel):
     deleted: bool
 
 
-class DocumentResponse(SQLAlchemyModel):
+class DocumentCreateResponse(SQLAlchemyModel):
     id: int
+    path: str
     checksum: str
+    doc_metadata: Optional[Dict[str, Any]] = None
     created_at: datetime.datetime
     updated_at: datetime.datetime
+
+
+class DocumentResponse(DocumentCreateResponse):
+    content: str

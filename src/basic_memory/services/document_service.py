@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Sequence
 
 import yaml
+from icecream import ic
 from loguru import logger
 
 from basic_memory.models import Document
@@ -121,6 +122,7 @@ class DocumentService(BaseService[DocumentRepository]):
             # 4. Update DB with checksum to mark completion
             checksum = await self.compute_checksum(content_with_frontmatter)
             doc = await self.repository.update(doc.id, {"checksum": checksum})
+            ic(doc)
             return doc
 
         except Exception as e:
