@@ -1,137 +1,114 @@
-"""Knowledge graph models for basic-memory."""
+"""Knowledge graph models."""
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
-from sqlalchemy import String, DateTime, ForeignKey, Text, Integer, text, UniqueConstraint
+from sqlalchemy import Integer, String, Text, ForeignKey, UniqueConstraint, text, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from basic_memory.models.base import Base
-from basic_memory.utils import sanitize_name
 
 
 class Entity(Base):
     """
     Core entity in the knowledge graph.
 
-    Entities are the primary nodes in the knowledge graph. Each entity has:
-    - A unique identifier (text, based on type/name path)
-    - A name
-    - An entity type (e.g., "person", "organization", "event")
-    - A description (optional)
-    - A list of observations
+    Entities represent semantic nodes maintained by the AI layer. Each entity:
+    - Has a unique numeric ID (database-generated)
+    - Maps to a document file on disk (optional)
+    - Maintains a checksum for change detection
+    - Tracks both source document and semantic properties
     """
 
     __tablename__ = "entity"
-    __table_args__ = (UniqueConstraint("entity_type", "name", name="uix_entity_type_name"),)
+    __table_args__ = (
+        UniqueConstraint("entity_type", "name", name="uix_entity_type_name"),
+        Index("ix_entity_type", "entity_type"),  # index on entity_type
+    )
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
+    # Core identity
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String)
     entity_type: Mapped[str] = mapped_column(String)
+
+    # Content and validation
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    path: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Metadata and tracking
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
     )
 
-    # Link to source document
+    # Relations
     doc_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
     )
 
     # Relationships
-    document: Mapped["Document"] = relationship(  # pyright: ignore [reportUndefinedVariable]  # noqa: F821
-        "Document", back_populates="entities"
-    )
-    observations: Mapped[List["Observation"]] = relationship(
+    observations = relationship(
         "Observation", back_populates="entity", cascade="all, delete-orphan"
     )
-    outgoing_relations: Mapped[List["Relation"]] = relationship(
+    from_relations = relationship(
         "Relation",
-        foreign_keys="[Relation.from_id]",
         back_populates="from_entity",
+        foreign_keys="[Relation.from_id]",
         cascade="all, delete-orphan",
     )
-    incoming_relations: Mapped[List["Relation"]] = relationship(
+    to_relations = relationship(
         "Relation",
-        foreign_keys="[Relation.to_id]",
         back_populates="to_entity",
+        foreign_keys="[Relation.to_id]",
         cascade="all, delete-orphan",
     )
-
-    @property
-    def relations(self):
-        return self.outgoing_relations + self.incoming_relations
-
-    @classmethod
-    def generate_id(cls, entity_type: str, name: str) -> str:
-        """Generate a filesystem path-based ID for this entity."""
-        # Use common normalization for filesystem safety
-        safe_name = sanitize_name(name)
-        return f"{entity_type}/{safe_name}"
-
-    def get_file_path(self) -> str:
-        """Get the filesystem path for this entity."""
-        return f"{self.id}.md"  # id is already in path format
 
     def __repr__(self) -> str:
-        return f"Entity(id='{self.id}', name='{self.name}', type='{self.entity_type}')"
+        return f"Entity(id={self.id}, name='{self.name}', type='{self.entity_type}')"
 
 
 class Observation(Base):
     """
-    Observations are discrete pieces of information about an entity. They are:
-    - Stored as strings
-    - Attached to specific entities
-    - Can be added or removed independently
-    - Should be atomic (one fact per observation)
+    An observation about an entity.
+
+    Observations are atomic facts or notes about an entity.
     """
 
-    __tablename__ = "observation"
+    __tablename__ = "observations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    entity_id: Mapped[str] = mapped_column(
-        String, ForeignKey("entity.id", ondelete="CASCADE"), index=True
-    )
-    content: Mapped[str] = mapped_column(String)
+    entity_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
+    content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
-    context: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Relationships
-    entity: Mapped[Entity] = relationship("Entity", back_populates="observations")
+    entity = relationship("Entity", back_populates="observations")
 
     def __repr__(self) -> str:
-        content = self.content[:50] + "..." if len(self.content) > 50 else self.content
-        return f"Observation(id={self.id}, entity='{self.entity_id}', content='{content}')"
+        return f"Observation(id={self.id}, entity_id={self.entity_id}, content='{self.content}')"
 
 
 class Relation(Base):
     """
-    Relations define directed connections between entities.
-    They are always stored in active voice and describe how entities
-    interact or relate to each other.
+    A directed relation between two entities.
     """
 
-    __tablename__ = "relation"
+    __tablename__ = "relations"
+    __table_args__ = (
+        UniqueConstraint("from_id", "to_id", "relation_type", name="uix_relation"),
+        Index("ix_relation_type", "relation_type"),  # index on relation_type
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    from_id: Mapped[str] = mapped_column(
-        String, ForeignKey("entity.id", ondelete="CASCADE"), index=True
-    )
-    to_id: Mapped[str] = mapped_column(
-        String, ForeignKey("entity.id", ondelete="CASCADE"), index=True
-    )
+    from_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
+    to_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
     relation_type: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
-    context: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Relationships
-    from_entity: Mapped[Entity] = relationship(
-        "Entity", foreign_keys=[from_id], back_populates="outgoing_relations"
-    )
-    to_entity: Mapped[Entity] = relationship(
-        "Entity", foreign_keys=[to_id], back_populates="incoming_relations"
-    )
+    from_entity = relationship("Entity", foreign_keys=[from_id], back_populates="from_relations")
+    to_entity = relationship("Entity", foreign_keys=[to_id], back_populates="to_relations")
 
     def __repr__(self) -> str:
-        return f"Relation(id={self.id}, from='{self.from_id}', type='{self.relation_type}', to='{self.to_id}')"
+        return f"Relation(from_id={self.from_id}, to_id={self.to_id}, type='{self.relation_type}')"
