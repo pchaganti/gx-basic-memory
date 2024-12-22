@@ -11,12 +11,12 @@ Key Features:
 4. Bulk operations return all affected items
 """
 
+import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
 from basic_memory.schemas.base import Observation, EntityId, Relation
-from basic_memory.schemas.request import DocumentCreate
 
 
 class SQLAlchemyModel(BaseModel):
@@ -327,8 +327,8 @@ class DeleteObservationsResponse(SQLAlchemyModel):
     deleted: bool
 
 
-class DocumentResponse(DocumentCreate, SQLAlchemyModel):
+class DocumentResponse(SQLAlchemyModel):
     id: int
     checksum: str
-    created_at: str
-    updated_at: str
+    created_at: datetime.datetime
+    updated_at: datetime.datetime

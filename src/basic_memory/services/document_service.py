@@ -3,7 +3,7 @@
 import hashlib
 from datetime import datetime, UTC
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, Sequence
 
 import yaml
 from loguru import logger
@@ -15,16 +15,19 @@ from basic_memory.services.service import BaseService
 
 class DocumentError(Exception):
     """Base exception for document operations."""
+
     pass
 
 
 class DocumentNotFoundError(DocumentError):
     """Raised when a document doesn't exist."""
+
     pass
 
 
 class DocumentWriteError(DocumentError):
     """Raised when document file operations fail."""
+
     pass
 
 
@@ -65,22 +68,20 @@ class DocumentService(BaseService[DocumentRepository]):
         except Exception as e:
             raise DocumentWriteError(f"Directory not writable: {parent}: {e}")
 
-    async def add_frontmatter(self, content: str, doc_id: int, metadata: Optional[Dict[str, Any]] = None) -> str:
+    async def add_frontmatter(
+        self, content: str, doc_id: int, metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Add frontmatter to document content."""
         # Generate frontmatter with timestamps
         now = datetime.now(UTC).isoformat()
-        frontmatter = {
-            "id": doc_id,
-            "created": now,
-            "modified": now
-        }
+        frontmatter = {"id": doc_id, "created": now, "modified": now}
         if metadata:
             frontmatter.update(metadata)
-            
+
         yaml_fm = yaml.dump(frontmatter, sort_keys=False)
         return f"---\n{yaml_fm}---\n\n{content}"
 
-    async def list_documents(self) -> List[Document]:
+    async def list_documents(self) -> Sequence[Document]:
         """List all documents in the database."""
         return await self.repository.find_all()
 
@@ -109,10 +110,7 @@ class DocumentService(BaseService[DocumentRepository]):
 
         try:
             # 1. Create initial DB record to get ID
-            doc = await self.repository.create({
-                "path": str(path),
-                "doc_metadata": metadata
-            })
+            doc = await self.repository.create({"path": str(path), "doc_metadata": metadata})
 
             # 2. Add frontmatter with DB-generated ID
             content_with_frontmatter = await self.add_frontmatter(content, doc.id, metadata)
@@ -127,7 +125,7 @@ class DocumentService(BaseService[DocumentRepository]):
 
         except Exception as e:
             # Clean up on any failure
-            if 'doc' in locals():  # DB record was created
+            if "doc" in locals():  # DB record was created
                 await self.repository.delete(doc.id)
             file_path.unlink(missing_ok=True)
             raise DocumentWriteError(f"Failed to create document: {e}")
