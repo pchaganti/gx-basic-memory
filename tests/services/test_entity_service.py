@@ -4,11 +4,11 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from basic_memory.fileio import EntityNotFoundError
 from basic_memory.models import Entity as EntityModel
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas import Entity
 from basic_memory.services.entity_service import EntityService
+from basic_memory.services.exceptions import EntityNotFoundError
 
 pytestmark = pytest.mark.asyncio
 

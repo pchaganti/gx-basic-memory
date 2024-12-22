@@ -4,7 +4,6 @@ from fastapi import APIRouter, HTTPException
 from loguru import logger
 
 from basic_memory.deps import EntityServiceDep, RelationServiceDep, ObservationServiceDep
-from basic_memory.fileio import EntityNotFoundError
 from basic_memory.schemas import (
     CreateEntityRequest,
     CreateEntityResponse,
@@ -26,6 +25,7 @@ from basic_memory.schemas import (
     RelationResponse,
     DeleteEntityRequest,
 )
+from basic_memory.services.exceptions import EntityNotFoundError
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 

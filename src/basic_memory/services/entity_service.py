@@ -4,10 +4,10 @@ from typing import Dict, Any, Sequence, List
 
 from loguru import logger
 
-from basic_memory.fileio import EntityNotFoundError
 from basic_memory.models import Entity as EntityModel, Observation
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas import Entity as EntitySchema
+from basic_memory.services.exceptions import EntityNotFoundError
 from .service import BaseService
 
 
