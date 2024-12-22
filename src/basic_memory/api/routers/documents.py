@@ -16,7 +16,7 @@ from basic_memory.services.document_service import (
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-@router.post("/", response_model=DocumentResponse, status_code=201)
+@router.post("/", response_model=DocumentCreateResponse, status_code=201)
 async def create_document(
     doc: DocumentCreate,
     service: DocumentServiceDep,
@@ -35,8 +35,7 @@ async def create_document(
             content=doc.content,
             metadata=doc.doc_metadata,
         )
-        create_response = DocumentCreateResponse.model_validate(document)
-        return create_response
+        return DocumentCreateResponse.from_orm(document)
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -47,7 +46,7 @@ async def list_documents(
 ) -> List[DocumentResponse]:
     """List all documents."""
     documents = await service.list_documents()
-    return [DocumentResponse.model_validate(doc) for doc in documents]
+    return [DocumentResponse.from_orm(doc) for doc in documents]
 
 
 @router.get("/{path:path}", response_model=DocumentResponse)
@@ -58,7 +57,7 @@ async def get_document(
     """Get a document by path."""
     try:
         document, content = await service.read_document(path)
-        response = DocumentResponse.model_validate(document, context={"content": content})
+        response = DocumentResponse.model_validate(document.__dict__ | {"content": content})
         return response
     except DocumentNotFoundError:
         raise HTTPException(status_code=404, detail=f"Document not found: {path}")
@@ -79,7 +78,7 @@ async def update_document(
             content=doc.content,
             metadata=doc.doc_metadata,
         )
-        return DocumentResponse.model_validate(document)
+        return DocumentResponse.from_orm(document)
     except DocumentNotFoundError:
         raise HTTPException(status_code=404, detail=f"Document not found: {path}")
     except DocumentWriteError as e:
@@ -106,7 +105,7 @@ async def patch_document(
             content=patch.content,
             metadata=patch.doc_metadata,
         )
-        return DocumentResponse.model_validate(document)
+        return DocumentResponse.from_orm(document)
     except DocumentNotFoundError:
         raise HTTPException(status_code=404, detail=f"Document not found: {path}")
     except DocumentWriteError as e:
