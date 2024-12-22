@@ -1,10 +1,10 @@
 """Tests for frontmatter parsing."""
-import pytest
-from datetime import datetime, timezone
+
 from textwrap import dedent
 
+import pytest
+
 from basic_memory.utils.file_utils import parse_frontmatter, ParseError
-from basic_memory.markdown.schemas.entity import EntityFrontmatter
 
 
 @pytest.mark.asyncio

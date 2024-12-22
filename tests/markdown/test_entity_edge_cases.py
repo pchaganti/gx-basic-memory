@@ -6,7 +6,7 @@ from textwrap import dedent
 import pytest
 
 from basic_memory.markdown import ParseError
-from basic_memory.markdown.schemas.entity import (
+from basic_memory.markdown.schemas import (
     Entity,
     EntityFrontmatter,
     EntityContent,

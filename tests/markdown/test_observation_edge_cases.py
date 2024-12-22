@@ -3,7 +3,7 @@
 import pytest
 
 from basic_memory.markdown import ParseError
-from basic_memory.markdown.schemas.observation import Observation
+from basic_memory.markdown.schemas import Observation
 
 
 def test_observation_empty_input():

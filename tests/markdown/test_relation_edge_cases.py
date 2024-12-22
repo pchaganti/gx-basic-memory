@@ -3,7 +3,7 @@
 import pytest
 
 from basic_memory.markdown import ParseError
-from basic_memory.markdown.schemas.relation import Relation
+from basic_memory.markdown.schemas import Relation
 
 
 def test_relation_empty_target():
