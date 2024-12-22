@@ -61,5 +61,5 @@ async def test_parse_relation_errors():
         await parser.parse_relation("- implements Auth Service")
 
     # Unclosed target
-    with pytest.raises(ParseError, match="missing ]]"):
+    with pytest.raises(ParseError, match="Invalid relation format - missing \\[\\[entity\\]\\]"):
         await parser.parse_relation("- implements [[Auth Service")
