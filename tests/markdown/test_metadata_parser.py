@@ -2,10 +2,13 @@
 
 from textwrap import dedent
 
-from basic_memory.markdown import EntityMetadata
+import pytest
+
+from basic_memory.utils.file_utils import parse_frontmatter
 
 
-def test_parse_metadata():
+@pytest.mark.asyncio
+async def test_parse_metadata():
     """Test parsing basic metadata."""
     text = dedent("""
         owner: team-auth
@@ -13,22 +16,24 @@ def test_parse_metadata():
         status: active
     """)
 
-    result = EntityMetadata.from_text(text)
+    result, remaining = await parse_frontmatter(text)
 
-    assert result.metadata["owner"] == "team-auth"
-    assert result.metadata["priority"] == "high"
-    assert result.metadata["status"] == "active"
+    assert result["owner"] == "team-auth"
+    assert result["priority"] == "high"
+    assert result["status"] == "active"
 
 
-def test_parse_metadata_empty():
+@pytest.mark.asyncio
+async def test_parse_metadata_empty():
     """Test parsing empty metadata."""
     text = ""
 
-    result = EntityMetadata.from_text(text)
-    assert result.metadata == {}
+    result, remaining = await parse_frontmatter(text)
+    assert result == {}
 
 
-def test_parse_metadata_whitespace():
+@pytest.mark.asyncio
+async def test_parse_metadata_whitespace():
     """Test handling of various whitespace in metadata."""
     text = dedent("""
         owner:     team-auth    
@@ -36,14 +41,15 @@ def test_parse_metadata_whitespace():
         status:   active     
     """)
 
-    result = EntityMetadata.from_text(text)
+    result, remaining = await parse_frontmatter(text)
 
-    assert result.metadata["owner"] == "team-auth"
-    assert result.metadata["priority"] == "high"
-    assert result.metadata["status"] == "active"
+    assert result["owner"] == "team-auth"
+    assert result["priority"] == "high"
+    assert result["status"] == "active"
 
 
-def test_parse_metadata_multiline_values():
+@pytest.mark.asyncio
+async def test_parse_metadata_multiline_values():
     """Test handling of multiline metadata values."""
     text = dedent("""
         owner: team-auth
@@ -53,21 +59,22 @@ def test_parse_metadata_multiline_values():
         status: active
     """)
 
-    result = EntityMetadata.from_text(text)
+    result, _ = await parse_frontmatter(text)
 
-    assert result.metadata["owner"] == "team-auth"
-    assert result.metadata["status"] == "active"
-    assert len(result.metadata["description"].splitlines()) == 3
+    assert result["owner"] == "team-auth"
+    assert result["status"] == "active"
+    assert len(result["description"].splitlines()) == 3
 
 
-def test_parse_metadata_invalid():
+@pytest.mark.asyncio
+async def test_parse_metadata_invalid():
     """Test handling of invalid metadata format."""
     text = dedent("""
         owner team-auth
         priority: high
     """)
 
-    result = EntityMetadata.from_text(text)
+    result, _ = await parse_frontmatter(text)
 
-    assert "priority" in result.metadata
-    assert "owner" not in result.metadata
+    assert "priority" in result
+    assert "owner" not in result

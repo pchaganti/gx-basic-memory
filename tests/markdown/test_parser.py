@@ -16,15 +16,13 @@ from basic_memory.utils.file_utils import ParseError, FileError
 @pytest.fixture
 def sample_entity_content():
     """Sample entity file content."""
-    return """---
-type: test
+    return """
+---
 id: 123
+type: test
 created: 2024-12-22T10:00:00Z
 modified: 2024-12-22T10:00:00Z
 tags: entity, test
-metadata:
-  checksum: abc123
-  doc_id: 1
 ---
 
 # Test Entity
@@ -37,6 +35,13 @@ A test entity for testing purposes.
 
 ## Relations
 - depends_on [[Other Entity]] (Testing the relation parsing)
+
+---
+metadata:
+  checksum: abc123
+  doc_id: 1
+---
+
 """
 
 
@@ -54,7 +59,7 @@ async def test_parse_valid_file(tmp_path: Path, sample_entity_content):
     # Verify frontmatter
     assert isinstance(entity.frontmatter, EntityFrontmatter)
     assert entity.frontmatter.type == "test"
-    assert entity.frontmatter.id == "test/test_entity"
+    assert entity.frontmatter.id == "123"
 
     # Verify content
     assert isinstance(entity.content, EntityContent)
@@ -132,7 +137,7 @@ async def test_parse_content_str(sample_entity_content):
 
     assert isinstance(entity, Entity)
     assert entity.frontmatter.type == "test"
-    assert entity.frontmatter.id == "test/test_entity"
+    assert entity.frontmatter.id == "123"
     assert entity.content.title == "Test Entity"
 
     # Verify observations parsed correctly

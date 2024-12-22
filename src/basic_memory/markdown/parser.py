@@ -1,6 +1,6 @@
 """Parser for Basic Memory entity markdown files."""
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 from loguru import logger
 
@@ -11,7 +11,7 @@ from basic_memory.markdown.schemas import (
     EntityContent,
     EntityMetadata,
     Observation,
-    Relation
+    Relation,
 )
 
 
@@ -44,19 +44,19 @@ class EntityParser(MarkdownParser[Entity]):
         try:
             # Preprocess fields for schema validation
             processed = frontmatter.copy()
-            
+
             # Ensure id is string
-            if 'id' in processed:
-                processed['id'] = str(processed['id'])
+            if "id" in processed:
+                processed["id"] = str(processed["id"])
 
             # Handle tags field
-            if 'tags' in processed:
-                if isinstance(processed['tags'], str):
+            if "tags" in processed:
+                if isinstance(processed["tags"], str):
                     # Split comma-separated tags and strip whitespace
-                    processed['tags'] = [tag.strip() for tag in processed['tags'].split(',')]
+                    processed["tags"] = [tag.strip() for tag in processed["tags"].split(",")]
 
             return EntityFrontmatter(**processed)
-            
+
         except Exception as e:
             logger.error(f"Invalid entity frontmatter: {e}")
             raise ParseError(f"Invalid entity frontmatter: {str(e)}") from e
@@ -85,10 +85,10 @@ class EntityParser(MarkdownParser[Entity]):
             observations = []
             if "observations" not in sections:
                 raise ParseError("Missing required observations section")
-            
+
             for line in sections["observations"].splitlines():
                 if line and not line.isspace():
-                    observation = await self._parse_observation(line)
+                    observation = await self.parse_observation(line)
                     if observation:
                         observations.append(observation)
 
@@ -97,15 +97,12 @@ class EntityParser(MarkdownParser[Entity]):
             if "relations" in sections:
                 for line in sections["relations"].splitlines():
                     if line and not line.isspace():
-                        relation = await self._parse_relation(line)
+                        relation = await self.parse_relation(line)
                         if relation:
                             relations.append(relation)
 
             return EntityContent(
-                title=title,
-                description=description,
-                observations=observations,
-                relations=relations
+                title=title, description=description, observations=observations, relations=relations
             )
 
         except ParseError:
@@ -114,7 +111,7 @@ class EntityParser(MarkdownParser[Entity]):
             logger.error(f"Invalid entity content: {e}")
             raise ParseError(f"Invalid entity content: {str(e)}") from e
 
-    async def _parse_observation(self, line: str) -> Optional[Observation]:
+    async def parse_observation(self, line: str) -> Optional[Observation]:
         """
         Parse a single observation line.
 
@@ -127,47 +124,44 @@ class EntityParser(MarkdownParser[Entity]):
             # Extract category if present [category]
             category = None
             content = line
-            if line.startswith('['):
-                end_bracket = line.find(']')
+            if line.startswith("["):
+                end_bracket = line.find("]")
                 if end_bracket != -1:
                     category = line[1:end_bracket].strip()
-                    content = line[end_bracket + 1:].strip()
+                    content = line[end_bracket + 1 :].strip()
 
             # Extract context if present (context)
             context = None
-            if content.endswith(')'):
-                context_start = content.rfind('(')
+            if content.endswith(")"):
+                context_start = content.rfind("(")
                 if context_start != -1:
-                    context = content[context_start + 1:-1].strip()
+                    context = content[context_start + 1 : -1].strip()
                     content = content[:context_start].strip()
 
             # Extract tags #tag1 #tag2
             tags = []
             content_parts = []
             for part in content.split():
-                if part.startswith('#'):
+                if part.startswith("#"):
                     tags.append(part[1:])  # Remove # prefix
                 else:
                     content_parts.append(part)
-            
-            content = ' '.join(content_parts).strip()
-            
+
+            content = " ".join(content_parts).strip()
+
             if not content:
                 logger.warning(f"Skipping observation with no content: {line}")
                 return None
 
             return Observation(
-                category=category,
-                content=content,
-                context=context,
-                tags=tags if tags else None
+                category=category, content=content, context=context, tags=tags if tags else None
             )
 
         except Exception as e:
             logger.warning(f"Failed to parse observation '{line}': {e}")
             return None
 
-    async def _parse_relation(self, line: str) -> Optional[Relation]:
+    async def parse_relation(self, line: str) -> Optional[Relation]:
         """
         Parse a single relation line.
 
@@ -180,34 +174,30 @@ class EntityParser(MarkdownParser[Entity]):
             # Extract context if present (context)
             context = None
             main_part = line
-            if line.endswith(')'):
-                context_start = line.rfind('(')
+            if line.endswith(")"):
+                context_start = line.rfind("(")
                 if context_start != -1:
-                    context = line[context_start + 1:-1].strip()
+                    context = line[context_start + 1 : -1].strip()
                     main_part = line[:context_start].strip()
 
             # Extract relation type and target [[Entity]]
-            if '[[' not in main_part or ']]' not in main_part:
+            if "[[" not in main_part or "]]" not in main_part:
                 logger.warning(f"Invalid relation format (missing [[]]): {line}")
                 return None
 
             # Split into relation type and target
-            relation_parts = main_part.split('[[', 1)
+            relation_parts = main_part.split("[[", 1)
             relation_type = relation_parts[0].strip()
             if not relation_type:
                 logger.warning(f"Missing relation type: {line}")
                 return None
 
-            target = relation_parts[1].split(']]')[0].strip()
+            target = relation_parts[1].split("]]")[0].strip()
             if not target:
                 logger.warning(f"Missing target entity: {line}")
                 return None
 
-            return Relation(
-                type=relation_type,
-                target=target,
-                context=context
-            )
+            return Relation(type=relation_type, target=target, context=context)
 
         except Exception as e:
             logger.warning(f"Failed to parse relation '{line}': {e}")
@@ -235,10 +225,7 @@ class EntityParser(MarkdownParser[Entity]):
             raise ParseError(f"Invalid entity metadata: {str(e)}") from e
 
     async def create_document(
-        self,
-        frontmatter: EntityFrontmatter,
-        content: EntityContent,
-        metadata: EntityMetadata
+        self, frontmatter: EntityFrontmatter, content: EntityContent, metadata: EntityMetadata
     ) -> Entity:
         """
         Create entity from parsed sections.
@@ -251,8 +238,4 @@ class EntityParser(MarkdownParser[Entity]):
         Returns:
             Complete entity
         """
-        return Entity(
-            frontmatter=frontmatter,
-            content=content,
-            metadata=metadata
-        )
+        return Entity(frontmatter=frontmatter, content=content, metadata=metadata)

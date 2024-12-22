@@ -63,7 +63,7 @@ class MarkdownParser(ABC, Generic[T]):
         try:
             # Split into frontmatter and content
             frontmatter, markdown = await parse_frontmatter(content)
-            
+
             # Extract metadata from frontmatter if present
             metadata = frontmatter.pop("metadata", None)
 
@@ -83,9 +83,7 @@ class MarkdownParser(ABC, Generic[T]):
 
             # Create final document
             return await self.create_document(
-                frontmatter=parsed_frontmatter,
-                content=parsed_content,
-                metadata=parsed_metadata
+                frontmatter=parsed_frontmatter, content=parsed_content, metadata=parsed_metadata
             )
 
         except Exception as e:
@@ -106,7 +104,7 @@ class MarkdownParser(ABC, Generic[T]):
         """
         # Initialize state
         title = None
-        sections: Dict[str, List[str]] = {}
+        sections: Dict[str, str] = {}
         current_section = None
         current_lines: List[str] = []
 
@@ -122,7 +120,7 @@ class MarkdownParser(ABC, Generic[T]):
                 if current_section and current_lines:
                     sections[current_section] = "\n".join(current_lines).strip()
                     current_lines = []
-                
+
                 # Start new section
                 current_section = line[3:].strip().lower()
                 continue
@@ -149,7 +147,7 @@ class MarkdownParser(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    async def parse_content(self, title: str, sections: Dict[str, List[str]]) -> Any:
+    async def parse_content(self, title: str, sections: Dict[str, str]) -> Any:
         """Parse content sections."""
         pass
 

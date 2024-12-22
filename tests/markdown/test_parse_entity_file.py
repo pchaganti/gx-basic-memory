@@ -2,15 +2,18 @@
 
 from textwrap import dedent
 
+import pytest
+
 from basic_memory.markdown.parser import EntityParser
 
 
-def test_parse_complete_file(tmp_path):
+@pytest.mark.asyncio
+async def test_parse_complete_file(tmp_path):
     """Test parsing a complete entity file."""
     content = dedent("""
         ---
         type: component
-        id: component/auth_service
+        id: 123
         created: 2024-12-21T14:00:00Z
         modified: 2024-12-21T14:00:00Z
         tags: authentication, security, core
@@ -42,11 +45,11 @@ def test_parse_complete_file(tmp_path):
     test_file.write_text(content)
 
     parser = EntityParser()
-    entity = parser.parse_file(test_file)
+    entity = await parser.parse_file(test_file)
 
     # Check frontmatter
     assert entity.frontmatter.type == "component"
-    assert entity.frontmatter.id == "component/auth_service"
+    assert entity.frontmatter.id == "123"
     assert "authentication" in entity.frontmatter.tags
 
     # Check content
@@ -57,7 +60,7 @@ def test_parse_complete_file(tmp_path):
     # Check specific observation
     obs = entity.content.observations[0]
     assert obs.category == "design"
-    assert "security" in obs.tags
+    assert "security" in obs.tags  # pyright: ignore [reportOperatorIssue]
     assert obs.context == "JWT based"
 
     # Check specific relation
@@ -71,15 +74,16 @@ def test_parse_complete_file(tmp_path):
     assert entity.metadata.metadata["priority"] == "high"
 
 
-def test_parse_minimal_file(tmp_path):
+@pytest.mark.asyncio
+async def test_parse_minimal_file(tmp_path):
     """Test parsing a minimal valid entity file."""
     content = dedent("""
         ---
         type: component
-        id: minimal
+        id: 0
         created: 2024-12-21T14:00:00Z
         modified: 2024-12-21T14:00:00Z
-        tags: []
+        tags: 
         ---
 
         # Minimal Entity
@@ -95,16 +99,17 @@ def test_parse_minimal_file(tmp_path):
     test_file.write_text(content)
 
     parser = EntityParser()
-    entity = parser.parse_file(test_file)
+    entity = await parser.parse_file(test_file)
 
     assert entity.frontmatter.type == "component"
-    assert entity.frontmatter.id == "minimal"
+    assert entity.frontmatter.id == "0"
     assert len(entity.content.observations) == 1
     assert len(entity.content.relations) == 1
     assert not entity.metadata.metadata  # Empty metadata
 
 
-def test_file_with_metadata_only(tmp_path):
+@pytest.mark.asyncio
+async def test_file_with_metadata_only(tmp_path):
     """Test parsing a file that has metadata but no content."""
     content = dedent("""
         ---
@@ -127,7 +132,7 @@ def test_file_with_metadata_only(tmp_path):
     test_file.write_text(content)
 
     parser = EntityParser()
-    entity = parser.parse_file(test_file)
+    entity = await parser.parse_file(test_file)
 
     assert entity.metadata.metadata["owner"] == "test-team"
     assert entity.metadata.metadata["status"] == "active"
