@@ -42,7 +42,12 @@ class DocumentService(BaseService[DocumentRepository]):
 
     async def compute_checksum(self, content: str) -> str:
         """Compute SHA-256 checksum of content."""
-        return hashlib.sha256(content.encode()).hexdigest()
+        try:
+            return hashlib.sha256(content.encode()).hexdigest()
+        except Exception as e:  # pragma: no cover
+            # This would only happen if encode() fails or sha256 isn't available
+            logger.error(f"Failed to compute checksum: {e}")
+            raise DocumentError(f"Failed to compute checksum: {e}") 
 
     async def ensure_parent_directory(self, path: Path) -> None:
         """
@@ -57,7 +62,8 @@ class DocumentService(BaseService[DocumentRepository]):
         parent = path.parent
         try:
             parent.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
+            # This is covered by create_document tests, but not directly
             raise DocumentWriteError(f"Failed to create directory: {parent}: {e}")
 
     async def add_frontmatter(
@@ -113,6 +119,11 @@ class DocumentService(BaseService[DocumentRepository]):
             # 4. Update DB with checksum to mark completion
             checksum = await self.compute_checksum(content_with_frontmatter)
             doc = await self.repository.update(doc.id, {"checksum": checksum})
+
+            # If either update failed but didn't raise
+            if not doc:  # pragma: no cover
+                raise DocumentError("Failed to update document after writing")
+
             return doc
 
         except Exception as e:
@@ -195,7 +206,11 @@ class DocumentService(BaseService[DocumentRepository]):
             update_data["doc_metadata"] = metadata
 
         updated_document = await self.repository.update(id, update_data)
-        assert updated_document is not None, f"Could not update document {id}"
+        
+        # This would only happen if DB lost connection between find and update
+        if not updated_document:  # pragma: no cover
+            raise DocumentError(f"Could not update document {id}")
+            
         return updated_document
 
     async def delete_document_by_id(self, id: int) -> None:

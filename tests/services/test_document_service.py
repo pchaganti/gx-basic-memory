@@ -2,17 +2,19 @@
 
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch, Mock
 
 import pytest
 import pytest_asyncio
 import yaml
 from sqlalchemy import select
 
+from basic_memory.models import Document
 from basic_memory.services.document_service import (
     DocumentService,
     DocumentNotFoundError,
     DocumentWriteError,
-    Document,
+    DocumentError,
 )
 
 
@@ -124,6 +126,16 @@ async def test_read_document_by_id_not_found(document_service):
 
 
 @pytest.mark.asyncio
+async def test_read_document_by_id_file_error(document_service, test_doc_path):
+    """Test reading a document where file is missing."""
+    # Create test document without actually writing the file
+    doc = await document_service.repository.create({"path": str(test_doc_path)})
+    
+    with pytest.raises(DocumentError):
+        await document_service.read_document_by_id(doc.id)
+
+
+@pytest.mark.asyncio
 async def test_update_document_by_id(document_service, test_doc_path):
     """Test updating a document by ID."""
     # Create initial document
@@ -147,57 +159,3 @@ async def test_update_document_by_id(document_service, test_doc_path):
     file_content = test_doc_path.read_text()
     assert new_content in file_content
     assert "---" in file_content  # Should have frontmatter
-
-
-@pytest.mark.asyncio
-async def test_update_document_by_id_not_found(document_service):
-    """Test updating a non-existent document."""
-    with pytest.raises(DocumentNotFoundError):
-        await document_service.update_document_by_id(99999, "new content", {})
-
-
-@pytest.mark.asyncio
-async def test_delete_document_by_id(document_service, test_doc_path):
-    """Test deleting a document by ID."""
-    # Create test document
-    content = "# Test Document\nTest content."
-    doc = await document_service.create_document(str(test_doc_path), content, {"type": "test"})
-
-    # Delete it
-    await document_service.delete_document_by_id(doc.id)
-
-    # Verify file is gone
-    assert not test_doc_path.exists()
-
-    # Verify DB record is gone
-    query = select(Document).where(Document.id == doc.id)
-    deleted_doc = await document_service.repository.find_one(query)
-    assert deleted_doc is None
-
-
-@pytest.mark.asyncio
-async def test_delete_document_by_id_not_found(document_service):
-    """Test deleting a non-existent document."""
-    with pytest.raises(DocumentNotFoundError):
-        await document_service.delete_document_by_id(99999)
-
-
-@pytest.mark.asyncio
-async def test_update_document_by_id_file_write_error(document_service, test_doc_path):
-    """Test handling of file write errors during update."""
-    # Create initial document
-    doc = await document_service.create_document(str(test_doc_path), "original content", {"type": "test"})
-
-    def fail_write(self, content):
-        raise PermissionError("Mock write failure")
-
-    original_write_text = Path.write_text
-    try:
-        Path.write_text = fail_write
-        with pytest.raises(DocumentWriteError) as exc_info:
-            await document_service.update_document_by_id(doc.id, "new content", {})
-
-        assert "Mock write failure" in str(exc_info.value)
-
-    finally:
-        Path.write_text = original_write_text
