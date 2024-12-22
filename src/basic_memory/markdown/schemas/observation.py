@@ -24,21 +24,20 @@ class Observation(BaseModel):
 
         Format must be:
         - [category] Content text #tag1 #tag2 (optional context)
-        
-        Leading spaces before bullet are allowed.
         """
         try:
-            line = line.strip()
-            
-            # Skip empty or non-bullet lines
-            if not line or not line.startswith("-"):
+            # Skip blank lines
+            if not line.strip():
                 return None
 
-            # Remove bullet and trim
-            line = line[1:].lstrip()
+            # Remove leading/trailing whitespace and bullet
+            line = line.strip()
+            if not line.startswith("-"):
+                return None
+            line = line[1:].strip()
 
             # Parse category [category]
-            match = re.match(r"\[([^\]]+)\](.*)", line)
+            match = re.match(r"^\[([^\]]+)\](.*)", line)
             if not match:
                 raise ParseError("Invalid format - must start with '[category]'")
 

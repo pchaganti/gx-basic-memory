@@ -23,20 +23,19 @@ class Relation(BaseModel):
 
         Format must be:
         - relation_type [[Target Entity]] (optional context)
-        
-        Leading spaces before bullet are allowed.
         """
         try:
-            line = line.strip()
-            
-            # Skip empty or non-bullet lines
-            if not line or not line.startswith("-"):
+            # Skip blank lines
+            if not line.strip():
                 return None
 
-            # Remove bullet and trim
-            line = line[1:].lstrip()
+            # Remove leading/trailing whitespace and bullet
+            line = line.strip()
+            if not line.startswith("-"):
+                return None
+            line = line[1:].strip()
 
-            # Extract context from parens at end if present
+            # First, extract any context from parens at end
             context = None
             if line.endswith(")"):
                 context_start = line.rfind("(")
@@ -44,7 +43,7 @@ class Relation(BaseModel):
                     context = line[context_start + 1:-1].strip()
                     line = line[:context_start].strip()
 
-            # Look for [[target]]
+            # Look for relation_type [[target]]
             match = re.match(r"^(\w+)\s+\[\[([^\]]+)\]\]", line)
             if not match:
                 raise ParseError("Invalid format - must be 'relation_type [[Target]]'")

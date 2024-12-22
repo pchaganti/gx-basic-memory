@@ -1,88 +1,99 @@
 """Tests for frontmatter parsing."""
-
-from datetime import datetime, UTC
+import pytest
+from datetime import datetime, timezone
 from textwrap import dedent
 
-import pytest
-
-from basic_memory.markdown import EntityFrontmatter
-from basic_memory.markdown.exceptions import ParseError
+from basic_memory.utils.file_utils import parse_frontmatter, ParseError
+from basic_memory.markdown.schemas.entity import EntityFrontmatter
 
 
-def test_parse_frontmatter():
-    """Test parsing basic frontmatter."""
-    text = dedent("""
-        type: component
-        id: test/basic
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: test, base
-    """)
+@pytest.mark.asyncio
+async def test_parse_frontmatter():
+    """Test parsing valid frontmatter."""
+    content = dedent("""
+        ---
+        type: test
+        id: test/123
+        created: 2024-12-22T10:00:00Z
+        modified: 2024-12-22T10:00:00Z
+        tags: [test, example]
+        ---
 
-    result = EntityFrontmatter.from_text(text)
+        # Content
+        """).strip()
 
-    assert result.type == "component"
-    assert result.id == "test/basic"
-    assert result.created == datetime(2024, 12, 21, 14, 0, tzinfo=UTC)
-    assert result.modified == datetime(2024, 12, 21, 14, 0, tzinfo=UTC)
-    assert result.tags == ["test", "base"]
-
-
-def test_parse_frontmatter_comma_tags():
-    """Test parsing frontmatter with comma-separated tags."""
-    text = dedent("""
-        type: component
-        id: test/comma-tags
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: first, second, third
-    """)
-
-    result = EntityFrontmatter.from_text(text)
-
-    assert result.tags == ["first", "second", "third"]
+    frontmatter, remaining = await parse_frontmatter(content)
+    assert frontmatter["type"] == "test"
+    assert frontmatter["id"] == "test/123"
+    assert frontmatter["tags"] == ["test", "example"]
+    assert remaining.strip() == "# Content"
 
 
-def test_parse_frontmatter_missing_required():
+@pytest.mark.asyncio
+async def test_parse_frontmatter_comma_tags():
+    """Test parsing tags with commas."""
+    content = dedent("""
+        ---
+        type: test
+        id: test/tags
+        created: 2024-12-22T10:00:00Z
+        modified: 2024-12-22T10:00:00Z
+        tags: [tag1, tag2, tag3]
+        ---
+        """).strip()
+
+    frontmatter, _ = await parse_frontmatter(content)
+    assert frontmatter["tags"] == ["tag1", "tag2", "tag3"]
+
+
+@pytest.mark.asyncio
+async def test_parse_frontmatter_missing_required():
     """Test error on missing required fields."""
-    text = dedent("""
-        type: component
-        # Missing id
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
+    content = dedent("""
+        ---
+        type: test
+        # missing id
+        created: 2024-12-22T10:00:00Z
+        modified: 2024-12-22T10:00:00Z
         tags: []
-    """)
+        ---
+        """).strip()
 
     with pytest.raises(ParseError):
-        EntityFrontmatter.from_text(text)
+        await parse_frontmatter(content)
 
 
-def test_parse_frontmatter_invalid_date():
+@pytest.mark.asyncio
+async def test_parse_frontmatter_invalid_date():
     """Test error on invalid date format."""
-    text = dedent("""
-        type: component
-        id: test/dates
+    content = dedent("""
+        ---
+        type: test
+        id: test/invalid
         created: not-a-date
-        modified: 2024-12-21T14:00:00Z
-        tags: 
-    """)
+        modified: 2024-12-22T10:00:00Z
+        tags: []
+        ---
+        """).strip()
 
     with pytest.raises(ParseError):
-        EntityFrontmatter.from_text(text)
+        await parse_frontmatter(content)
 
 
-def test_parse_frontmatter_whitespace():
-    """Test handling of various whitespace in frontmatter."""
-    text = dedent("""
-        type:    component   
-        id:     test/whitespace    
-        created:     2024-12-21T14:00:00Z    
-        modified:    2024-12-21T14:00:00Z       
-        tags:     one,  two  ,   three      
-    """)
+@pytest.mark.asyncio
+async def test_parse_frontmatter_whitespace():
+    """Test handling of extra whitespace."""
+    content = dedent("""
+        ---
+        type:    test   
+        id:   test/spaces   
+        created:    2024-12-22T10:00:00Z    
+        modified:    2024-12-22T10:00:00Z    
+        tags:    [tag1,    tag2]   
+        ---
+        """).strip()
 
-    result = EntityFrontmatter.from_text(text)
-
-    assert result.type == "component"
-    assert result.id == "test/whitespace"
-    assert result.tags == ["one", "two", "three"]
+    frontmatter, _ = await parse_frontmatter(content)
+    assert frontmatter["type"] == "test"
+    assert frontmatter["id"] == "test/spaces"
+    assert frontmatter["tags"] == ["tag1", "tag2"]

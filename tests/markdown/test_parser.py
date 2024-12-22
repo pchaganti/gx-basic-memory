@@ -1,15 +1,16 @@
 """Tests for entity markdown parser."""
-import pytest
+
 from pathlib import Path
 
+import pytest
+
 from basic_memory.markdown.parser import EntityParser
-from basic_memory.utils.file_utils import ParseError, FileError
 from basic_memory.markdown.schemas import (
     Entity,
     EntityFrontmatter,
     EntityContent,
-    EntityMetadata,
 )
+from basic_memory.utils.file_utils import ParseError, FileError
 
 
 @pytest.fixture
@@ -17,10 +18,10 @@ def sample_entity_content():
     """Sample entity file content."""
     return """---
 type: test
-id: test/test_entity
+id: 123
 created: 2024-12-22T10:00:00Z
 modified: 2024-12-22T10:00:00Z
-tags: [entity, test]
+tags: entity, test
 metadata:
   checksum: abc123
   doc_id: 1
@@ -45,21 +46,21 @@ async def test_parse_valid_file(tmp_path: Path, sample_entity_content):
     # Create test file
     test_file = tmp_path / "test.md"
     test_file.write_text(sample_entity_content)
-    
+
     # Parse file
     parser = EntityParser()
     entity = await parser.parse_file(test_file)
-    
+
     # Verify frontmatter
     assert isinstance(entity.frontmatter, EntityFrontmatter)
     assert entity.frontmatter.type == "test"
     assert entity.frontmatter.id == "test/test_entity"
-    
+
     # Verify content
     assert isinstance(entity.content, EntityContent)
     assert entity.content.title == "Test Entity"
     assert entity.content.description == "A test entity for testing purposes."
-    
+
     # Verify observations
     assert len(entity.content.observations) == 2
     obs1 = entity.content.observations[0]
@@ -73,7 +74,7 @@ async def test_parse_valid_file(tmp_path: Path, sample_entity_content):
     assert obs2.content == "Second design observation"
     assert obs2.tags == ["tag2"]
     assert obs2.context == "second context"
-    
+
     # Verify relations
     assert len(entity.content.relations) == 1
     rel = entity.content.relations[0]
@@ -105,7 +106,7 @@ tags: [entity]
 
 # Test Entity"""
     test_file.write_text(content)
-    
+
     parser = EntityParser()
     with pytest.raises(ParseError):
         await parser.parse_file(test_file)
@@ -117,7 +118,7 @@ async def test_parse_no_frontmatter(tmp_path: Path):
     test_file = tmp_path / "test.md"
     content = "Just content"
     test_file.write_text(content)
-    
+
     parser = EntityParser()
     with pytest.raises(ParseError):
         await parser.parse_file(test_file)
@@ -128,17 +129,17 @@ async def test_parse_content_str(sample_entity_content):
     """Test parsing content string directly."""
     parser = EntityParser()
     entity = await parser.parse_content_str(sample_entity_content)
-    
+
     assert isinstance(entity, Entity)
     assert entity.frontmatter.type == "test"
     assert entity.frontmatter.id == "test/test_entity"
     assert entity.content.title == "Test Entity"
-    
+
     # Verify observations parsed correctly
     assert len(entity.content.observations) == 2
     assert entity.content.observations[0].category == "tech"
     assert entity.content.observations[1].category == "design"
-    
+
     # Verify relation parsed correctly
     assert len(entity.content.relations) == 1
     assert entity.content.relations[0].type == "depends_on"
