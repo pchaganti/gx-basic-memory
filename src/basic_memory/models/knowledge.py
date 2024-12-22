@@ -85,7 +85,7 @@ class Observation(Base):
     __tablename__ = "observation"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    entity_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
+    entity_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
     content: Mapped[str] = mapped_column(Text)
     context: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
@@ -112,8 +112,8 @@ class Relation(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    from_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
-    to_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
+    from_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
+    to_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
     relation_type: Mapped[str] = mapped_column(String)
     context: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))

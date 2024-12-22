@@ -312,7 +312,7 @@ async def test_delete_relations(client, relation_repository):
 @pytest.mark.asyncio
 async def test_delete_nonexistent_entity(client):
     """Test deleting an entity that doesn't exist."""
-    response = await client.post("/knowledge/entities/delete", json={"entity_ids": ["bad_id"]})
+    response = await client.post("/knowledge/entities/delete", json={"entity_ids": [0]})
 
     assert response.status_code == 200
     assert response.json() == {"deleted": False}
@@ -336,8 +336,8 @@ async def test_delete_nonexistent_relations(client):
     request_data = {
         "relations": [
             {
-                "from_id": "source/nonexistent",
-                "to_id": "target/nonexistent",
+                "from_id": 0,
+                "to_id": 0,
                 "relation_type": "nonexistent",
             }
         ]
@@ -361,9 +361,18 @@ async def test_full_knowledge_flow(client: AsyncClient):
         },
     )
     assert main_response.status_code == 200
-    main_entity_id = "test/main_entity"
-    non_entity_id = "n_a/non_entity"
+
+    main_entity_id = None
+    non_entity_id = None
+    for entity in main_response.json()["entities"]:
+        if entity["name"] == "Main Entity":
+            main_entity_id = entity["id"]
+
+        if entity["name"] == "Non Entity":
+            non_entity_id = entity["id"]
+
     assert main_entity_id is not None
+    assert non_entity_id is not None
 
     # 2. Create related entities
     related_response = await client.post(
