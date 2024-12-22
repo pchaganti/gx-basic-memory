@@ -2,7 +2,6 @@
 
 from typing import Sequence
 
-from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -15,9 +14,8 @@ class ObservationRepository(Repository[Observation]):
 
     def __init__(self, session_maker: async_sessionmaker):
         super().__init__(session_maker, Observation)
-        logger.debug("Initialized ObservationRepository")
 
-    async def find_by_entity(self, entity_id: str) -> Sequence[Observation]:
+    async def find_by_entity(self, entity_id: int) -> Sequence[Observation]:
         """Find all observations for a specific entity."""
         query = select(Observation).filter(Observation.entity_id == entity_id)
         result = await self.execute_query(query)

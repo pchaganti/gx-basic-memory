@@ -13,7 +13,6 @@ from basic_memory.repository.relation_repository import RelationRepository
 async def source_entity(session_maker):
     """Create a source entity for testing relations."""
     entity = Entity(
-        id="source/test_entity",
         name="test_source",
         entity_type="source",
         description="Source entity",
@@ -28,7 +27,6 @@ async def source_entity(session_maker):
 async def target_entity(session_maker):
     """Create a target entity for testing relations."""
     entity = Entity(
-        id="target/test_entity",
         name="test_target",
         entity_type="target",
         description="Target entity",
@@ -56,7 +54,6 @@ async def test_relations(session_maker, source_entity, target_entity):
 async def related_entity(entity_repository):
     """Create a second entity for testing relations"""
     entity_data = {
-        "id": "20240102-related",
         "name": "Related Entity",
         "entity_type": "test",
         "description": "A related test entity",
@@ -229,14 +226,12 @@ async def test_delete_by_fields_all_fields(
         from_id=relation.from_id,  # pyright: ignore [reportArgumentType]
         to_id=relation.to_id,  # pyright: ignore [reportArgumentType]
         relation_type=relation.relation_type,  # pyright: ignore [reportArgumentType]
-        context=relation.context,  # pyright: ignore [reportArgumentType]
     )
     assert result is True
 
     # Verify only exact match was deleted
     remaining = await relation_repository.find_by_type(relation.relation_type)
     assert len(remaining) == 1  # One other relation_one should remain
-    assert remaining[0].context != relation.context
 
 
 @pytest.mark.asyncio

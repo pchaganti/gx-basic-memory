@@ -15,13 +15,13 @@ class RelationRepository(Repository[Relation]):
     def __init__(self, session_maker: async_sessionmaker):
         super().__init__(session_maker, Relation)
 
-    async def find_by_entity(self, from_entity_id: str) -> Sequence[Relation]:
+    async def find_by_entity(self, from_entity_id: int) -> Sequence[Relation]:
         """Find all relations from a specific entity."""
         query = select(Relation).filter(Relation.from_id == from_entity_id)
         result = await self.execute_query(query)
         return result.scalars().all()
 
-    async def find_by_entities(self, from_id: str, to_id: str) -> Sequence[Relation]:
+    async def find_by_entities(self, from_id: int, to_id: int) -> Sequence[Relation]:
         """Find all relations between two entities."""
         query = select(Relation).filter(and_(Relation.from_id == from_id, Relation.to_id == to_id))
         result = await self.execute_query(query)
