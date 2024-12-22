@@ -27,15 +27,15 @@ async def create_document(
     - Generated ID
     - Creation timestamp
     - Last modified timestamp
-    - Any provided metadata
+    - Any provided doc_metadata
     """
     try:
         document = await service.create_document(
             path=doc.path,
             content=doc.content,
-            metadata=doc.metadata,
+            metadata=doc.doc_metadata,
         )
-        return DocumentResponse.from_orm(document)
+        return DocumentResponse.model_validate(document)
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -46,7 +46,7 @@ async def list_documents(
 ) -> List[DocumentResponse]:
     """List all documents."""
     documents = await service.list_documents()
-    return [DocumentResponse.from_orm(doc) for doc in documents]
+    return [DocumentResponse.model_validate(doc) for doc in documents]
 
 
 @router.get("/{path:path}", response_model=DocumentResponse)
@@ -106,7 +106,7 @@ async def patch_document(
             content=patch.content,
             metadata=patch.doc_metadata,
         )
-        return DocumentResponse.from_orm(document)
+        return DocumentResponse.model_validate(document)
     except DocumentNotFoundError:
         raise HTTPException(status_code=404, detail=f"Document not found: {path}")
     except DocumentWriteError as e:

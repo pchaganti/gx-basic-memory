@@ -73,16 +73,18 @@ async def test_project_path():
     """Create a temporary project directory with standard subdirs."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_path = Path(temp_dir) / "test-project"
-        
+
         # Create standard directories
         (project_path / "documents").mkdir(parents=True)
         (project_path / "entities").mkdir(parents=True)
-        
+
         yield project_path
 
 
 @pytest_asyncio.fixture(scope="function")
-async def document_repository(session_maker: async_sessionmaker[AsyncSession]) -> DocumentRepository:
+async def document_repository(
+    session_maker: async_sessionmaker[AsyncSession],
+) -> DocumentRepository:
     """Create a DocumentRepository instance."""
     return DocumentRepository(session_maker)
 

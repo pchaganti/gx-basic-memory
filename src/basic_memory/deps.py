@@ -143,4 +143,4 @@ async def get_document_service(document_repository: DocumentRepositoryDep) -> Do
     return DocumentService(document_repository)
 
 
-DocumentServiceDep = Annotated[DocumentService, Depends(get_relation_service)]
+DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
