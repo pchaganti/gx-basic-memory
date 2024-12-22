@@ -16,6 +16,7 @@ from basic_memory import db
 from basic_memory.config import ProjectConfig
 from basic_memory.db import DatabaseType
 from basic_memory.models import Base, Entity as EntityModel
+from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
@@ -24,6 +25,7 @@ from basic_memory.services import (
     EntityService,
     ObservationService,
     RelationService,
+    DocumentService,
 )
 
 
@@ -68,12 +70,27 @@ async def session_maker(engine_factory) -> async_sessionmaker[AsyncSession]:
 
 @pytest_asyncio.fixture
 async def test_project_path():
-    """Create a temporary project directory."""
+    """Create a temporary project directory with standard subdirs."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_path = Path(temp_dir) / "test-project"
-        entities_path = project_path / "entities"
-        entities_path.mkdir(parents=True)
+        
+        # Create standard directories
+        (project_path / "documents").mkdir(parents=True)
+        (project_path / "entities").mkdir(parents=True)
+        
         yield project_path
+
+
+@pytest_asyncio.fixture(scope="function")
+async def document_repository(session_maker: async_sessionmaker[AsyncSession]) -> DocumentRepository:
+    """Create a DocumentRepository instance."""
+    return DocumentRepository(session_maker)
+
+
+@pytest_asyncio.fixture(scope="function")
+async def document_service(document_repository: DocumentRepository) -> DocumentService:
+    """Create a DocumentService instance."""
+    return DocumentService(document_repository)
 
 
 @pytest_asyncio.fixture(scope="function")

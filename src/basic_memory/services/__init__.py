@@ -1,33 +1,15 @@
-"""Service layer exceptions and imports."""
+"""Services package."""
 
-
-class ServiceError(Exception):
-    """Base exception for service errors"""
-
-    pass
-
-
-class DatabaseSyncError(ServiceError):
-    """Raised when database sync fails"""
-
-    pass
-
-
-class RelationError(ServiceError):
-    """Base exception for relation-specific errors"""
-
-    pass
-
-
-from .entity_service import EntityService
-from .observation_service import ObservationService
-from .relation_service import RelationService
+from basic_memory.services.document_service import DocumentService
+from basic_memory.services.entity_service import EntityService
+from basic_memory.services.observation_service import ObservationService
+from basic_memory.services.relation_service import RelationService
+from basic_memory.services.service import BaseService
 
 __all__ = [
-    "ServiceError",
-    "DatabaseSyncError",
-    "RelationError",
-    "EntityService",
-    "ObservationService",
-    "RelationService",
+    'BaseService',
+    'DocumentService',
+    'EntityService',
+    'ObservationService',
+    'RelationService',
 ]
