@@ -61,13 +61,13 @@ class EntityParser(MarkdownParser[Entity]):
             logger.error(f"Invalid entity frontmatter: {e}")
             raise ParseError(f"Invalid entity frontmatter: {str(e)}") from e
 
-    async def parse_content(self, title: str, sections: Dict[str, List[str]]) -> EntityContent:
+    async def parse_content(self, title: str, sections: Dict[str, str]) -> EntityContent:
         """
         Parse entity content section.
 
         Args:
             title: Document title
-            sections: Section name -> list of lines mapping
+            sections: Section name -> content mapping
 
         Returns:
             Parsed EntityContent
@@ -79,14 +79,14 @@ class EntityParser(MarkdownParser[Entity]):
             # Get description (if any)
             description = None
             if "description" in sections:
-                description = " ".join(sections["description"])
+                description = sections["description"]
 
             # Parse observations (required)
             observations = []
             if "observations" not in sections:
                 raise ParseError("Missing required observations section")
             
-            for line in sections["observations"]:
+            for line in sections["observations"].splitlines():
                 if line and not line.isspace():
                     observation = await self._parse_observation(line)
                     if observation:
@@ -95,7 +95,7 @@ class EntityParser(MarkdownParser[Entity]):
             # Parse relations (optional)
             relations = []
             if "relations" in sections:
-                for line in sections["relations"]:
+                for line in sections["relations"].splitlines():
                     if line and not line.isspace():
                         relation = await self._parse_relation(line)
                         if relation:
@@ -204,7 +204,7 @@ class EntityParser(MarkdownParser[Entity]):
                 return None
 
             return Relation(
-                relation_type=relation_type,
+                type=relation_type,
                 target=target,
                 context=context
             )
