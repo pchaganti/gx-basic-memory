@@ -35,6 +35,21 @@ async def test_parse_observation_with_context():
 
 
 @pytest.mark.asyncio
+async def test_parse_observation_without_category():
+    """Test observation parsing with context in parentheses."""
+    parser = EntityParser()
+
+    obs = await parser.parse_observation(
+        "- Authentication system #security #auth (Required for MVP)"
+    )
+    assert obs is not None
+    assert obs.category is None
+    assert obs.content == "Authentication system"
+    assert set(obs.tags) == {"security", "auth"}  # pyright: ignore [reportArgumentType]
+    assert obs.context == "Required for MVP"
+
+
+@pytest.mark.asyncio
 async def test_parse_observation_edge_cases():
     """Test observation parsing edge cases."""
     parser = EntityParser()
@@ -68,10 +83,6 @@ async def test_parse_observation_errors():
     """Test error handling in observation parsing."""
     parser = EntityParser()
 
-    # Missing category brackets
-    with pytest.raises(ParseError, match="missing category"):
-        await parser.parse_observation("- Design without brackets #test")
-
     # Unclosed category
-    with pytest.raises(ParseError, match="unclosed category"):
+    with pytest.raises(ParseError, match="Unclosed category bracket"):
         await parser.parse_observation("- [design Core feature #test")

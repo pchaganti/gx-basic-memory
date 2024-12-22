@@ -29,18 +29,7 @@ class EntityParser(MarkdownParser[Entity]):
     """
 
     async def parse_frontmatter(self, frontmatter: Dict[str, Any]) -> EntityFrontmatter:
-        """
-        Parse entity frontmatter.
-
-        Args:
-            frontmatter: Parsed YAML frontmatter
-
-        Returns:
-            Parsed EntityFrontmatter
-
-        Raises:
-            ParseError: If frontmatter doesn't match schema
-        """
+        """Parse entity frontmatter."""
         try:
             # Preprocess fields for schema validation
             processed = frontmatter.copy()
@@ -62,19 +51,7 @@ class EntityParser(MarkdownParser[Entity]):
             raise ParseError(f"Invalid entity frontmatter: {str(e)}") from e
 
     async def parse_content(self, title: str, sections: Dict[str, str]) -> EntityContent:
-        """
-        Parse entity content section.
-
-        Args:
-            title: Document title
-            sections: Section name -> content mapping
-
-        Returns:
-            Parsed EntityContent
-
-        Raises:
-            ParseError: If content sections are invalid
-        """
+        """Parse entity content section."""
         try:
             # Get description (if any)
             description = None
@@ -88,7 +65,7 @@ class EntityParser(MarkdownParser[Entity]):
 
             for line in sections["observations"].splitlines():
                 if line and not line.isspace():
-                    observation = await self.parse_observation(line)
+                    observation = await self._parse_observation(line)
                     if observation:
                         observations.append(observation)
 
@@ -97,7 +74,7 @@ class EntityParser(MarkdownParser[Entity]):
             if "relations" in sections:
                 for line in sections["relations"].splitlines():
                     if line and not line.isspace():
-                        relation = await self.parse_relation(line)
+                        relation = await self._parse_relation(line)
                         if relation:
                             relations.append(relation)
 
@@ -112,110 +89,120 @@ class EntityParser(MarkdownParser[Entity]):
             raise ParseError(f"Invalid entity content: {str(e)}") from e
 
     async def parse_observation(self, line: str) -> Optional[Observation]:
-        """
-        Parse a single observation line.
-
-        Format: [category] Content text #tag1 #tag2 (optional context)
-        """
+        """Parse a single observation line."""
         if not line or line.isspace():
             return None
 
         try:
-            # Extract category if present [category]
+            # Remove leading/trailing whitespace and bullet
+            line = line.strip()
+            if not line.startswith("-"):
+                raise ParseError("Observation must start with -")
+            line = line[1:].strip()
+
+            # Extract optional category [category]
             category = None
             content = line
             if line.startswith("["):
-                end_bracket = line.find("]")
-                if end_bracket != -1:
-                    category = line[1:end_bracket].strip()
-                    content = line[end_bracket + 1 :].strip()
+                close_bracket = line.find("]")
+                if close_bracket == -1:
+                    raise ParseError("Unclosed category bracket")
+
+                category = line[1:close_bracket].strip()
+                if not category:
+                    raise ParseError("Empty category brackets")
+
+                content = line[close_bracket + 1 :].strip()
 
             # Extract context if present (context)
             context = None
             if content.endswith(")"):
-                context_start = content.rfind("(")
-                if context_start != -1:
-                    context = content[context_start + 1 : -1].strip()
-                    content = content[:context_start].strip()
+                last_open = content.rfind("(")
+                if last_open != -1:
+                    # Check if these parentheses are part of content or a context marker
+                    # by looking for hashtags between them
+                    section_after_paren = content[last_open:]
+                    if "#" not in section_after_paren:
+                        context = content[last_open + 1 : -1].strip()
+                        content = content[:last_open].strip()
 
-            # Extract tags #tag1 #tag2
+            # Extract tags and clean content
             tags = []
             content_parts = []
             for part in content.split():
                 if part.startswith("#"):
-                    tags.append(part[1:])  # Remove # prefix
+                    # Handle multiple hashtags stuck together
+                    if "#" in part[1:]:
+                        multi_tags = part.split("#")
+                        tags.extend(t for t in multi_tags if t)
+                    else:
+                        tags.append(part[1:])
                 else:
                     content_parts.append(part)
 
             content = " ".join(content_parts).strip()
-
             if not content:
-                logger.warning(f"Skipping observation with no content: {line}")
-                return None
+                raise ParseError("Empty content")
 
             return Observation(
-                category=category, content=content, context=context, tags=tags if tags else None
+                category=category, content=content, tags=tags if tags else None, context=context
             )
 
+        except ParseError:
+            raise
         except Exception as e:
-            logger.warning(f"Failed to parse observation '{line}': {e}")
-            return None
+            logger.error(f"Failed to parse observation: {e}")
+            raise ParseError(f"Failed to parse observation: {str(e)}") from e
 
     async def parse_relation(self, line: str) -> Optional[Relation]:
-        """
-        Parse a single relation line.
-
-        Format: relation_type [[Target Entity]] (optional context)
-        """
+        """Parse a single relation line."""
         if not line or line.isspace():
             return None
 
         try:
+            # Remove leading/trailing whitespace and bullet
+            line = line.strip()
+            if not line.startswith("-"):
+                raise ParseError("Relation must start with -")
+            line = line[1:].strip()
+
             # Extract context if present (context)
             context = None
-            main_part = line
             if line.endswith(")"):
                 context_start = line.rfind("(")
                 if context_start != -1:
                     context = line[context_start + 1 : -1].strip()
-                    main_part = line[:context_start].strip()
+                    line = line[:context_start].strip()
 
             # Extract relation type and target [[Entity]]
-            if "[[" not in main_part or "]]" not in main_part:
-                logger.warning(f"Invalid relation format (missing [[]]): {line}")
-                return None
+            if "[[" not in line or "]]" not in line:
+                raise ParseError("Invalid relation format - missing [[entity]]")
 
             # Split into relation type and target
-            relation_parts = main_part.split("[[", 1)
-            relation_type = relation_parts[0].strip()
-            if not relation_type:
-                logger.warning(f"Missing relation type: {line}")
-                return None
+            parts = line.split("[[", 1)
+            rel_type = parts[0].strip()
+            if not rel_type:
+                raise ParseError("Missing relation type")
 
-            target = relation_parts[1].split("]]")[0].strip()
+            target_part = parts[1]
+            close_pos = target_part.find("]]")
+            if close_pos == -1:
+                raise ParseError("Unclosed [[ ]] in target")
+
+            target = target_part[:close_pos].strip()
             if not target:
-                logger.warning(f"Missing target entity: {line}")
-                return None
+                raise ParseError("Empty target entity")
 
-            return Relation(type=relation_type, target=target, context=context)
+            return Relation(type=rel_type, target=target, context=context)
 
+        except ParseError:
+            raise
         except Exception as e:
-            logger.warning(f"Failed to parse relation '{line}': {e}")
-            return None
+            logger.error(f"Failed to parse relation: {e}")
+            raise ParseError(f"Failed to parse relation: {str(e)}") from e
 
     async def parse_metadata(self, metadata: Optional[Dict[str, Any]]) -> EntityMetadata:
-        """
-        Parse entity metadata section.
-
-        Args:
-            metadata: Optional metadata dictionary
-
-        Returns:
-            Parsed EntityMetadata
-
-        Raises:
-            ParseError: If metadata doesn't match schema
-        """
+        """Parse entity metadata section."""
         try:
             if not metadata:
                 return EntityMetadata()
@@ -227,15 +214,5 @@ class EntityParser(MarkdownParser[Entity]):
     async def create_document(
         self, frontmatter: EntityFrontmatter, content: EntityContent, metadata: EntityMetadata
     ) -> Entity:
-        """
-        Create entity from parsed sections.
-
-        Args:
-            frontmatter: Parsed frontmatter
-            content: Parsed content
-            metadata: Parsed metadata
-
-        Returns:
-            Complete entity
-        """
+        """Create entity from parsed sections."""
         return Entity(frontmatter=frontmatter, content=content, metadata=metadata)
