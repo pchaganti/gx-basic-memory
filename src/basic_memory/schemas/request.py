@@ -5,7 +5,7 @@ from typing import List, Optional, Annotated, Dict, Any
 from annotated_types import MinLen, MaxLen
 from pydantic import BaseModel
 
-from basic_memory.schemas.base import EntityId, Observation, Entity, Relation
+from basic_memory.schemas.base import Observation, Entity, Relation
 
 
 class AddObservationsRequest(BaseModel):
@@ -45,7 +45,7 @@ class AddObservationsRequest(BaseModel):
     4. Add observations in logical groups for better history tracking
     """
 
-    entity_id: EntityId
+    entity_id: int
     context: Optional[str] = None
     observations: List[Observation]
 
@@ -152,7 +152,7 @@ class OpenNodesRequest(BaseModel):
     relations between entities that interest you.
     """
 
-    entity_ids: Annotated[List[EntityId], MinLen(1)]
+    entity_ids: Annotated[List[int], MinLen(1)]
 
 
 class CreateRelationsRequest(BaseModel):

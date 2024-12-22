@@ -20,21 +20,18 @@ class ObservationService(BaseService[ObservationRepository]):
         super().__init__(observation_repository)
 
     async def add_observations(
-        self, entity_id: str, observations: List[str]
+        self, entity_id: int, observations: List[str], context: str | None = None
     ) -> List[ObservationModel]:
         """Add multiple observations to an entity."""
         logger.debug(f"Adding {len(observations)} observations to entity: {entity_id}")
         return await self.repository.create_all(
             [
-                dict(
-                    entity_id=entity_id,
-                    content=observation,
-                )
+                dict(entity_id=entity_id, content=observation, context=context)
                 for observation in observations
             ]
         )
 
-    async def delete_observations(self, entity_id: str, contents: List[str]) -> bool:
+    async def delete_observations(self, entity_id: int, contents: List[str]) -> bool:
         """Delete specific observations from an entity."""
         logger.debug(f"Deleting observations from entity: {entity_id}")
         deleted = False
@@ -53,7 +50,9 @@ class ObservationService(BaseService[ObservationRepository]):
         """Search for observations across all entities."""
         logger.debug(f"Searching observations with query: {query}")
         result = await self.repository.execute_query(
-            select(ObservationModel).filter(ObservationModel.content.contains(query))
+            select(ObservationModel).filter(
+                ObservationModel.content.contains(query) | ObservationModel.context.contains(query)
+            )
         )
         observations = result.scalars().all()
         return [ObservationModel(content=obs.content) for obs in observations]

@@ -10,9 +10,15 @@ from basic_memory.schemas.base import (
     Observation,
     EntityType,
     RelationType,
-    EntityId,
     Relation,
     Entity,
+)
+
+# Delete operation models
+from basic_memory.schemas.delete import (
+    DeleteEntityRequest,
+    DeleteRelationsRequest,
+    DeleteObservationsRequest,
 )
 
 # Request models
@@ -41,30 +47,20 @@ from basic_memory.schemas.response import (
     DeleteObservationsResponse,
 )
 
-# Delete operation models
-from basic_memory.schemas.delete import (
-    DeleteEntityRequest,
-    DeleteRelationsRequest,
-    DeleteObservationsRequest,
-)
-
 # For convenient imports, export all models
 __all__ = [
     # Base
     "Observation",
     "EntityType",
-    "RelationType", 
-    "EntityId",
+    "RelationType",
     "Relation",
     "Entity",
-    
     # Requests
     "AddObservationsRequest",
     "CreateEntityRequest",
     "SearchNodesRequest",
     "OpenNodesRequest",
     "CreateRelationsRequest",
-    
     # Responses
     "SQLAlchemyModel",
     "ObservationResponse",
@@ -79,7 +75,6 @@ __all__ = [
     "DeleteEntityResponse",
     "DeleteRelationsResponse",
     "DeleteObservationsResponse",
-    
     # Delete Operations
     "DeleteEntityRequest",
     "DeleteRelationsRequest",

@@ -89,6 +89,9 @@ class Observation(Base):
     content: Mapped[str] = mapped_column(Text)
     context: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
+    )
 
     # Relationships
     entity = relationship("Entity", back_populates="observations")
@@ -112,7 +115,11 @@ class Relation(Base):
     from_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
     to_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
     relation_type: Mapped[str] = mapped_column(String)
+    context: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
+    )
 
     # Relationships
     from_entity = relationship("Entity", foreign_keys=[from_id], back_populates="from_relations")

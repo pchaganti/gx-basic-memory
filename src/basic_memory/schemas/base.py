@@ -86,23 +86,6 @@ Guidelines:
 Common types are listed in the module docstring.
 """
 
-# Custom field types with validation
-EntityId = Annotated[str, BeforeValidator(lower_strip_whitespace)]
-"""Unique identifier for an entity in format '{entity_type}/{normalized_name}'.
-
-Examples:
-- person/alice_smith
-- project/basic_memory
-- component/memory_service
-- concept/semantic_search
-
-The ID is automatically generated from the entity type and name.
-Names are normalized by:
-1. Converting to lowercase
-2. Replacing spaces with underscores
-3. Removing special characters
-"""
-
 
 class Relation(BaseModel):
     """Represents a directed edge between entities in the knowledge graph.
@@ -141,8 +124,8 @@ class Relation(BaseModel):
        }
     """
 
-    from_id: EntityId
-    to_id: EntityId
+    from_id: int
+    to_id: int
     relation_type: RelationType
     context: Optional[str] = None
 
@@ -207,7 +190,7 @@ class Entity(BaseModel):
     }
     """
 
-    id: Optional[EntityId] = None
+    id: Optional[int] = None
     name: str
     entity_type: EntityType
     description: Optional[str] = None

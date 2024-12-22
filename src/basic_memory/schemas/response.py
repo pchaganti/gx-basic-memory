@@ -16,7 +16,7 @@ from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, ConfigDict
 
-from basic_memory.schemas.base import Observation, EntityId, Relation
+from basic_memory.schemas.base import Observation, Relation
 
 
 class SQLAlchemyModel(BaseModel):
@@ -69,7 +69,7 @@ class ObservationsResponse(SQLAlchemyModel):
     }
     """
 
-    entity_id: EntityId
+    entity_id: int
     observations: List[ObservationResponse]
 
 
@@ -255,7 +255,7 @@ class AddObservationsResponse(SQLAlchemyModel):
     }
     """
 
-    entity_id: EntityId
+    entity_id: int
     observations: List[ObservationResponse]
 
 

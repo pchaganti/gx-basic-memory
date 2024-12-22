@@ -31,13 +31,11 @@ async def test_entities(
     """Create two test entities."""
     async with session_maker() as session:
         entity1 = EntityModel(
-            id="test/test_entity_1",
             name="test_entity_1",
             entity_type="test",
             description="Test entity 1",
         )
         entity2 = EntityModel(
-            id="test/test_entity_2",
             name="test_entity_2",
             entity_type="test",
             description="Test entity 2",
@@ -122,7 +120,6 @@ async def test_delete_relation(
         entity_type=entity1.entity_type,
         description=entity1.description,
         observations=[],
-        relations=[],
     )
     to_entity = Entity(
         id=entity2.id,
@@ -130,7 +127,6 @@ async def test_delete_relation(
         entity_type=entity2.entity_type,
         description=entity2.description,
         observations=[],
-        relations=[],
     )
 
     # Delete the relation
@@ -152,7 +148,6 @@ async def test_delete_nonexistent_relation(
         entity_type=entity1.entity_type,
         description=entity1.description,
         observations=[],
-        relations=[],
     )
     to_entity = Entity(
         id=entity2.id,
@@ -160,7 +155,6 @@ async def test_delete_nonexistent_relation(
         entity_type=entity2.entity_type,
         description=entity2.description,
         observations=[],
-        relations=[],
     )
 
     result = await relation_service.delete_relation(from_entity, to_entity, "nonexistent_relation")

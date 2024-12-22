@@ -21,7 +21,7 @@ from typing import List, Annotated
 from annotated_types import MinLen
 from pydantic import BaseModel
 
-from basic_memory.schemas.base import EntityId, Relation, Observation
+from basic_memory.schemas.base import Relation, Observation
 
 
 class DeleteEntityRequest(BaseModel):
@@ -56,7 +56,7 @@ class DeleteEntityRequest(BaseModel):
     5. Create relations to replacement entities if applicable
     """
 
-    entity_ids: Annotated[List[EntityId], MinLen(1)]
+    entity_ids: Annotated[List[int], MinLen(1)]
 
 
 class DeleteRelationsRequest(BaseModel):
@@ -132,5 +132,5 @@ class DeleteObservationsRequest(BaseModel):
     5. Updating implementation details
     """
 
-    entity_id: EntityId
+    entity_id: int
     deletions: Annotated[List[Observation], MinLen(1)]

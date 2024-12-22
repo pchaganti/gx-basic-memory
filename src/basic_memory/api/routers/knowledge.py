@@ -60,7 +60,9 @@ async def add_observations(
 ) -> AddObservationsResponse:
     """Add observations to an entity."""
     logger.debug(f"Adding observations to entity: {data.entity_id}")
-    observations = await observation_service.add_observations(data.entity_id, data.observations)
+    observations = await observation_service.add_observations(
+        data.entity_id, data.observations, data.context
+    )
     return AddObservationsResponse(
         entity_id=data.entity_id,
         observations=[
