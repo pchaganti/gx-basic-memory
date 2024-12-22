@@ -3,6 +3,8 @@
 import os
 import pytest
 import pytest_asyncio
+import yaml
+from datetime import datetime
 from pathlib import Path
 import stat
 
@@ -28,8 +30,8 @@ async def test_doc_path(tmp_path) -> Path:
 
 
 @pytest.mark.asyncio
-async def test_create_document_file_first(document_service, test_doc_path):
-    """Test that files are written before database records."""
+async def test_create_document_with_frontmatter(document_service, test_doc_path):
+    """Test that created documents have proper frontmatter."""
     content = "# Test Document\n\nThis is a test."
     doc = await document_service.create_document(
         str(test_doc_path),
@@ -37,11 +39,34 @@ async def test_create_document_file_first(document_service, test_doc_path):
         {"type": "test"}
     )
 
-    # Verify both file and database record
-    assert test_doc_path.exists()
-    assert test_doc_path.read_text() == content
+    # Verify file content
+    file_content = test_doc_path.read_text()
+    
+    # Parse frontmatter
+    try:
+        # Split content at the second "---" marker
+        _, frontmatter, doc_content = file_content.split("---", 2)
+        metadata = yaml.safe_load(frontmatter)
+    except Exception as e:
+        pytest.fail(f"Failed to parse frontmatter: {e}")
+
+    # Verify frontmatter contents
+    assert metadata["id"] == doc.id
+    assert metadata["type"] == "test"
+    assert "created" in metadata
+    assert "modified" in metadata
+    
+    # Verify timestamps are valid ISO format
+    datetime.fromisoformat(metadata["created"])
+    datetime.fromisoformat(metadata["modified"])
+    
+    # Verify original content is preserved
+    assert content in doc_content
+
+    # Verify DB record
     assert doc.path == str(test_doc_path)
     assert doc.doc_metadata == {"type": "test"}
+    assert doc.checksum is not None
 
 
 @pytest.mark.asyncio
@@ -66,6 +91,32 @@ async def test_create_document_unwriteable_directory(document_service, tmp_path)
     
     # Clean up - make writable again so it can be deleted
     parent_dir.chmod(stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+
+
+@pytest.mark.asyncio
+async def test_create_document_cleanup_on_failure(document_service, test_doc_path, monkeypatch):
+    """Test that failed document creation cleans up DB record."""
+    
+    # Mock write_text to fail after DB record creation
+    def mock_write_text(*args):
+        raise PermissionError("Mock write failure")
+    
+    # Apply the mock to the specific test file
+    monkeypatch.setattr(Path, "write_text", mock_write_text)
+    
+    with pytest.raises(DocumentWriteError):
+        await document_service.create_document(
+            str(test_doc_path),
+            "content",
+            {"type": "test"}
+        )
+    
+    # Verify no DB record remains
+    doc = await document_service.repository.find_by_path(str(test_doc_path))
+    assert doc is None
+    
+    # Verify no file was created
+    assert not test_doc_path.exists()
 
 
 @pytest.mark.asyncio

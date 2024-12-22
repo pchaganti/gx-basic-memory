@@ -1,9 +1,11 @@
 """Service for managing documents in the system."""
 
 import hashlib
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
+import yaml
 from loguru import logger
 
 from basic_memory.models import Document
@@ -13,19 +15,16 @@ from basic_memory.services.service import BaseService
 
 class DocumentError(Exception):
     """Base exception for document operations."""
-
     pass
 
 
 class DocumentNotFoundError(DocumentError):
     """Raised when a document doesn't exist."""
-
     pass
 
 
 class DocumentWriteError(DocumentError):
     """Raised when document file operations fail."""
-
     pass
 
 
@@ -66,6 +65,21 @@ class DocumentService(BaseService[DocumentRepository]):
         except Exception as e:
             raise DocumentWriteError(f"Directory not writable: {parent}: {e}")
 
+    async def add_frontmatter(self, content: str, doc_id: int, metadata: Optional[Dict[str, Any]] = None) -> str:
+        """Add frontmatter to document content."""
+        # Generate frontmatter with timestamps
+        now = datetime.now(UTC).isoformat()
+        frontmatter = {
+            "id": doc_id,
+            "created": now,
+            "modified": now
+        }
+        if metadata:
+            frontmatter.update(metadata)
+            
+        yaml_fm = yaml.dump(frontmatter, sort_keys=False)
+        return f"---\n{yaml_fm}---\n\n{content}"
+
     async def list_documents(self) -> List[Document]:
         """List all documents in the database."""
         return await self.repository.find_all()
@@ -93,23 +107,30 @@ class DocumentService(BaseService[DocumentRepository]):
         file_path = Path(path)
         await self.ensure_parent_directory(file_path)
 
-        # Write file first
         try:
-            file_path.write_text(content)
-        except Exception as e:
-            raise DocumentWriteError(f"Failed to write document file: {e}")
+            # 1. Create initial DB record to get ID
+            doc = await self.repository.create({
+                "path": str(path),
+                "doc_metadata": metadata
+            })
 
-        # After file is written, create database record
-        try:
-            checksum = await self.compute_checksum(content)
-            doc = await self.repository.create(
-                {"path": str(path), "checksum": checksum, "doc_metadata": metadata}
-            )
+            # 2. Add frontmatter with DB-generated ID
+            content_with_frontmatter = await self.add_frontmatter(content, doc.id, metadata)
+
+            # 3. Write complete file
+            file_path.write_text(content_with_frontmatter)
+
+            # 4. Update DB with checksum to mark completion
+            checksum = await self.compute_checksum(content_with_frontmatter)
+            doc = await self.repository.update(doc.id, {"checksum": checksum})
             return doc
-        except Exception:
-            # If database operation fails, clean up the file
+
+        except Exception as e:
+            # Clean up on any failure
+            if 'doc' in locals():  # DB record was created
+                await self.repository.delete(doc.id)
             file_path.unlink(missing_ok=True)
-            raise
+            raise DocumentWriteError(f"Failed to create document: {e}")
 
     async def read_document(self, path: str) -> tuple[Document, str]:
         """
