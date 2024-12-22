@@ -16,19 +16,26 @@ from basic_memory.services.document_service import (
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-@router.post("/", response_model=DocumentResponse)
+@router.post("/", response_model=DocumentResponse, status_code=201)
 async def create_document(
     doc: DocumentCreate,
     service: DocumentServiceDep,
 ) -> DocumentResponse:
-    """Create a new document."""
+    """Create a new document.
+
+    The document will be created with appropriate frontmatter including:
+    - Generated ID
+    - Creation timestamp
+    - Last modified timestamp
+    - Any provided metadata
+    """
     try:
         document = await service.create_document(
             path=doc.path,
             content=doc.content,
             metadata=doc.metadata,
         )
-        return document
+        return DocumentResponse.from_orm(document)
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -38,7 +45,8 @@ async def list_documents(
     service: DocumentServiceDep,
 ) -> List[DocumentResponse]:
     """List all documents."""
-    return await service.list_documents()
+    documents = await service.list_documents()
+    return [DocumentResponse.from_orm(doc) for doc in documents]
 
 
 @router.get("/{path:path}", response_model=DocumentResponse)
@@ -49,12 +57,11 @@ async def get_document(
     """Get a document by path."""
     try:
         document, content = await service.read_document(path)
-        # Attach content to response
         response = DocumentResponse.from_orm(document)
-        response.content = content  # type: ignore
+        response.content = content
         return response
     except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -72,9 +79,9 @@ async def update_document(
             content=doc.content,
             metadata=doc.metadata,
         )
-        return document
+        return DocumentResponse.model_validate(document)
     except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -85,17 +92,12 @@ async def patch_document(
     patch: DocumentPatch,
     service: DocumentServiceDep,
 ) -> DocumentResponse:
-    """
-    Partially update a document.
-
-    TODO: Implement partial content updates to minimize data transfer.
-    For now, this is stubbed to require full content on update.
-    """
-    # For now, require full content updates
+    """Partially update a document."""
+    # Require full content updates for now
     if patch.content is None:
         raise HTTPException(
             status_code=400,
-            detail="Partial content updates not yet implemented. Please provide full content.",
+            detail=("Partial content updates not yet implemented. " "Please provide full content."),
         )
 
     try:
@@ -104,9 +106,9 @@ async def patch_document(
             content=patch.content,
             metadata=patch.metadata,
         )
-        return document
+        return DocumentResponse.from_orm(document)
     except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -120,6 +122,6 @@ async def delete_document(
     try:
         await service.delete_document(path)
     except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=404, detail=f"Document not found: {path}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
