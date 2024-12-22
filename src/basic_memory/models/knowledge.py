@@ -1,56 +1,58 @@
 """Knowledge graph models."""
-
 from datetime import datetime
-from typing import Optional
-
+from typing import Optional, List
 from sqlalchemy import Integer, String, Text, ForeignKey, UniqueConstraint, text, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from basic_memory.models.base import Base
 
-
 class Entity(Base):
     """
     Core entity in the knowledge graph.
-
+    
     Entities represent semantic nodes maintained by the AI layer. Each entity:
     - Has a unique numeric ID (database-generated)
-    - Maps to a document file on disk (optional)
+    - Maps to a document file on disk (optional) 
     - Maintains a checksum for change detection
     - Tracks both source document and semantic properties
     """
-
     __tablename__ = "entity"
     __table_args__ = (
         UniqueConstraint("entity_type", "name", name="uix_entity_type_name"),
-        Index("ix_entity_type", "entity_type"),  # index on entity_type
+        Index("ix_entity_type", "entity_type"),
+        Index("ix_entity_doc_id", "doc_id"),
     )
 
     # Core identity
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String)
     entity_type: Mapped[str] = mapped_column(String)
-
+    
     # Content and validation
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     path: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-
+    
     # Metadata and tracking
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, 
+        server_default=text("CURRENT_TIMESTAMP")
     )
-
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, 
+        server_default=text("CURRENT_TIMESTAMP"), 
+        onupdate=text("CURRENT_TIMESTAMP")
+    )
+    
     # Relations
     doc_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+        Integer, 
+        ForeignKey("documents.id", ondelete="SET NULL"), 
+        nullable=True
     )
 
     # Relationships
-    observations = relationship(
-        "Observation", back_populates="entity", cascade="all, delete-orphan"
-    )
+    observations = relationship("Observation", back_populates="entity", cascade="all, delete-orphan")
     from_relations = relationship(
         "Relation",
         back_populates="from_entity",
@@ -71,16 +73,18 @@ class Entity(Base):
 class Observation(Base):
     """
     An observation about an entity.
-
+    
     Observations are atomic facts or notes about an entity.
     """
-
     __tablename__ = "observations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     entity_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=text("CURRENT_TIMESTAMP")
+    )
 
     # Relationships
     entity = relationship("Entity", back_populates="observations")
@@ -93,18 +97,20 @@ class Relation(Base):
     """
     A directed relation between two entities.
     """
-
     __tablename__ = "relations"
     __table_args__ = (
         UniqueConstraint("from_id", "to_id", "relation_type", name="uix_relation"),
-        Index("ix_relation_type", "relation_type"),  # index on relation_type
+        Index("ix_relation_type", "relation_type"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     from_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
     to_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
     relation_type: Mapped[str] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=text("CURRENT_TIMESTAMP")
+    )
 
     # Relationships
     from_entity = relationship("Entity", foreign_keys=[from_id], back_populates="from_relations")
