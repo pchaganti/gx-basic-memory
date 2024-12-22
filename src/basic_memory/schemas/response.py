@@ -11,11 +11,12 @@ Key Features:
 4. Bulk operations return all affected items
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
 from basic_memory.schemas.base import Observation, EntityId, Relation
+from basic_memory.schemas.request import DocumentCreate
 
 
 class SQLAlchemyModel(BaseModel):
@@ -326,13 +327,8 @@ class DeleteObservationsResponse(SQLAlchemyModel):
     deleted: bool
 
 
-class DocumentResponse(BaseModel):
+class DocumentResponse(DocumentCreate, SQLAlchemyModel):
     id: int
-    path: str
     checksum: str
-    doc_metadata: Optional[Dict[str, Any]] = None
     created_at: str
     updated_at: str
-
-    class Config:
-        from_attributes = True

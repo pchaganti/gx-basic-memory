@@ -216,14 +216,18 @@ class CreateRelationsRequest(BaseModel):
 class DocumentCreate(BaseModel):
     path: str
     content: str
-    metadata: Optional[Dict[str, Any]] = None
+    doc_metadata: Optional[Dict[str, Any]] = None
 
 
 class DocumentUpdate(BaseModel):
+    id: int
+    checksum: str
     content: str
-    metadata: Optional[Dict[str, Any]] = None
+    doc_metadata: Optional[Dict[str, Any]] = None
 
 
 class DocumentPatch(BaseModel):
+    id: int
+    checksum: str
     content: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    doc_metadata: Optional[Dict[str, Any]] = None

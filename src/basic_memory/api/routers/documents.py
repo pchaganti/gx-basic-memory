@@ -57,7 +57,7 @@ async def get_document(
     """Get a document by path."""
     try:
         document, content = await service.read_document(path)
-        response = DocumentResponse.from_orm(document)
+        response = DocumentResponse.model_validate(document)
         response.content = content
         return response
     except DocumentNotFoundError:
@@ -77,7 +77,7 @@ async def update_document(
         document = await service.update_document(
             path=path,
             content=doc.content,
-            metadata=doc.metadata,
+            metadata=doc.doc_metadata,
         )
         return DocumentResponse.model_validate(document)
     except DocumentNotFoundError:
@@ -104,7 +104,7 @@ async def patch_document(
         document = await service.update_document(
             path=path,
             content=patch.content,
-            metadata=patch.metadata,
+            metadata=patch.doc_metadata,
         )
         return DocumentResponse.from_orm(document)
     except DocumentNotFoundError:
