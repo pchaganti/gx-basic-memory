@@ -148,17 +148,25 @@ async def test_delete_document(client: AsyncClient, tmp_path: Path):
     assert create_response.status_code == 201
     created = create_response.json()
 
-    # Delete document
-    response = await client.delete(f"/documents/{test_doc['path']}")
+    # Delete document by ID
+    response = await client.delete(f"/documents/{created['id']}")
     assert response.status_code == 204
 
-    # Verify document is gone
+    # Verify document is gone from filesystem
     doc_path = Path(test_doc["path"])
     assert not doc_path.exists()
 
-    # Verify 404 on subsequent get
+    # Verify document is gone from DB (404 on get)
     get_response = await client.get(f"/documents/{created['id']}")
     assert get_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_nonexistent_document(client: AsyncClient):
+    """Test deleting a document that doesn't exist."""
+    response = await client.delete("/documents/99999")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -193,12 +201,12 @@ async def test_list_documents(client: AsyncClient, tmp_path: Path):
     # We should have both documents
     assert len(data) == 2
     
-    # Verify all paths are present
-    paths = {item["path"] for item in data}
-    expected_paths = {doc["path"] for doc in docs}
-    assert paths == expected_paths
+    # Verify all documents are present by ID
+    ids = {item["id"] for item in data}
+    expected_ids = {doc["id"] for doc in created_docs}
+    assert ids == expected_ids
 
     # Verify metadata was preserved
     for item in data:
-        matching_doc = next(d for d in docs if d["path"] == item["path"])
+        matching_doc = next(d for d in created_docs if d["id"] == item["id"])
         assert item["doc_metadata"] == matching_doc["doc_metadata"]

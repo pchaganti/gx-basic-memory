@@ -100,18 +100,18 @@ async def update_document(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/{path:path}", status_code=204)
+@router.delete("/{id:int}", status_code=204)
 async def delete_document(
-    path: str,
+    id: int,
     service: DocumentServiceDep,
 ) -> None:
-    """Delete a document."""
+    """Delete a document by ID."""
     try:
-        await service.delete_document(path)
+        await service.delete_document_by_id(id)
     except DocumentNotFoundError:
         raise HTTPException(
             status_code=404,
-            detail=f"Document not found: {path}"
+            detail=f"Document not found: {id}"
         )
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))

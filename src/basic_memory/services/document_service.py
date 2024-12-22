@@ -266,6 +266,35 @@ class DocumentService(BaseService[DocumentRepository]):
         assert updated_document is not None, f"Could not update document {doc.id}"
         return updated_document
 
+    async def delete_document_by_id(self, id: int) -> None:
+        """
+        Delete a document by ID.
+        
+        Args:
+            id: Document ID
+            
+        Raises:
+            DocumentNotFoundError: If document doesn't exist
+            DocumentWriteError: If deletion fails
+        """
+        logger.debug(f"Deleting document with ID {id}")
+        
+        # Get document record first
+        query = select(Document).where(Document.id == id)
+        doc = await self.repository.find_one(query)
+        if not doc:
+            raise DocumentNotFoundError(f"Document not found: {id}")
+        
+        # Delete file first since it's source of truth
+        try:
+            file_path = Path(doc.path)
+            file_path.unlink(missing_ok=True)
+        except Exception as e:
+            raise DocumentWriteError(f"Failed to delete document {id}: {e}")
+            
+        # Delete database record
+        await self.repository.delete(doc.id)
+
     async def delete_document(self, path: str) -> None:
         """
         Delete a document.
