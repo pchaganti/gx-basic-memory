@@ -152,41 +152,6 @@ class DocumentService(BaseService[DocumentRepository]):
         except Exception as e:
             raise DocumentError(f"Failed to read document {id}: {e}")
 
-    async def read_document(self, path: str) -> tuple[Document, str]:
-        """
-        Read a document and its content.
-
-        Args:
-            path: Path to the document
-
-        Returns:
-            Tuple of (document record, content)
-
-        Raises:
-            DocumentNotFoundError: If document doesn't exist
-        """
-        logger.debug(f"Reading document at {path}")
-
-        # Check if file exists
-        file_path = Path(path)
-        if not file_path.exists():
-            raise DocumentNotFoundError(f"Document not found: {path}")
-
-        # Read content first since file is source of truth
-        try:
-            content = file_path.read_text()
-        except Exception as e:
-            raise DocumentError(f"Failed to read document: {e}")
-
-        # Get document record
-        doc = await self.repository.find_by_path(str(path))
-        if not doc:
-            # File exists but no DB record - create one
-            checksum = await self.compute_checksum(content)
-            doc = await self.repository.create({"path": str(path), "checksum": checksum})
-
-        return doc, content
-
     async def update_document_by_id(
         self, id: int, content: str, metadata: Optional[Dict[str, Any]] = None
     ) -> Document:
@@ -212,58 +177,25 @@ class DocumentService(BaseService[DocumentRepository]):
         document = await self.repository.find_one(query)
         if not document:
             raise DocumentNotFoundError(f"Document not found: {id}")
-
-        # Use existing path to update file
-        return await self.update_document(path=document.path, content=content, metadata=metadata)
-
-    async def update_document(
-        self, path: str, content: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> Document:
-        """
-        Update an existing document.
-
-        Args:
-            path: Path to the document
-            content: New content
-            metadata: Optional new metadata
-
-        Returns:
-            Updated document record
-
-        Raises:
-            DocumentNotFoundError: If document doesn't exist
-            DocumentWriteError: If update fails
-        """
-        logger.debug(f"Updating document at {path}")
-
-        # Verify file exists
-        file_path = Path(path)
-        if not file_path.exists():
-            raise DocumentNotFoundError(f"Document not found: {path}")
+            
+        # Add frontmatter with metadata
+        content_with_frontmatter = await self.add_frontmatter(content, id, metadata)
 
         # Write new content first
         try:
-            file_path.write_text(content)
+            file_path = Path(document.path)
+            file_path.write_text(content_with_frontmatter)
         except Exception as e:
             raise DocumentWriteError(f"Failed to write document: {e}")
 
-        # Update database record
-        doc = await self.repository.find_by_path(str(path))
-        if not doc:
-            # File exists but no DB record - create one
-            checksum = await self.compute_checksum(content)
-            return await self.repository.create(
-                {"path": str(path), "checksum": checksum, "doc_metadata": metadata}
-            )
-
-        # Update existing record
-        checksum = await self.compute_checksum(content)
+        # Update DB record
+        checksum = await self.compute_checksum(content_with_frontmatter)
         update_data = {"checksum": checksum}
         if metadata is not None:
-            update_data["doc_metadata"] = metadata  # pyright: ignore [reportArgumentType]
+            update_data["doc_metadata"] = metadata
 
-        updated_document = await self.repository.update(doc.id, update_data)
-        assert updated_document is not None, f"Could not update document {doc.id}"
+        updated_document = await self.repository.update(id, update_data)
+        assert updated_document is not None, f"Could not update document {id}"
         return updated_document
 
     async def delete_document_by_id(self, id: int) -> None:
@@ -294,32 +226,3 @@ class DocumentService(BaseService[DocumentRepository]):
             
         # Delete database record
         await self.repository.delete(doc.id)
-
-    async def delete_document(self, path: str) -> None:
-        """
-        Delete a document.
-
-        Args:
-            path: Path to the document
-
-        Raises:
-            DocumentNotFoundError: If document doesn't exist
-            DocumentWriteError: If deletion fails
-        """
-        logger.debug(f"Deleting document at {path}")
-
-        # Verify file exists
-        file_path = Path(path)
-        if not file_path.exists():
-            raise DocumentNotFoundError(f"Document not found: {path}")
-
-        # Delete file first
-        try:
-            file_path.unlink()
-        except Exception as e:
-            raise DocumentWriteError(f"Failed to delete document: {e}")
-
-        # Delete database record if it exists
-        doc = await self.repository.find_by_path(str(path))
-        if doc:
-            await self.repository.delete(doc.id)
