@@ -12,7 +12,6 @@ from basic_memory.markdown.base_parser import MarkdownParser, ParseError, FileEr
 @dataclass
 class TestDoc:
     """Simple document for testing."""
-
     title: str
     content: str
     metadata: Optional[Dict[str, Any]] = None
@@ -27,18 +26,22 @@ class TestParser(MarkdownParser[TestDoc]):
             raise ParseError("Missing required title")
         return frontmatter["title"]
 
-    async def parse_content(
-        self, title: str, sections: Dict[str, List[str]]
-    ) -> Dict[str, List[str]]:
-        """Just return content as-is."""
-        return sections
+    async def parse_content(self, title: str, sections: Dict[str, str]) -> str:
+        """Process sections into content string."""
+        if "content" in sections:
+            return sections["content"]
+        # Join all section content if no direct content section
+        return "\n".join(sections.values())
 
     async def parse_metadata(self, metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Pass through metadata."""
         return metadata
 
     async def create_document(
-        self, frontmatter: str, content: str, metadata: Optional[Dict[str, Any]]
+        self,
+        frontmatter: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]]
     ) -> TestDoc:
         """Create test document."""
         return TestDoc(title=frontmatter, content=content, metadata=metadata)
@@ -49,8 +52,7 @@ async def test_parse_valid_file(tmp_path: Path):
     """Test parsing valid file."""
     # Create test file
     test_file = tmp_path / "test.md"
-    content = """
----
+    content = """---
 title: Test Doc
 metadata:
   key: value
@@ -86,6 +88,7 @@ async def test_parse_invalid_frontmatter(tmp_path: Path):
 not_title: Test Doc
 ---
 
+# Title
 content"""
     test_file.write_text(content)
 
@@ -98,7 +101,8 @@ content"""
 async def test_parse_no_frontmatter(tmp_path: Path):
     """Test file with no frontmatter."""
     test_file = tmp_path / "test.md"
-    content = "Just content"
+    content = """# Title
+Just content"""
     test_file.write_text(content)
 
     parser = TestParser()
@@ -113,6 +117,7 @@ async def test_parse_content_str():
 title: Test Doc
 ---
 
+# Title
 Test content"""
 
     parser = TestParser()

@@ -62,20 +62,31 @@ class MarkdownParser(ABC, Generic[T]):
         """
         try:
             # Split into frontmatter and content
-            frontmatter, remaining = await parse_frontmatter(content)
+            frontmatter, markdown = await parse_frontmatter(content)
+            
+            # Extract metadata from frontmatter if present
+            metadata = frontmatter.pop("metadata", None)
 
-            # Split main content into sections
-            title, sections = self.split_sections(remaining)
+            # Parse frontmatter first
+            parsed_frontmatter = await self.parse_frontmatter(frontmatter)
+
+            # Split remaining content into sections
+            title, sections = self._split_sections(markdown)
             if not title:
                 raise ParseError("Missing title section (must start with #)")
 
-            # Parse each section
-            parsed_frontmatter = await self.parse_frontmatter(frontmatter)
+            # Parse content sections
             parsed_content = await self.parse_content(title, sections)
-            parsed_metadata = await self.parse_metadata(frontmatter.get("metadata"))
 
-            # Create document from parts
-            return await self.create_document(parsed_frontmatter, parsed_content, parsed_metadata)
+            # Parse metadata separately
+            parsed_metadata = await self.parse_metadata(metadata)
+
+            # Create final document
+            return await self.create_document(
+                frontmatter=parsed_frontmatter,
+                content=parsed_content,
+                metadata=parsed_metadata
+            )
 
         except Exception as e:
             if not isinstance(e, ParseError):
@@ -83,7 +94,7 @@ class MarkdownParser(ABC, Generic[T]):
                 raise ParseError(f"Failed to parse content: {str(e)}") from e
             raise
 
-    def split_sections(self, content: str) -> Tuple[str, Dict[str, List[str]]]:
+    def _split_sections(self, content: str) -> Tuple[Optional[str], Dict[str, str]]:
         """
         Split content into sections by headers.
 
@@ -91,37 +102,46 @@ class MarkdownParser(ABC, Generic[T]):
             content: Content section of the document
 
         Returns:
-            Tuple of (title section, {section_name: list of section lines})
+            Tuple of (title section, {section_name: section content})
         """
-        current_section = None
-        sections = {}
+        # Initialize state
         title = None
+        sections: Dict[str, List[str]] = {}
+        current_section = None
+        current_lines: List[str] = []
 
+        # Process each line
         for line in content.splitlines():
-            line = line.strip()
-
-            # Skip empty lines
-            if not line:
+            # Handle headers
+            if line.startswith("# "):  # Top level header (title)
+                title = line[2:].strip()
                 continue
 
-            # Handle headers
-            if line.startswith("#"):
-                # Top level header is title
-                if line.startswith("# "):
-                    title = line[2:].strip()
-                    continue
+            if line.startswith("## "):  # Section header
+                # Save current section if any
+                if current_section and current_lines:
+                    sections[current_section] = "\n".join(current_lines).strip()
+                    current_lines = []
+                
+                # Start new section
+                current_section = line[3:].strip().lower()
+                continue
 
-                # Other headers start new sections
-                if line.startswith("## "):
-                    current_section = line[3:].strip().lower()
-                    sections[current_section] = []
-                    continue
+            # Add line to current section
+            if current_section is not None:
+                current_lines.append(line)
+            elif line.strip() and title:  # Non-empty line after title but before first section
+                # Default section for content right after title
+                if "content" not in sections:
+                    sections["content"] = line.strip()
+                else:
+                    sections["content"] += f"\n{line.strip()}"
 
-            # Add non-header lines to current section
-            if current_section:
-                sections[current_section].append(line)
+        # Save last section
+        if current_section and current_lines:
+            sections[current_section] = "\n".join(current_lines).strip()
 
-        return title, sections  # pyright: ignore [reportReturnType]
+        return title, sections
 
     @abstractmethod
     async def parse_frontmatter(self, frontmatter: Dict[str, Any]) -> Any:
