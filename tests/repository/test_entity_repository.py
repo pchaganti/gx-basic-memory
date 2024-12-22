@@ -47,7 +47,9 @@ async def related_entities(session_maker):
             entity_type="target",
             description="Target entity",
         )
-        session.add_all([source, target])
+        session.add(source)
+        session.add(target)
+        await session.flush()
 
         relation = Relation(from_id=source.id, to_id=target.id, relation_type="connects_to")
         session.add(relation)
@@ -343,18 +345,18 @@ async def test_search(session_maker, entity_repository: EntityRepository):
         )
 
     # Test search by name
-    results = await entity_repository.search_entities("Search Test")
+    results = await entity_repository.search("Search Test")
     assert len(results) == 2
     names = {e.name for e in results}
     assert "Search Test 1" in names
     assert "Search Test 2" in names
 
     # Test search by type
-    results = await entity_repository.search_entities("other")
+    results = await entity_repository.search("other")
     assert len(results) == 1
     assert results[0].entity_type == "other"
 
     # Test search by observation content
-    results = await entity_repository.search_entities("searchable")
+    results = await entity_repository.search("searchable")
     assert len(results) == 1
     assert results[0].id == entity1.id

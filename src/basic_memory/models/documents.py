@@ -18,7 +18,7 @@ class Document(Base):
     is the real source of truth.
     """
 
-    __tablename__ = "documents"
+    __tablename__ = "document"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     path: Mapped[str] = mapped_column(String, unique=True, nullable=False)

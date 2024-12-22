@@ -13,7 +13,6 @@ from .service import BaseService
 
 def entity_model(entity):
     model = EntityModel(
-        id=EntityModel.generate_id(entity.entity_type, entity.name),
         name=entity.name,
         entity_type=entity.entity_type,
         description=entity.description,
@@ -45,7 +44,7 @@ class EntityService(BaseService[EntityRepository]):
         created = await self.repository.add_all([entity_model(entity) for entity in entities_in])
         return created
 
-    async def update_entity(self, entity_id: str, update_data: Dict[str, Any]) -> EntityModel:
+    async def update_entity(self, entity_id: int, update_data: Dict[str, Any]) -> EntityModel:
         """Update an entity's fields."""
         logger.debug(f"Updating entity {entity_id} with data: {update_data}")
         updated = await self.repository.update(entity_id, update_data)
@@ -53,7 +52,7 @@ class EntityService(BaseService[EntityRepository]):
             raise EntityNotFoundError(f"Entity not found: {entity_id}")
         return updated
 
-    async def get_entity(self, entity_id: str) -> EntityModel:
+    async def get_entity(self, entity_id: int) -> EntityModel:
         """Get entity by ID."""
         logger.debug(f"Getting entity by ID: {entity_id}")
         db_entity = await self.repository.find_by_id(entity_id)
@@ -64,7 +63,7 @@ class EntityService(BaseService[EntityRepository]):
     async def get_by_type_and_name(self, entity_type: str, name: str) -> EntityModel:
         """Get entity by type and name combination."""
         logger.debug(f"Getting entity by type/name: {entity_type}/{name}")
-        db_entity = await self.repository.find_by_type_and_name(entity_type, name)
+        db_entity = await self.repository.get_entity_by_type_and_name(entity_type, name)
         if not db_entity:
             raise EntityNotFoundError(f"Entity not found: {entity_type}/{name}")
         return db_entity
@@ -73,17 +72,17 @@ class EntityService(BaseService[EntityRepository]):
         """Get all entities."""
         return await self.repository.find_all()
 
-    async def delete_entity(self, entity_id: str) -> bool:
+    async def delete_entity(self, entity_id: int) -> bool:
         """Delete entity from database."""
         logger.debug(f"Deleting entity: {entity_id}")
         return await self.repository.delete(entity_id)
 
-    async def open_nodes(self, entity_ids: List[str]) -> Sequence[EntityModel]:
+    async def open_nodes(self, entity_ids: List[int]) -> Sequence[EntityModel]:
         """Get specific nodes and their relationships."""
         logger.debug(f"Opening nodes entity_ids: {entity_ids}")
         return await self.repository.find_by_ids(entity_ids)
 
-    async def delete_entities(self, entity_ids: List[str]) -> bool:
+    async def delete_entities(self, entity_ids: List[int]) -> bool:
         """Delete entities and their files."""
         logger.debug(f"Deleting entities: {entity_ids}")
         deleted_count = await self.repository.delete_by_ids(entity_ids)

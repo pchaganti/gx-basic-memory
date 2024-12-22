@@ -7,6 +7,7 @@ from sqlalchemy import Integer, String, Text, ForeignKey, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from basic_memory.models.base import Base
+from basic_memory.models.documents import Document
 
 
 class Entity(Base):
@@ -45,7 +46,7 @@ class Entity(Base):
 
     # Relations
     doc_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+        Integer, ForeignKey("document.id", ondelete="SET NULL"), nullable=True
     )
 
     # Relationships
@@ -64,6 +65,7 @@ class Entity(Base):
         foreign_keys="[Relation.to_id]",
         cascade="all, delete-orphan",
     )
+    document: Mapped[Optional[Document]] = relationship(Document, back_populates="entities")
 
     @property
     def relations(self):
@@ -80,7 +82,7 @@ class Observation(Base):
     Observations are atomic facts or notes about an entity.
     """
 
-    __tablename__ = "observations"
+    __tablename__ = "observation"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     entity_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id"))
@@ -99,7 +101,7 @@ class Relation(Base):
     A directed relation between two entities.
     """
 
-    __tablename__ = "relations"
+    __tablename__ = "relation"
     __table_args__ = (
         UniqueConstraint("from_id", "to_id", "relation_type", name="uix_relation"),
         Index("ix_relation_type", "relation_type"),

@@ -143,7 +143,7 @@ async def test_get_by_type_and_name(entity_service: EntityService):
 
 async def test_create_entity_no_description(entity_service: EntityService):
     """Test creating entity without description (should be None)."""
-    entity_data = Entity(name="Test Entity", entity_type="test", observations=[], relations=[])
+    entity_data = Entity(name="Test Entity", entity_type="test", observations=[])
 
     entity = await entity_service.create_entity(entity_data)
     assert entity.description is None
@@ -214,7 +214,11 @@ async def test_update_entity_description_to_none(entity_service: EntityService):
 
 async def test_delete_entity_success(entity_service: EntityService):
     """Test successful entity deletion."""
-    entity_data = Entity(name="Test Entity", entity_type="test", observations=[], relations=[])
+    entity_data = Entity(
+        name="Test Entity",
+        entity_type="test",
+        observations=[],
+    )
     entity = await entity_service.create_entity(entity_data)
 
     # Act
@@ -229,12 +233,12 @@ async def test_delete_entity_success(entity_service: EntityService):
 async def test_get_entity_not_found(entity_service: EntityService):
     """Test handling of non-existent entity retrieval."""
     with pytest.raises(EntityNotFoundError):
-        await entity_service.get_entity("nonexistent-id")
+        await entity_service.get_entity(0)
 
 
 async def test_delete_nonexistent_entity(entity_service: EntityService):
     """Test deleting an entity that doesn't exist."""
-    result = await entity_service.delete_entity("nonexistent-id")
+    result = await entity_service.delete_entity(0)
     assert result is False
 
 
@@ -243,7 +247,9 @@ async def test_create_entity_with_special_chars(entity_service: EntityService):
     name = "Test & Entity! With @ Special #Chars"
     description = "Description with $pecial chars & symbols!"
     entity_data = Entity(
-        name=name, entity_type="test", description=description, observations=[], relations=[]
+        name=name,
+        entity_type="test",
+        description=description,
     )
     entity = await entity_service.create_entity(entity_data)
 
@@ -253,21 +259,6 @@ async def test_create_entity_with_special_chars(entity_service: EntityService):
     # Verify after retrieval
     retrieved = await entity_service.get_entity(entity.id)
     assert retrieved.description == description
-
-
-async def test_entity_id_generation(entity_service: EntityService):
-    """Test that entities get unique IDs generated correctly."""
-    entity_data = Entity(
-        name="Test Entity",
-        entity_type="test",
-        description="Test description",
-        observations=[],
-    )
-
-    entity = await entity_service.create_entity(entity_data)
-
-    assert entity.id  # ID should be generated
-    assert "test/test_entity" == entity.id  # Should contain normalized name
 
 
 async def test_create_entity_long_description(entity_service: EntityService):
