@@ -46,7 +46,8 @@ class EntityContent(BaseModel):
 class EntityMetadata(BaseModel):
     """Optional metadata for an entity."""
 
-    metadata: Dict[str, Any] = {}
+    # Changed from 'metadata' to 'data' to avoid pydantic special field name
+    data: Dict[str, Any] = {}
 
 
 class Entity(BaseModel):
@@ -54,4 +55,4 @@ class Entity(BaseModel):
 
     frontmatter: EntityFrontmatter
     content: EntityContent
-    metadata: EntityMetadata = EntityMetadata()
+    entity_metadata: EntityMetadata = EntityMetadata()

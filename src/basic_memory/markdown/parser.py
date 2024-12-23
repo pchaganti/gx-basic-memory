@@ -225,7 +225,7 @@ class EntityParser(MarkdownParser[Entity]):
         try:
             if not metadata:
                 return EntityMetadata()
-            return EntityMetadata(metadata=metadata)
+            return EntityMetadata(data=metadata)
         except Exception as e:
             logger.error(f"Invalid entity metadata: {e}")
             raise ParseError(f"Invalid entity metadata: {str(e)}") from e
@@ -234,4 +234,4 @@ class EntityParser(MarkdownParser[Entity]):
         self, frontmatter: EntityFrontmatter, content: EntityContent, metadata: EntityMetadata
     ) -> Entity:
         """Create entity from parsed sections."""
-        return Entity(frontmatter=frontmatter, content=content, metadata=metadata)
+        return Entity(frontmatter=frontmatter, content=content, entity_metadata=metadata)

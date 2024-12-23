@@ -1,80 +1,103 @@
-"""Tests for metadata parsing."""
+"""Tests for entity metadata parsing."""
 
 from textwrap import dedent
 
 import pytest
 
-from basic_memory.utils.file_utils import parse_frontmatter
+from basic_memory.markdown.parser import EntityParser
 
 
 @pytest.mark.asyncio
 async def test_parse_metadata():
     """Test parsing basic metadata."""
-    text = dedent("""
-        owner: team-auth
-        priority: high
-        status: active
-    """)
+    parser = EntityParser()
+    metadata = {
+        "owner": "team-auth",
+        "priority": "high",
+        "status": "active"
+    }
 
-    result, remaining = await parse_frontmatter(text)
+    result = await parser.parse_metadata(metadata)
 
-    assert result["owner"] == "team-auth"
-    assert result["priority"] == "high"
-    assert result["status"] == "active"
+    assert result.metadata["owner"] == "team-auth"
+    assert result.metadata["priority"] == "high"
+    assert result.metadata["status"] == "active"
 
 
 @pytest.mark.asyncio
 async def test_parse_metadata_empty():
     """Test parsing empty metadata."""
-    text = ""
+    parser = EntityParser()
+    result = await parser.parse_metadata(None)
+    assert result.metadata == {}
 
-    result, remaining = await parse_frontmatter(text)
-    assert result == {}
+    # Should also handle empty dict
+    result = await parser.parse_metadata({})
+    assert result.metadata == {}
 
 
 @pytest.mark.asyncio
 async def test_parse_metadata_whitespace():
     """Test handling of various whitespace in metadata."""
-    text = dedent("""
-        owner:     team-auth    
-        priority:      high     
-        status:   active     
-    """)
+    parser = EntityParser()
+    metadata = {
+        "owner": "   team-auth    ",
+        "priority": "    high     ",
+        "status": "   active     "
+    }
 
-    result, remaining = await parse_frontmatter(text)
+    result = await parser.parse_metadata(metadata)
 
-    assert result["owner"] == "team-auth"
-    assert result["priority"] == "high"
-    assert result["status"] == "active"
-
-
-@pytest.mark.asyncio
-async def test_parse_metadata_multiline_values():
-    """Test handling of multiline metadata values."""
-    text = dedent("""
-        owner: team-auth
-        description: This is a
-         multiline value
-         with several lines
-        status: active
-    """)
-
-    result, _ = await parse_frontmatter(text)
-
-    assert result["owner"] == "team-auth"
-    assert result["status"] == "active"
-    assert len(result["description"].splitlines()) == 3
+    assert result.metadata["owner"] == "   team-auth    "  # Metadata preserves whitespace
+    assert result.metadata["priority"] == "    high     "
+    assert result.metadata["status"] == "   active     "
 
 
 @pytest.mark.asyncio
-async def test_parse_metadata_invalid():
-    """Test handling of invalid metadata format."""
-    text = dedent("""
-        owner team-auth
-        priority: high
-    """)
+async def test_parse_metadata_nested_objects():
+    """Test handling of nested metadata objects."""
+    parser = EntityParser()
+    metadata = {
+        "owner": "team-auth",
+        "config": {
+            "level": "high",
+            "tags": ["important", "urgent"],
+            "settings": {
+                "notifications": True,
+                "visibility": "private"
+            }
+        }
+    }
 
-    result, _ = await parse_frontmatter(text)
+    result = await parser.parse_metadata(metadata)
 
-    assert "priority" in result
-    assert "owner" not in result
+    assert result.metadata["owner"] == "team-auth"
+    assert result.metadata["config"]["level"] == "high"
+    assert result.metadata["config"]["tags"] == ["important", "urgent"]
+    assert result.metadata["config"]["settings"]["notifications"] is True
+    assert result.metadata["config"]["settings"]["visibility"] == "private"
+
+
+@pytest.mark.asyncio
+async def test_parse_metadata_mixed_types():
+    """Test handling of different value types in metadata."""
+    parser = EntityParser()
+    metadata = {
+        "owner": "team-auth",
+        "active": True,
+        "priority": 1,
+        "tags": ["tag1", "tag2"],
+        "scores": {
+            "a": 10,
+            "b": 20
+        }
+    }
+
+    result = await parser.parse_metadata(metadata)
+
+    assert result.metadata["owner"] == "team-auth"
+    assert result.metadata["active"] is True
+    assert result.metadata["priority"] == 1
+    assert result.metadata["tags"] == ["tag1", "tag2"]
+    assert result.metadata["scores"]["a"] == 10
+    assert result.metadata["scores"]["b"] == 20

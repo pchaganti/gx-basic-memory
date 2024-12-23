@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, TypeVar, Generic, Optional, Dict, Any, Tuple
 
+import yaml
 from loguru import logger
 
 from basic_memory.utils.file_utils import parse_frontmatter, ParseError, FileError
@@ -61,29 +62,44 @@ class MarkdownParser(ABC, Generic[T]):
             ParseError: If parsing fails
         """
         try:
-            # Split into frontmatter and content
+            # Split into frontmatter and content first
             frontmatter, markdown = await parse_frontmatter(content)
-
-            # Extract metadata from frontmatter if present
-            metadata = frontmatter.pop("metadata", None)
 
             # Parse frontmatter first
             parsed_frontmatter = await self.parse_frontmatter(frontmatter)
 
+            # Look for metadata section at the end (marked by ---)
+            metadata = {}
+            main_content = markdown
+
+            # Split on last occurrence of triple dash section
+            if "\n---\n" in markdown:
+                main_content, metadata_section = markdown.rsplit("\n---\n", 1)
+                try:
+                    # Try to parse the trailing part as YAML
+                    maybe_metadata = yaml.safe_load(metadata_section)
+                    if isinstance(maybe_metadata, dict):
+                        metadata = maybe_metadata
+                except yaml.YAMLError:
+                    # Not valid YAML metadata, treat as part of main content
+                    main_content = markdown
+
             # Split remaining content into sections
-            title, sections = self._split_sections(markdown)
+            title, sections = await self._split_sections(main_content.strip())
             if not title:
                 raise ParseError("Missing title section (must start with #)")
 
             # Parse content sections
             parsed_content = await self.parse_content(title, sections)
 
-            # Parse metadata separately
+            # Parse metadata
             parsed_metadata = await self.parse_metadata(metadata)
 
             # Create final document
             return await self.create_document(
-                frontmatter=parsed_frontmatter, content=parsed_content, metadata=parsed_metadata
+                frontmatter=parsed_frontmatter,
+                content=parsed_content,
+                metadata=parsed_metadata
             )
 
         except Exception as e:
@@ -92,7 +108,7 @@ class MarkdownParser(ABC, Generic[T]):
                 raise ParseError(f"Failed to parse content: {str(e)}") from e
             raise
 
-    def _split_sections(self, content: str) -> Tuple[Optional[str], Dict[str, str]]:
+    async def _split_sections(self, content: str) -> Tuple[Optional[str], Dict[str, str]]:
         """
         Split content into sections by headers.
 
@@ -100,7 +116,7 @@ class MarkdownParser(ABC, Generic[T]):
             content: Content section of the document
 
         Returns:
-            Tuple of (title section, {section_name: section content})
+            Tuple of (title section, {section_name: section_content})
         """
         # Initialize state
         title = None
@@ -108,14 +124,20 @@ class MarkdownParser(ABC, Generic[T]):
         current_section = None
         current_lines: List[str] = []
 
+        # Split content into lines
+        content_lines = content.splitlines()
+
         # Process each line
-        for line in content.splitlines():
+        for line in content_lines:
+            # Skip boundary marker lines
+            if line.strip() == "---":
+                continue
+
             # Handle headers
             if line.startswith("# "):  # Top level header (title)
                 title = line[2:].strip()
                 continue
-
-            if line.startswith("## "):  # Section header
+            elif line.startswith("## "):  # Section header
                 # Save current section if any
                 if current_section and current_lines:
                     sections[current_section] = "\n".join(current_lines).strip()

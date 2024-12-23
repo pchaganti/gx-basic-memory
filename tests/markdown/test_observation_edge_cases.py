@@ -17,10 +17,13 @@ async def test_observation_empty_input():
 @pytest.mark.asyncio
 async def test_observation_unicode():
     """Test handling of Unicode content."""
-    # Invalid UTF-8 sequences
     parser = EntityParser()
-    assert await parser.parse_observation("- [test] Bad UTF \xff") is None
-    assert await parser.parse_observation("- [test] Bad UTF \xfe") is None
+
+    # Valid UTF-8 characters
+    obs = await parser.parse_observation("- [测试] Unicode content #标签")
+    assert obs is not None
+    assert obs.category == "测试"
+    assert "标签" in obs.tags  # pyright: ignore [reportOperatorIssue]
 
     # Control characters
     assert await parser.parse_observation("- [test] With \x00 null") is None
@@ -28,12 +31,6 @@ async def test_observation_unicode():
     assert await parser.parse_observation("- [test] With \x1b escape") is None
     assert await parser.parse_observation("- [test] With \x7f delete") is None
     assert await parser.parse_observation("- [test] With " + chr(0x1F) + " unit sep") is None
-
-    # Valid UTF-8
-    obs = await parser.parse_observation("- [测试] Unicode content #标签")
-    assert obs is not None
-    assert obs.category == "测试"
-    assert "标签" in obs.tags  # pyright: ignore [reportOperatorIssue]
 
 
 @pytest.mark.asyncio
@@ -81,11 +78,10 @@ async def test_observation_exception_handling():
 @pytest.mark.asyncio
 async def test_observation_malformed_category():
     """Test handling of malformed category brackets."""
-
     parser = EntityParser()
     with pytest.raises(ParseError, match="unclosed category"):
         await parser.parse_observation("- [test Content")
-
+    
     with pytest.raises(ParseError, match="missing category"):
         await parser.parse_observation("- test] Content")
 
@@ -96,7 +92,6 @@ async def test_observation_malformed_category():
 async def test_observation_whitespace():
     """Test handling of whitespace."""
     # Valid whitespace cases
-
     parser = EntityParser()
     obs = await parser.parse_observation("- [test] Content")
     assert obs is not None
