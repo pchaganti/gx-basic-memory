@@ -78,14 +78,8 @@ async def test_create_relations(knowledge_service: KnowledgeService, entity_serv
         )
     ]
 
-    created = await knowledge_service.create_relations(relations)
-    assert len(created) == 1
-
-    # Verify relation was created
-    relation = created[0]
-    assert relation.from_id == entity1.id
-    assert relation.to_id == entity2.id
-    assert relation.relation_type == "test_relation"
+    updated_entities = await knowledge_service.create_relations(relations)
+    assert len(updated_entities) == 2
 
     # Verify files were updated
     for entity_id in [entity1.id, entity2.id]:

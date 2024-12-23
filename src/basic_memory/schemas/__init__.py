@@ -40,11 +40,7 @@ from basic_memory.schemas.response import (
     CreateEntityResponse,
     SearchNodesResponse,
     OpenNodesResponse,
-    AddObservationsResponse,
-    CreateRelationsResponse,
     DeleteEntitiesResponse,
-    DeleteRelationsResponse,
-    DeleteObservationsResponse,
 )
 
 # For convenient imports, export all models
@@ -70,11 +66,7 @@ __all__ = [
     "CreateEntityResponse",
     "SearchNodesResponse",
     "OpenNodesResponse",
-    "AddObservationsResponse",
-    "CreateRelationsResponse",
     "DeleteEntitiesResponse",
-    "DeleteRelationsResponse",
-    "DeleteObservationsResponse",
     # Delete Operations
     "DeleteEntitiesRequest",
     "DeleteRelationsRequest",
