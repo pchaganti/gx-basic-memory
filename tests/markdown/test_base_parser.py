@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 import pytest
 
@@ -12,19 +12,20 @@ from basic_memory.markdown.base_parser import MarkdownParser, ParseError, FileEr
 @dataclass
 class TestDoc:
     """Simple document for testing."""
+
     title: str
     content: str
-    metadata: Optional[Dict[str, Any]] = None
+    frontmatter: Dict[str, Any]
 
 
 class TestParser(MarkdownParser[TestDoc]):
     """Concrete parser implementation for testing."""
 
-    async def parse_frontmatter(self, frontmatter: Dict[str, Any]) -> str:
+    async def parse_frontmatter(self, frontmatter: Dict[str, Any]) -> Dict[str, Any]:
         """Extract title from frontmatter."""
         if "title" not in frontmatter:
             raise ParseError("Missing required title")
-        return frontmatter["title"]
+        return frontmatter
 
     async def parse_content(self, title: str, sections: Dict[str, str]) -> str:
         """Process sections into content string."""
@@ -38,13 +39,10 @@ class TestParser(MarkdownParser[TestDoc]):
         return metadata
 
     async def create_document(
-        self,
-        frontmatter: str,
-        content: str,
-        metadata: Optional[Dict[str, Any]]
+        self, frontmatter: Dict[str, Any], content: str, metadata: Optional[Dict[str, Any]]
     ) -> TestDoc:
         """Create test document."""
-        return TestDoc(title=frontmatter, content=content, metadata=metadata)
+        return TestDoc(title=frontmatter["title"], content=content, frontmatter=frontmatter)
 
 
 @pytest.mark.asyncio
@@ -52,7 +50,8 @@ async def test_parse_valid_file(tmp_path: Path):
     """Test parsing valid file."""
     # Create test file
     test_file = tmp_path / "test.md"
-    content = """---
+    content = """
+---
 title: Test Doc
 metadata:
   key: value
@@ -69,7 +68,7 @@ Test content
 
     assert doc.title == "Test Doc"
     assert doc.content == "Test content"
-    assert doc.metadata == {"key": "value"}
+    assert doc.frontmatter["metadata"] == {"key": "value"}
 
 
 @pytest.mark.asyncio
@@ -125,4 +124,4 @@ Test content"""
 
     assert doc.title == "Test Doc"
     assert doc.content == "Test content"
-    assert doc.metadata is None
+    assert doc.frontmatter["title"] == "Test Doc"

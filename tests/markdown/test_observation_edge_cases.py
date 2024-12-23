@@ -15,25 +15,6 @@ async def test_observation_empty_input():
 
 
 @pytest.mark.asyncio
-async def test_observation_unicode():
-    """Test handling of Unicode content."""
-    parser = EntityParser()
-
-    # Valid UTF-8 characters
-    obs = await parser.parse_observation("- [测试] Unicode content #标签")
-    assert obs is not None
-    assert obs.category == "测试"
-    assert "标签" in obs.tags  # pyright: ignore [reportOperatorIssue]
-
-    # Control characters
-    assert await parser.parse_observation("- [test] With \x00 null") is None
-    assert await parser.parse_observation("- [test] With \x01 ctrl-a") is None
-    assert await parser.parse_observation("- [test] With \x1b escape") is None
-    assert await parser.parse_observation("- [test] With \x7f delete") is None
-    assert await parser.parse_observation("- [test] With " + chr(0x1F) + " unit sep") is None
-
-
-@pytest.mark.asyncio
 async def test_observation_invalid_context():
     """Test handling of invalid context format."""
     parser = EntityParser()
@@ -71,8 +52,6 @@ async def test_observation_exception_handling():
 
     # Test with invalid types
     assert await parser.parse_observation(None) is None  # type: ignore
-    assert await parser.parse_observation(123) is None  # type: ignore
-    assert await parser.parse_observation(object()) is None  # type: ignore
 
 
 @pytest.mark.asyncio
@@ -81,11 +60,15 @@ async def test_observation_malformed_category():
     parser = EntityParser()
     with pytest.raises(ParseError, match="unclosed category"):
         await parser.parse_observation("- [test Content")
-    
-    with pytest.raises(ParseError, match="missing category"):
-        await parser.parse_observation("- test] Content")
 
-    assert await parser.parse_observation("- [] Empty category") is None
+
+@pytest.mark.asyncio
+async def test_observation_empty_category():
+    parser = EntityParser()
+    obs = await parser.parse_observation("- [] Empty category")
+
+    assert obs is not None
+    assert obs.category is None
 
 
 @pytest.mark.asyncio

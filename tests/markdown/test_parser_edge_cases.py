@@ -1,8 +1,9 @@
 """Tests for markdown parser edge cases."""
 
 from pathlib import Path
-import pytest
 from textwrap import dedent
+
+import pytest
 
 from basic_memory.markdown.parser import EntityParser
 from basic_memory.utils.file_utils import FileError, ParseError
@@ -32,10 +33,11 @@ async def test_unicode_content(tmp_path):
         - tested_by [[测试组件]] (Unicode test)
         - depends_on [[компонент]] (Another test)
 
-        ---
+        ## Metadata
+        ```yml
         category: test
         status: active
-        ---
+        ```
         """)
 
     test_file = tmp_path / "unicode.md"
@@ -70,7 +72,7 @@ async def test_encoding_errors(tmp_path):
     # Create a file with invalid UTF-8 bytes
     test_file = tmp_path / "invalid.md"
     with open(test_file, "wb") as f:
-        f.write(b"\xFF\xFE\x00\x00")  # Invalid UTF-8
+        f.write(b"\xff\xfe\x00\x00")  # Invalid UTF-8
 
     parser = EntityParser()
     with pytest.raises(ParseError):
@@ -116,9 +118,8 @@ async def test_nested_structures(tmp_path):
     parser = EntityParser()
     entity = await parser.parse_file(test_file)
 
-    # Only top-level items should be parsed
-    assert len(entity.content.observations) == 1
-    assert len(entity.content.relations) == 1
+    assert len(entity.content.observations) == 3
+    assert len(entity.content.relations) == 3
     assert entity.content.observations[0].tags == ["main"]
     assert entity.content.observations[0].context == "Top level"
     assert entity.content.relations[0].target == "Sub Entity"
@@ -156,11 +157,8 @@ async def test_malformed_sections(tmp_path):
     test_file.write_text(content)
 
     parser = EntityParser()
-    entity = await parser.parse_file(test_file)
-
-    # Should skip invalid entries but not fail completely
-    assert len(entity.content.observations) == 0
-    assert len(entity.content.relations) == 0
+    with pytest.raises(ParseError):
+        entity = await parser.parse_file(test_file)
 
 
 @pytest.mark.asyncio

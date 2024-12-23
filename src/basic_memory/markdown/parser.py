@@ -39,8 +39,10 @@ class EntityParser(MarkdownParser[Entity]):
         """Parse metadata section."""
         try:
             if not metadata_section:
+                logger.debug("No metadata section found")
                 return EntityMetadata()
 
+            logger.debug(f"Raw metadata section:\n{metadata_section}")
             lines = metadata_section.strip().splitlines()
             yaml_lines = []
             in_yaml = False
@@ -50,21 +52,29 @@ class EntityParser(MarkdownParser[Entity]):
                 stripped = line.strip().lower()
                 if in_yaml:
                     if stripped == "```":
+                        logger.debug("Found end of YAML block")
                         break
                     yaml_lines.append(line)
+                    logger.debug(f"Added YAML line: {line}")
                 elif stripped in ["```yml", "```yaml"]:
+                    logger.debug("Found start of YAML block")
                     in_yaml = True
 
             if not yaml_lines:
+                logger.debug("No YAML lines found in metadata section")
                 return EntityMetadata()
+
+            yaml_content = "\n".join(yaml_lines)
+            logger.debug(f"YAML content to parse:\n{yaml_content}")
 
             # Parse the YAML content
             try:
-                yaml_content = yaml.safe_load("\n".join(yaml_lines))
-                if not isinstance(yaml_content, dict):
-                    logger.warning(f"Metadata YAML is not a dictionary: {yaml_content}")
+                parsed = yaml.safe_load(yaml_content)
+                if not isinstance(parsed, dict):
+                    logger.warning(f"Metadata YAML is not a dictionary: {parsed}")
                     return EntityMetadata()
-                return EntityMetadata(data=yaml_content)
+                logger.debug(f"Successfully parsed metadata: {parsed}")
+                return EntityMetadata(data=parsed)
             except yaml.YAMLError as e:
                 logger.warning(f"Failed to parse metadata YAML: {e}")
                 return EntityMetadata()
@@ -163,40 +173,37 @@ class EntityParser(MarkdownParser[Entity]):
                 return None
             line = line[1:].strip()
 
+            category = None
             # Handle malformed category brackets first
             if line.startswith("]"):
                 raise ParseError("missing category")
             elif line.startswith("["):
+                # category
                 close_bracket = line.find("]")
                 if close_bracket == -1:
                     raise ParseError("unclosed category")
 
                 # Extract category - return None for empty category
-                category = line[1:close_bracket].strip()
-                if not category:
-                    return None
+                category_string = line[1:close_bracket].strip()
+                category = category_string if category_string else None
 
-                content = line[close_bracket + 1 :].strip()
-            else:
-                # No category brackets
-                raise ParseError("missing category")
+                line = line[close_bracket + 1 :].strip()
 
             # Extract context if present (context)
             context = None
-            if content.endswith(")"):
-                last_open = content.rfind("(")
+            # check if line ends with ")"
+            if line.endswith(")"):
+                # find "(" starting from end
+                last_open = line.rfind("(")
                 if last_open != -1:
-                    # Check if these parentheses are part of content or a context marker
-                    # by looking for hashtags between them
-                    section_after_paren = content[last_open:]
-                    if "#" not in section_after_paren:
-                        context = content[last_open + 1 : -1].strip()
-                        content = content[:last_open].strip()
+                    context = line[last_open + 1 : -1].strip()
+                    # remove context from the line
+                    line = line[:last_open].strip()
 
             # Extract tags and clean content
             tags = []
             content_parts = []
-            for part in content.split():
+            for part in line.split():
                 if part.startswith("#"):
                     # Handle multiple hashtags stuck together
                     if "#" in part[1:]:
@@ -272,4 +279,4 @@ class EntityParser(MarkdownParser[Entity]):
         self, frontmatter: EntityFrontmatter, content: EntityContent, metadata: EntityMetadata
     ) -> Entity:
         """Create entity from parsed sections."""
-        return Entity(frontmatter=frontmatter, content=content, metadata=metadata)
+        return Entity(frontmatter=frontmatter, content=content, entity_metadata=metadata)

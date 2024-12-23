@@ -84,5 +84,5 @@ async def test_parse_observation_errors():
     parser = EntityParser()
 
     # Unclosed category
-    with pytest.raises(ParseError, match="Unclosed category bracket"):
+    with pytest.raises(ParseError, match="unclosed category"):
         await parser.parse_observation("- [design Core feature #test")
