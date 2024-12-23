@@ -7,11 +7,7 @@ from typing import AsyncGenerator
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import (
-    async_sessionmaker,
-    AsyncSession,
-    AsyncEngine,
-)
+from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, async_sessionmaker
 
 from basic_memory import db
 from basic_memory.config import ProjectConfig
@@ -30,7 +26,7 @@ from basic_memory.services import (
     DocumentService,
 )
 from basic_memory.services.file_service import FileService
-from basic_memory.services.knowledge_service import KnowledgeService
+from basic_memory.services.knowledge.service import KnowledgeService
 
 
 @pytest_asyncio.fixture
@@ -134,9 +130,13 @@ async def relation_service(relation_repository: RelationRepository) -> RelationS
 
 
 @pytest_asyncio.fixture
-async def observation_service(observation_repository: ObservationRepository) -> ObservationService:
+async def observation_service(
+    observation_repository: ObservationRepository,
+    entity_service: EntityService,
+) -> ObservationService:
     """Create ObservationService with repository."""
     return ObservationService(observation_repository)
+    # return ObservationService(observation_repository, entity_service)
 
 
 @pytest.fixture
@@ -161,16 +161,16 @@ async def knowledge_service(
 ) -> KnowledgeService:
     """Create KnowledgeService with dependencies."""
     return KnowledgeService(
-        entity_service, observation_service, relation_service, file_service, knowledge_writer
+        entity_service=entity_service,
+        observation_service=observation_service,
+        relation_service=relation_service,
+        file_service=file_service,
+        knowledge_writer=knowledge_writer,
     )
 
 
 @pytest_asyncio.fixture(scope="function")
 async def sample_entity(entity_repository: EntityRepository) -> Entity:
     """Create a sample entity for testing."""
-    entity_data = {
-        "name": "Test Entity",
-        "entity_type": "test",
-        "description": "A test entity",
-    }
+    entity_data = {"name": "Test Entity", "entity_type": "test", "description": "A test entity"}
     return await entity_repository.create(entity_data)

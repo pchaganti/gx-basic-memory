@@ -10,6 +10,39 @@ from basic_memory.services.file_service import FileService
 
 
 @pytest.mark.asyncio
+async def test_exists(tmp_path: Path, file_service: FileService):
+    """Test file existence checking."""
+    # Test path
+    test_path = tmp_path / "test.md"
+    
+    # Should not exist initially
+    assert not await file_service.exists(test_path)
+    
+    # Create file
+    test_path.write_text("test content")
+    assert await file_service.exists(test_path)
+    
+    # Delete file
+    test_path.unlink()
+    assert not await file_service.exists(test_path)
+
+
+@pytest.mark.asyncio
+async def test_exists_error_handling(tmp_path: Path, file_service: FileService):
+    """Test error handling in exists() method."""
+    test_path = tmp_path / "test.md"
+    
+    # Mock Path.exists to raise an error
+    with patch.object(Path, 'exists') as mock_exists:
+        mock_exists.side_effect = PermissionError("Access denied")
+        
+        with pytest.raises(FileOperationError) as exc_info:
+            await file_service.exists(test_path)
+        
+        assert "Failed to check file existence" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
 async def test_write_read_file(tmp_path: Path, file_service: FileService):
     """Test basic write/read operations with checksums."""
     test_path = tmp_path / "test.md"

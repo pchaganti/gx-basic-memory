@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from basic_memory import db
-from basic_memory.models.knowledge import Entity, Observation
+from basic_memory.models.knowledge import Entity, Observation, Relation
 from basic_memory.repository.repository import Repository
 
 
@@ -45,8 +45,8 @@ class EntityRepository(Repository[Entity]):
                     .filter(Entity.id == entity_id)
                     .options(
                         selectinload(Entity.observations),
-                        selectinload(Entity.from_relations),
-                        selectinload(Entity.to_relations),
+                        selectinload(Entity.from_relations).selectinload(Relation.to_entity),
+                        selectinload(Entity.to_relations).selectinload(Relation.from_entity),
                     )
                 )
                 entity = result.scalars().one()
@@ -57,7 +57,7 @@ class EntityRepository(Repository[Entity]):
                 return None
 
     async def find_by_ids(self, ids: List[int]) -> Sequence[Entity]:
-        """Search for entities of a specific type."""
+        """Search for entities by IDs with all relationships loaded."""
         logger.debug(f"Find entities by ids: {ids}")
         async with db.scoped_session(self.session_maker) as session:
             result = await session.execute(
@@ -65,8 +65,8 @@ class EntityRepository(Repository[Entity]):
                 .where(self.primary_key.in_(ids))
                 .options(
                     selectinload(Entity.observations),
-                    selectinload(Entity.from_relations),
-                    selectinload(Entity.to_relations),
+                    selectinload(Entity.from_relations).selectinload(Relation.to_entity),
+                    selectinload(Entity.to_relations).selectinload(Relation.from_entity),
                 )
             )
             entities = result.scalars().all()
@@ -79,8 +79,8 @@ class EntityRepository(Repository[Entity]):
             self.select()
             .options(
                 selectinload(Entity.observations),
-                selectinload(Entity.from_relations),
-                selectinload(Entity.to_relations),
+                selectinload(Entity.from_relations).selectinload(Relation.to_entity),
+                selectinload(Entity.to_relations).selectinload(Relation.from_entity),
             )
             .where(Entity.entity_type == entity_type, Entity.name == name)
         )
@@ -92,7 +92,14 @@ class EntityRepository(Repository[Entity]):
         doc_id: Optional[int] = None,
     ) -> Sequence[Entity]:
         """List all entities, optionally filtered by type."""
-        query = self.select()
+        query = (
+            self.select()
+            .options(
+                selectinload(Entity.observations),
+                selectinload(Entity.from_relations).selectinload(Relation.to_entity),
+                selectinload(Entity.to_relations).selectinload(Relation.from_entity),
+            )
+        )
 
         if entity_type:
             query = query.where(Entity.entity_type == entity_type)
@@ -133,8 +140,8 @@ class EntityRepository(Repository[Entity]):
             )
             .options(
                 selectinload(Entity.observations),
-                selectinload(Entity.from_relations),
-                selectinload(Entity.to_relations),
+                selectinload(Entity.from_relations).selectinload(Relation.to_entity),
+                selectinload(Entity.to_relations).selectinload(Relation.from_entity),
             )
         )
         result = await self.execute_query(query)

@@ -21,6 +21,22 @@ class FileService:
     - Error handling
     """
 
+    async def exists(self, path: Path) -> bool:
+        """
+        Check if file exists.
+
+        Args:
+            path: Path to check
+
+        Returns:
+            True if file exists, False otherwise
+        """
+        try:
+            return path.exists()
+        except Exception as e:
+            logger.error(f"Failed to check file existence {path}: {e}")
+            raise FileOperationError(f"Failed to check file existence: {e}")
+
     async def write_file(self, path: Path, content: str) -> str:
         """
         Write content to file and return checksum.
@@ -43,7 +59,9 @@ class FileService:
             await file_utils.write_file_atomic(path, content)
 
             # Compute and return checksum
-            return await file_utils.compute_checksum(content)
+            checksum = await file_utils.compute_checksum(content)
+            logger.debug(f"wrote file: {path}, checksum: {checksum}")
+            return checksum
 
         except Exception as e:
             logger.error(f"Failed to write file {path}: {e}")
@@ -65,6 +83,7 @@ class FileService:
         try:
             content = path.read_text()
             checksum = await file_utils.compute_checksum(content)
+            logger.debug(f"read file: {path}, checksum: {checksum}")
             return content, checksum
 
         except Exception as e:
@@ -92,8 +111,8 @@ class FileService:
         *,
         id: int,
         content: str,
-        created: datetime = None,
-        updated: datetime = None,
+        created: datetime | None = None,
+        updated: datetime | None = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """

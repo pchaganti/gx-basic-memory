@@ -59,12 +59,19 @@ class KnowledgeWriter:
                 ""
             ])
 
-        if entity.relations:
-            sections.extend([
-                "## Relations",
-                *[f"- [[{rel.to_entity.name}]] {rel.relation_type}" for rel in entity.relations],
-                ""
-            ])
+        # Format outgoing and incoming relations separately
+        if entity.to_relations or entity.from_relations:
+            sections.append("## Relations")
+            
+            # Outgoing relations
+            for rel in entity.to_relations:
+                sections.append(f"- [[{rel.from_entity.name}]] {rel.relation_type}")
+                
+            # Incoming relations
+            for rel in entity.from_relations:
+                sections.append(f"- [[{rel.to_entity.name}]] {rel.relation_type}")
+                
+            sections.append("")
 
         if metadata:
             sections.append("\n")

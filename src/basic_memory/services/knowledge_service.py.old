@@ -49,6 +49,11 @@ class KnowledgeService:
     async def write_entity_file(self, entity: EntityModel) -> str:
         """Write entity to filesystem and return checksum."""
         try:
+            # Ensure we have a fresh entity with all relations loaded
+            entity = await self.entity_service.get_entity(entity.id)
+            if not entity:
+                raise EntityNotFoundError(f"Entity not found: {entity.id}")
+
             # Format content
             path = self.get_entity_path(entity)
             entity_content = await self.knowledge_writer.format_content(entity)
@@ -115,14 +120,16 @@ class KnowledgeService:
                 # Create relation in DB
                 db_relation = await self.relation_service.create_relation(relation)
 
-                # Get updated entities to write
-                from_entity = await self.entity_service.get_entity(relation.from_id)
-                to_entity = await self.entity_service.get_entity(relation.to_id)
-
                 # Update files with their new relations
-                for entity in [from_entity, to_entity]:
+                for entity_id in [relation.from_id, relation.to_id]:
+                    # Get fresh entity
+                    entity = await self.entity_service.get_entity(entity_id)
+                    if not entity:
+                        raise EntityNotFoundError(f"Entity not found: {entity_id}")
+
+                    # Write updated file
                     checksum = await self.write_entity_file(entity)
-                    await self.entity_service.update_entity(entity.id, {"checksum": checksum})
+                    await self.entity_service.update_entity(entity_id, {"checksum": checksum})
 
                 created.append(db_relation)
 
@@ -131,64 +138,3 @@ class KnowledgeService:
                 continue
 
         return created
-
-    async def add_observations(
-        self, entity_id: int, observations: List[str], context: str | None = None
-    ) -> EntityModel:
-        """Add observations to entity and update its file."""
-        logger.debug(f"Adding observations to entity {entity_id}")
-
-        try:
-            # Add observations to DB
-            await self.observation_service.add_observations(entity_id, observations, context)
-
-            # Get updated entity
-            entity = await self.entity_service.get_entity(entity_id)
-            if not entity:
-                raise EntityNotFoundError(f"Entity not found: {entity_id}")
-
-            # Write updated file
-            checksum = await self.write_entity_file(entity)
-
-            # Update checksum in DB
-            return await self.entity_service.update_entity(entity_id, {"checksum": checksum})
-
-        except Exception as e:
-            logger.error(f"Failed to add observations: {e}")
-            raise
-
-    async def delete_entity(self, entity_id: int) -> bool:
-        """Delete entity and its file."""
-        logger.debug(f"Deleting entity: {entity_id}")
-
-        try:
-            # Get entity first for file deletion
-            entity = await self.entity_service.get_entity(entity_id)
-            if not entity:
-                return True  # Already deleted
-
-            # Delete file first (it's source of truth)
-            path = self.get_entity_path(entity)
-            await self.file_service.delete_file(path)
-
-            # Delete from DB (this will cascade to observations/relations)
-            return await self.entity_service.delete_entity(entity_id)
-
-        except Exception as e:
-            logger.error(f"Failed to delete entity: {e}")
-            raise
-
-    async def delete_entities(self, entity_ids: List[int]) -> bool:
-        """Delete multiple entities and their files."""
-        logger.debug(f"Deleting entities: {entity_ids}")
-        success = True
-
-        for entity_id in entity_ids:
-            try:
-                await self.delete_entity(entity_id)
-            except Exception as e:
-                logger.error(f"Failed to delete entity {entity_id}: {e}")
-                success = False
-                continue
-
-        return success

@@ -126,4 +126,4 @@ class Relation(Base):
     to_entity = relationship("Entity", foreign_keys=[to_id], back_populates="to_relations")
 
     def __repr__(self) -> str:
-        return f"Relation(from_id={self.from_id}, to_id={self.to_id}, type='{self.relation_type}')"
+        return f"Relation(id={self.id}, from_id={self.from_id}, to_id={self.to_id}, type='{self.relation_type}')"
