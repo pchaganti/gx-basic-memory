@@ -16,6 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from sqlalchemy.orm.interfaces import LoaderOption
 
 from basic_memory import db
 from basic_memory.models import Base
@@ -48,6 +49,8 @@ class Repository[T: Base]:
         async with db.scoped_session(self.session_maker) as session:
             session.add(model)
             await session.flush()
+
+            # query to get relations
             found = await self.find_by_id(model.id)  # pyright: ignore [reportAttributeAccessIssue]
             assert found is not None, "can't find model after session.add"
             return found
@@ -85,8 +88,12 @@ class Repository[T: Base]:
     async def find_all(self, skip: int = 0, limit: int = 100) -> Sequence[T]:
         """Fetch records from the database with pagination."""
         logger.debug(f"Finding all {self.Model.__name__} (skip={skip}, limit={limit})")
+
         async with db.scoped_session(self.session_maker) as session:
-            result = await session.execute(select(self.Model).offset(skip).limit(limit))
+            query = select(self.Model).offset(skip).limit(limit).options(*self.get_load_options())
+
+            result = await session.execute(query)
+
             items = result.scalars().all()
             logger.debug(f"Found {len(items)} {self.Model.__name__} records")
             return items
@@ -94,11 +101,16 @@ class Repository[T: Base]:
     async def find_by_id(self, entity_id: int) -> Optional[T]:
         """Fetch an entity by its unique identifier."""
         logger.debug(f"Finding {self.Model.__name__} by ID: {entity_id}")
+
         async with db.scoped_session(self.session_maker) as session:
             try:
-                result = await session.execute(
-                    select(self.Model).filter(self.primary_key == entity_id)
+                query = (
+                    select(self.Model)
+                    .filter(self.primary_key == entity_id)
+                    .options(*self.get_load_options())
                 )
+
+                result = await session.execute(query)
                 entity = result.scalars().one()
                 logger.debug(f"Found {self.Model.__name__}: {entity_id}")
                 return entity
@@ -106,25 +118,35 @@ class Repository[T: Base]:
                 logger.debug(f"No {self.Model.__name__} found with ID: {entity_id}")
                 return None
 
+    async def find_by_ids(self, ids: List[int]) -> Sequence[T]:
+        """Fetch multiple entities by their identifiers in a single query."""
+        logger.debug(f"Finding {self.Model.__name__} by IDs: {ids}")
+
+        query = (
+            select(self.Model).where(self.primary_key.in_(ids)).options(*self.get_load_options())
+        )
+
+        async with db.scoped_session(self.session_maker) as session:
+            result = await session.execute(query)
+            entities = result.scalars().all()
+
+            logger.debug(f"Found {len(entities)} {self.Model.__name__} records")
+            return entities
+
     async def find_one(self, query: Select[tuple[T]]) -> Optional[T]:
         """Execute a query and retrieve a single record."""
         logger.debug(f"Finding one {self.Model.__name__} with query: {query}")
+
+        # add in load options
+        query = query.options(*self.get_load_options())
         result = await self.execute_query(query)
         entity = result.scalars().one_or_none()
+
         if entity:
             logger.debug(f"Found {self.Model.__name__}: {getattr(entity, 'id', None)}")
         else:
             logger.debug(f"No {self.Model.__name__} found")
         return entity
-
-    async def find_by_ids(self, ids: List[int]) -> Sequence[T]:
-        """Fetch multiple entities by their identifiers in a single query."""
-        logger.debug(f"Finding {self.Model.__name__} by IDs: {ids}")
-        async with db.scoped_session(self.session_maker) as session:
-            result = await session.execute(select(self.Model).where(self.primary_key.in_(ids)))
-            entities = result.scalars().all()
-            logger.debug(f"Found {len(entities)} {self.Model.__name__} records")
-            return entities
 
     async def create(self, data: dict) -> T:
         """Create a new record from a model instance."""
@@ -135,16 +157,23 @@ class Repository[T: Base]:
             model = self.Model(**model_data)
             session.add(model)
             await session.flush()
-            return model
 
-    async def create_all(self, data_list: List[dict]) -> List[T]:
+            return_instance = await self.find_by_id(model.id)  # pyright: ignore [reportAttributeAccessIssue]
+
+            assert return_instance is not None, "can't find model after session.add"
+            return return_instance
+
+    async def create_all(self, data_list: List[dict]) -> Sequence[T]:
         """Create multiple records in a single transaction."""
         logger.debug(f"Bulk creating {len(data_list)} {self.Model.__name__} instances")
+
         async with db.scoped_session(self.session_maker) as session:
             # Only include valid columns that are provided in entity_data
             model_list = [self.Model(**self.get_model_data(d)) for d in data_list]
             session.add_all(model_list)
-            return model_list
+            await session.flush()
+
+            return await self.find_by_ids([model.id for model in model_list])  # pyright: ignore [reportAttributeAccessIssue]
 
     async def update(self, entity_id: int, entity_data: dict) -> Optional[T]:
         """Update an entity with the given data."""
@@ -164,7 +193,8 @@ class Repository[T: Base]:
                 await session.refresh(entity)  # Refresh
 
                 logger.debug(f"Updated {self.Model.__name__}: {entity_id}")
-                return entity
+                return await self.find_by_id(entity.id)  # pyright: ignore [reportAttributeAccessIssue]
+
             except NoResultFound:
                 logger.debug(f"No {self.Model.__name__} found to update: {entity_id}")
                 return None
@@ -219,8 +249,16 @@ class Repository[T: Base]:
 
     async def execute_query(self, query: Executable) -> Result[Any]:
         """Execute a query asynchronously."""
+
+        query = query.options(*self.get_load_options())
+
         logger.debug(f"Executing query: {query}")
         async with db.scoped_session(self.session_maker) as session:
             result = await session.execute(query)
             logger.debug("Query executed successfully")
             return result
+
+    def get_load_options(self) -> List[LoaderOption]:
+        """Get list of loader options for eager loading relationships.
+        Override in subclasses to specify what to load."""
+        return []

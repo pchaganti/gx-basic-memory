@@ -4,7 +4,7 @@ import pytest
 from mcp.types import EmbeddedResource
 
 from basic_memory.mcp.server import handle_call_tool
-from basic_memory.schemas import CreateEntityResponse, AddObservationsResponse
+from basic_memory.schemas import CreateEntityResponse, EntityResponse
 
 
 @pytest.mark.asyncio
@@ -27,10 +27,10 @@ async def test_add_observations(app, test_entity_data, client):
     assert result[0].type == "resource"
 
     # Verify observation was added
-    response = AddObservationsResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
-    assert response.entity_id == entity_id
-    assert len(response.observations) == 1
-    assert response.observations[0].content == "A new observation"
+    response = EntityResponse.model_validate_json(result[0].resource.text)  # pyright: ignore [reportAttributeAccessIssue]
+    assert response.id == entity_id
+    assert len(response.observations) == 2  # 1 already present
+    assert response.observations[1].content == "A new observation"
 
     # Verify through API
     api_response = await client.get(f"/knowledge/entities/{entity_id}")

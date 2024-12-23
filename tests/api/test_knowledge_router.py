@@ -8,10 +8,8 @@ from httpx import AsyncClient
 from basic_memory.schemas import (
     EntityResponse,
     CreateEntityResponse,
-    AddObservationsResponse,
     ObservationResponse,
-    CreateRelationsResponse,
-    Relation,
+    RelationResponse,
 )
 
 
@@ -47,16 +45,12 @@ async def add_observations(client, entity_id) -> List[ObservationResponse]:
     # Verify observations were added
     assert response.status_code == 200
     data = response.json()
-    assert data["entity_id"] == entity_id
-    assert len(data["observations"]) == 2
-    assert data["observations"][0]["content"] == "First observation"
-    assert data["observations"][1]["content"] == "Second observation"
 
-    added = AddObservationsResponse.model_validate(data)
-    return added.observations
+    obs_response = EntityResponse.model_validate(data)
+    return obs_response.observations
 
 
-async def create_related_entities(client) -> List[Relation]:  # pyright: ignore [reportReturnType]
+async def create_related_entities(client) -> List[RelationResponse]:  # pyright: ignore [reportReturnType]
     # Create two entities to relate
     entities = [
         {"name": "Source Entity", "entity_type": "test"},
@@ -66,6 +60,7 @@ async def create_related_entities(client) -> List[Relation]:  # pyright: ignore 
     created = create_response.json()["entities"]
     source_id = created[0]["id"]
     target_id = created[1]["id"]
+
     # Create relation between them
     response = await client.post(
         "/knowledge/relations",
@@ -73,17 +68,29 @@ async def create_related_entities(client) -> List[Relation]:  # pyright: ignore 
             "relations": [{"from_id": source_id, "to_id": target_id, "relation_type": "related_to"}]
         },
     )
+
     # Verify relation
     assert response.status_code == 200
     data = response.json()
-    assert len(data["relations"]) == 1
-    relation = data["relations"][0]
-    assert relation["from_id"] == source_id
-    assert relation["to_id"] == target_id
-    assert relation["relation_type"] == "related_to"
 
-    create_response = CreateRelationsResponse.model_validate(data)
-    return create_response.relations
+    relation_response = CreateEntityResponse.model_validate(data)
+
+    assert len(relation_response.entities) == 2
+
+    source_entity = relation_response.entities[0]
+    target_entity = relation_response.entities[1]
+
+    assert len(source_entity.relations) == 1
+    source_relation = source_entity.relations[0]
+    assert source_relation.from_id == source_id
+    assert source_relation.to_id == target_id
+
+    assert len(target_entity.relations) == 1
+    target_relation = target_entity.relations[0]
+    assert target_relation.from_id == source_id
+    assert target_relation.to_id == target_id
+
+    return source_entity.relations + target_entity.relations
 
 
 @pytest.mark.asyncio
@@ -251,7 +258,7 @@ async def test_delete_entity_with_observations(client, observation_repository):
     """Test cascading delete with observations."""
     # Create test data
     entity = await create_entity(client)
-    observations = await add_observations(client, entity.id)
+    await add_observations(client, entity.id)
 
     # Delete entity
     response = await client.post("/knowledge/entities/delete", json={"entity_ids": [entity.id]})
@@ -266,20 +273,24 @@ async def test_delete_entity_with_observations(client, observation_repository):
 @pytest.mark.asyncio
 async def test_delete_observations(client, observation_repository):
     """Test DELETE /knowledge/entities/{entity_id}/observations."""
-    # Create test data
-    entity = await create_entity(client)
-    observations = await add_observations(client, entity.id)  # adds 2
+
+    # Create an entity first
+    create_response = await client.post(
+        "/knowledge/entities", json={"entities": [{"name": "Test Entity", "entity_type": "test"}]}
+    )
+    entity_id = create_response.json()["entities"][0]["id"]
+
+    observations = await add_observations(client, entity_id)  # adds 2
 
     # Delete specific observations
-    request_data = {"entity_id": entity.id, "deletions": [observations[0].content]}
+    request_data = {"entity_id": entity_id, "deletions": [observations[0].content]}
     response = await client.post("/knowledge/observations/delete", json=request_data)
     assert response.status_code == 200
-    assert response.json() == {"deleted": True}
+    data = response.json()
 
-    # Verify only specified observations were deleted
-    remaining = await observation_repository.find_by_entity(entity.id)
-    assert len(remaining) == 2  # because entity originally had 1
-    assert remaining[0].content == observations[1].content
+    del_response = EntityResponse.model_validate(data)
+    assert len(del_response.observations) == 1
+    assert del_response.observations[0].content == observations[1].content
 
 
 @pytest.mark.asyncio
@@ -287,7 +298,7 @@ async def test_delete_relations(client, relation_repository):
     """Test DELETE /knowledge/relations."""
     # Create test data
     relatations = await create_related_entities(client)
-    assert len(relatations) == 1
+    assert len(relatations) == 2
     relation = relatations[0]
 
     # Delete relation
@@ -302,11 +313,12 @@ async def test_delete_relations(client, relation_repository):
     }
     response = await client.post("/knowledge/relations/delete", json=request_data)
     assert response.status_code == 200
-    assert response.json() == {"deleted": True}
+    data = response.json()
 
-    # Verify relation is gone
-    remaining = await relation_repository.find_by_entities(relation.from_id, relation.to_id)
-    assert len(remaining) == 0
+    del_response = CreateEntityResponse.model_validate(data)
+    assert len(del_response.entities) == 2
+    assert len(del_response.entities[0].relations) == 0
+    assert len(del_response.entities[1].relations) == 0
 
 
 @pytest.mark.asyncio
@@ -327,7 +339,11 @@ async def test_delete_nonexistent_observations(client):
     request_data = {"entity_id": entity.id, "deletions": ["Nonexistent observation"]}
     response = await client.post("/knowledge/observations/delete", json=request_data)
     assert response.status_code == 200
-    assert response.json() == {"deleted": False}
+
+    data = response.json()
+    # no op
+    del_response = EntityResponse.model_validate(data)
+    assert del_response == entity
 
 
 @pytest.mark.asyncio
@@ -344,7 +360,10 @@ async def test_delete_nonexistent_relations(client):
     }
     response = await client.post("/knowledge/relations/delete", json=request_data)
     assert response.status_code == 200
-    assert response.json() == {"deleted": False}
+
+    data = response.json()
+    del_response = CreateEntityResponse.model_validate(data)
+    assert del_response.entities == []
 
 
 @pytest.mark.asyncio
@@ -408,7 +427,6 @@ async def test_full_knowledge_flow(client: AsyncClient):
         },
     )
     assert relations_response.status_code == 200
-    assert len(relations_response.json()["relations"]) == 2
 
     # 4. Add observations to main entity
     await client.post(
