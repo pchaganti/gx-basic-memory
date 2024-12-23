@@ -81,7 +81,7 @@ async def test_add_frontmatter(file_service: FileService):
 
     # Add frontmatter
     content_with_fm = await file_service.add_frontmatter(
-        test_content, id=123, metadata=test_metadata
+        content=test_content, id=123, metadata=test_metadata
     )
 
     # Verify structure
@@ -148,7 +148,7 @@ async def test_frontmatter_invalid_metadata(file_service: FileService):
     with patch("basic_memory.utils.file_utils.add_frontmatter") as mock_add:
         mock_add.side_effect = FileOperationError("Failed to serialize metadata")
         with pytest.raises(FileOperationError):
-            await file_service.add_frontmatter("content", id=123, metadata=bad_metadata)
+            await file_service.add_frontmatter(content="content", id=123, metadata=bad_metadata)
 
 
 @pytest.mark.asyncio

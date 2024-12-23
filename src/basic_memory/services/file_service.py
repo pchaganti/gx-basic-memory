@@ -92,8 +92,8 @@ class FileService:
         *,
         id: int,
         content: str,
-        created: datetime,
-        updated: datetime,
+        created: datetime = None,
+        updated: datetime = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
