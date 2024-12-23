@@ -7,6 +7,7 @@ import pytest
 
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema, Relation as RelationSchema
+from basic_memory.services import EntityService
 from basic_memory.services.exceptions import EntityNotFoundError, FileOperationError
 from basic_memory.services.knowledge import KnowledgeService
 
@@ -16,7 +17,7 @@ async def test_get_entity_path(knowledge_service: KnowledgeService):
     """Should generate correct filesystem path for entity."""
     entity = EntityModel(id=1, name="test-entity", entity_type="concept", description="Test entity")
     path = knowledge_service.get_entity_path(entity)
-    assert path == Path("knowledge/concept/test-entity.md")
+    assert path == Path(knowledge_service.base_path / "knowledge/concept/test-entity.md")
 
 
 @pytest.mark.asyncio
@@ -57,9 +58,7 @@ async def test_create_multiple_entities(knowledge_service: KnowledgeService):
 
 
 @pytest.mark.asyncio
-async def test_create_relations(
-    knowledge_service: KnowledgeService, entity_service: "EntityService"
-):
+async def test_create_relations(knowledge_service: KnowledgeService, entity_service: EntityService):
     """Should create relations and update related entity files."""
     # Create test entities
     entity1 = await knowledge_service.create_entity(

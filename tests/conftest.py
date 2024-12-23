@@ -76,7 +76,7 @@ async def test_project_path():
 
         # Create standard directories
         (project_path / "documents").mkdir(parents=True)
-        (project_path / "entities").mkdir(parents=True)
+        (project_path / "knowledge").mkdir(parents=True)
 
         yield project_path
 
@@ -120,13 +120,13 @@ async def relation_repository(
 @pytest_asyncio.fixture
 async def entity_service(entity_repository: EntityRepository) -> EntityService:
     """Create EntityService with repository."""
-    return EntityService(entity_repository)
+    return EntityService(entity_repository=entity_repository)
 
 
 @pytest_asyncio.fixture
 async def relation_service(relation_repository: RelationRepository) -> RelationService:
     """Create RelationService with repository."""
-    return RelationService(relation_repository)
+    return RelationService(relation_repository=relation_repository)
 
 
 @pytest_asyncio.fixture
@@ -136,7 +136,6 @@ async def observation_service(
 ) -> ObservationService:
     """Create ObservationService with repository."""
     return ObservationService(observation_repository)
-    # return ObservationService(observation_repository, entity_service)
 
 
 @pytest.fixture
@@ -158,6 +157,7 @@ async def knowledge_service(
     relation_service: RelationService,
     file_service: FileService,
     knowledge_writer: KnowledgeWriter,
+    test_project_path: Path,
 ) -> KnowledgeService:
     """Create KnowledgeService with dependencies."""
     return KnowledgeService(
@@ -166,6 +166,7 @@ async def knowledge_service(
         relation_service=relation_service,
         file_service=file_service,
         knowledge_writer=knowledge_writer,
+        base_path=test_project_path,
     )
 
 

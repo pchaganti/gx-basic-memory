@@ -1,12 +1,12 @@
 """Entity operations for knowledge service."""
 
+from pathlib import Path
 from typing import Sequence, List
 
 from loguru import logger
 
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema
-from basic_memory.services.entity_service import EntityService
 from .files import FileOperations
 
 

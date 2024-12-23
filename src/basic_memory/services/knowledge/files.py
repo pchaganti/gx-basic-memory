@@ -19,15 +19,17 @@ class FileOperations:
         entity_service: EntityService,
         file_service: FileService,
         knowledge_writer: KnowledgeWriter,
+        base_path: Path,
     ):
         self.entity_service = entity_service
         self.file_service = file_service
         self.knowledge_writer = knowledge_writer
+        self.base_path = base_path
 
     def get_entity_path(self, entity: EntityModel) -> Path:
         """Generate filesystem path for entity."""
         # Store in entities/[type]/[name].md
-        return Path("knowledge") / entity.entity_type / f"{entity.name}.md"
+        return self.base_path / "knowledge" / entity.entity_type / f"{entity.name}.md"
 
     async def write_entity_file(self, entity: EntityModel) -> str:
         """Write entity to filesystem and return checksum."""

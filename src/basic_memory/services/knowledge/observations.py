@@ -24,7 +24,7 @@ class ObservationOperations(RelationOperations):
         logger.debug(f"Adding observations to entity {entity_id}")
 
         try:
-            # Get entity
+            # Get updated entity
             entity = await self.entity_service.get_entity(entity_id)
             if not entity:
                 raise EntityNotFoundError(f"Entity not found: {entity_id}")

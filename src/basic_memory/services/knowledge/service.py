@@ -1,5 +1,7 @@
 """Main knowledge service implementation."""
 
+from pathlib import Path
+
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.services.entity_service import EntityService
 from basic_memory.services.file_service import FileService
@@ -33,6 +35,7 @@ class KnowledgeService(ObservationOperations):
         relation_service: RelationService,
         file_service: FileService,
         knowledge_writer: KnowledgeWriter,
+        base_path: Path,
     ):
         super().__init__(
             entity_service=entity_service,
@@ -40,4 +43,5 @@ class KnowledgeService(ObservationOperations):
             relation_service=relation_service,
             file_service=file_service,
             knowledge_writer=knowledge_writer,
+            base_path=base_path,
         )
