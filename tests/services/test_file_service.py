@@ -1,17 +1,12 @@
 """Tests for file operations service."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from basic_memory.services.exceptions import FileOperationError
 from basic_memory.services.file_service import FileService
-
-
-@pytest.fixture
-def file_service():
-    """Create FileService instance."""
-    return FileService()
 
 
 @pytest.mark.asyncio
@@ -49,9 +44,9 @@ async def test_write_atomic(tmp_path: Path, file_service: FileService):
     temp_path = test_path.with_suffix(".tmp")
 
     # Mock write_file_atomic to raise an error
-    with patch('basic_memory.utils.file_utils.write_file_atomic') as mock_write:
+    with patch("basic_memory.utils.file_utils.write_file_atomic") as mock_write:
         mock_write.side_effect = Exception("Write failed")
-        
+
         # Attempt write that will fail
         with pytest.raises(FileOperationError):
             await file_service.write_file(test_path, "test content")
@@ -133,7 +128,7 @@ async def test_error_handling_invalid_path(tmp_path: Path, file_service: FileSer
     # Try to write to a directory instead of file
     test_path = tmp_path / "test.md"
     test_path.mkdir()  # Create a directory instead of a file
-    
+
     with pytest.raises(FileOperationError):
         await file_service.write_file(test_path, "test")
 
@@ -141,6 +136,7 @@ async def test_error_handling_invalid_path(tmp_path: Path, file_service: FileSer
 @pytest.mark.asyncio
 async def test_frontmatter_invalid_metadata(file_service: FileService):
     """Test error handling for invalid frontmatter metadata."""
+
     # Create an object that can't be serialized to YAML
     class NonSerializable:
         def __getstate__(self):
@@ -149,14 +145,10 @@ async def test_frontmatter_invalid_metadata(file_service: FileService):
     bad_metadata = {"bad": NonSerializable()}
 
     # Attempting to add frontmatter with non-serializable content
-    with patch('basic_memory.utils.file_utils.add_frontmatter') as mock_add:
+    with patch("basic_memory.utils.file_utils.add_frontmatter") as mock_add:
         mock_add.side_effect = FileOperationError("Failed to serialize metadata")
         with pytest.raises(FileOperationError):
-            await file_service.add_frontmatter(
-                "content",
-                id=123,
-                metadata=bad_metadata
-            )
+            await file_service.add_frontmatter("content", id=123, metadata=bad_metadata)
 
 
 @pytest.mark.asyncio

@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from typing import AsyncGenerator
 
+import pytest
 import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import (
 from basic_memory import db
 from basic_memory.config import ProjectConfig
 from basic_memory.db import DatabaseType
+from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.models import Base
 from basic_memory.models.knowledge import Entity
 from basic_memory.repository.document_repository import DocumentRepository
@@ -27,6 +29,8 @@ from basic_memory.services import (
     RelationService,
     DocumentService,
 )
+from basic_memory.services.file_service import FileService
+from basic_memory.services.knowledge_service import KnowledgeService
 
 
 @pytest_asyncio.fixture
@@ -133,6 +137,32 @@ async def relation_service(relation_repository: RelationRepository) -> RelationS
 async def observation_service(observation_repository: ObservationRepository) -> ObservationService:
     """Create ObservationService with repository."""
     return ObservationService(observation_repository)
+
+
+@pytest.fixture
+def file_service():
+    """Create FileService instance."""
+    return FileService()
+
+
+@pytest.fixture
+def knowledge_writer():
+    """Create writer instance."""
+    return KnowledgeWriter()
+
+
+@pytest_asyncio.fixture
+async def knowledge_service(
+    entity_service: EntityService,
+    observation_service: ObservationService,
+    relation_service: RelationService,
+    file_service: FileService,
+    knowledge_writer: KnowledgeWriter,
+) -> KnowledgeService:
+    """Create KnowledgeService with dependencies."""
+    return KnowledgeService(
+        entity_service, observation_service, relation_service, file_service, knowledge_writer
+    )
 
 
 @pytest_asyncio.fixture(scope="function")

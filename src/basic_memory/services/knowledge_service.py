@@ -32,7 +32,7 @@ class KnowledgeService:
         entity_service: EntityService,
         observation_service: ObservationService,
         relation_service: RelationService,
-        file_service: FileService,  # FileService
+        file_service: FileService,
         knowledge_writer: KnowledgeWriter,
     ):
         self.entity_service = entity_service
