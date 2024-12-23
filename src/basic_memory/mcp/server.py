@@ -7,7 +7,7 @@ Uses proper lifecycle management and logging to ensure reliable operation.
 import asyncio
 import json
 import sys
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from httpx import AsyncClient, ASGITransport
 from loguru import logger
@@ -24,7 +24,7 @@ from mcp.types import (
     ServerCapabilities,
     ToolsCapability,
 )
-from pydantic import TypeAdapter, AnyUrl, ValidationError
+from pydantic import TypeAdapter, AnyUrl, ValidationError, BaseModel, Field, constr
 
 from basic_memory.api.app import app as fastapi_app
 from basic_memory.schemas import (
@@ -51,105 +51,125 @@ MIME_TYPE = "application/vnd.basic-memory+json"
 server = Server("basic-memory")
 
 
+class IdRequest(BaseModel):
+    """Validates ID parameters."""
+    id: int = Field(gt=0, description="Resource ID")
+
+
+class DocumentRequest(BaseModel):
+    """Validates document creation."""
+    path: constr(min_length=1) = Field(..., description="Document path")
+    content: str = Field(..., description="Document content")
+    doc_metadata: Optional[Dict[str, Any]] = Field(None, description="Optional document metadata")
+
+
+# Tool definitions with schemas and endpoints
+TOOLS = {
+    # Knowledge graph tools
+    "create_entities": {
+        "schema": CreateEntityRequest,
+        "endpoint": "/knowledge/entities",
+        "method": "post",
+        "description": "Create multiple new entities",
+    },
+    "search_nodes": {
+        "schema": SearchNodesRequest,
+        "endpoint": "/knowledge/search",
+        "method": "post",
+        "description": "Search for nodes",
+    },
+    "open_nodes": {
+        "schema": OpenNodesRequest,
+        "endpoint": "/knowledge/nodes",
+        "method": "post",
+        "description": "Open specific nodes",
+    },
+    "add_observations": {
+        "schema": AddObservationsRequest,
+        "endpoint": "/knowledge/observations",
+        "method": "post",
+        "description": "Add observations",
+    },
+    "create_relations": {
+        "schema": CreateRelationsRequest,
+        "endpoint": "/knowledge/relations",
+        "method": "post",
+        "description": "Create relations",
+    },
+    "delete_entities": {
+        "schema": DeleteEntitiesRequest,
+        "endpoint": "/knowledge/entities/delete",
+        "method": "post",
+        "description": "Delete entities",
+    },
+    "delete_observations": {
+        "schema": DeleteObservationsRequest,
+        "endpoint": "/knowledge/observations/delete",
+        "method": "post",
+        "description": "Delete observations",
+    },
+    "delete_relations": {
+        "schema": DeleteRelationsRequest,
+        "endpoint": "/knowledge/relations/delete",
+        "method": "post",
+        "description": "Delete relations",
+    },
+    # Document tools
+    "create_document": {
+        "schema": DocumentRequest,  # Use our new validator
+        "endpoint": "/documents",
+        "method": "post",
+        "description": "Create a new document",
+    },
+    "list_documents": {
+        "schema": None,  # No validation needed
+        "endpoint": "/documents",
+        "method": "get",
+        "description": "List all documents",
+    },
+    "get_document": {
+        "schema": IdRequest,
+        "endpoint": "/documents/{id}",
+        "method": "get",
+        "description": "Get a document by ID",
+    },
+    "update_document": {
+        "schema": DocumentUpdateRequest,
+        "endpoint": "/documents/{id}",
+        "method": "put",
+        "description": "Update a document by ID",
+    },
+    "delete_document": {
+        "schema": IdRequest,
+        "endpoint": "/documents/{id}",
+        "method": "delete",
+        "description": "Delete a document by ID",
+    },
+}
+
+
 @server.list_tools()
 async def handle_list_tools() -> List[Tool]:
     """Define the available tools."""
     logger.debug("Listing available tools")
-    return [
-        # Knowledge graph tools
-        Tool(
-            name="create_entities",
-            description="Create multiple new entities",
-            inputSchema=CreateEntityRequest.model_json_schema(),
-        ),
-        Tool(
-            name="search_nodes",
-            description="Search for nodes",
-            inputSchema=SearchNodesRequest.model_json_schema(),
-        ),
-        Tool(
-            name="open_nodes",
-            description="Open specific nodes",
-            inputSchema=OpenNodesRequest.model_json_schema(),
-        ),
-        Tool(
-            name="add_observations",
-            description="Add observations",
-            inputSchema=AddObservationsRequest.model_json_schema(),
-        ),
-        Tool(
-            name="create_relations",
-            description="Create relations",
-            inputSchema=CreateRelationsRequest.model_json_schema(),
-        ),
-        Tool(
-            name="delete_entities",
-            description="Delete entities",
-            inputSchema=DeleteEntitiesRequest.model_json_schema(),
-        ),
-        Tool(
-            name="delete_observations",
-            description="Delete observations",
-            inputSchema=DeleteObservationsRequest.model_json_schema(),
-        ),
-        Tool(
-            name="delete_relations",
-            description="Delete relations",
-            inputSchema=DeleteRelationsRequest.model_json_schema(),
-        ),
-        # Document tools
-        Tool(
-            name="create_document",
-            description="Create a new document",
-            inputSchema=DocumentCreateRequest.model_json_schema(),
-        ),
-        Tool(
-            name="list_documents",
-            description="List all documents",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "additionalProperties": False,
-            },
-        ),
-        Tool(
-            name="get_document",
-            description="Get a document by ID",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "description": "Document ID"
-                    },
-                },
-                "required": ["id"],
-                "additionalProperties": False,
-            },
-        ),
-        Tool(
-            name="update_document",
-            description="Update a document by ID",
-            inputSchema=DocumentUpdateRequest.model_json_schema(),
-        ),
-        Tool(
-            name="delete_document",
-            description="Delete a document by ID",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "description": "Document ID"
-                    },
-                },
-                "required": ["id"],
-                "additionalProperties": False,
-            },
-        ),
-    ]
+    tools = []
+    
+    for name, config in TOOLS.items():
+        schema = config["schema"].model_json_schema() if config["schema"] else {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        }
+        
+        tools.append(
+            Tool(
+                name=name,
+                description=config["description"],
+                inputSchema=schema,
+            )
+        )
+    
+    return tools
 
 
 async def call_tool_endpoint(endpoint: str, json: dict[str, Any], method: str = "post"):
@@ -162,7 +182,7 @@ async def call_tool_endpoint(endpoint: str, json: dict[str, Any], method: str = 
             if method == "post":
                 response = await client.post(endpoint, json=json)
             elif method == "get":
-                # For GET requests, don't send body
+                # For GET requests, don't send ID in params
                 params = {k:v for k,v in json.items() if k != "id"}
                 response = await client.get(endpoint, params=params)
             elif method == "put":
@@ -196,50 +216,20 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[Embedde
         logger.info(f"Tool call: {name}")
         logger.debug(f"Arguments: {arguments}")
 
-        # Map tools to FastAPI endpoints and methods
-        handlers = {
-            # Knowledge graph endpoints
-            "create_entities": ("/knowledge/entities", "post"),
-            "search_nodes": ("/knowledge/search", "post"),
-            "open_nodes": ("/knowledge/nodes", "post"),
-            "add_observations": ("/knowledge/observations", "post"),
-            "create_relations": ("/knowledge/relations", "post"),
-            "delete_entities": ("/knowledge/entities/delete", "post"),
-            "delete_observations": ("/knowledge/observations/delete", "post"),
-            "delete_relations": ("/knowledge/relations/delete", "post"),
-            # Document endpoints
-            "create_document": ("/documents", "post"),
-            "list_documents": ("/documents", "get"),
-            "get_document": ("/documents/{id}", "get"),
-            "update_document": ("/documents/{id}", "put"),
-            "delete_document": ("/documents/{id}", "delete"),
-        }
-
-        # Get handler for tool
-        handler = handlers.get(name)
-        if handler is None:
+        # Get tool configuration
+        tool_config = TOOLS.get(name)
+        if tool_config is None:
             raise McpError(METHOD_NOT_FOUND, f"Unknown tool: {name}")
 
-        endpoint, method = handler
+        # Validate arguments using schema if one exists
+        if tool_config["schema"]:
+            try:
+                tool_config["schema"].model_validate(arguments)
+            except ValidationError as e:
+                raise McpError(INVALID_PARAMS, str(e))
 
-        # Validate tool arguments for common fields
-        if "id" in arguments:
-            if not isinstance(arguments["id"], int):
-                raise McpError(INVALID_PARAMS, "ID must be an integer")
-            if arguments["id"] < 1:
-                raise McpError(INVALID_PARAMS, "ID must be greater than 0")
-
-        if name == "create_document" and (
-            "path" not in arguments or 
-            "content" not in arguments
-        ):
-            raise McpError(INVALID_PARAMS, "Document creation requires path and content")
-
-        if name == "update_document" and (
-            "content" not in arguments or
-            "id" not in arguments
-        ):
-            raise McpError(INVALID_PARAMS, "Document update requires content and ID")
+        endpoint = tool_config["endpoint"]
+        method = tool_config["method"]
 
         # Format endpoint for ID-based routes
         if "{id}" in endpoint:
@@ -256,15 +246,13 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[Embedde
             error_data = response.json()
             error_detail = error_data.get("detail", "")
             
-            # For validation errors, always raise INVALID_PARAMS
+            # All validation errors are INVALID_PARAMS
             if response.status_code == 422:
                 raise McpError(INVALID_PARAMS, error_detail)
-            # For document not found, use INVALID_PARAMS
-            elif response.status_code == 404 and "Document not found" in str(error_detail):
+            # Resource not found is also INVALID_PARAMS
+            elif response.status_code == 404 and "not found" in str(error_detail).lower():
                 raise McpError(INVALID_PARAMS, error_detail)
-            # For other 404s, use METHOD_NOT_FOUND
-            elif response.status_code == 404:
-                raise McpError(METHOD_NOT_FOUND, error_detail or "Not found")
+            # Other errors are INTERNAL_ERROR
             else:
                 raise McpError(INTERNAL_ERROR, error_detail or "Internal error")
 
