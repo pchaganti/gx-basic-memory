@@ -45,8 +45,6 @@ async def create_relations(
     data: CreateRelationsRequest, knowledge_service: KnowledgeServiceDep
 ) -> CreateEntityResponse:
     """Create relations between entities."""
-
-    # TODO knowledge_service.create_relations should return updated Entities
     updated_entities = await knowledge_service.create_relations(data.relations)
     return CreateEntityResponse(
         entities=[EntityResponse.model_validate(entity) for entity in updated_entities]
@@ -119,16 +117,14 @@ async def delete_observations(
 ) -> EntityResponse:
     """Delete observations from an entity."""
     entity_id = data.entity_id
-
-    # TODO add knowledge_service.delete_observations
     updated_entity = await knowledge_service.delete_observations(entity_id, data.deletions)
     return EntityResponse.model_validate(updated_entity)
 
 
-@router.post("/relations/delete", response_model=EntityResponse)
+@router.post("/relations/delete", response_model=CreateEntityResponse)
 async def delete_relations(
     data: DeleteRelationsRequest, knowledge_service: KnowledgeServiceDep
-) -> EntityResponse:
+) -> CreateEntityResponse:
     """Delete relations between entities."""
     to_delete = [
         {
@@ -138,6 +134,7 @@ async def delete_relations(
         }
         for relation in data.relations
     ]
-    # TODO add knowledge_service.delete_relations
-    updated_entity = await knowledge_service.delete_relations(to_delete)
-    return EntityResponse.model_validate(updated_entity)
+    updated_entities = await knowledge_service.delete_relations(to_delete)
+    return CreateEntityResponse(
+        entities=[EntityResponse.model_validate(entity) for entity in updated_entities]
+    )

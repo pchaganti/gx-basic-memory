@@ -99,15 +99,17 @@ async def test_add_observations(knowledge_service: KnowledgeService):
 
     # Add observations
     observations = ["Test observation 1", "Test observation 2"]
-    updated = await knowledge_service.add_observations(entity.id, observations, "Test context")
+    updated_entity = await knowledge_service.add_observations(
+        entity.id, observations, "Test context"
+    )
 
     # Verify observations in DB
-    assert len(updated.observations) == 2
-    assert updated.observations[0].content == "Test observation 1"
-    assert updated.observations[1].content == "Test observation 2"
+    assert len(updated_entity.observations) == 2
+    assert updated_entity.observations[0].content == "Test observation 1"
+    assert updated_entity.observations[1].content == "Test observation 2"
 
     # Verify file was updated
-    file_path = knowledge_service.get_entity_path(updated)
+    file_path = knowledge_service.get_entity_path(updated_entity)
     content, _ = await knowledge_service.file_service.read_file(file_path)
     for obs in observations:
         assert obs in content
