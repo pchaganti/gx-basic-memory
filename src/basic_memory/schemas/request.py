@@ -201,13 +201,13 @@ class CreateRelationsRequest(BaseModel):
 ## document
 
 
-class DocumentCreate(BaseModel):
+class DocumentCreateRequest(BaseModel):
     path: str
     content: str
     doc_metadata: Optional[Dict[str, Any]] = None
 
 
-class DocumentUpdate(BaseModel):
+class DocumentUpdateRequest(BaseModel):
     """Update an existing document by ID."""
 
     id: int  # Document ID is required for updates
@@ -215,7 +215,7 @@ class DocumentUpdate(BaseModel):
     doc_metadata: Optional[Dict[str, Any]] = None
 
 
-class DocumentPatch(BaseModel):
+class DocumentPatchRequest(BaseModel):
     id: int
     content: Optional[str] = None
     doc_metadata: Optional[Dict[str, Any]] = None

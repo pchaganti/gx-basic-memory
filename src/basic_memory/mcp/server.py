@@ -24,7 +24,7 @@ from mcp.types import (
     ServerCapabilities,
     ToolsCapability,
 )
-from pydantic import TypeAdapter, AnyUrl
+from pydantic import TypeAdapter, AnyUrl, ValidationError
 
 from basic_memory.api.app import app as fastapi_app
 from basic_memory.schemas import (
@@ -36,6 +36,8 @@ from basic_memory.schemas import (
     DeleteEntitiesRequest,
     DeleteObservationsRequest,
     DeleteRelationsRequest,
+    DocumentCreateRequest,
+    DocumentUpdateRequest,
 )
 
 BASE_URL = "http://test"
@@ -54,6 +56,7 @@ async def handle_list_tools() -> List[Tool]:
     """Define the available tools."""
     logger.debug("Listing available tools")
     return [
+        # Knowledge graph tools
         Tool(
             name="create_entities",
             description="Create multiple new entities",
@@ -94,18 +97,83 @@ async def handle_list_tools() -> List[Tool]:
             description="Delete relations",
             inputSchema=DeleteRelationsRequest.model_json_schema(),
         ),
+        # Document tools
+        Tool(
+            name="create_document",
+            description="Create a new document",
+            inputSchema=DocumentCreateRequest.model_json_schema(),
+        ),
+        Tool(
+            name="list_documents",
+            description="List all documents",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="get_document",
+            description="Get a document by ID",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Document ID"
+                    },
+                },
+                "required": ["id"],
+                "additionalProperties": False,
+            },
+        ),
+        Tool(
+            name="update_document",
+            description="Update a document by ID",
+            inputSchema=DocumentUpdateRequest.model_json_schema(),
+        ),
+        Tool(
+            name="delete_document",
+            description="Delete a document by ID",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Document ID"
+                    },
+                },
+                "required": ["id"],
+                "additionalProperties": False,
+            },
+        ),
     ]
 
 
-async def call_tool_endpoint(endpoint: str, json: dict[str, Any]):
+async def call_tool_endpoint(endpoint: str, json: dict[str, Any], method: str = "post"):
     """Makes a request to a FastAPI endpoint with a fresh client."""
     async with AsyncClient(
         transport=ASGITransport(app=fastapi_app), base_url=BASE_URL, timeout=30.0
     ) as client:
-        logger.debug(f"Calling API endpoint {endpoint} with arguments: {json}")
-        response = await client.post(endpoint, json=json)
-        logger.debug(response.json())
-        return response
+        logger.debug(f"Calling API endpoint {endpoint} with {method}: {json}")
+        try:
+            if method == "post":
+                response = await client.post(endpoint, json=json)
+            elif method == "get":
+                # For GET requests, don't send body
+                params = {k:v for k,v in json.items() if k != "id"}
+                response = await client.get(endpoint, params=params)
+            elif method == "put":
+                response = await client.put(endpoint, json=json)
+            elif method == "delete":
+                response = await client.delete(endpoint)
+            logger.debug(response.json() if response.content else "No content")
+            return response
+        except ValidationError as e:
+            logger.error(f"Validation error: {e}")
+            raise McpError(INVALID_PARAMS, str(e))
 
 
 def create_response(data: Dict[str, Any]) -> EmbeddedResource:
@@ -128,43 +196,92 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[Embedde
         logger.info(f"Tool call: {name}")
         logger.debug(f"Arguments: {arguments}")
 
-        # Map tools to FastAPI endpoints
+        # Map tools to FastAPI endpoints and methods
         handlers = {
-            "create_entities": "/knowledge/entities",
-            "search_nodes": "/knowledge/search",
-            "open_nodes": "/knowledge/nodes",
-            "add_observations": "/knowledge/observations",
-            "create_relations": "/knowledge/relations",
-            "delete_entities": "/knowledge/entities/delete",
-            "delete_observations": "/knowledge/observations/delete",
-            "delete_relations": "/knowledge/relations/delete",
+            # Knowledge graph endpoints
+            "create_entities": ("/knowledge/entities", "post"),
+            "search_nodes": ("/knowledge/search", "post"),
+            "open_nodes": ("/knowledge/nodes", "post"),
+            "add_observations": ("/knowledge/observations", "post"),
+            "create_relations": ("/knowledge/relations", "post"),
+            "delete_entities": ("/knowledge/entities/delete", "post"),
+            "delete_observations": ("/knowledge/observations/delete", "post"),
+            "delete_relations": ("/knowledge/relations/delete", "post"),
+            # Document endpoints
+            "create_document": ("/documents", "post"),
+            "list_documents": ("/documents", "get"),
+            "get_document": ("/documents/{id}", "get"),
+            "update_document": ("/documents/{id}", "put"),
+            "delete_document": ("/documents/{id}", "delete"),
         }
 
         # Get handler for tool
-        endpoint = handlers.get(name)
-        if endpoint is None:
+        handler = handlers.get(name)
+        if handler is None:
             raise McpError(METHOD_NOT_FOUND, f"Unknown tool: {name}")
 
+        endpoint, method = handler
+
+        # Validate tool arguments for common fields
+        if "id" in arguments:
+            if not isinstance(arguments["id"], int):
+                raise McpError(INVALID_PARAMS, "ID must be an integer")
+            if arguments["id"] < 1:
+                raise McpError(INVALID_PARAMS, "ID must be greater than 0")
+
+        if name == "create_document" and (
+            "path" not in arguments or 
+            "content" not in arguments
+        ):
+            raise McpError(INVALID_PARAMS, "Document creation requires path and content")
+
+        if name == "update_document" and (
+            "content" not in arguments or
+            "id" not in arguments
+        ):
+            raise McpError(INVALID_PARAMS, "Document update requires content and ID")
+
+        # Format endpoint for ID-based routes
+        if "{id}" in endpoint:
+            id = arguments.get("id")
+            if id is None:
+                raise McpError(INVALID_PARAMS, "ID parameter required")
+            endpoint = endpoint.format(id=id)
+
         # Make API call
-        response = await call_tool_endpoint(endpoint, arguments)
+        response = await call_tool_endpoint(endpoint, arguments, method)
 
         # Handle HTTP errors
         if response.status_code >= 400:
             error_data = response.json()
-            if response.status_code == 404:
-                raise McpError(METHOD_NOT_FOUND, error_data.get("detail", "Not found"))
-            elif response.status_code == 422:
-                raise McpError(INVALID_PARAMS, error_data.get("detail", "Invalid parameters"))
+            error_detail = error_data.get("detail", "")
+            
+            # For validation errors, always raise INVALID_PARAMS
+            if response.status_code == 422:
+                raise McpError(INVALID_PARAMS, error_detail)
+            # For document not found, use INVALID_PARAMS
+            elif response.status_code == 404 and "Document not found" in str(error_detail):
+                raise McpError(INVALID_PARAMS, error_detail)
+            # For other 404s, use METHOD_NOT_FOUND
+            elif response.status_code == 404:
+                raise McpError(METHOD_NOT_FOUND, error_detail or "Not found")
             else:
-                raise McpError(INTERNAL_ERROR, error_data.get("detail", "Internal error"))
+                raise McpError(INTERNAL_ERROR, error_detail or "Internal error")
 
         # Create response
-        result = create_response(response.json())
+        if response.content:  # Some endpoints (like DELETE) return no content
+            result = create_response(response.json())
+        else:
+            result = create_response({"status": "success"})
+
         logger.debug(f"Tool call successful: {result}")
         return [result]
 
-    except ValueError as e:
+    except ValidationError as e:
         logger.error(f"Validation error: {e}")
+        raise McpError(INVALID_PARAMS, str(e))
+    except ValueError as e:
+        logger.error(f"Value error: {e}")
         raise McpError(INVALID_PARAMS, str(e))
     except Exception as e:
         logger.error(f"Error handling tool call: {e}")

@@ -26,6 +26,14 @@ async def test_missing_required_field(app):
         await handle_call_tool("create_entities", {})
     assert "entities" in str(exc.value).lower()
 
+    with pytest.raises(McpError) as exc:
+        await handle_call_tool("create_document", {})
+    assert "path" in str(exc.value).lower() or "content" in str(exc.value).lower()
+
+    with pytest.raises(McpError) as exc:
+        await handle_call_tool("get_document", {})
+    assert "id" in str(exc.value).lower()
+
 
 @pytest.mark.asyncio
 async def test_empty_arrays(app):
@@ -50,6 +58,10 @@ async def test_invalid_field_types(app):
         await handle_call_tool("create_entities", {"entities": "not an array"})
     assert "array" in str(exc.value).lower() or "list" in str(exc.value).lower()
 
+    with pytest.raises(McpError) as exc:
+        await handle_call_tool("get_document", {"id": "not an integer"})
+    assert "integer" in str(exc.value).lower()
+
 
 @pytest.mark.asyncio
 async def test_invalid_nested_fields(app):
@@ -68,6 +80,17 @@ async def test_invalid_nested_fields(app):
             },
         )
     assert "entity_type" in str(exc.value).lower()
+
+    with pytest.raises(McpError) as exc:
+        await handle_call_tool(
+            "create_document",
+            {
+                "path": "test.md",
+                "content": "test",
+                "doc_metadata": "not an object"  # Should be dict/null
+            },
+        )
+    assert "doc_metadata" in str(exc.value).lower()
 
 
 @pytest.mark.asyncio
@@ -146,3 +169,65 @@ async def test_edge_case_validation_search_len(app):
             "search_nodes",
             {"query": "x" * 10000},  # Extremely long query
         )
+
+
+@pytest.mark.asyncio
+async def test_document_endpoint_validation(app):
+    """Test validation specific to document endpoints."""
+    # Invalid ID format for get_document
+    with pytest.raises(McpError) as exc:
+        await handle_call_tool("get_document", {"id": -1})
+    assert INVALID_PARAMS == exc.value.args[0]
+
+    # Invalid document path
+    with pytest.raises(McpError) as exc:
+        await handle_call_tool(
+            "create_document",
+            {
+                "path": "",  # Empty path
+                "content": "test content"
+            }
+        )
+    assert INVALID_PARAMS == exc.value.args[0]
+
+    # Update without ID match
+    with pytest.raises(McpError) as exc:
+        await handle_call_tool(
+            "update_document",
+            {
+                "id": 1,
+                "content": "new content",
+                "doc_metadata": None
+            }
+        )
+    assert "id" in str(exc.value).lower()
+
+
+@pytest.mark.asyncio
+async def test_document_http_methods(app):
+    """Test that document endpoints use correct HTTP methods."""
+    # Test GET endpoints
+    await handle_call_tool("list_documents", {})
+    await handle_call_tool("get_document", {"id": 1})
+
+    # Test POST endpoint
+    await handle_call_tool(
+        "create_document",
+        {
+            "path": "test.md",
+            "content": "test content"
+        }
+    )
+
+    # Test PUT endpoint
+    await handle_call_tool(
+        "update_document",
+        {
+            "id": 1,
+            "content": "updated content",
+            "doc_metadata": None
+        }
+    )
+
+    # Test DELETE endpoint
+    await handle_call_tool("delete_document", {"id": 1})

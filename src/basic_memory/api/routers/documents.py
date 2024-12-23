@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 
 from basic_memory.deps import DocumentServiceDep
-from basic_memory.schemas.request import DocumentCreate, DocumentUpdate, DocumentPatch
+from basic_memory.schemas.request import DocumentCreateRequest, DocumentUpdateRequest
 from basic_memory.schemas.response import DocumentResponse, DocumentCreateResponse
 from basic_memory.services.document_service import (
     DocumentNotFoundError,
@@ -18,11 +18,11 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 @router.post("/", response_model=DocumentCreateResponse, status_code=201)
 async def create_document(
-    doc: DocumentCreate,
+    doc: DocumentCreateRequest,
     service: DocumentServiceDep,
 ) -> DocumentCreateResponse:
     """Create a new document.
-    
+
     The document will be created with appropriate frontmatter including:
     - Generated ID
     - Creation timestamp
@@ -61,10 +61,7 @@ async def get_document(
         response = DocumentResponse.model_validate(doc_dict)
         return response
     except DocumentNotFoundError:
-        raise HTTPException(
-            status_code=404, 
-            detail=f"Document not found: {id}"
-        )
+        raise HTTPException(status_code=404, detail=f"Document not found: {id}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -72,15 +69,14 @@ async def get_document(
 @router.put("/{id:int}", response_model=DocumentResponse)
 async def update_document(
     id: int,
-    doc: DocumentUpdate,
+    doc: DocumentUpdateRequest,
     service: DocumentServiceDep,
 ) -> DocumentResponse:
     """Update a document by ID."""
     # Verify IDs match
     if doc.id != id:
         raise HTTPException(
-            status_code=400,
-            detail="Document ID in URL must match ID in request body"
+            status_code=400, detail="Document ID in URL must match ID in request body"
         )
 
     try:
@@ -92,10 +88,7 @@ async def update_document(
         doc_dict = document.__dict__ | {"content": doc.content}
         return DocumentResponse.model_validate(doc_dict)
     except DocumentNotFoundError:
-        raise HTTPException(
-            status_code=404, 
-            detail=f"Document not found: {id}"
-        )
+        raise HTTPException(status_code=404, detail=f"Document not found: {id}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -109,9 +102,6 @@ async def delete_document(
     try:
         await service.delete_document_by_id(id)
     except DocumentNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Document not found: {id}"
-        )
+        raise HTTPException(status_code=404, detail=f"Document not found: {id}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
