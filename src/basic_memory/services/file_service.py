@@ -1,11 +1,9 @@
 """Service for file operations with checksum tracking."""
 
-import hashlib
 from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 
-import yaml
 from loguru import logger
 
 from basic_memory.services.exceptions import FileOperationError
@@ -90,14 +88,22 @@ class FileService:
             raise FileOperationError(f"Failed to delete file: {e}")
 
     async def add_frontmatter(
-        self, content: str, id: int, metadata: Optional[Dict[str, Any]] = None
+        self,
+        *,
+        id: int,
+        content: str,
+        created: datetime,
+        updated: datetime,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Add YAML frontmatter to content.
 
         Args:
-            content: Content to add frontmatter to
             id: ID to include in frontmatter
+            content: Content to add frontmatter to
+            created: the time the file was created
+            updated: the last time the file was updated
             metadata: Optional additional metadata
 
         Returns:
@@ -109,7 +115,9 @@ class FileService:
         try:
             # Generate frontmatter with timestamps
             now = datetime.now(UTC).isoformat()
-            frontmatter = {"id": id, "created": now, "modified": now}
+            created_at = created or now
+            updated_at = updated or now
+            frontmatter = {"id": id, "created": created_at, "modified": updated_at}
             if metadata:
                 frontmatter.update(metadata)
 

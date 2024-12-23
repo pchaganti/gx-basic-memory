@@ -5,7 +5,7 @@ from typing import Sequence, List
 
 from loguru import logger
 
-from basic_memory.markdown.knowledge_parser import KnowledgeParser
+from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema, Relation as RelationSchema
 from basic_memory.services.entity_service import EntityService
@@ -33,28 +33,34 @@ class KnowledgeService:
         observation_service: ObservationService,
         relation_service: RelationService,
         file_service: FileService,  # FileService
-        knowledge_parser: KnowledgeParser,
+        knowledge_writer: KnowledgeWriter,
     ):
         self.entity_service = entity_service
         self.observation_service = observation_service
         self.relation_service = relation_service
         self.file_service = file_service
-        self.knowledge_parser = knowledge_parser
+        self.knowledge_writer = knowledge_writer
 
     def get_entity_path(self, entity: EntityModel) -> Path:
         """Generate filesystem path for entity."""
         # Store in entities/[type]/[name].md
-        return Path("entities") / entity.entity_type / f"{entity.name}.md"
+        return Path("knowledge") / entity.entity_type / f"{entity.name}.md"
 
     async def write_entity_file(self, entity: EntityModel) -> str:
         """Write entity to filesystem and return checksum."""
         try:
             # Format content
             path = self.get_entity_path(entity)
-            content = await self.knowledge_parser.format_entity(entity)
+            entity_content = await self.knowledge_writer.format_content(entity)
+            file_content = await self.file_service.add_frontmatter(
+                id=entity.id,
+                content=entity_content,
+                created=entity.created_at,
+                updated=entity.updated_at,
+            )
 
             # Write and get checksum
-            return await self.file_service.write_file(path, content)
+            return await self.file_service.write_file(path, file_content)
 
         except Exception as e:
             logger.error(f"Failed to write entity file: {e}")
@@ -80,7 +86,7 @@ class KnowledgeService:
             if "db_entity" in locals():
                 await self.entity_service.delete_entity(db_entity.id)  # pyright: ignore [reportPossiblyUnboundVariable]
             if "path" in locals():
-                await self.file_service.delete_file(path)  # pyright: ignore [reportUndefinedVariable]
+                await self.file_service.delete_file(path)  # pyright: ignore [reportUndefinedVariable]  # noqa: F821
             logger.error(f"Failed to create entity: {e}")
             raise
 
