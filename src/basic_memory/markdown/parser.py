@@ -1,9 +1,9 @@
 """Parser for Basic Memory entity markdown files."""
 
 from datetime import datetime
-import yaml
 from typing import Dict, Any, Optional
 
+import yaml
 from loguru import logger
 
 from basic_memory.markdown.base_parser import MarkdownParser, ParseError
@@ -26,7 +26,13 @@ class EntityParser(MarkdownParser[Entity]):
     - Optional description
     - Observations section (## Observations)
     - Relations section (## Relations)
-    - Optional # Metadata section with YAML between ---
+    - Optional # Metadata section with YAML in code block
+
+    Example Metadata:
+    ```yml
+    field: value
+    other: other value
+    ```
     """
 
     async def parse_metadata(self, metadata_section: Optional[str]) -> EntityMetadata:
@@ -35,17 +41,19 @@ class EntityParser(MarkdownParser[Entity]):
             if not metadata_section:
                 return EntityMetadata()
 
-            # Find YAML content between --- markers
             lines = metadata_section.strip().splitlines()
             yaml_lines = []
             in_yaml = False
 
+            # Look for ```yml or ```yaml starter
             for line in lines:
-                if line.strip() == "---":
-                    in_yaml = not in_yaml  # Toggle state
-                    continue
+                stripped = line.strip().lower()
                 if in_yaml:
+                    if stripped == "```":
+                        break
                     yaml_lines.append(line)
+                elif stripped in ["```yml", "```yaml"]:
+                    in_yaml = True
 
             if not yaml_lines:
                 return EntityMetadata()
@@ -79,8 +87,10 @@ class EntityParser(MarkdownParser[Entity]):
                 try:
                     if not isinstance(frontmatter[date_field], datetime):
                         datetime.fromisoformat(str(frontmatter[date_field]).replace("Z", "+00:00"))
-                except (ValueError, TypeError) as e:
-                    raise ParseError(f"Invalid date format for {date_field}: {frontmatter[date_field]}")
+                except (ValueError, TypeError):
+                    raise ParseError(
+                        f"Invalid date format for {date_field}: {frontmatter[date_field]}"
+                    )
 
             # Prepare fields
             processed = {
@@ -132,10 +142,7 @@ class EntityParser(MarkdownParser[Entity]):
                             relations.append(relation)
 
             return EntityContent(
-                title=title,
-                description=description,
-                observations=observations,
-                relations=relations
+                title=title, description=description, observations=observations, relations=relations
             )
 
         except ParseError:
@@ -169,7 +176,7 @@ class EntityParser(MarkdownParser[Entity]):
                 if not category:
                     return None
 
-                content = line[close_bracket + 1:].strip()
+                content = line[close_bracket + 1 :].strip()
             else:
                 # No category brackets
                 raise ParseError("missing category")
@@ -205,10 +212,7 @@ class EntityParser(MarkdownParser[Entity]):
                 raise ParseError("Empty content")
 
             return Observation(
-                category=category,
-                content=content,
-                tags=tags if tags else None,
-                context=context
+                category=category, content=content, tags=tags if tags else None, context=context
             )
 
         except ParseError:
@@ -268,8 +272,4 @@ class EntityParser(MarkdownParser[Entity]):
         self, frontmatter: EntityFrontmatter, content: EntityContent, metadata: EntityMetadata
     ) -> Entity:
         """Create entity from parsed sections."""
-        return Entity(
-            frontmatter=frontmatter,
-            content=content,
-            metadata=metadata
-        )
+        return Entity(frontmatter=frontmatter, content=content, metadata=metadata)

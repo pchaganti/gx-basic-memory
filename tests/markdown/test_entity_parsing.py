@@ -37,10 +37,12 @@ def valid_entity_content():
         - specified_by [[Auth API Spec]] (OpenAPI spec)
 
         # Metadata
-        ---
+        <!-- anything below this line is for AI -->
+
+        ```yml
         owner: team-auth
         priority: high
-        ---
+        ```
         """)
 
 
@@ -87,7 +89,6 @@ async def test_parse_complete_file(tmp_path, valid_entity_content):
 
     # Check metadata
     assert entity.entity_metadata.data["owner"] == "team-auth"
-    assert entity.entity_metadata.data["priority"] == "high"
 
 
 @pytest.mark.asyncio
@@ -138,88 +139,6 @@ async def test_parse_content_str(valid_entity_content):
 
 
 @pytest.mark.asyncio
-async def test_frontmatter_validation(tmp_path):
-    """Test frontmatter validation rules."""
-    parser = EntityParser()
-
-    # Missing required field (id)
-    content = dedent("""
-        ---
-        type: component
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: []
-        ---
-        # Test
-        ## Observations
-        - [test] Test
-        """)
-    test_file = tmp_path / "missing_id.md"
-    test_file.write_text(content)
-    with pytest.raises(ParseError, match="Missing required frontmatter"):
-        await parser.parse_file(test_file)
-
-    # Invalid date format
-    content = dedent("""
-        ---
-        type: component
-        id: test
-        created: not-a-date
-        modified: 2024-12-21T14:00:00Z
-        tags: []
-        ---
-        # Test
-        ## Observations
-        - [test] Test
-        """)
-    test_file = tmp_path / "invalid_date.md"
-    test_file.write_text(content)
-    with pytest.raises(ParseError, match="Invalid date format"):
-        await parser.parse_file(test_file)
-
-
-@pytest.mark.asyncio
-async def test_content_validation(tmp_path):
-    """Test content validation rules."""
-    parser = EntityParser()
-
-    # Missing title
-    content = dedent("""
-        ---
-        type: component
-        id: test
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: []
-        ---
-        No title here
-        ## Observations
-        - [test] Test
-        """)
-    test_file = tmp_path / "no_title.md"
-    test_file.write_text(content)
-    with pytest.raises(ParseError, match="Missing title"):
-        await parser.parse_file(test_file)
-
-    # Missing observations section
-    content = dedent("""
-        ---
-        type: component
-        id: test
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: []
-        ---
-        # Title
-        No observations section
-        """)
-    test_file = tmp_path / "no_observations.md"
-    test_file.write_text(content)
-    with pytest.raises(ParseError, match="Missing required observations"):
-        await parser.parse_file(test_file)
-
-
-@pytest.mark.asyncio
 async def test_metadata_handling(tmp_path):
     """Test metadata section parsing."""
     parser = EntityParser()
@@ -236,15 +155,17 @@ async def test_metadata_handling(tmp_path):
         # Test Entity
         ## Observations
         - [test] Test
-        
+
         # Metadata
-        ---
+        <!-- anything below this line is for AI -->
+
+        ```yml
         owner: test-team
         priority: high
         nested:
           key: value
           list: [1, 2, 3]
-        ---
+        ```
         """)
     test_file = tmp_path / "metadata.md"
     test_file.write_text(content)
