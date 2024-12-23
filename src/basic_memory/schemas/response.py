@@ -233,64 +233,8 @@ class OpenNodesResponse(SQLAlchemyModel):
     entities: List[EntityResponse]
 
 
-class AddObservationsResponse(SQLAlchemyModel):
-    """Response for adding observations.
-
-    Returns the entity ID and details about all newly
-    added observations.
-
-    Example Response:
-    {
-        "entity_id": "component/memory_service",
-        "observations": [
-            {
-                "id": 127,
-                "content": "Added new feature"
-            },
-            {
-                "id": 128,
-                "content": "Fixed bug"
-            }
-        ]
-    }
-    """
-
-    entity_id: int
-    observations: List[ObservationResponse]
-
-
 class DeleteEntitiesResponse(SQLAlchemyModel):
     """Response indicating successful entity deletion.
-
-    A simple boolean response confirming the delete operation
-    completed successfully.
-
-    Example Response:
-    {
-        "deleted": true
-    }
-    """
-
-    deleted: bool
-
-
-class DeleteRelationsResponse(SQLAlchemyModel):
-    """Response indicating successful relation deletion.
-
-    A simple boolean response confirming the delete operation
-    completed successfully.
-
-    Example Response:
-    {
-        "deleted": true
-    }
-    """
-
-    deleted: bool
-
-
-class DeleteObservationsResponse(SQLAlchemyModel):
-    """Response indicating successful observation deletion.
 
     A simple boolean response confirming the delete operation
     completed successfully.
