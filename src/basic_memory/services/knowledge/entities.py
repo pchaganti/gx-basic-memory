@@ -1,6 +1,5 @@
 """Entity operations for knowledge service."""
 
-from pathlib import Path
 from typing import Sequence, List
 
 from loguru import logger
@@ -31,9 +30,9 @@ class EntityOperations(FileOperations):
         except Exception as e:
             # Clean up on any failure
             if "db_entity" in locals():
-                await self.entity_service.delete_entity(db_entity.id)
+                await self.entity_service.delete_entity(db_entity.id)  # pyright: ignore [reportPossiblyUnboundVariable]
             if "path" in locals():
-                await self.file_service.delete_file(path)
+                await self.file_service.delete_file(path)  # pyright: ignore [reportUndefinedVariable]  # noqa: F821
             logger.error(f"Failed to create entity: {e}")
             raise
 

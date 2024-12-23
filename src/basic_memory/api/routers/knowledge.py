@@ -3,7 +3,10 @@
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-from basic_memory.deps import EntityServiceDep, RelationServiceDep, ObservationServiceDep
+from basic_memory.deps import (
+    EntityServiceDep,
+    KnowledgeServiceDep,
+)
 from basic_memory.schemas import (
     CreateEntityRequest,
     CreateEntityResponse,
@@ -34,10 +37,10 @@ router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 @router.post("/entities", response_model=CreateEntityResponse)
 async def create_entities(
-    data: CreateEntityRequest, entity_service: EntityServiceDep
+    data: CreateEntityRequest, knowledge_service: KnowledgeServiceDep
 ) -> CreateEntityResponse:
     """Create new entities in the knowledge graph."""
-    entities = await entity_service.create_entities(data.entities)
+    entities = await knowledge_service.create_entities(data.entities)
     return CreateEntityResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )
@@ -45,10 +48,10 @@ async def create_entities(
 
 @router.post("/relations", response_model=CreateRelationsResponse)
 async def create_relations(
-    data: CreateRelationsRequest, relation_service: RelationServiceDep
+    data: CreateRelationsRequest, knowledge_service: KnowledgeServiceDep
 ) -> CreateRelationsResponse:
     """Create relations between entities."""
-    relations = await relation_service.create_relations(data.relations)
+    relations = await knowledge_service.create_relations(data.relations)
     return CreateRelationsResponse(
         relations=[RelationResponse.model_validate(relation) for relation in relations]
     )
@@ -56,11 +59,11 @@ async def create_relations(
 
 @router.post("/observations", response_model=AddObservationsResponse)
 async def add_observations(
-    data: AddObservationsRequest, observation_service: ObservationServiceDep
+    data: AddObservationsRequest, knowledge_service: KnowledgeServiceDep
 ) -> AddObservationsResponse:
     """Add observations to an entity."""
     logger.debug(f"Adding observations to entity: {data.entity_id}")
-    observations = await observation_service.add_observations(
+    observations = await knowledge_service.add_observations(
         data.entity_id, data.observations, data.context
     )
     return AddObservationsResponse(
@@ -112,26 +115,26 @@ async def open_nodes(data: OpenNodesRequest, entity_service: EntityServiceDep) -
 
 @router.post("/entities/delete", response_model=DeleteEntitiesResponse)
 async def delete_entity(
-    data: DeleteEntitiesRequest, entity_service: EntityServiceDep
+    data: DeleteEntitiesRequest, knowledge_service: KnowledgeServiceDep
 ) -> DeleteEntitiesResponse:
     """Delete a specific entity by ID."""
-    deleted = await entity_service.delete_entities(data.entity_ids)
+    deleted = await knowledge_service.delete_entities(data.entity_ids)
     return DeleteEntitiesResponse(deleted=deleted)
 
 
 @router.post("/observations/delete", response_model=DeleteObservationsResponse)
 async def delete_observations(
-    data: DeleteObservationsRequest, observation_service: ObservationServiceDep
+    data: DeleteObservationsRequest, knowledge_service: KnowledgeServiceDep
 ) -> DeleteObservationsResponse:
     """Delete observations from an entity."""
     entity_id = data.entity_id
-    deleted = await observation_service.delete_observations(entity_id, data.deletions)
+    deleted = await knowledge_service.delete_observations(entity_id, data.deletions)
     return DeleteObservationsResponse(deleted=deleted)
 
 
 @router.post("/relations/delete", response_model=DeleteRelationsResponse)
 async def delete_relations(
-    data: DeleteRelationsRequest, relation_service: RelationServiceDep
+    data: DeleteRelationsRequest, knowledge_service: KnowledgeServiceDep
 ) -> DeleteRelationsResponse:
     """Delete relations between entities."""
     to_delete = [
@@ -142,5 +145,5 @@ async def delete_relations(
         }
         for relation in data.relations
     ]
-    deleted = await relation_service.delete_relations(to_delete)
+    deleted = await knowledge_service.delete_relations(to_delete)
     return DeleteRelationsResponse(deleted=deleted)

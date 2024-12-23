@@ -18,19 +18,12 @@ class ObservationService(BaseService[ObservationRepository]):
 
     def __init__(self, observation_repository: ObservationRepository):
         super().__init__(observation_repository)
-        # self.entity_service = entity_service
 
     async def add_observations(
         self, entity_id: int, observations: List[str], context: str | None = None
     ) -> List[ObservationModel]:
         """Add multiple observations to an entity."""
         logger.debug(f"Adding {len(observations)} observations to entity: {entity_id}")
-
-        # # Check if entity exists first
-        # entity = await self.entity_service.get_entity(entity_id)
-        # if not entity:
-        #     raise EntityNotFoundError(f"Entity not found: {entity_id}")
-
         return await self.repository.create_all(
             [
                 dict(entity_id=entity_id, content=observation, context=context)

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import (
 from basic_memory import db
 from basic_memory.config import ProjectConfig, config
 from basic_memory.db import DatabaseType
+from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
@@ -23,6 +24,8 @@ from basic_memory.services import (
     RelationService,
     DocumentService,
 )
+from basic_memory.services.file_service import FileService
+from basic_memory.services.knowledge import KnowledgeService
 
 
 ## project
@@ -144,3 +147,39 @@ async def get_document_service(document_repository: DocumentRepositoryDep) -> Do
 
 
 DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
+
+
+async def get_file_service() -> FileService:
+    return FileService()
+
+
+FileServiceDep = Annotated[FileService, Depends(get_file_service)]
+
+
+async def get_knowledge_writer() -> KnowledgeWriter:
+    return KnowledgeWriter()
+
+
+KnowledgeWriterDep = Annotated[KnowledgeWriter, Depends(get_knowledge_writer)]
+
+
+async def get_knowledge_service(
+    entity_service: EntityServiceDep,
+    observation_service: ObservationServiceDep,
+    relation_service: RelationServiceDep,
+    file_service: FileServiceDep,
+    knowledge_writer: KnowledgeWriterDep,
+    test_project_path: ProjectPathDep,
+) -> KnowledgeService:
+    """Create KnowledgeService with dependencies."""
+    return KnowledgeService(
+        entity_service=entity_service,
+        observation_service=observation_service,
+        relation_service=relation_service,
+        file_service=file_service,
+        knowledge_writer=knowledge_writer,
+        base_path=test_project_path,
+    )
+
+
+KnowledgeServiceDep = Annotated[KnowledgeService, Depends(get_knowledge_service)]
