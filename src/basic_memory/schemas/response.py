@@ -259,29 +259,6 @@ class AddObservationsResponse(SQLAlchemyModel):
     observations: List[ObservationResponse]
 
 
-class CreateRelationsResponse(SQLAlchemyModel):
-    """Response for creating new relations.
-
-    Returns complete information about all created relations,
-    including their generated IDs.
-
-    Example Response:
-    {
-        "relations": [
-            {
-                "id": 46,
-                "from_id": "component/memory_service",
-                "to_id": "component/database",
-                "relation_type": "depends_on",
-                "context": "Storage dependency"
-            }
-        ]
-    }
-    """
-
-    relations: List[Relation]
-
-
 class DeleteEntitiesResponse(SQLAlchemyModel):
     """Response indicating successful entity deletion.
 
