@@ -80,9 +80,7 @@ class MarkdownParser(ABC, Generic[T]):
 
             # Create final document
             return await self.create_document(
-                frontmatter=parsed_frontmatter,
-                content=parsed_content,
-                metadata=parsed_metadata
+                frontmatter=parsed_frontmatter, content=parsed_content, metadata=parsed_metadata
             )
 
         except Exception as e:
@@ -164,7 +162,7 @@ class MarkdownParser(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    async def parse_metadata(self, metadata: Optional[str]) -> Any:
+    async def parse_metadata(self, metadata_section: Optional[str]) -> Any:
         """Parse metadata section."""
         pass
 

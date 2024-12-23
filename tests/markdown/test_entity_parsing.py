@@ -5,7 +5,7 @@ from textwrap import dedent
 
 import pytest
 
-from basic_memory.markdown.parser import EntityParser
+from basic_memory.markdown.knowledge_parser import KnowledgeParser
 from basic_memory.markdown.schemas import Entity, EntityFrontmatter, EntityContent
 from basic_memory.utils.file_utils import ParseError, FileError
 
@@ -52,7 +52,7 @@ async def test_parse_complete_file(tmp_path, valid_entity_content):
     test_file = tmp_path / "test_entity.md"
     test_file.write_text(valid_entity_content)
 
-    parser = EntityParser()
+    parser = KnowledgeParser()
     entity = await parser.parse_file(test_file)
 
     # Verify entity structure
@@ -115,7 +115,7 @@ async def test_parse_minimal_file(tmp_path):
     test_file = tmp_path / "minimal.md"
     test_file.write_text(content)
 
-    parser = EntityParser()
+    parser = KnowledgeParser()
     entity = await parser.parse_file(test_file)
 
     assert entity.frontmatter.type == "component"
@@ -128,7 +128,7 @@ async def test_parse_minimal_file(tmp_path):
 @pytest.mark.asyncio
 async def test_parse_content_str(valid_entity_content):
     """Test parsing content string directly."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     entity = await parser.parse_content_str(valid_entity_content)
 
     assert isinstance(entity, Entity)
@@ -141,7 +141,7 @@ async def test_parse_content_str(valid_entity_content):
 @pytest.mark.asyncio
 async def test_metadata_handling(tmp_path):
     """Test metadata section parsing."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     # Multiple metadata fields
     content = dedent("""
@@ -199,7 +199,7 @@ async def test_metadata_handling(tmp_path):
 @pytest.mark.asyncio
 async def test_error_handling(tmp_path):
     """Test error handling."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     # Missing file
     with pytest.raises(FileError):

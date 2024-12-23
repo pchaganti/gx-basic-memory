@@ -2,13 +2,13 @@
 
 import pytest
 
-from basic_memory.markdown import ParseError, EntityParser
+from basic_memory.markdown import ParseError, KnowledgeParser
 
 
 @pytest.mark.asyncio
 async def test_observation_empty_input():
     """Test handling of empty input."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     assert await parser.parse_observation("") is None
     assert await parser.parse_observation("   ") is None
     assert await parser.parse_observation("\n") is None
@@ -17,7 +17,7 @@ async def test_observation_empty_input():
 @pytest.mark.asyncio
 async def test_observation_invalid_context():
     """Test handling of invalid context format."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     obs = await parser.parse_observation("- [test] Content (unclosed")
     assert obs is not None
     assert obs.content == "Content (unclosed"
@@ -33,7 +33,7 @@ async def test_observation_invalid_context():
 async def test_observation_complex_format():
     """Test parsing complex observation formats."""
     # Test multiple nested tags and spaces
-    parser = EntityParser()
+    parser = KnowledgeParser()
     obs = await parser.parse_observation("- [complex test] This is #tag1#tag2 with #tag3 content")
     assert obs is not None
     assert obs.category == "complex test"
@@ -46,7 +46,7 @@ async def test_observation_exception_handling():
     """Test general error handling in observation parsing."""
     # Test with a problematic regex pattern that could cause catastrophic backtracking
     long_input = "[test] " + "a" * 1000000  # Very long input
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     assert await parser.parse_observation(long_input) is None
 
@@ -57,14 +57,14 @@ async def test_observation_exception_handling():
 @pytest.mark.asyncio
 async def test_observation_malformed_category():
     """Test handling of malformed category brackets."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     with pytest.raises(ParseError, match="unclosed category"):
         await parser.parse_observation("- [test Content")
 
 
 @pytest.mark.asyncio
 async def test_observation_empty_category():
-    parser = EntityParser()
+    parser = KnowledgeParser()
     obs = await parser.parse_observation("- [] Empty category")
 
     assert obs is not None
@@ -75,7 +75,7 @@ async def test_observation_empty_category():
 async def test_observation_whitespace():
     """Test handling of whitespace."""
     # Valid whitespace cases
-    parser = EntityParser()
+    parser = KnowledgeParser()
     obs = await parser.parse_observation("- [test] Content")
     assert obs is not None
     assert obs.content == "Content"

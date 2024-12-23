@@ -34,7 +34,7 @@ class TestParser(MarkdownParser[TestDoc]):
         # Join all section content if no direct content section
         return "\n".join(sections.values())
 
-    async def parse_metadata(self, metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    async def parse_metadata(self, metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:  # pyright: ignore [reportIncompatibleMethodOverride]
         """Pass through metadata."""
         return metadata
 

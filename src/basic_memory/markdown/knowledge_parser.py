@@ -17,7 +17,7 @@ from basic_memory.markdown.schemas import (
 )
 
 
-class EntityParser(MarkdownParser[Entity]):
+class KnowledgeParser(MarkdownParser[Entity]):
     """Parser for entity markdown files.
 
     Entity files must have:

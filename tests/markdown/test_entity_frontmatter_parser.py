@@ -1,23 +1,22 @@
 """Tests for entity frontmatter parsing."""
 
-from textwrap import dedent
-
-import pytest
 from datetime import datetime
 
-from basic_memory.markdown.parser import EntityParser, ParseError
+import pytest
+
+from basic_memory.markdown.knowledge_parser import KnowledgeParser, ParseError
 
 
 @pytest.mark.asyncio
 async def test_parse_frontmatter():
     """Test parsing valid frontmatter."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     frontmatter_dict = {
         "type": "test",
         "id": "test/123",
         "created": "2024-12-22T10:00:00Z",
         "modified": "2024-12-22T10:00:00Z",
-        "tags": ["test", "example"]
+        "tags": ["test", "example"],
     }
 
     result = await parser.parse_frontmatter(frontmatter_dict)
@@ -31,13 +30,13 @@ async def test_parse_frontmatter():
 @pytest.mark.asyncio
 async def test_parse_frontmatter_comma_tags():
     """Test parsing tags with commas."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     frontmatter_dict = {
         "type": "test",
         "id": "test/tags",
         "created": "2024-12-22T10:00:00Z",
         "modified": "2024-12-22T10:00:00Z",
-        "tags": "tag1, tag2, tag3"  # String format
+        "tags": "tag1, tag2, tag3",  # String format
     }
 
     result = await parser.parse_frontmatter(frontmatter_dict)
@@ -47,13 +46,13 @@ async def test_parse_frontmatter_comma_tags():
 @pytest.mark.asyncio
 async def test_parse_frontmatter_missing_required():
     """Test error on missing required fields."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     frontmatter_dict = {
         "type": "test",
         # missing id
         "created": "2024-12-22T10:00:00Z",
         "modified": "2024-12-22T10:00:00Z",
-        "tags": []
+        "tags": [],
     }
 
     with pytest.raises(ParseError, match="Missing required frontmatter fields: id"):
@@ -63,13 +62,13 @@ async def test_parse_frontmatter_missing_required():
 @pytest.mark.asyncio
 async def test_parse_frontmatter_invalid_date():
     """Test error on invalid date format."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     frontmatter_dict = {
         "type": "test",
         "id": "test/invalid",
         "created": "not-a-date",
         "modified": "2024-12-22T10:00:00Z",
-        "tags": []
+        "tags": [],
     }
 
     with pytest.raises(ParseError, match="Invalid date format for created"):
@@ -79,13 +78,13 @@ async def test_parse_frontmatter_invalid_date():
 @pytest.mark.asyncio
 async def test_parse_frontmatter_whitespace():
     """Test handling of extra whitespace."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     frontmatter_dict = {
         "type": "   test   ",
         "id": "   test/spaces   ",
         "created": "2024-12-22T10:00:00Z",
         "modified": "2024-12-22T10:00:00Z",
-        "tags": "   tag1   ,    tag2   "
+        "tags": "   tag1   ,    tag2   ",
     }
 
     result = await parser.parse_frontmatter(frontmatter_dict)
@@ -97,12 +96,12 @@ async def test_parse_frontmatter_whitespace():
 @pytest.mark.asyncio
 async def test_parse_frontmatter_empty_tags():
     """Test handling of empty tags field."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     frontmatter_dict = {
         "type": "test",
         "id": "test/notags",
         "created": "2024-12-22T10:00:00Z",
-        "modified": "2024-12-22T10:00:00Z"
+        "modified": "2024-12-22T10:00:00Z",
         # No tags field
     }
 

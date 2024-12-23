@@ -1,6 +1,6 @@
 """Base package for markdown parsing."""
 
-from basic_memory.markdown.parser import EntityParser
+from basic_memory.markdown.knowledge_parser import KnowledgeParser
 from basic_memory.markdown.schemas import (
     Entity,
     EntityContent,
@@ -16,7 +16,7 @@ __all__ = [
     "EntityContent",
     "EntityFrontmatter",
     "EntityMetadata",
-    "EntityParser",
+    "KnowledgeParser",
     "Observation",
     "Relation",
     "ParseError",

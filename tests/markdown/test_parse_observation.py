@@ -2,13 +2,13 @@
 
 import pytest
 
-from basic_memory.markdown.parser import EntityParser, ParseError
+from basic_memory.markdown.knowledge_parser import KnowledgeParser, ParseError
 
 
 @pytest.mark.asyncio
 async def test_parse_observation_basic():
     """Test basic observation parsing with category and tags."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     obs = await parser.parse_observation("- [design] Core feature #important #mvp")
 
@@ -22,7 +22,7 @@ async def test_parse_observation_basic():
 @pytest.mark.asyncio
 async def test_parse_observation_with_context():
     """Test observation parsing with context in parentheses."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     obs = await parser.parse_observation(
         "- [feature] Authentication system #security #auth (Required for MVP)"
@@ -37,7 +37,7 @@ async def test_parse_observation_with_context():
 @pytest.mark.asyncio
 async def test_parse_observation_without_category():
     """Test observation parsing with context in parentheses."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     obs = await parser.parse_observation(
         "- Authentication system #security #auth (Required for MVP)"
@@ -52,7 +52,7 @@ async def test_parse_observation_without_category():
 @pytest.mark.asyncio
 async def test_parse_observation_edge_cases():
     """Test observation parsing edge cases."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     # Multiple word tags
     obs = await parser.parse_observation("- [tech] Database #high-priority #needs-review")
@@ -81,7 +81,7 @@ async def test_parse_observation_edge_cases():
 @pytest.mark.asyncio
 async def test_parse_observation_errors():
     """Test error handling in observation parsing."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     # Unclosed category
     with pytest.raises(ParseError, match="unclosed category"):

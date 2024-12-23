@@ -5,7 +5,7 @@ from textwrap import dedent
 
 import pytest
 
-from basic_memory.markdown.parser import EntityParser
+from basic_memory.markdown.knowledge_parser import KnowledgeParser
 from basic_memory.utils.file_utils import FileError, ParseError
 
 
@@ -43,7 +43,7 @@ async def test_unicode_content(tmp_path):
     test_file = tmp_path / "unicode.md"
     test_file.write_text(content, encoding="utf-8")
 
-    parser = EntityParser()
+    parser = KnowledgeParser()
     entity = await parser.parse_file(test_file)
 
     assert "测试" in entity.frontmatter.tags
@@ -61,7 +61,7 @@ async def test_fallback_encoding(tmp_path):
     test_file = tmp_path / "unicode_file.md"
     test_file.write_text(content, encoding="utf-16")
 
-    parser = EntityParser()
+    parser = KnowledgeParser()
     with pytest.raises(ParseError):
         await parser.parse_file(test_file)
 
@@ -74,7 +74,7 @@ async def test_encoding_errors(tmp_path):
     with open(test_file, "wb") as f:
         f.write(b"\xff\xfe\x00\x00")  # Invalid UTF-8
 
-    parser = EntityParser()
+    parser = KnowledgeParser()
     with pytest.raises(ParseError):
         await parser.parse_file(test_file, encoding="ascii")
 
@@ -82,7 +82,7 @@ async def test_encoding_errors(tmp_path):
 @pytest.mark.asyncio
 async def test_file_not_found():
     """Test handling of non-existent files."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
     with pytest.raises(FileError):
         await parser.parse_file(Path("nonexistent.md"))
 
@@ -115,7 +115,7 @@ async def test_nested_structures(tmp_path):
     test_file = tmp_path / "nested.md"
     test_file.write_text(content)
 
-    parser = EntityParser()
+    parser = KnowledgeParser()
     entity = await parser.parse_file(test_file)
 
     assert len(entity.content.observations) == 3
@@ -156,7 +156,7 @@ async def test_malformed_sections(tmp_path):
     test_file = tmp_path / "malformed.md"
     test_file.write_text(content)
 
-    parser = EntityParser()
+    parser = KnowledgeParser()
     with pytest.raises(ParseError):
         entity = await parser.parse_file(test_file)
 
@@ -178,6 +178,6 @@ async def test_missing_required_sections(tmp_path):
     test_file = tmp_path / "incomplete.md"
     test_file.write_text(content)
 
-    parser = EntityParser()
+    parser = KnowledgeParser()
     with pytest.raises(ParseError):
         await parser.parse_file(test_file)

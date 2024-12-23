@@ -2,13 +2,13 @@
 
 import pytest
 
-from basic_memory.markdown.parser import EntityParser, ParseError
+from basic_memory.markdown.knowledge_parser import KnowledgeParser, ParseError
 
 
 @pytest.mark.asyncio
 async def test_parse_relation_basic():
     """Test basic relation parsing."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     rel = await parser.parse_relation("- implements [[Auth Service]]")
     assert rel is not None
@@ -20,7 +20,7 @@ async def test_parse_relation_basic():
 @pytest.mark.asyncio
 async def test_parse_relation_with_context():
     """Test relation parsing with context."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     rel = await parser.parse_relation("- depends_on [[Database]] (Required for persistence)")
     assert rel is not None
@@ -32,7 +32,7 @@ async def test_parse_relation_with_context():
 @pytest.mark.asyncio
 async def test_parse_relation_edge_cases():
     """Test relation parsing edge cases."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     # Multiple word type
     rel = await parser.parse_relation("- is used by [[Client App]] (Primary consumer)")
@@ -54,7 +54,7 @@ async def test_parse_relation_edge_cases():
 @pytest.mark.asyncio
 async def test_parse_relation_errors():
     """Test error handling in relation parsing."""
-    parser = EntityParser()
+    parser = KnowledgeParser()
 
     # Missing target brackets
     with pytest.raises(ParseError, match="missing \\[\\["):
