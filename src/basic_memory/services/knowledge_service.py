@@ -10,6 +10,7 @@ from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema, Relation as RelationSchema
 from basic_memory.services.entity_service import EntityService
 from basic_memory.services.exceptions import EntityNotFoundError, FileOperationError
+from basic_memory.services.file_service import FileService
 from basic_memory.services.observation_service import ObservationService
 from basic_memory.services.relation_service import RelationService
 
@@ -31,7 +32,7 @@ class KnowledgeService:
         entity_service: EntityService,
         observation_service: ObservationService,
         relation_service: RelationService,
-        file_service,  # FileService
+        file_service: FileService,  # FileService
         knowledge_parser: KnowledgeParser,
     ):
         self.entity_service = entity_service
