@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, TypeVar, Generic, Optional, Dict, Any, Tuple
 
-import yaml
 from loguru import logger
 
 from basic_memory.utils.file_utils import parse_frontmatter, ParseError, FileError
@@ -62,38 +61,22 @@ class MarkdownParser(ABC, Generic[T]):
             ParseError: If parsing fails
         """
         try:
-            # Split into frontmatter and content first
+            # Split into frontmatter and content
             frontmatter, markdown = await parse_frontmatter(content)
 
-            # Parse frontmatter first
+            # Parse frontmatter
             parsed_frontmatter = await self.parse_frontmatter(frontmatter)
 
-            # Look for metadata section at the end (marked by ---)
-            metadata = {}
-            main_content = markdown
-
-            # Split on last occurrence of triple dash section
-            if "\n---\n" in markdown:
-                main_content, metadata_section = markdown.rsplit("\n---\n", 1)
-                try:
-                    # Try to parse the trailing part as YAML
-                    maybe_metadata = yaml.safe_load(metadata_section)
-                    if isinstance(maybe_metadata, dict):
-                        metadata = maybe_metadata
-                except yaml.YAMLError:
-                    # Not valid YAML metadata, treat as part of main content
-                    main_content = markdown
-
-            # Split remaining content into sections
-            title, sections = await self._split_sections(main_content.strip())
+            # Split remaining content into sections by headers
+            title, sections = self._split_sections(markdown)
             if not title:
                 raise ParseError("Missing title section (must start with #)")
 
             # Parse content sections
             parsed_content = await self.parse_content(title, sections)
 
-            # Parse metadata
-            parsed_metadata = await self.parse_metadata(metadata)
+            # Parse metadata section if present
+            parsed_metadata = await self.parse_metadata(sections.get("metadata"))
 
             # Create final document
             return await self.create_document(
@@ -108,7 +91,7 @@ class MarkdownParser(ABC, Generic[T]):
                 raise ParseError(f"Failed to parse content: {str(e)}") from e
             raise
 
-    async def _split_sections(self, content: str) -> Tuple[Optional[str], Dict[str, str]]:
+    def _split_sections(self, content: str) -> Tuple[Optional[str], Dict[str, str]]:
         """
         Split content into sections by headers.
 
@@ -116,7 +99,7 @@ class MarkdownParser(ABC, Generic[T]):
             content: Content section of the document
 
         Returns:
-            Tuple of (title section, {section_name: section_content})
+            Tuple of (title section, {section_name: section content})
         """
         # Initialize state
         title = None
@@ -124,18 +107,25 @@ class MarkdownParser(ABC, Generic[T]):
         current_section = None
         current_lines: List[str] = []
 
-        # Split content into lines
-        content_lines = content.splitlines()
-
         # Process each line
-        for line in content_lines:
-            # Skip boundary marker lines
-            if line.strip() == "---":
+        for line in content.splitlines():
+            line_stripped = line.strip()
+
+            # Skip empty lines at start
+            if not line_stripped and not title and not current_section:
                 continue
 
             # Handle headers
             if line.startswith("# "):  # Top level header (title)
-                title = line[2:].strip()
+                # If we already have a title, this is a section (like # Metadata)
+                if title:
+                    # Save current section if any
+                    if current_section and current_lines:
+                        sections[current_section] = "\n".join(current_lines).strip()
+                        current_lines = []
+                    current_section = line[2:].strip().lower()
+                else:
+                    title = line[2:].strip()
                 continue
             elif line.startswith("## "):  # Section header
                 # Save current section if any
@@ -150,12 +140,12 @@ class MarkdownParser(ABC, Generic[T]):
             # Add line to current section
             if current_section is not None:
                 current_lines.append(line)
-            elif line.strip() and title:  # Non-empty line after title but before first section
+            elif line_stripped and title:  # Non-empty line after title but before first section
                 # Default section for content right after title
                 if "content" not in sections:
-                    sections["content"] = line.strip()
+                    sections["content"] = line_stripped
                 else:
-                    sections["content"] += f"\n{line.strip()}"
+                    sections["content"] += f"\n{line_stripped}"
 
         # Save last section
         if current_section and current_lines:
@@ -174,11 +164,11 @@ class MarkdownParser(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    async def parse_metadata(self, metadata: Optional[Dict[str, Any]]) -> Any:
+    async def parse_metadata(self, metadata: Optional[str]) -> Any:
         """Parse metadata section."""
         pass
 
     @abstractmethod
-    async def create_document(self, frontmatter: Any, content: Any, metadata: Optional[Any]) -> T:
+    async def create_document(self, frontmatter: Any, content: Any, metadata: Any) -> T:
         """Create document from parsed sections."""
         pass

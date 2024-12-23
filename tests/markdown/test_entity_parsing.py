@@ -36,6 +36,7 @@ def valid_entity_content():
         - uses [[Redis Cache]] (Token caching)
         - specified_by [[Auth API Spec]] (OpenAPI spec)
 
+        # Metadata
         ---
         owner: team-auth
         priority: high
@@ -235,6 +236,8 @@ async def test_metadata_handling(tmp_path):
         # Test Entity
         ## Observations
         - [test] Test
+        
+        # Metadata
         ---
         owner: test-team
         priority: high

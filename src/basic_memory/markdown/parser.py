@@ -1,6 +1,7 @@
 """Parser for Basic Memory entity markdown files."""
 
 from datetime import datetime
+import yaml
 from typing import Dict, Any, Optional
 
 from loguru import logger
@@ -17,8 +18,7 @@ from basic_memory.markdown.schemas import (
 
 
 class EntityParser(MarkdownParser[Entity]):
-    """
-    Parser for entity markdown files.
+    """Parser for entity markdown files.
 
     Entity files must have:
     - YAML frontmatter (type, id, created, modified, tags)
@@ -26,8 +26,44 @@ class EntityParser(MarkdownParser[Entity]):
     - Optional description
     - Observations section (## Observations)
     - Relations section (## Relations)
-    - Optional metadata section
+    - Optional # Metadata section with YAML between ---
     """
+
+    async def parse_metadata(self, metadata_section: Optional[str]) -> EntityMetadata:
+        """Parse metadata section."""
+        try:
+            if not metadata_section:
+                return EntityMetadata()
+
+            # Find YAML content between --- markers
+            lines = metadata_section.strip().splitlines()
+            yaml_lines = []
+            in_yaml = False
+
+            for line in lines:
+                if line.strip() == "---":
+                    in_yaml = not in_yaml  # Toggle state
+                    continue
+                if in_yaml:
+                    yaml_lines.append(line)
+
+            if not yaml_lines:
+                return EntityMetadata()
+
+            # Parse the YAML content
+            try:
+                yaml_content = yaml.safe_load("\n".join(yaml_lines))
+                if not isinstance(yaml_content, dict):
+                    logger.warning(f"Metadata YAML is not a dictionary: {yaml_content}")
+                    return EntityMetadata()
+                return EntityMetadata(data=yaml_content)
+            except yaml.YAMLError as e:
+                logger.warning(f"Failed to parse metadata YAML: {e}")
+                return EntityMetadata()
+
+        except Exception as e:
+            logger.error(f"Failed to parse metadata: {e}")
+            return EntityMetadata()
 
     async def parse_frontmatter(self, frontmatter: Dict[str, Any]) -> EntityFrontmatter:
         """Parse entity frontmatter."""
@@ -38,28 +74,26 @@ class EntityParser(MarkdownParser[Entity]):
             if missing:
                 raise ParseError(f"Missing required frontmatter fields: {', '.join(missing)}")
 
-            # Preprocess fields for schema validation
-            processed = frontmatter.copy()
-
-            # Ensure id is string
-            processed["id"] = str(processed["id"])
-
-            # Handle tags field
-            if "tags" not in processed:
-                processed["tags"] = []
-            elif isinstance(processed["tags"], str):
-                processed["tags"] = [tag.strip() for tag in processed["tags"].split(",")]
-
-            # Parse dates - let pydantic validation catch invalid formats
+            # Validate date fields
             for date_field in ["created", "modified"]:
                 try:
-                    if not isinstance(processed[date_field], datetime):
-                        # If it's not already a datetime, parse it
-                        datetime.fromisoformat(str(processed[date_field]).replace("Z", "+00:00"))
+                    if not isinstance(frontmatter[date_field], datetime):
+                        datetime.fromisoformat(str(frontmatter[date_field]).replace("Z", "+00:00"))
                 except (ValueError, TypeError) as e:
-                    raise ParseError(
-                        f"Invalid date format for {date_field}: {processed[date_field]}"
-                    ) from e
+                    raise ParseError(f"Invalid date format for {date_field}: {frontmatter[date_field]}")
+
+            # Prepare fields
+            processed = {
+                "type": frontmatter["type"].strip(),
+                "id": str(frontmatter["id"]).strip(),
+                "created": frontmatter["created"],
+                "modified": frontmatter["modified"],
+                "tags": (
+                    [tag.strip() for tag in frontmatter.get("tags", "").split(",")]
+                    if isinstance(frontmatter.get("tags"), str)
+                    else [t.strip() for t in frontmatter.get("tags", [])]
+                ),
+            }
 
             return EntityFrontmatter(**processed)
 
@@ -67,15 +101,15 @@ class EntityParser(MarkdownParser[Entity]):
             if isinstance(e, ParseError):
                 raise
             logger.error(f"Invalid entity frontmatter: {e}")
-            raise ParseError(f"Invalid entity frontmatter: {str(e)}") from e
+            raise ParseError(f"Invalid entity frontmatter: {str(e)}")
 
     async def parse_content(self, title: str, sections: Dict[str, str]) -> EntityContent:
         """Parse entity content section."""
         try:
             # Get description (if any)
             description = None
-            if "description" in sections:
-                description = sections["description"]
+            if "content" in sections:
+                description = sections["content"]
 
             # Parse observations (required)
             observations = []
@@ -98,14 +132,17 @@ class EntityParser(MarkdownParser[Entity]):
                             relations.append(relation)
 
             return EntityContent(
-                title=title, description=description, observations=observations, relations=relations
+                title=title,
+                description=description,
+                observations=observations,
+                relations=relations
             )
 
         except ParseError:
             raise
         except Exception as e:
             logger.error(f"Invalid entity content: {e}")
-            raise ParseError(f"Invalid entity content: {str(e)}") from e
+            raise ParseError(f"Invalid entity content: {str(e)}")
 
     async def parse_observation(self, line: str) -> Optional[Observation]:
         """Parse a single observation line."""
@@ -116,22 +153,26 @@ class EntityParser(MarkdownParser[Entity]):
             # Remove leading/trailing whitespace and bullet
             line = line.strip()
             if not line.startswith("-"):
-                raise ParseError("Observation must start with -")
+                return None
             line = line[1:].strip()
 
-            # Extract optional category [category]
-            category = None
-            content = line
-            if line.startswith("["):
+            # Handle malformed category brackets first
+            if line.startswith("]"):
+                raise ParseError("missing category")
+            elif line.startswith("["):
                 close_bracket = line.find("]")
                 if close_bracket == -1:
-                    raise ParseError("Unclosed category bracket")
+                    raise ParseError("unclosed category")
 
+                # Extract category - return None for empty category
                 category = line[1:close_bracket].strip()
                 if not category:
-                    raise ParseError("Empty category brackets")
+                    return None
 
-                content = line[close_bracket + 1 :].strip()
+                content = line[close_bracket + 1:].strip()
+            else:
+                # No category brackets
+                raise ParseError("missing category")
 
             # Extract context if present (context)
             context = None
@@ -164,14 +205,17 @@ class EntityParser(MarkdownParser[Entity]):
                 raise ParseError("Empty content")
 
             return Observation(
-                category=category, content=content, tags=tags if tags else None, context=context
+                category=category,
+                content=content,
+                tags=tags if tags else None,
+                context=context
             )
 
         except ParseError:
             raise
         except Exception as e:
             logger.error(f"Failed to parse observation: {e}")
-            raise ParseError(f"Failed to parse observation: {str(e)}") from e
+            raise ParseError(f"Failed to parse observation: {str(e)}")
 
     async def parse_relation(self, line: str) -> Optional[Relation]:
         """Parse a single relation line."""
@@ -182,7 +226,7 @@ class EntityParser(MarkdownParser[Entity]):
             # Remove leading/trailing whitespace and bullet
             line = line.strip()
             if not line.startswith("-"):
-                raise ParseError("Relation must start with -")
+                return None
             line = line[1:].strip()
 
             # Extract context if present (context)
@@ -218,20 +262,14 @@ class EntityParser(MarkdownParser[Entity]):
             raise
         except Exception as e:
             logger.error(f"Failed to parse relation: {e}")
-            raise ParseError(f"Failed to parse relation: {str(e)}") from e
-
-    async def parse_metadata(self, metadata: Optional[Dict[str, Any]]) -> EntityMetadata:
-        """Parse entity metadata section."""
-        try:
-            if not metadata:
-                return EntityMetadata()
-            return EntityMetadata(data=metadata)
-        except Exception as e:
-            logger.error(f"Invalid entity metadata: {e}")
-            raise ParseError(f"Invalid entity metadata: {str(e)}") from e
+            raise ParseError(f"Failed to parse relation: {str(e)}")
 
     async def create_document(
         self, frontmatter: EntityFrontmatter, content: EntityContent, metadata: EntityMetadata
     ) -> Entity:
         """Create entity from parsed sections."""
-        return Entity(frontmatter=frontmatter, content=content, entity_metadata=metadata)
+        return Entity(
+            frontmatter=frontmatter,
+            content=content,
+            metadata=metadata
+        )
