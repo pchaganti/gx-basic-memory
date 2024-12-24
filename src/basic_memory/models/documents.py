@@ -13,7 +13,7 @@ class Document(Base):
     """
     Tracks documents in the filesystem.
 
-    Documents are the source of truth for content, while this table
+    Documents files are the source of truth for document content, while this table
     provides indexing and metadata storage. Like git, the filesystem
     is the real source of truth.
     """
@@ -21,7 +21,7 @@ class Document(Base):
     __tablename__ = "document"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    path: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    path: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
     checksum: Mapped[str] = mapped_column(String, nullable=True)
     doc_metadata: Mapped[Optional[dict]] = mapped_column(
         JSON, nullable=True

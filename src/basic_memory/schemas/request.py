@@ -5,7 +5,7 @@ from typing import List, Optional, Annotated, Dict, Any
 from annotated_types import MinLen, MaxLen
 from pydantic import BaseModel
 
-from basic_memory.schemas.base import Observation, Entity, Relation
+from basic_memory.schemas.base import Observation, Entity, Relation, PathId
 
 
 class AddObservationsRequest(BaseModel):
@@ -201,21 +201,7 @@ class CreateRelationsRequest(BaseModel):
 ## document
 
 
-class DocumentCreateRequest(BaseModel):
-    path: str
+class DocumentRequest(BaseModel):
+    path: PathId
     content: str
-    doc_metadata: Optional[Dict[str, Any]] = None
-
-
-class DocumentUpdateRequest(BaseModel):
-    """Update an existing document by ID."""
-
-    id: int  # Document ID is required for updates
-    content: str
-    doc_metadata: Optional[Dict[str, Any]] = None
-
-
-class DocumentPatchRequest(BaseModel):
-    id: int
-    content: Optional[str] = None
     doc_metadata: Optional[Dict[str, Any]] = None

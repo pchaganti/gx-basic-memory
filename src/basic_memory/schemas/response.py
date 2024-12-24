@@ -249,7 +249,6 @@ class DeleteEntitiesResponse(SQLAlchemyModel):
 
 
 class DocumentCreateResponse(SQLAlchemyModel):
-    id: int
     path: str
     checksum: str
     doc_metadata: Optional[Dict[str, Any]] = None

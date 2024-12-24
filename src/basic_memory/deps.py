@@ -1,6 +1,5 @@
 """Dependency injection functions for basic-memory services."""
 
-from pathlib import Path
 from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends
@@ -38,19 +37,13 @@ def get_project_config() -> ProjectConfig:
 ProjectConfigDep = Annotated[ProjectConfig, Depends(get_project_config)]
 
 
-def get_project_path(project_config: ProjectConfigDep) -> Path:
-    return Path(project_config.path)
-
-
-ProjectPathDep = Annotated[Path, Depends(get_project_path)]
-
 ## sqlalchemy
 
 
 async def get_engine_factory(
-    project_path: ProjectPathDep, db_type=DatabaseType.FILESYSTEM
+    project_config: ProjectConfigDep, db_type=DatabaseType.FILESYSTEM
 ) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
-    async with db.engine_session_factory(project_path=project_path, db_type=db_type) as (
+    async with db.engine_session_factory(db_path=project_config.database_path, db_type=db_type) as (
         engine,
         session_maker,
     ):
@@ -141,9 +134,11 @@ async def get_relation_service(relation_repository: RelationRepositoryDep) -> Re
 RelationServiceDep = Annotated[RelationService, Depends(get_relation_service)]
 
 
-async def get_document_service(document_repository: DocumentRepositoryDep) -> DocumentService:
+async def get_document_service(
+    document_repository: DocumentRepositoryDep, project_config: ProjectConfigDep
+) -> DocumentService:
     """Create RelationService with repository."""
-    return DocumentService(document_repository)
+    return DocumentService(document_repository, project_config.documents_dir)
 
 
 DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
@@ -169,7 +164,7 @@ async def get_knowledge_service(
     relation_service: RelationServiceDep,
     file_service: FileServiceDep,
     knowledge_writer: KnowledgeWriterDep,
-    test_project_path: ProjectPathDep,
+    project_config: ProjectConfigDep,
 ) -> KnowledgeService:
     """Create KnowledgeService with dependencies."""
     return KnowledgeService(
@@ -178,7 +173,7 @@ async def get_knowledge_service(
         relation_service=relation_service,
         file_service=file_service,
         knowledge_writer=knowledge_writer,
-        base_path=test_project_path,
+        base_path=project_config.knowledge_dir,
     )
 
 

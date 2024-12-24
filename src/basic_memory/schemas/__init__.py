@@ -28,8 +28,6 @@ from basic_memory.schemas.request import (
     SearchNodesRequest,
     OpenNodesRequest,
     CreateRelationsRequest,
-    DocumentCreateRequest,
-    DocumentUpdateRequest,
 )
 
 # Response models

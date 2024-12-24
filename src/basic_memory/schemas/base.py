@@ -47,6 +47,9 @@ def lower_strip_whitespace(val: str) -> str:
     return strip_whitespace(val.lower())
 
 
+PathId = Annotated[str, BeforeValidator(lower_strip_whitespace)]
+"""Unique identifier in format '{path}/{normalized_name}'."""
+
 Observation = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(1000)]
 """A single piece of information about an entity. Must be non-empty and under 1000 characters.
 

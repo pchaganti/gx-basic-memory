@@ -24,24 +24,13 @@ class DatabaseType(Enum):
     FILESYSTEM = auto()
 
     @classmethod
-    def get_db_path(cls, project_path: Path, db_type: "DatabaseType") -> Path:
-        """Get database path based on type."""
-        if db_type == cls.MEMORY:
-            return Path(":memory:")
-        else:
-            path = project_path / "data" / "memory.db"
-            logger.info(f"Using database path: {path}")
-            return path
-
-    @classmethod
-    def get_db_url(cls, db_path: Path) -> str:
+    def get_db_url(cls, db_path: Path, db_type: "DatabaseType") -> str:
         """Get SQLAlchemy URL for database path."""
-        if str(db_path) == ":memory:":
+        if db_type == cls.MEMORY:
             logger.info("Using in-memory SQLite database")
             return "sqlite+aiosqlite://"
-        url = f"sqlite+aiosqlite:///{db_path}"
-        logger.info(f"Using SQLite database URL: {url}")
-        return url
+
+        return f"sqlite+aiosqlite:///{db_path}"
 
 
 def get_scoped_session_factory(
@@ -85,14 +74,13 @@ async def init_db(session: AsyncSession):
 
 @asynccontextmanager
 async def engine_session_factory(
-    project_path: Path,
+    db_path: Path,
     db_type: DatabaseType = DatabaseType.FILESYSTEM,
     init: bool = True,
 ) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
     """Create engine and session factory."""
-    logger.debug(f"Creating engine for project path: {project_path}")
-    db_path = DatabaseType.get_db_path(project_path, db_type)
-    db_url = DatabaseType.get_db_url(db_path)
+    db_url = DatabaseType.get_db_url(db_path, db_type)
+    logger.debug(f"Creating engine for db_url: {db_url}")
     engine = create_async_engine(db_url, connect_args={"check_same_thread": False})
     try:
         factory = async_sessionmaker(engine, expire_on_commit=False)

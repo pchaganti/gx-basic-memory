@@ -5,11 +5,13 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 
 from basic_memory.deps import DocumentServiceDep
-from basic_memory.schemas.request import DocumentCreateRequest, DocumentUpdateRequest
+from basic_memory.schemas.base import PathId
+from basic_memory.schemas.request import DocumentRequest
 from basic_memory.schemas.response import DocumentResponse, DocumentCreateResponse
 from basic_memory.services.document_service import (
     DocumentNotFoundError,
     DocumentWriteError,
+    DocumentError,
 )
 
 # Router
@@ -18,7 +20,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 
 @router.post("/", response_model=DocumentCreateResponse, status_code=201)
 async def create_document(
-    doc: DocumentCreateRequest,
+    doc: DocumentRequest,
     service: DocumentServiceDep,
 ) -> DocumentCreateResponse:
     """Create a new document.
@@ -36,7 +38,7 @@ async def create_document(
             metadata=doc.doc_metadata,
         )
         return DocumentCreateResponse.model_validate(document.__dict__)
-    except DocumentWriteError as e:
+    except DocumentError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -49,39 +51,39 @@ async def list_documents(
     return [DocumentCreateResponse.model_validate(doc.__dict__) for doc in documents]
 
 
-@router.get("/{id:int}", response_model=DocumentResponse)
+@router.get("/{path_id:path}", response_model=DocumentResponse)
 async def get_document(
-    id: int,
+    path_id: PathId,
     service: DocumentServiceDep,
 ) -> DocumentResponse:
     """Get a document by ID."""
     try:
-        document, content = await service.read_document_by_id(id)
+        document, content = await service.read_document_by_path(path_id)
         doc_dict = document.__dict__ | {"content": content}
         response = DocumentResponse.model_validate(doc_dict)
         return response
     except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Document not found: {id}")
+        raise HTTPException(status_code=404, detail=f"Document not found: {path_id}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.put("/{id:int}", response_model=DocumentResponse)
+@router.put("/{path_id:path}", response_model=DocumentResponse)
 async def update_document(
-    id: int,
-    doc: DocumentUpdateRequest,
+    path_id: PathId,
+    doc: DocumentRequest,
     service: DocumentServiceDep,
 ) -> DocumentResponse:
     """Update a document by ID."""
-    # Verify IDs match
-    if doc.id != id:
+    # Verify PathIds match
+    if doc.path != path_id:
         raise HTTPException(
-            status_code=400, detail="Document ID in URL must match ID in request body"
+            status_code=400, detail="Document path in URL must match path in request body"
         )
 
     try:
-        document = await service.update_document_by_id(
-            id=id,
+        document = await service.update_document_by_path(
+            path_id=path_id,
             content=doc.content,
             metadata=doc.doc_metadata,
         )
@@ -93,14 +95,14 @@ async def update_document(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/{id:int}", status_code=204)
+@router.delete("/{path_id:path}", status_code=204)
 async def delete_document(
-    id: int,
+    path_id: PathId,
     service: DocumentServiceDep,
 ) -> None:
     """Delete a document by ID."""
     try:
-        await service.delete_document_by_id(id)
+        await service.delete_document_by_path(path_id)
     except DocumentNotFoundError:
         raise HTTPException(status_code=404, detail=f"Document not found: {id}")
     except DocumentWriteError as e:

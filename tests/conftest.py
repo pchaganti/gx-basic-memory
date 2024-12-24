@@ -1,7 +1,5 @@
 """Common test fixtures."""
 
-import tempfile
-from pathlib import Path
 from typing import AsyncGenerator
 
 import pytest
@@ -50,7 +48,7 @@ async def engine_factory(
 ) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
     """Create engine and session factory using in-memory SQLite database."""
     async with db.engine_session_factory(
-        project_path=test_config.path, db_type=DatabaseType.MEMORY
+        db_path=test_config.database_path, db_type=DatabaseType.MEMORY
     ) as (engine, session_maker):
         # Initialize database
         async with db.scoped_session(session_maker) as session:
@@ -69,16 +67,8 @@ async def session_maker(engine_factory) -> async_sessionmaker[AsyncSession]:
 
 
 @pytest_asyncio.fixture
-async def test_project_path():
-    """Create a temporary project directory with standard subdirs."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        project_path = Path(temp_dir) / "test-project"
-
-        # Create standard directories
-        (project_path / "documents").mkdir(parents=True)
-        (project_path / "knowledge").mkdir(parents=True)
-
-        yield project_path
+async def test_project_path(test_config):
+    return test_config.path
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -90,9 +80,12 @@ async def document_repository(
 
 
 @pytest_asyncio.fixture(scope="function")
-async def document_service(document_repository: DocumentRepository) -> DocumentService:
+async def document_service(
+    document_repository: DocumentRepository,
+    test_config: ProjectConfig,
+) -> DocumentService:
     """Create a DocumentService instance."""
-    return DocumentService(document_repository)
+    return DocumentService(document_repository, test_config.documents_dir)
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -157,7 +150,7 @@ async def knowledge_service(
     relation_service: RelationService,
     file_service: FileService,
     knowledge_writer: KnowledgeWriter,
-    test_project_path: Path,
+    test_config: ProjectConfig,
 ) -> KnowledgeService:
     """Create KnowledgeService with dependencies."""
     return KnowledgeService(
@@ -166,7 +159,7 @@ async def knowledge_service(
         relation_service=relation_service,
         file_service=file_service,
         knowledge_writer=knowledge_writer,
-        base_path=test_project_path,
+        base_path=test_config.knowledge_dir,
     )
 
 

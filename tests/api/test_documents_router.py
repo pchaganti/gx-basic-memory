@@ -5,12 +5,14 @@ from pathlib import Path
 import pytest
 from httpx import AsyncClient
 
+from basic_memory.config import ProjectConfig
+
 
 @pytest.mark.asyncio
-async def test_create_document(client: AsyncClient, tmp_path: Path):
+async def test_create_document(client: AsyncClient, test_config):
     """Test document creation endpoint."""
     test_doc = {
-        "path": str(tmp_path / "test.md"),
+        "path": "test.md",
         "content": "# Test\nThis is a test document.",
         "doc_metadata": {"type": "test", "tags": ["documentation", "test"]},
     }
@@ -21,13 +23,12 @@ async def test_create_document(client: AsyncClient, tmp_path: Path):
     data = response.json()
     assert data["path"] == test_doc["path"]
     assert data["doc_metadata"] == test_doc["doc_metadata"]
-    assert data["id"] is not None
     assert data["checksum"] is not None
     assert data["created_at"] is not None
     assert data["updated_at"] is not None
 
     # File should exist with both frontmatter and content
-    doc_path = Path(test_doc["path"])
+    doc_path = Path(test_config.documents_dir / test_doc["path"])
     assert doc_path.exists()
     content = doc_path.read_text()
     assert "---" in content  # Has frontmatter
@@ -35,23 +36,36 @@ async def test_create_document(client: AsyncClient, tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_create_document_invalid_path(client: AsyncClient, tmp_path: Path):
+async def test_create_document_should_create_path(client: AsyncClient):
     """Test creating document in non-existent directory."""
     test_doc = {
-        "path": str(tmp_path / "nonexistent" / "test.md"),
+        "path": "nonexistent/test.md",
         "content": "test content",
         "doc_metadata": {"type": "test"},
     }
 
     response = await client.post("/documents/", json=test_doc)
-    assert response.status_code == 201  # We now create parent directories
+    assert response.status_code == 201
 
 
 @pytest.mark.asyncio
-async def test_get_document(client: AsyncClient, tmp_path: Path):
+async def test_create_document_absolute_path(client: AsyncClient, tmp_path: Path):
+    """Test creating document with absolute path - should fail with 400 error."""
+    test_doc = {
+        "path": str(tmp_path / "documents" / "test.md"),
+        "content": "test content",
+        "doc_metadata": {"type": "test"},
+    }
+
+    response = await client.post("/documents/", json=test_doc)
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_get_document(client: AsyncClient):
     """Test document retrieval endpoint."""
     test_doc = {
-        "path": str(tmp_path / "test.md"),
+        "path": "test.md",
         "content": "# Test\nThis is a test document.",
         "doc_metadata": {"type": "test"},
     }
@@ -62,14 +76,13 @@ async def test_get_document(client: AsyncClient, tmp_path: Path):
     created = create_response.json()
 
     # Get document by ID
-    response = await client.get(f"/documents/{created['id']}")
-    
+    response = await client.get(f"/documents/{created['path']}")
+
     assert response.status_code == 200
     data = response.json()
     assert data["path"] == test_doc["path"]
     assert data["doc_metadata"] == test_doc["doc_metadata"]
-    assert data["id"] == created["id"]
-    
+
     # Content checks - frontmatter followed by original content
     content = data["content"]
     assert "---" in content  # Has frontmatter
@@ -87,11 +100,11 @@ async def test_get_nonexistent_document(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_update_document(client: AsyncClient, tmp_path: Path):
+async def test_update_document(client: AsyncClient, test_config: ProjectConfig):
     """Test document update endpoint using document ID."""
     # Create initial document
     test_doc = {
-        "path": str(tmp_path / "test.md"),
+        "path": "test.md",
         "content": "# Original\nOriginal content.",
         "doc_metadata": {"type": "test", "status": "draft"},
     }
@@ -101,21 +114,21 @@ async def test_update_document(client: AsyncClient, tmp_path: Path):
 
     # Update the document
     update_doc = {
-        "id": created["id"],
+        "path": test_doc["path"],
         "content": "# Updated\nUpdated content.",
         "doc_metadata": {"type": "test", "status": "final"},
     }
-    response = await client.put(f"/documents/{created['id']}", json=update_doc)
+    response = await client.put(f"/documents/{created['path']}", json=update_doc)
     assert response.status_code == 200
 
     data = response.json()
     assert data["doc_metadata"] == update_doc["doc_metadata"]
-    assert data["id"] == created["id"]
+    assert data["path"] == created["path"]
     assert "# Updated" in data["content"]
     assert "Updated content" in data["content"]
-    
+
     # Verify file was updated
-    doc_path = Path(test_doc["path"])
+    doc_path = Path(test_config.documents_dir / test_doc["path"])
     content = doc_path.read_text()
     assert "# Updated" in content
     assert "Updated content" in content
@@ -125,7 +138,7 @@ async def test_update_document(client: AsyncClient, tmp_path: Path):
 async def test_update_nonexistent_document(client: AsyncClient):
     """Test updating a document that doesn't exist."""
     update_doc = {
-        "id": 99999,  # Non-existent ID
+        "path": "99999",  # Non-existent doc path
         "content": "new content",
         "doc_metadata": {"type": "test"},
     }
@@ -135,10 +148,10 @@ async def test_update_nonexistent_document(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_delete_document(client: AsyncClient, tmp_path: Path):
+async def test_delete_document(client: AsyncClient, test_config: ProjectConfig):
     """Test document deletion endpoint."""
     test_doc = {
-        "path": str(tmp_path / "test.md"),
+        "path": "test.md",
         "content": "# Test\nTest content.",
         "doc_metadata": {"type": "test"},
     }
@@ -149,15 +162,15 @@ async def test_delete_document(client: AsyncClient, tmp_path: Path):
     created = create_response.json()
 
     # Delete document by ID
-    response = await client.delete(f"/documents/{created['id']}")
+    response = await client.delete(f"/documents/{created['path']}")
     assert response.status_code == 204
 
     # Verify document is gone from filesystem
-    doc_path = Path(test_doc["path"])
+    doc_path = Path(test_config.documents_dir / test_doc["path"])
     assert not doc_path.exists()
 
     # Verify document is gone from DB (404 on get)
-    get_response = await client.get(f"/documents/{created['id']}")
+    get_response = await client.get(f"/documents/{created['path']}")
     assert get_response.status_code == 404
 
 
@@ -175,12 +188,12 @@ async def test_list_documents(client: AsyncClient, tmp_path: Path):
     # Create a few test documents
     docs = [
         {
-            "path": str(tmp_path / "doc1.md"),
+            "path": "doc1.md",
             "content": "# Doc 1",
             "doc_metadata": {"type": "test", "number": 1},
         },
         {
-            "path": str(tmp_path / "doc2.md"),
+            "path": "doc2.md",
             "content": "# Doc 2",
             "doc_metadata": {"type": "test", "number": 2},
         },
@@ -197,16 +210,16 @@ async def test_list_documents(client: AsyncClient, tmp_path: Path):
     response = await client.get("/documents/")
     assert response.status_code == 200
     data = response.json()
-    
+
     # We should have both documents
     assert len(data) == 2
-    
+
     # Verify all documents are present by ID
-    ids = {item["id"] for item in data}
-    expected_ids = {doc["id"] for doc in created_docs}
-    assert ids == expected_ids
+    path_ids = {item["path"] for item in data}
+    expected_ids = {doc["path"] for doc in created_docs}
+    assert path_ids == expected_ids
 
     # Verify metadata was preserved
     for item in data:
-        matching_doc = next(d for d in created_docs if d["id"] == item["id"])
+        matching_doc = next(d for d in created_docs if d["path"] == item["path"])
         assert item["doc_metadata"] == matching_doc["doc_metadata"]
