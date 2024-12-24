@@ -42,12 +42,8 @@ class EntityOperations(FileOperations):
         created = []
 
         for entity in entities:
-            try:
-                created_entity = await self.create_entity(entity)
-                created.append(created_entity)
-            except Exception as e:
-                logger.error(f"Failed to create entity {entity.name}: {e}")
-                continue
+            created_entity = await self.create_entity(entity)
+            created.append(created_entity)
 
         return created
 
@@ -77,12 +73,9 @@ class EntityOperations(FileOperations):
         logger.debug(f"Deleting entities: {entity_ids}")
         success = True
 
+        # Let errors bubble up
         for entity_id in entity_ids:
-            try:
-                await self.delete_entity(entity_id)
-            except Exception as e:
-                logger.error(f"Failed to delete entity {entity_id}: {e}")
-                success = False
-                continue
+            await self.delete_entity(entity_id)
+            success = True
 
         return success

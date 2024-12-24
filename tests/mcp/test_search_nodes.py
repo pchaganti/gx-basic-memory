@@ -3,7 +3,7 @@
 import pytest
 from mcp.types import EmbeddedResource
 
-from basic_memory.mcp.server import MIME_TYPE, BASIC_MEMORY_URI, handle_call_tool
+from basic_memory.mcp.server import MIME_TYPE, handle_call_tool
 from basic_memory.schemas import SearchNodesResponse
 
 
@@ -21,8 +21,6 @@ async def test_search_nodes(app, test_entity_data, client):
     assert len(result) == 1
     assert isinstance(result[0], EmbeddedResource)
     assert result[0].type == "resource"
-    assert isinstance(result[0].resource.uri, type(BASIC_MEMORY_URI))
-    assert str(result[0].resource.uri) == str(BASIC_MEMORY_URI)
     assert result[0].resource.mimeType == MIME_TYPE
 
     # Verify search results

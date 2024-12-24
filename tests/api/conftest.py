@@ -12,13 +12,7 @@ from basic_memory.deps import get_project_config, get_engine_factory
 @pytest_asyncio.fixture
 def app(test_config, engine_factory) -> FastAPI:
     """Create FastAPI test application."""
-    # Lazy import router to avoid app startup issues
-    from basic_memory.api.routers.knowledge import router as knowledge_router
-    from basic_memory.api.routers.documents import router as documents_router
-
-    app = FastAPI()
-    app.include_router(knowledge_router)
-    app.include_router(documents_router)
+    from basic_memory.api.app import app
 
     app.dependency_overrides[get_project_config] = lambda: test_config
     app.dependency_overrides[get_engine_factory] = lambda: engine_factory

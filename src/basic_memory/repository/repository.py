@@ -40,6 +40,26 @@ class Repository[T: Base]:
         }
         return model_data
 
+    async def select_by_id(self, session: AsyncSession, entity_id: int) -> Optional[T]:
+        """Select an entity by ID using an existing session."""
+        query = (
+            select(self.Model)
+            .filter(self.primary_key == entity_id)
+            .options(*self.get_load_options())
+        )
+        result = await session.execute(query)
+        return result.scalars().one_or_none()
+
+    async def select_by_ids(self, session: AsyncSession, ids: List[int]) -> Sequence[T]:
+        """Select multiple entities by IDs using an existing session."""
+        query = (
+            select(self.Model)
+            .where(self.primary_key.in_(ids))
+            .options(*self.get_load_options())
+        )
+        result = await session.execute(query)
+        return result.scalars().all()
+
     async def add(self, model: T) -> T:
         """
         Add a model to the repository. This will also add related objects
@@ -50,22 +70,23 @@ class Repository[T: Base]:
             session.add(model)
             await session.flush()
 
-            # query to get relations
-            found = await self.find_by_id(model.id)  # pyright: ignore [reportAttributeAccessIssue]
+            # Query within same session
+            found = await self.select_by_id(session, model.id)  # pyright: ignore [reportAttributeAccessIssue]
             assert found is not None, "can't find model after session.add"
             return found
 
     async def add_all(self, models: List[T]) -> Sequence[T]:
         """
         Add a list of models to the repository. This will also add related objects
-        :param model: the models to add
+        :param models: the models to add
         :return: the added models instances
         """
         async with db.scoped_session(self.session_maker) as session:
             session.add_all(models)
             await session.flush()
-            # we have to find to get relations
-            return await self.find_by_ids([m.id for m in models])  # pyright: ignore [reportAttributeAccessIssue]
+            
+            # Query within same session
+            return await self.select_by_ids(session, [m.id for m in models])  # pyright: ignore [reportAttributeAccessIssue]
 
     def select(self, *entities: Any) -> Select:
         """Create a new SELECT statement.
@@ -103,35 +124,14 @@ class Repository[T: Base]:
         logger.debug(f"Finding {self.Model.__name__} by ID: {entity_id}")
 
         async with db.scoped_session(self.session_maker) as session:
-            try:
-                query = (
-                    select(self.Model)
-                    .filter(self.primary_key == entity_id)
-                    .options(*self.get_load_options())
-                )
-
-                result = await session.execute(query)
-                entity = result.scalars().one()
-                logger.debug(f"Found {self.Model.__name__}: {entity_id}")
-                return entity
-            except NoResultFound:
-                logger.debug(f"No {self.Model.__name__} found with ID: {entity_id}")
-                return None
+            return await self.select_by_id(session, entity_id)
 
     async def find_by_ids(self, ids: List[int]) -> Sequence[T]:
         """Fetch multiple entities by their identifiers in a single query."""
         logger.debug(f"Finding {self.Model.__name__} by IDs: {ids}")
 
-        query = (
-            select(self.Model).where(self.primary_key.in_(ids)).options(*self.get_load_options())
-        )
-
         async with db.scoped_session(self.session_maker) as session:
-            result = await session.execute(query)
-            entities = result.scalars().all()
-
-            logger.debug(f"Found {len(entities)} {self.Model.__name__} records")
-            return entities
+            return await self.select_by_ids(session, ids)
 
     async def find_one(self, query: Select[tuple[T]]) -> Optional[T]:
         """Execute a query and retrieve a single record."""
@@ -158,8 +158,7 @@ class Repository[T: Base]:
             session.add(model)
             await session.flush()
 
-            return_instance = await self.find_by_id(model.id)  # pyright: ignore [reportAttributeAccessIssue]
-
+            return_instance = await self.select_by_id(session, model.id)  # pyright: ignore [reportAttributeAccessIssue]
             assert return_instance is not None, "can't find model after session.add"
             return return_instance
 
@@ -173,7 +172,7 @@ class Repository[T: Base]:
             session.add_all(model_list)
             await session.flush()
 
-            return await self.find_by_ids([model.id for model in model_list])  # pyright: ignore [reportAttributeAccessIssue]
+            return await self.select_by_ids(session, [model.id for model in model_list])  # pyright: ignore [reportAttributeAccessIssue]
 
     async def update(self, entity_id: int, entity_data: dict) -> Optional[T]:
         """Update an entity with the given data."""
@@ -193,7 +192,7 @@ class Repository[T: Base]:
                 await session.refresh(entity)  # Refresh
 
                 logger.debug(f"Updated {self.Model.__name__}: {entity_id}")
-                return await self.find_by_id(entity.id)  # pyright: ignore [reportAttributeAccessIssue]
+                return await self.select_by_id(session, entity.id)  # pyright: ignore [reportAttributeAccessIssue]
 
             except NoResultFound:
                 logger.debug(f"No {self.Model.__name__} found to update: {entity_id}")
