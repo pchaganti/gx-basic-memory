@@ -17,6 +17,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, ConfigDict, Field, AliasPath, AliasChoices
 
 from basic_memory.schemas.base import Observation, Relation, PathId, Entity, EntityType
+from basic_memory.schemas.request import ObservationCreate
 
 
 class SQLAlchemyModel(BaseModel):
@@ -30,7 +31,7 @@ class SQLAlchemyModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ObservationResponse(SQLAlchemyModel):
+class ObservationResponse(ObservationCreate, SQLAlchemyModel):
     """Schema for observation data returned from the service.
 
     Each observation gets a unique ID that can be used for later
@@ -38,11 +39,12 @@ class ObservationResponse(SQLAlchemyModel):
 
     Example Response:
     {
-        "content": "Implements SQLite storage for persistence"
+        "category": "feature",
+        "content": "Added support for async operations",
+        "context": "Initial database design meeting"
     }
     """
-
-    content: Observation
+    context: Optional[str] = None
 
 
 class RelationResponse(Relation, SQLAlchemyModel):
@@ -94,10 +96,14 @@ class EntityResponse(SQLAlchemyModel):
         "description": "Core persistence service",
         "observations": [
             {
+                "category": "feature",
                 "content": "Uses SQLite storage"
+                "context": "Initial design"
             },
             {
+                "category": "feature",
                 "content": "Implements async operations"
+                "context": "Initial design"
             }
         ],
         "relations": [

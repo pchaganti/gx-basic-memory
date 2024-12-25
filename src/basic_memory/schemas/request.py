@@ -2,11 +2,17 @@
 
 from typing import List, Optional, Annotated, Dict, Any
 from annotated_types import MaxLen, MinLen
-from pydantic.json_schema import Pattern
 
 from pydantic import BaseModel, StringConstraints
 
-from basic_memory.schemas.base import Observation, Entity, Relation, PathId
+from basic_memory.schemas.base import Observation, Entity, Relation, PathId, ObservationCategory
+
+
+class ObservationCreate(BaseModel):
+    """A single observation with category, content, and optional context."""
+
+    category: ObservationCategory = ObservationCategory.NOTE
+    content: Observation 
 
 
 class AddObservationsRequest(BaseModel):
@@ -22,21 +28,31 @@ class AddObservationsRequest(BaseModel):
     {
         "path_id": "component/memory_service",
         "observations": [
-            "Added support for async operations",
-            "Improved error handling with custom exceptions",
-            "Now uses SQLAlchemy 2.0 features"
-        ]
+            {
+                "category": "feature",
+                "content": "Added support for async operations",
+            },
+            {
+                "category": "tech",
+                "content": "Improved error handling with custom exceptions",
+            }
+        ]   
     }
 
     2. Documenting a decision:
     {
         "path_id": "decision/db_schema_design",
-        "observations": [
-            "Chose SQLite for local-first storage",
-            "Added support for full-text search via FTS5",
-            "Implemented proper foreign key constraints"
-        ],
         "context": "Initial database design meeting"
+        "observations": [
+            {
+                "category": "feature",
+                "content": "Added support for async operations",
+            },
+            {
+                "category": "tech",
+                "content": "Improved error handling with custom exceptions",
+            }
+        ]
     }
 
     Best Practices:
@@ -48,7 +64,7 @@ class AddObservationsRequest(BaseModel):
 
     path_id: PathId
     context: Optional[str] = None
-    observations: List[Observation]
+    observations: List[ObservationCreate]
 
 
 class CreateEntityRequest(BaseModel):
@@ -57,6 +73,8 @@ class CreateEntityRequest(BaseModel):
     Entities represent nodes in the knowledge graph. They can be created
     with initial observations and optional descriptions. Entity IDs are
     automatically generated from the type and name.
+    
+    Observations will be assigned the default category of 'note'.
 
     Example Request:
     {
@@ -203,10 +221,7 @@ class CreateRelationsRequest(BaseModel):
 
 
 FilePath = Annotated[
-    str,
-    StringConstraints(pattern=r'^[a-zA-Z0-9_/.-]+\.md$'),
-    MinLen(1),
-    MaxLen(255)
+    str, StringConstraints(pattern=r"^[a-zA-Z0-9_/.-]+\.md$"), MinLen(1), MaxLen(255)
 ]
 
 

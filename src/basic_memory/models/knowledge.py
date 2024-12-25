@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from basic_memory.models.base import Base
 from basic_memory.models.documents import Document
+from enum import Enum
 
 
 class Entity(Base):
@@ -26,6 +27,8 @@ class Entity(Base):
         UniqueConstraint("entity_type", "name", name="uix_entity_type_name"),
         Index("ix_entity_type", "entity_type"),
         Index("ix_entity_doc_id", "doc_id"),
+        Index("ix_entity_created_at", "created_at"),  # For timeline queries
+        Index("ix_entity_updated_at", "updated_at")   # For timeline queries
     )
 
     # Core identity
@@ -75,6 +78,14 @@ class Entity(Base):
         return f"Entity(id={self.id}, name='{self.name}', type='{self.entity_type}')"
 
 
+class ObservationCategory(str, Enum):
+    TECH = "tech"
+    DESIGN = "design"
+    FEATURE = "feature"
+    NOTE = "note"
+    ISSUE = "issue"
+    TODO = "todo"
+
 class Observation(Base):
     """
     An observation about an entity.
@@ -83,10 +94,22 @@ class Observation(Base):
     """
 
     __tablename__ = "observation"
+    __table_args__ = (
+        Index("ix_observation_entity_id", "entity_id"), # Add FK index
+        Index("ix_observation_category", "category"),    # Add category index
+        Index("ix_observation_created_at", "created_at"),  # For timeline queries
+        Index("ix_observation_updated_at", "updated_at"),  # For timeline queries
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     entity_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
     content: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        default=ObservationCategory.NOTE.value,
+        server_default=ObservationCategory.NOTE.value
+    )
     context: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[datetime] = mapped_column(
@@ -109,6 +132,10 @@ class Relation(Base):
     __table_args__ = (
         UniqueConstraint("from_id", "to_id", "relation_type", name="uix_relation"),
         Index("ix_relation_type", "relation_type"),
+        Index("ix_relation_from_id", "from_id"),  # Add FK indexes
+        Index("ix_relation_to_id", "to_id"),
+        Index("ix_relation_created_at", "created_at"),  # For timeline queries
+        Index("ix_relation_updated_at", "updated_at"),  # For timeline queries
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

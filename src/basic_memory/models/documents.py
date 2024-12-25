@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from sqlalchemy import String, DateTime, text, JSON
+from sqlalchemy import String, DateTime, text, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from basic_memory.models.base import Base
@@ -19,6 +19,10 @@ class Document(Base):
     """
 
     __tablename__ = "document"
+    __table_args__ = (
+        Index("ix_document_created_at", "created_at"),
+        Index("ix_document_updated_at", "updated_at")
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     path: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)

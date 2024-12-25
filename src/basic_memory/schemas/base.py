@@ -33,6 +33,7 @@ Common Relation Types:
 """
 
 import re
+from enum import Enum
 from typing import List, Optional, Annotated
 
 from annotated_types import MinLen, MaxLen
@@ -66,6 +67,15 @@ def validate_path_format(path: str) -> str:
         raise ValueError("Path must be a non-empty string")
 
     return path
+
+
+class ObservationCategory(str, Enum):
+    TECH = "tech"
+    DESIGN = "design"
+    FEATURE = "feature"
+    NOTE = "note"
+    ISSUE = "issue"
+    TODO = "todo"
 
 PathId = Annotated[str, BeforeValidator(to_snake_case), BeforeValidator(validate_path_format)]
 """Unique identifier in format '{path}/{normalized_name}'."""
