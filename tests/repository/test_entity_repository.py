@@ -13,24 +13,15 @@ from basic_memory.repository.entity_repository import EntityRepository
 
 
 @pytest_asyncio.fixture
-async def test_entity(session_maker):
-    """Create a test entity."""
-    async with db.scoped_session(session_maker) as session:
-        entity = Entity(name="test_entity", entity_type="test", description="Test entity")
-        session.add(entity)
-        return entity
-
-
-@pytest_asyncio.fixture
-async def entity_with_observations(session_maker, test_entity):
+async def entity_with_observations(session_maker, sample_entity):
     """Create an entity with observations."""
     async with db.scoped_session(session_maker) as session:
         observations = [
-            Observation(entity_id=test_entity.id, content="First observation"),
-            Observation(entity_id=test_entity.id, content="Second observation"),
+            Observation(entity_id=sample_entity.id, content="First observation"),
+            Observation(entity_id=sample_entity.id, content="Second observation"),
         ]
         session.add_all(observations)
-        return test_entity
+        return sample_entity
 
 
 @pytest_asyncio.fixture
@@ -40,11 +31,13 @@ async def related_entities(session_maker):
         source = Entity(
             name="source",
             entity_type="source",
+            path_id="source/source",
             description="Source entity",
         )
         target = Entity(
             name="target",
             entity_type="target",
+            path_id="target/target",
             description="Target entity",
         )
         session.add(source)
@@ -63,6 +56,7 @@ async def test_create_entity(entity_repository: EntityRepository):
     entity_data = {
         "name": "Test",
         "entity_type": "test",
+        "path_id": "test/test",
         "description": "Test description",
     }
     entity = await entity_repository.create(entity_data)
@@ -94,11 +88,13 @@ async def test_create_all(entity_repository: EntityRepository):
         {
             "name": "Test_1",
             "entity_type": "test",
+            "path_id": "test/test_1",
             "description": "Test description",
         },
         {
             "name": "Test-2",
             "entity_type": "test",
+            "path_id": "test/test_2",
             "description": "Test description",
         },
     ]
@@ -127,6 +123,7 @@ async def test_entity_type_name_unique_constraint(entity_repository: EntityRepos
     entity1_data = {
         "name": "Test Entity",
         "entity_type": "type1",
+        "path_id": "type1/test_entity",
         "description": "First entity",
     }
     await entity_repository.create(entity1_data)
@@ -135,6 +132,7 @@ async def test_entity_type_name_unique_constraint(entity_repository: EntityRepos
     entity2_data = {
         "name": "Test Entity",  # Same name
         "entity_type": "type1",  # Same type
+        "path_id": "type1/test_entity",
         "description": "Second entity",
     }
 
@@ -150,6 +148,7 @@ async def test_create_entity_null_description(session_maker, entity_repository: 
     entity_data = {
         "name": "Test",
         "entity_type": "test",
+        "path_id": "test/test",
         "description": None,
     }
     entity = await entity_repository.create(entity_data)
@@ -215,13 +214,13 @@ async def test_update_entity_to_null(entity_repository: EntityRepository, sample
 
 
 @pytest.mark.asyncio
-async def test_delete_entity(entity_repository: EntityRepository, test_entity):
+async def test_delete_entity(entity_repository: EntityRepository, sample_entity):
     """Test deleting an entity."""
-    result = await entity_repository.delete(test_entity.id)
+    result = await entity_repository.delete(sample_entity.id)
     assert result is True
 
     # Verify deletion
-    deleted = await entity_repository.find_by_id(test_entity.id)
+    deleted = await entity_repository.find_by_id(sample_entity.id)
     assert deleted is None
 
 
@@ -248,14 +247,14 @@ async def test_delete_entity_with_observations(
 
 
 @pytest.mark.asyncio
-async def test_delete_entities_by_type(entity_repository: EntityRepository, test_entity):
+async def test_delete_entities_by_type(entity_repository: EntityRepository, sample_entity):
     """Test deleting entities by type."""
-    result = await entity_repository.delete_by_fields(entity_type=test_entity.entity_type)
+    result = await entity_repository.delete_by_fields(entity_type=sample_entity.entity_type)
     assert result is True
 
     # Verify deletion
     async with db.scoped_session(entity_repository.session_maker) as session:
-        query = select(Entity).filter(Entity.entity_type == test_entity.entity_type)
+        query = select(Entity).filter(Entity.entity_type == sample_entity.entity_type)
         result = await session.execute(query)
         remaining = result.scalars().all()
         assert len(remaining) == 0
@@ -297,11 +296,13 @@ async def test_search(session_maker, entity_repository: EntityRepository):
         entity1 = Entity(
             name="Search Test 1",
             entity_type="test",
+            path_id="test/search_test_1",
             description="First test entity",
         )
         entity2 = Entity(
             name="Search Test 2",
             entity_type="other",
+            path_id="other/search_test_2",
             description="Second test entity",
         )
         session.add_all([entity1, entity2])

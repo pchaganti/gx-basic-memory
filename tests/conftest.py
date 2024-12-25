@@ -166,5 +166,5 @@ async def knowledge_service(
 @pytest_asyncio.fixture(scope="function")
 async def sample_entity(entity_repository: EntityRepository) -> Entity:
     """Create a sample entity for testing."""
-    entity_data = {"name": "Test Entity", "entity_type": "test", "description": "A test entity"}
+    entity_data = {"name": "Test Entity", "entity_type": "test", "description": "A test entity", "path_id": "test/test_entity"}
     return await entity_repository.create(entity_data)
