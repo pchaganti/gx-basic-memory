@@ -56,9 +56,9 @@ async def add_observations(
     data: AddObservationsRequest, knowledge_service: KnowledgeServiceDep
 ) -> EntityResponse:
     """Add observations to an entity."""
-    logger.debug(f"Adding observations to entity: {data.entity_id}")
+    logger.debug(f"Adding observations to entity: {data.path_id}")
     updated_entity = await knowledge_service.add_observations(
-        data.entity_id, data.observations, data.context
+        data.path_id, data.observations, data.context
     )
     return EntityResponse.model_validate(updated_entity)
 
@@ -93,7 +93,7 @@ async def search_nodes(
 @router.post("/nodes", response_model=EntityListResponse)
 async def open_nodes(data: OpenNodesRequest, entity_service: EntityServiceDep) -> EntityListResponse:
     """Open specific nodes by their names."""
-    entities = await entity_service.open_nodes(data.entity_ids)
+    entities = await entity_service.open_nodes(data.path_ids)
     return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )
@@ -107,7 +107,7 @@ async def delete_entity(
     data: DeleteEntitiesRequest, knowledge_service: KnowledgeServiceDep
 ) -> DeleteEntitiesResponse:
     """Delete a specific entity by PathId."""
-    deleted = await knowledge_service.delete_entities(data.entity_ids)
+    deleted = await knowledge_service.delete_entities(data.path_ids)
     return DeleteEntitiesResponse(deleted=deleted)
 
 
@@ -116,7 +116,7 @@ async def delete_observations(
     data: DeleteObservationsRequest, knowledge_service: KnowledgeServiceDep
 ) -> EntityResponse:
     """Delete observations from an entity."""
-    path_id = data.entity_id
+    path_id = data.path_id
     updated_entity = await knowledge_service.delete_observations(path_id, data.deletions)
     return EntityResponse.model_validate(updated_entity)
 

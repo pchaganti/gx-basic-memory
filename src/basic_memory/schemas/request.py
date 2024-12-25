@@ -19,7 +19,7 @@ class AddObservationsRequest(BaseModel):
 
     1. Adding implementation details:
     {
-        "entity_id": "component/memory_service",
+        "path_id": "component/memory_service",
         "observations": [
             "Added support for async operations",
             "Improved error handling with custom exceptions",
@@ -29,7 +29,7 @@ class AddObservationsRequest(BaseModel):
 
     2. Documenting a decision:
     {
-        "entity_id": "decision/db_schema_design",
+        "path_id": "decision/db_schema_design",
         "observations": [
             "Chose SQLite for local-first storage",
             "Added support for full-text search via FTS5",
@@ -45,7 +45,7 @@ class AddObservationsRequest(BaseModel):
     4. Add observations in logical groups for better history tracking
     """
 
-    entity_id: PathId
+    path_id: PathId
     context: Optional[str] = None
     observations: List[Observation]
 
@@ -135,7 +135,7 @@ class OpenNodesRequest(BaseModel):
 
     Example Request:
     {
-        "entity_ids": [
+        "path_ids": [
             "component/memory_service",
             "document/api_spec",
             "test/memory_service_test"
@@ -152,7 +152,7 @@ class OpenNodesRequest(BaseModel):
     relations between entities that interest you.
     """
 
-    entity_ids: Annotated[List[PathId], MinLen(1)]
+    path_ids: Annotated[List[PathId], MinLen(1)]
 
 
 class CreateRelationsRequest(BaseModel):

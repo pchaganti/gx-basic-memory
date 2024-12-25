@@ -35,7 +35,7 @@ class DeleteEntitiesRequest(BaseModel):
 
     Example Request:
     {
-        "entity_ids": [
+        "path_ids": [
             "component/deprecated_service",
             "document/outdated_spec"
         ]
@@ -56,7 +56,7 @@ class DeleteEntitiesRequest(BaseModel):
     5. Create relations to replacement entities if applicable
     """
 
-    entity_ids: Annotated[List[PathId], MinLen(1)]
+    path_ids: Annotated[List[PathId], MinLen(1)]
 
 
 class DeleteRelationsRequest(BaseModel):
@@ -104,7 +104,7 @@ class DeleteObservationsRequest(BaseModel):
 
     Example Request:
     {
-        "entity_id": "component/memory_service",
+        "path_id": "component/memory_service",
         "deletions": [
             "Old implementation uses Python 3.8",
             "Depends on deprecated module"
@@ -132,5 +132,5 @@ class DeleteObservationsRequest(BaseModel):
     5. Updating implementation details
     """
 
-    entity_id: PathId
+    path_id: PathId
     deletions: Annotated[List[Observation], MinLen(1)]

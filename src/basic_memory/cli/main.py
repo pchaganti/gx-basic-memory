@@ -27,7 +27,7 @@ def init_db(
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            async with engine_session_factory(path, db_type=DatabaseType.FILESYSTEM, init=True):
+            async with engine_session_factory(db_path, db_type=DatabaseType.FILESYSTEM, init=True):
                 typer.echo(f"Initialized database at {db_path}")
         except Exception as e:
             typer.echo(f"Error initializing database: {e}")

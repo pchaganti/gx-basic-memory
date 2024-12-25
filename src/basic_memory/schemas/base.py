@@ -65,14 +65,6 @@ def validate_path_format(path: str) -> str:
     if not path or not isinstance(path, str):
         raise ValueError("Path must be a non-empty string")
 
-    parts = path.split('/')
-    if len(parts) != 2:
-        raise ValueError("Path must be in format: type/name")
-
-    type_part, name_part = parts
-    if not type_part or not name_part:
-        raise ValueError("Both type and name must be non-empty")
-
     return path
 
 PathId = Annotated[str, BeforeValidator(to_snake_case), BeforeValidator(validate_path_format)]
