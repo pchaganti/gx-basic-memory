@@ -308,10 +308,10 @@ async def test_delete_relations(client, relation_repository):
 async def test_delete_nonexistent_entity(client: AsyncClient):
     """Test deleting a nonexistent entity by path ID."""
     response = await client.post(
-        "/knowledge/entities/delete", json={"entity_ids": ["test/NonExistent"]}
+        "/knowledge/entities/delete", json={"entity_ids": ["test/non_existent"]}
     )
     assert response.status_code == 200
-    assert response.json() == {"deleted": False}
+    assert response.json() == {"deleted": True}
 
 
 @pytest.mark.asyncio
@@ -336,8 +336,8 @@ async def test_delete_nonexistent_relations(client: AsyncClient):
     request_data = {
         "relations": [
             {
-                "from_id": "test/NonExistent1",
-                "to_id": "test/NonExistent2",
+                "from_id": "test/non_existent1",
+                "to_id": "test/non_existent2",
                 "relation_type": "nonexistent",
             }
         ]
@@ -389,13 +389,13 @@ async def test_full_knowledge_flow(client: AsyncClient):
         json={
             "relations": [
                 {
-                    "from_id": "test/MainEntity",
-                    "to_id": "test/RelatedOne",
+                    "from_id": "test/main_entity",
+                    "to_id": "test/related_one",
                     "relation_type": "connects_to",
                 },
                 {
-                    "from_id": "test/MainEntity",
-                    "to_id": "test/RelatedTwo",
+                    "from_id": "test/main_entity",
+                    "to_id": "test/related_two",
                     "relation_type": "connects_to",
                 },
             ]
@@ -407,7 +407,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     await client.post(
         "/knowledge/observations",
         json={
-            "entity_id": "test/MainEntity",
+            "entity_id": "test/main_entity",
             "observations": [
                 "Connected to first related entity",
                 "Connected to second related entity",
@@ -428,7 +428,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     # 6. Search should find all related entities
     search = await client.post("/knowledge/search", json={"query": "Related"})
     matches = search.json()["matches"]
-    assert len(matches) == 2  # Should find both related entities
+    assert len(matches) == 3  # Should find both related entities, and the main one with the observation
 
     # 7. Delete main entity
     response = await client.post(

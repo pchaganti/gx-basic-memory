@@ -27,7 +27,7 @@ async def observation_service(observation_repository: ObservationRepository) -> 
 async def test_entity(session_maker: async_sessionmaker[AsyncSession]) -> Entity:
     """Create a test entity."""
     async with session_maker() as session:
-        entity = Entity(entity_type="test", name="test", description="Test entity")
+        entity = Entity(entity_type="test", name="test", description="Test entity", path_id="test/test")
         session.add(entity)
         await session.commit()
         return entity

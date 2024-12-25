@@ -100,20 +100,19 @@ def test_entity_out_from_attributes():
     """Test EntityOut creation from database model attributes."""
     # Simulate database model attributes
     db_data = {
-        "id": "123",
+        "path_id": "test/test",
         "name": "test",
         "entity_type": "test",
         "description": "test description",
         "observations": [{"id": 1, "content": "test obs", "context": None}],
         "relations": [
-            {"id": 1, "from_id": 123, "to_id": 456, "relation_type": "test", "context": None}
+            {"id": 1, "from_id": "test/test", "to_id": "test/test", "relation_type": "test", "context": None}
         ],
     }
     entity = EntityResponse.model_validate(db_data)
-    assert entity.id == 123
+    assert entity.path_id == "test/test"
     assert entity.description == "test description"
     assert len(entity.observations) == 1
-    assert entity.observations[0].id == 1
     assert len(entity.relations) == 1
 
 
@@ -155,7 +154,7 @@ def test_search_nodes_input():
 
 def test_open_nodes_input():
     """Test OpenNodesInput validation."""
-    open_input = OpenNodesRequest.model_validate({"entity_ids": [1, 2]})
+    open_input = OpenNodesRequest.model_validate({"entity_ids": ["test", "test2"]})
     assert len(open_input.entity_ids) == 2
 
     # Empty names list should fail

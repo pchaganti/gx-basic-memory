@@ -79,8 +79,12 @@ class EntityRepository(Repository[Entity]):
     def get_load_options(self) -> List[LoaderOption]:
         return [
             selectinload(Entity.observations),
+            # Load from_relations and both entities for each relation
+            selectinload(Entity.from_relations).selectinload(Relation.from_entity),
             selectinload(Entity.from_relations).selectinload(Relation.to_entity),
+            # Load to_relations and both entities for each relation
             selectinload(Entity.to_relations).selectinload(Relation.from_entity),
+            selectinload(Entity.to_relations).selectinload(Relation.to_entity),
         ]
 
     async def find_by_path_ids(self, path_ids: List[str]) -> Sequence[Entity]:

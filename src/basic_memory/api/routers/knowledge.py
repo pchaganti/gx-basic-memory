@@ -127,15 +127,7 @@ async def delete_relations(
     data: DeleteRelationsRequest, knowledge_service: KnowledgeServiceDep
 ) -> CreateEntityResponse:
     """Delete relations between entities."""
-    to_delete = [
-        {
-            "from_id": relation.from_id,
-            "to_id": relation.to_id,
-            "relation_type": relation.relation_type,
-        }
-        for relation in data.relations
-    ]
-    updated_entities = await knowledge_service.delete_relations(to_delete)
+    updated_entities = await knowledge_service.delete_relations(data.relations)
     return CreateEntityResponse(
         entities=[EntityResponse.model_validate(entity) for entity in updated_entities]
     )

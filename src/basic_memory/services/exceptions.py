@@ -8,3 +8,8 @@ class EntityNotFoundError(Exception):
     """Raised when an entity cannot be found"""
 
     pass
+
+class EntityCreationError(Exception):
+    """Raised when an entity cannot be created"""
+
+    pass

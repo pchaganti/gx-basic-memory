@@ -23,6 +23,9 @@ class RelationService(BaseService[RelationRepository]):
         logger.debug(f"Creating relation: {relation}")
         return await self.repository.add(relation)
 
+    async def find_relation(self, from_path_id: str, to_path_id: str, relation_type: str) -> Relation:
+        return await self.repository.find_relation(from_path_id, to_path_id, relation_type)
+        
     async def delete_relation(
         self, from_entity: Entity, to_entity: Entity, relation_type: str
     ) -> bool:
@@ -37,20 +40,13 @@ class RelationService(BaseService[RelationRepository]):
         )
         return result
 
-    async def delete_relations(self, relations: List[Dict[str, Any]]) -> bool:
+    async def delete_relations(self, relations: List[Relation]) -> int:
         """Delete relations matching specified criteria."""
         logger.debug(f"Deleting {len(relations)} relations")
         deleted = False
-        for relation in relations:
-            filters = {"from_id": relation["from_id"], "to_id": relation["to_id"]}
-            if "relation_type" in relation:
-                filters["relation_type"] = relation["relation_type"]
-
-            result = await self.repository.delete_by_fields(**filters)
-            if result:
-                deleted = True
-
-        return deleted
+        
+        ids = [relation.id for relation in relations]
+        return await self.repository.delete_by_ids(ids)
 
     async def create_relations(self, relations: List[Relation]) -> Sequence[Relation]:
         """Create multiple relations between entities."""

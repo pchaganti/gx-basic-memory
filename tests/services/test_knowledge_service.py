@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import List
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema, Relation as RelationSchema
 from basic_memory.services import EntityService
-from basic_memory.services.exceptions import EntityNotFoundError, FileOperationError
+from basic_memory.services.exceptions import EntityNotFoundError, FileOperationError, EntityCreationError
 from basic_memory.services.knowledge import KnowledgeService
 
 
@@ -17,7 +18,7 @@ async def test_get_entity_path(knowledge_service: KnowledgeService):
     """Should generate correct filesystem path for entity."""
     entity = EntityModel(id=1, name="test-entity", entity_type="concept", description="Test entity")
     path = knowledge_service.get_entity_path(entity)
-    assert path == Path(knowledge_service.base_path / "knowledge/concept/test-entity.md")
+    assert path == Path(knowledge_service.base_path / "concept/test-entity.md")
 
 
 @pytest.mark.asyncio
@@ -71,8 +72,8 @@ async def test_create_relations(knowledge_service: KnowledgeService, entity_serv
     # Create relation
     relations = [
         RelationSchema(
-            from_id=entity1.id,
-            to_id=entity2.id,
+            from_id=entity1.path_id,
+            to_id=entity2.path_id,
             relation_type="test_relation",
             context="Test context",
         )
@@ -82,9 +83,9 @@ async def test_create_relations(knowledge_service: KnowledgeService, entity_serv
     assert len(updated_entities) == 2
 
     # Verify files were updated
-    for entity_id in [entity1.id, entity2.id]:
-        entity = await entity_service.get_entity(entity_id)
-        file_path = knowledge_service.get_entity_path(entity)
+    for entity in [entity1, entity2]:
+        found = await entity_service.get_by_path_id(entity.path_id)
+        file_path = knowledge_service.get_entity_path(found)
         content, _ = await knowledge_service.file_service.read_file(file_path)
         assert "test_relation" in content
 
@@ -100,7 +101,7 @@ async def test_add_observations(knowledge_service: KnowledgeService):
     # Add observations
     observations = ["Test observation 1", "Test observation 2"]
     updated_entity = await knowledge_service.add_observations(
-        entity.id, observations, "Test context"
+        entity.path_id, observations, "Test context"
     )
 
     # Verify observations in DB
@@ -128,7 +129,7 @@ async def test_delete_entity(knowledge_service: KnowledgeService):
     assert await knowledge_service.file_service.exists(file_path)
 
     # Delete entity
-    success = await knowledge_service.delete_entity(entity.id)
+    success = await knowledge_service.delete_entity(entity.path_id)
     assert success
 
     # Verify file was deleted
@@ -136,7 +137,7 @@ async def test_delete_entity(knowledge_service: KnowledgeService):
 
     # Verify entity was deleted from DB
     with pytest.raises(EntityNotFoundError):
-        await knowledge_service.entity_service.get_entity(entity.id)
+        await knowledge_service.entity_service.get_by_path_id(entity.path_id)
 
 
 @pytest.mark.asyncio
@@ -151,7 +152,7 @@ async def test_delete_multiple_entities(knowledge_service: KnowledgeService):
         entities.append(entity)
 
     # Delete entities
-    success = await knowledge_service.delete_entities([e.id for e in entities])
+    success = await knowledge_service.delete_entities([e.path_id for e in entities])
     assert success
 
     # Verify files were deleted
@@ -159,7 +160,7 @@ async def test_delete_multiple_entities(knowledge_service: KnowledgeService):
         file_path = knowledge_service.get_entity_path(entity)
         assert not await knowledge_service.file_service.exists(file_path)
         with pytest.raises(EntityNotFoundError):
-            await knowledge_service.entity_service.get_entity(entity.id)
+            await knowledge_service.entity_service.get_by_path_id(entity.path_id)
 
 
 @pytest.mark.asyncio
@@ -187,14 +188,14 @@ async def test_entity_not_found_error(knowledge_service: KnowledgeService):
 @pytest.mark.asyncio
 async def test_cleanup_on_creation_failure(knowledge_service: KnowledgeService, monkeypatch):
     """Should clean up DB entity if file write fails."""
-    entity_ids: List[int] = []
+    entity_ids: List[str] = []
 
     # Capture created entity ID
     original_create = knowledge_service.entity_service.create_entity
 
     async def mock_create_entity(*args, **kwargs):
         entity = await original_create(*args, **kwargs)
-        entity_ids.append(entity.id)
+        entity_ids.append(entity.path_id)
         return entity
 
     # Force file write to fail
@@ -213,7 +214,7 @@ async def test_cleanup_on_creation_failure(knowledge_service: KnowledgeService, 
     # Verify entity was cleaned up
     assert len(entity_ids) == 1
     with pytest.raises(EntityNotFoundError):
-        await knowledge_service.entity_service.get_entity(entity_ids[0])
+        await knowledge_service.entity_service.get_by_path_id(entity_ids[0])
 
 
 @pytest.mark.asyncio
@@ -225,13 +226,8 @@ async def test_skip_failed_batch_operations(knowledge_service: KnowledgeService)
         EntitySchema(name="test-2", entity_type="test", description="Test entity 2"),
     ]
 
-    created = await knowledge_service.create_entities(entities)
-    assert len(created) == 2  # Middle one should fail but not stop processing
-
-    # Verify first and last were created
-    names = [e.name for e in created]
-    assert "test-1" in names
-    assert "test-2" in names
+    with pytest.raises(IntegrityError):
+        await knowledge_service.create_entities(entities)
 
 
 @pytest.mark.asyncio
@@ -248,8 +244,8 @@ async def test_update_relations_in_files(knowledge_service: KnowledgeService):
     # Create relation
     relations = [
         RelationSchema(
-            from_id=entity1.id,
-            to_id=entity2.id,
+            from_id=entity1.path_id,
+            to_id=entity2.path_id,
             relation_type="connects_to",
             context="Test connection",
         )

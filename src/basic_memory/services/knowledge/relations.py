@@ -66,20 +66,26 @@ class RelationOperations(EntityOperations):
         # select again to eagerly load all relations
         return await self.entity_service.open_nodes([e.path_id for e in updated_entities])
 
-    async def delete_relations(self, to_delete: List[Dict[str, Any]]) -> Sequence[EntityModel]:
+    async def delete_relations(self, to_delete: List[RelationSchema]) -> Sequence[EntityModel]:
         """Delete relations and return all updated entities."""
         logger.debug(f"Deleting {len(to_delete)} relations")
         updated_entities = []
         entities_to_update = set()
-
+        relations = []
+        
         try:
             # Delete relations from DB
             for relation in to_delete:
-                entities_to_update.add(relation["from_id"])
-                entities_to_update.add(relation["to_id"])
+                entities_to_update.add(relation.from_id)
+                entities_to_update.add(relation.to_id)
+                
+                relation = await self.relation_service.find_relation(relation.from_id, relation.to_id, relation.relation_type)
+                if relation:
+                    relations.append(relation)
 
-            deleted = await self.relation_service.delete_relations(to_delete)
-            if not deleted:
+            # pass Relation models to delete
+            num_deleted = await self.relation_service.delete_relations(relations)
+            if num_deleted == 0:
                 logger.warning("No relations were deleted")
 
             # Get fresh copies of all updated entities
@@ -91,7 +97,7 @@ class RelationOperations(EntityOperations):
                         raise EntityNotFoundError(f"Entity not found: {path_id}")
 
                     # Write updated file
-                    checksum = await self.write_entity_file(entity)
+                    _, checksum = await self.write_entity_file(entity)
                     updated = await self.entity_service.update_entity(
                         path_id, {"checksum": checksum}
                     )

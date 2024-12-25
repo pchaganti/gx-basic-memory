@@ -1,10 +1,10 @@
 """Repository for managing Relation objects."""
-
-from typing import Sequence, List
+from sqlalchemy import and_ 
+from typing import Sequence, List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.orm.interfaces import LoaderOption
 
 from basic_memory.models import Relation, Entity
@@ -16,6 +16,25 @@ class RelationRepository(Repository[Relation]):
 
     def __init__(self, session_maker: async_sessionmaker):
         super().__init__(session_maker, Relation)
+
+    async def find_relation(self, from_path_id: str, to_path_id: str, relation_type: str) -> Optional[Relation]:
+        """Find a relation by its from and to path IDs."""
+        from_entity = aliased(Entity)
+        to_entity = aliased(Entity)
+
+        query = (
+            select(Relation)
+            .join(from_entity, Relation.from_id == from_entity.id)
+            .join(to_entity, Relation.to_id == to_entity.id)
+            .where(
+                and_(
+                    from_entity.path_id == from_path_id,
+                    to_entity.path_id == to_path_id,
+                    Relation.relation_type == relation_type
+                )
+            )
+        )
+        return await self.find_one(query)
 
     async def find_by_entity(self, from_entity_id: int) -> Sequence[Relation]:
         """Find all relations from a specific entity."""

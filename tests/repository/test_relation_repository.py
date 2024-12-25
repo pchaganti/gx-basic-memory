@@ -15,6 +15,7 @@ async def source_entity(session_maker):
     entity = Entity(
         name="test_source",
         entity_type="source",
+        path_id="source/test_source",
         description="Source entity",
     )
     async with db.scoped_session(session_maker) as session:
@@ -29,6 +30,7 @@ async def target_entity(session_maker):
     entity = Entity(
         name="test_target",
         entity_type="target",
+        path_id="target/test_target",
         description="Target entity",
     )
     async with db.scoped_session(session_maker) as session:
@@ -56,6 +58,7 @@ async def related_entity(entity_repository):
     entity_data = {
         "name": "Related Entity",
         "entity_type": "test",
+        "path_id": "test/related_entity",
         "description": "A related test entity",
         "references": "",
     }
@@ -150,6 +153,14 @@ async def test_find_by_entities(
     assert len(relations) == 1
     assert relations[0].id == sample_relation.id
     assert relations[0].relation_type == sample_relation.relation_type
+
+@pytest.mark.asyncio
+async def test_find_relation(relation_repository: RelationRepository, sample_relation: Relation):
+    """Test finding relations by type"""
+    relation = await relation_repository.find_relation(from_path_id=sample_relation.from_entity.path_id, 
+                                                        to_path_id=sample_relation.to_entity.path_id, 
+                                                        relation_type=sample_relation.relation_type)
+    assert relation.id == sample_relation.id
 
 
 @pytest.mark.asyncio

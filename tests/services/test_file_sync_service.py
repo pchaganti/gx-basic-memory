@@ -15,9 +15,10 @@ async def file_sync_service(document_repository) -> FileSyncService:
 
 
 @pytest_asyncio.fixture
-async def docs_dir(test_project_path) -> Path:
+async def docs_dir(test_config) -> Path:
     """Get documents directory."""
-    return test_project_path / "documents"
+    test_config.documents_dir.mkdir(parents=True)
+    return test_config.documents_dir
 
 
 @pytest_asyncio.fixture
@@ -26,8 +27,8 @@ async def sample_files(docs_dir) -> dict[str, str]:
     # Create test structure
     design_dir = docs_dir / "design"
     notes_dir = docs_dir / "notes"
-    design_dir.mkdir(exist_ok=True)
-    notes_dir.mkdir(exist_ok=True)
+    design_dir.mkdir(parents=True, exist_ok=True)
+    notes_dir.mkdir(parents=True, exist_ok=True)
 
     # Map of relative paths to content
     files = {

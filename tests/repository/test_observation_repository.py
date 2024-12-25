@@ -87,7 +87,7 @@ async def test_delete_observations(session_maker: async_sessionmaker, repo):
     """Test deleting observations by entity_id."""
     # Create test entity
     async with db.scoped_session(session_maker) as session:
-        entity = Entity(name="test_entity", entity_type="test", description="Test entity")
+        entity = Entity(name="test_entity", entity_type="test", description="Test entity", path_id="test/test_entity")
         session.add(entity)
         await session.flush()
 
@@ -110,7 +110,7 @@ async def test_delete_observation_by_id(session_maker: async_sessionmaker, repo)
     """Test deleting a single observation by its ID."""
     # Create test entity
     async with db.scoped_session(session_maker) as session:
-        entity = Entity(name="test_entity", entity_type="test", description="Test entity")
+        entity = Entity(name="test_entity", entity_type="test", description="Test entity", path_id="test/test_entity")
         session.add(entity)
         await session.flush()
 
@@ -132,7 +132,7 @@ async def test_delete_observation_by_content(session_maker: async_sessionmaker, 
     """Test deleting observations by content."""
     # Create test entity
     async with db.scoped_session(session_maker) as session:
-        entity = Entity(name="test_entity", entity_type="test", description="Test entity")
+        entity = Entity(name="test_entity", entity_type="test", description="Test entity", path_id="test/test_entity")
         session.add(entity)
         await session.flush()
 

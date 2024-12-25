@@ -7,6 +7,7 @@ from loguru import logger
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema
 from .files import FileOperations
+from ..exceptions import EntityCreationError, EntityNotFoundError
 
 
 class EntityOperations(FileOperations):
@@ -49,7 +50,7 @@ class EntityOperations(FileOperations):
         for entity in entities:
             created_entity = await self.create_entity(entity)
             created.append(created_entity)
-
+            
         return created
 
     async def delete_entity(self, path_id: str) -> bool:
@@ -59,8 +60,6 @@ class EntityOperations(FileOperations):
         try:
             # Get entity first for file deletion
             entity = await self.entity_service.get_by_path_id(path_id)
-            if not entity:
-                return True  # Already deleted
 
             # Delete file first (it's source of truth)
             path = self.get_entity_path(entity)
@@ -68,7 +67,11 @@ class EntityOperations(FileOperations):
 
             # Delete from DB (this will cascade to observations/relations)
             return await self.entity_service.delete_entity(path_id)
-
+        
+        except EntityNotFoundError:
+            logger.info(f"Entity not found: {path_id}")
+            return True # Already deleted
+        
         except Exception as e:
             logger.error(f"Failed to delete entity: {e}")
             raise

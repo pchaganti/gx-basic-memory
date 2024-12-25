@@ -36,10 +36,11 @@ class ObservationOperations(RelationOperations):
             updated_entity = await self.entity_service.get_by_path_id(path_id)
 
             # Write updated file and checksum
-            checksum = await self.write_entity_file(entity)
+            _, checksum = await self.write_entity_file(entity)
             await self.entity_service.update_entity(path_id, {"checksum": checksum})
 
-            return updated_entity
+            # query to fetch all relations
+            return await self.entity_service.get_by_path_id(path_id)
 
         except Exception as e:
             logger.error(f"Failed to add observations: {e}")
@@ -59,7 +60,7 @@ class ObservationOperations(RelationOperations):
             await self.observation_service.delete_observations(entity.id, observations)
 
             # Write updated file
-            checksum = await self.write_entity_file(entity)
+            _, checksum = await self.write_entity_file(entity)
             await self.entity_service.update_entity(path_id, {"checksum": checksum})
 
             # Get final entity with all updates
