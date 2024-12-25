@@ -4,16 +4,12 @@ import sys
 from typing import Any, List
 
 from fastmcp import FastMCP
-from httpx import AsyncClient, ASGITransport
 from loguru import logger
 
-from basic_memory.api.app import app as fastapi_app
+from basic_memory.mcp.async_client import client
 
 # Create FastMCP server
 mcp = FastMCP("Basic Memory")
-
-# Create shared async client
-client = AsyncClient(transport=ASGITransport(app=fastapi_app), base_url="http://test")
 
 
 def setup_logging(log_file: str = "basic-memory-mcp.log"):
@@ -48,7 +44,8 @@ async def log_api_call(method: str, url: str, data: Any, response: Any):
     logger.debug(f"API Request: {method} {url}")
     logger.debug(f"Request Data: {data}")
     logger.debug(f"Response Status: {response.status_code}")
-    logger.debug(f"Response Data: {response.json()}")
+    if response.status_code != 204:  # Only try to log response data if it's not No Content
+        logger.debug(f"Response Data: {response.json()}")
 
 
 # Knowledge Graph Tools
@@ -59,25 +56,28 @@ async def log_api_call(method: str, url: str, data: Any, response: Any):
 @mcp.tool()
 async def create_entities(entities: list[dict]) -> dict:
     """Create new entities in the knowledge graph."""
-    response = await client.post("/knowledge/entities", json={"entities": entities})
-    await log_api_call("POST", "/knowledge/entities", entities, response)
+    url = "/knowledge/entities"
+    data = {"entities": entities}
+    response = await client.post(url, json=data)
     return response.json()
 
 
 @mcp.tool()
 async def create_relations(relations: list[dict]) -> dict:
     """Create relations between entities."""
-    response = await client.post("/knowledge/relations", json={"relations": relations})
-    await log_api_call("POST", "/knowledge/relations", relations, response)
+    url = "/knowledge/relations"
+    data = {"relations": relations}
+    response = await client.post(url, json=data)
     return response.json()
 
 
 @mcp.tool()
 async def add_observations(path_id: str, observations: list[str]) -> dict:
     """Add observations to an entity."""
+    url = "/knowledge/observations"
     data = {"path_id": path_id, "observations": observations}
-    response = await client.post("/knowledge/observations", json=data)
-    await log_api_call("POST", "/knowledge/observations", data, response)
+    response = await client.post(url, json=data)
+    await log_api_call("POST", url, data, response)
     return response.json()
 
 
@@ -87,24 +87,26 @@ async def add_observations(path_id: str, observations: list[str]) -> dict:
 @mcp.tool()
 async def get_entity(path_id: str) -> dict:
     """Get a specific entity by path_id."""
-    response = await client.get(f"/knowledge/entities/{path_id}")
-    await log_api_call("GET", f"/knowledge/entities/{path_id}", None, response)
+    url = f"/knowledge/entities/{path_id}"
+    response = await client.get(url)
     return response.json()
 
 
 @mcp.tool()
 async def search_nodes(query: str) -> dict:
     """Search for entities in the knowledge graph."""
-    response = await client.post("/knowledge/search", json={"query": query})
-    await log_api_call("POST", "/knowledge/search", {"query": query}, response)
+    url = "/knowledge/search"
+    data = {"query": query}
+    response = await client.post(url, json=data)
     return response.json()
 
 
 @mcp.tool()
 async def open_nodes(path_ids: List[str]) -> dict:
     """Search for entities in the knowledge graph."""
-    response = await client.post("/knowledge/nodes", json={"path_ids": path_ids})
-    await log_api_call("POST", "/knowledge/nodes", {"path_ids": path_ids}, response)
+    url = "/knowledge/nodes"
+    data = {"path_ids": path_ids}
+    response = await client.post(url, json=data)
     return response.json()
 
 
@@ -114,32 +116,34 @@ async def open_nodes(path_ids: List[str]) -> dict:
 @mcp.tool()
 async def delete_entities(path_ids: List[str]) -> dict:
     """Search for entities in the knowledge graph."""
-    response = await client.post("/knowledge/entities/delete", json={"path_ids": path_ids})
-    await log_api_call("POST", "/knowledge/entities/delete", {"path_ids": path_ids}, response)
+    url = "/knowledge/entities/delete"
+    data = {"path_ids": path_ids}
+    response = await client.post(url, json=data)
     return response.json()
 
 
 @mcp.tool()
 async def delete_observations(path_id: str, observations: list[str]) -> dict:
     """Delete observations from an entity."""
+    url = "/knowledge/observations/delete"
     data = {
         "path_id": path_id,
         "observations": observations,
-    }  # Match the parameter name with what we're using
+    }
     response = await client.post(
-        "/knowledge/observations/delete", json=data
-    )  # Change to observations endpoint
-    await log_api_call("POST", "/knowledge/observations/delete", data, response)
+        url, json=data
+    )  
     return response.json()
 
 
 @mcp.tool()
 async def delete_relations(relations: list[dict]) -> dict:
     """Delete relations between entities."""
+    url = "/knowledge/relations/delete"
+    data = {"relations": relations}
     response = await client.post(
-        "/knowledge/relations/delete", json={"relations": relations}
-    )  # Change to relations endpoint
-    await log_api_call("POST", "/knowledge/relations/delete", {"relations": relations}, response)
+        url, json=data
+    ) 
     return response.json()
 
 
@@ -149,42 +153,42 @@ async def delete_relations(relations: list[dict]) -> dict:
 @mcp.tool()
 async def create_document(path: str, content: str, metadata: dict = None) -> dict:
     """Create a new document."""
+    url = "/documents/create"
     data = {"path": path, "content": content, "metadata": metadata}
-    response = await client.post("/documents/", json=data)
-    await log_api_call("POST", "/documents/", data, response)
+    response = await client.post(url, json=data)
     return response.json()
 
 
 @mcp.tool()
 async def get_document(path: str) -> dict:
     """Get a document by path_id."""
-    response = await client.get(f"/documents/{path}/")
-    await log_api_call("GET", f"/documents/{path}/", None, response)
+    url = f"/documents/{path}"
+    response = await client.get(url)
     return response.json()
 
 
 @mcp.tool()
 async def update_document(path: str, content: str, metadata: dict = None) -> dict:
     """Update an existing document."""
+    url = f"/documents/{path}"
     data = {"path": path, "content": content, "metadata": metadata}
-    response = await client.put(f"/documents/{path}/", json=data)
-    await log_api_call("PUT", f"/documents/{path}/", data, response)
+    response = await client.put(url, json=data)
     return response.json()
 
 
 @mcp.tool()
 async def list_documents() -> list:
     """List all documents."""
-    response = await client.get("/documents/")
-    await log_api_call("GET", "/documents/", None, response)
+    url = "/documents/list"
+    response = await client.get(url)
     return response.json()
 
 
 @mcp.tool()
 async def delete_document(path: str) -> dict:
     """Delete an existing document."""
-    response = await client.delete(f"/documents/{path}/")
-    await log_api_call("DELETE", f"/documents/{path}/", None, response)
+    url = f"/documents/{path}"
+    response = await client.delete(url)
     if response.status_code == 204:
         return {"deleted": True}
 

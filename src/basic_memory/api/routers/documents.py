@@ -17,7 +17,7 @@ from basic_memory.services.document_service import (
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-@router.post("/", response_model=DocumentCreateResponse, status_code=201)
+@router.post("/create", response_model=DocumentCreateResponse, status_code=201)
 async def create_document(
     doc: DocumentRequest,
     service: DocumentServiceDep,
@@ -41,7 +41,7 @@ async def create_document(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/", response_model=List[DocumentCreateResponse])
+@router.get("/list", response_model=List[DocumentCreateResponse])
 async def list_documents(
     service: DocumentServiceDep,
 ) -> List[DocumentCreateResponse]:

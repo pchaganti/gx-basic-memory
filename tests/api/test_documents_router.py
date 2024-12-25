@@ -17,7 +17,7 @@ async def test_create_document(client: AsyncClient, test_config):
         "doc_metadata": {"type": "test", "tags": ["documentation", "test"]},
     }
 
-    response = await client.post("/documents/", json=test_doc)
+    response = await client.post("/documents/create", json=test_doc)
     assert response.status_code == 201
 
     data = response.json()
@@ -44,7 +44,7 @@ async def test_create_document_should_create_path(client: AsyncClient):
         "doc_metadata": {"type": "test"},
     }
 
-    response = await client.post("/documents/", json=test_doc)
+    response = await client.post("/documents/create", json=test_doc)
     assert response.status_code == 201
 
 
@@ -57,7 +57,7 @@ async def test_create_document_absolute_path(client: AsyncClient, tmp_path: Path
         "doc_metadata": {"type": "test"},
     }
 
-    response = await client.post("/documents/", json=test_doc)
+    response = await client.post("/documents/create", json=test_doc)
     assert response.status_code == 400
 
 
@@ -71,7 +71,7 @@ async def test_get_document(client: AsyncClient):
     }
 
     # Create document
-    create_response = await client.post("/documents/", json=test_doc)
+    create_response = await client.post("/documents/create", json=test_doc)
     assert create_response.status_code == 201
     created = create_response.json()
 
@@ -108,7 +108,7 @@ async def test_update_document(client: AsyncClient, test_config: ProjectConfig):
         "content": "# Original\nOriginal content.",
         "doc_metadata": {"type": "test", "status": "draft"},
     }
-    create_response = await client.post("/documents/", json=test_doc)
+    create_response = await client.post("/documents/create", json=test_doc)
     assert create_response.status_code == 201
     created = create_response.json()
 
@@ -157,7 +157,7 @@ async def test_delete_document(client: AsyncClient, test_config: ProjectConfig):
     }
 
     # Create document
-    create_response = await client.post("/documents/", json=test_doc)
+    create_response = await client.post("/documents/create", json=test_doc)
     assert create_response.status_code == 201
     created = create_response.json()
 
@@ -202,12 +202,12 @@ async def test_list_documents(client: AsyncClient, tmp_path: Path):
     # Create all documents
     created_docs = []
     for doc in docs:
-        response = await client.post("/documents/", json=doc)
+        response = await client.post("/documents/create", json=doc)
         assert response.status_code == 201
         created_docs.append(response.json())
 
     # List all documents
-    response = await client.get("/documents/")
+    response = await client.get("/documents/list")
     assert response.status_code == 200
     data = response.json()
 
