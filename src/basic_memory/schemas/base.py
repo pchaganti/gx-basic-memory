@@ -69,7 +69,20 @@ def validate_path_format(path: str) -> str:
     return path
 
 
+
 class ObservationCategory(str, Enum):
+    """Categories for structuring observations.
+
+    Categories help organize knowledge and make it easier to find later:
+    - tech: Implementation details and technical notes
+    - design: Architecture decisions and patterns
+    - feature: User-facing capabilities
+    - note: General observations (default)
+    - issue: Problems or concerns
+    - todo: Future work items
+
+    Categories are case-insensitive for easier use.
+    """
     TECH = "tech"
     DESIGN = "design"
     FEATURE = "feature"
@@ -77,10 +90,24 @@ class ObservationCategory(str, Enum):
     ISSUE = "issue"
     TODO = "todo"
 
+    @classmethod
+    def _missing_(cls, value: str) -> "ObservationCategory":
+        """Handle case-insensitive lookup."""
+        try:
+            return cls(value.lower())
+        except ValueError:
+            return None
+        
+        
 PathId = Annotated[str, BeforeValidator(to_snake_case), BeforeValidator(validate_path_format)]
 """Unique identifier in format '{path}/{normalized_name}'."""
 
-Observation = Annotated[str, MinLen(1), MaxLen(1000)]
+Observation = Annotated[
+    str, 
+    BeforeValidator(str.strip),  # Clean whitespace
+    MinLen(1),  # Ensure non-empty after stripping
+    MaxLen(1000)  # Keep reasonable length
+]
 """A single piece of information about an entity. Must be non-empty and under 1000 characters.
 
 Best Practices:
