@@ -96,13 +96,13 @@ class DocumentService(BaseService[DocumentRepository]):
         return await self.repository.find_all()
 
     async def create_document(
-        self, path: str, content: str, metadata: Optional[Dict[str, Any]] = None
+        self, doc_path: str, content: str, metadata: Optional[Dict[str, Any]] = None
     ) -> Document:
         """
         Create a new document.
 
         Args:
-            path: Path where to create the document
+            doc_path: Path where to create the document
             content: Document content
             metadata: Optional metadata to store
 
@@ -112,20 +112,20 @@ class DocumentService(BaseService[DocumentRepository]):
         Raises:
             DocumentWriteError: If file cannot be written
         """
-        logger.debug(f"Creating document at path: {path}")
+        logger.debug(f"Creating document at path: {doc_path}")
 
         # Ensure parent directories exist
-        file_path = self.get_document_path(path)
+        file_path = self.get_document_path(doc_path)
         await self.ensure_parent_directory(file_path)
 
         # db reference
         document = None
         try:
-            # 1. Create initial DB record to get ID
-            document = await self.repository.create({"path": str(path), "doc_metadata": metadata})
+            # 1. Create initial DB record to get row id
+            document = await self.repository.create({"path": str(doc_path), "doc_metadata": metadata})
 
-            # 2. Add frontmatter with DB-generated ID
-            content_with_frontmatter = await self.add_frontmatter(content, path, metadata)
+            # 2. Add frontmatter with path_id
+            content_with_frontmatter = await self.add_frontmatter(content, doc_path, metadata)
 
             # 3. Write complete file
             file_path.write_text(content_with_frontmatter)

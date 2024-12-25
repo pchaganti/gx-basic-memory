@@ -1,9 +1,10 @@
 """Request schemas for interacting with the knowledge graph."""
 
 from typing import List, Optional, Annotated, Dict, Any
+from annotated_types import MaxLen, MinLen
+from pydantic.json_schema import Pattern
 
-from annotated_types import MinLen, MaxLen
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 
 from basic_memory.schemas.base import Observation, Entity, Relation, PathId
 
@@ -201,7 +202,15 @@ class CreateRelationsRequest(BaseModel):
 ## document
 
 
+FilePath = Annotated[
+    str,
+    StringConstraints(pattern=r'^[a-zA-Z0-9_/.-]+\.md$'),
+    MinLen(1),
+    MaxLen(255)
+]
+
+
 class DocumentRequest(BaseModel):
-    path: PathId
+    path: FilePath
     content: str
     doc_metadata: Optional[Dict[str, Any]] = None

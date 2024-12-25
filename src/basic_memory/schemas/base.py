@@ -61,7 +61,7 @@ def to_snake_case(name: str) -> str:
 
 
 def validate_path_format(path: str) -> str:
-    """Validate path has the correct format: type/name."""
+    """Validate path has the correct format: not empty."""
     if not path or not isinstance(path, str):
         raise ValueError("Path must be a non-empty string")
 

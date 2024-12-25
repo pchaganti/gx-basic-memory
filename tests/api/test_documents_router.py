@@ -21,14 +21,14 @@ async def test_create_document(client: AsyncClient, test_config):
     assert response.status_code == 201
 
     data = response.json()
-    assert data["path"] == "test_md"
+    assert data["path"] == "test.md"
     assert data["doc_metadata"] == test_doc["doc_metadata"]
     assert data["checksum"] is not None
     assert data["created_at"] is not None
     assert data["updated_at"] is not None
 
     # File should exist with both frontmatter and content
-    doc_path = Path(test_config.documents_dir / "test_md")
+    doc_path = Path(test_config.documents_dir / "test.md")
     assert doc_path.exists()
     content = doc_path.read_text()
     assert "---" in content  # Has frontmatter
@@ -80,7 +80,7 @@ async def test_get_document(client: AsyncClient):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["path"] == "test_md"
+    assert data["path"] == "test.md"
     assert data["doc_metadata"] == test_doc["doc_metadata"]
 
     # Content checks - frontmatter followed by original content
@@ -94,7 +94,7 @@ async def test_get_document(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_get_nonexistent_document(client: AsyncClient):
     """Test getting a document that doesn't exist."""
-    response = await client.get("/documents/99999")
+    response = await client.get("/documents/bad_file.md")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
@@ -114,7 +114,7 @@ async def test_update_document(client: AsyncClient, test_config: ProjectConfig):
 
     # Update the document
     update_doc = {
-        "path": "test_md",
+        "path": "test.md",
         "content": "# Updated\nUpdated content.",
         "doc_metadata": {"type": "test", "status": "final"},
     }
@@ -128,7 +128,7 @@ async def test_update_document(client: AsyncClient, test_config: ProjectConfig):
     assert "Updated content" in data["content"]
 
     # Verify file was updated
-    doc_path = Path(test_config.documents_dir / "test_md")
+    doc_path = Path(test_config.documents_dir / "test.md")
     content = doc_path.read_text()
     assert "# Updated" in content
     assert "Updated content" in content
@@ -138,11 +138,11 @@ async def test_update_document(client: AsyncClient, test_config: ProjectConfig):
 async def test_update_nonexistent_document(client: AsyncClient):
     """Test updating a document that doesn't exist."""
     update_doc = {
-        "path": "99999",  # Non-existent doc path
+        "path": "bad_file.md",  # Non-existent doc path
         "content": "new content",
         "doc_metadata": {"type": "test"},
     }
-    response = await client.put("/documents/99999", json=update_doc)
+    response = await client.put(f"/documents/{update_doc["path"]}", json=update_doc)
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
@@ -177,7 +177,7 @@ async def test_delete_document(client: AsyncClient, test_config: ProjectConfig):
 @pytest.mark.asyncio
 async def test_delete_nonexistent_document(client: AsyncClient):
     """Test deleting a document that doesn't exist."""
-    response = await client.delete("/documents/99999")
+    response = await client.delete("/documents/bad_file.md")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 

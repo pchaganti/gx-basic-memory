@@ -15,6 +15,7 @@ mcp = FastMCP("Basic Memory")
 # Create shared async client
 client = AsyncClient(transport=ASGITransport(app=fastapi_app), base_url="http://test")
 
+
 def setup_logging(log_file: str = "basic-memory-mcp.log"):
     """Configure logging for the application."""
     # Remove default handler
@@ -41,6 +42,7 @@ def setup_logging(log_file: str = "basic-memory-mcp.log"):
         colorize=True,
     )
 
+
 async def log_api_call(method: str, url: str, data: Any, response: Any):
     """Log API request and response details."""
     logger.debug(f"API Request: {method} {url}")
@@ -48,9 +50,11 @@ async def log_api_call(method: str, url: str, data: Any, response: Any):
     logger.debug(f"Response Status: {response.status_code}")
     logger.debug(f"Response Data: {response.json()}")
 
+
 # Knowledge Graph Tools
 
 ## Create endpoints
+
 
 @mcp.tool()
 async def create_entities(entities: list[dict]) -> dict:
@@ -59,12 +63,14 @@ async def create_entities(entities: list[dict]) -> dict:
     await log_api_call("POST", "/knowledge/entities", entities, response)
     return response.json()
 
+
 @mcp.tool()
 async def create_relations(relations: list[dict]) -> dict:
     """Create relations between entities."""
     response = await client.post("/knowledge/relations", json={"relations": relations})
     await log_api_call("POST", "/knowledge/relations", relations, response)
     return response.json()
+
 
 @mcp.tool()
 async def add_observations(path_id: str, observations: list[str]) -> dict:
@@ -74,7 +80,9 @@ async def add_observations(path_id: str, observations: list[str]) -> dict:
     await log_api_call("POST", "/knowledge/observations", data, response)
     return response.json()
 
+
 ## Read endpoints
+
 
 @mcp.tool()
 async def get_entity(path_id: str) -> dict:
@@ -91,6 +99,7 @@ async def search_nodes(query: str) -> dict:
     await log_api_call("POST", "/knowledge/search", {"query": query}, response)
     return response.json()
 
+
 @mcp.tool()
 async def open_nodes(path_ids: List[str]) -> dict:
     """Search for entities in the knowledge graph."""
@@ -98,7 +107,9 @@ async def open_nodes(path_ids: List[str]) -> dict:
     await log_api_call("POST", "/knowledge/nodes", {"path_ids": path_ids}, response)
     return response.json()
 
+
 ## Delete endpoints
+
 
 @mcp.tool()
 async def delete_entities(path_ids: List[str]) -> dict:
@@ -107,18 +118,27 @@ async def delete_entities(path_ids: List[str]) -> dict:
     await log_api_call("POST", "/knowledge/entities/delete", {"path_ids": path_ids}, response)
     return response.json()
 
+
 @mcp.tool()
 async def delete_observations(path_id: str, observations: list[str]) -> dict:
     """Delete observations from an entity."""
-    data = {"path_id": path_id, "observations": observations}  # Match the parameter name with what we're using
-    response = await client.post("/knowledge/observations/delete", json=data)  # Change to observations endpoint
+    data = {
+        "path_id": path_id,
+        "observations": observations,
+    }  # Match the parameter name with what we're using
+    response = await client.post(
+        "/knowledge/observations/delete", json=data
+    )  # Change to observations endpoint
     await log_api_call("POST", "/knowledge/observations/delete", data, response)
     return response.json()
+
 
 @mcp.tool()
 async def delete_relations(relations: list[dict]) -> dict:
     """Delete relations between entities."""
-    response = await client.post("/knowledge/relations/delete", json={"relations": relations})  # Change to relations endpoint
+    response = await client.post(
+        "/knowledge/relations/delete", json={"relations": relations}
+    )  # Change to relations endpoint
     await log_api_call("POST", "/knowledge/relations/delete", {"relations": relations}, response)
     return response.json()
 
@@ -130,38 +150,44 @@ async def delete_relations(relations: list[dict]) -> dict:
 async def create_document(path: str, content: str, metadata: dict = None) -> dict:
     """Create a new document."""
     data = {"path": path, "content": content, "metadata": metadata}
-    response = await client.post("/documents", json=data)
-    await log_api_call("POST", "/documents", data, response)
+    response = await client.post("/documents/", json=data)
+    await log_api_call("POST", "/documents/", data, response)
     return response.json()
 
+
 @mcp.tool()
-async def get_document(path_id: str) -> dict:
+async def get_document(path: str) -> dict:
     """Get a document by path_id."""
-    response = await client.get(f"/documents/{path_id}")
-    await log_api_call("GET", f"/documents/{path_id}", None, response)
+    response = await client.get(f"/documents/{path}/")
+    await log_api_call("GET", f"/documents/{path}/", None, response)
     return response.json()
 
+
 @mcp.tool()
-async def update_document(path_id: str, content: str, metadata: dict = None) -> dict:
+async def update_document(path: str, content: str, metadata: dict = None) -> dict:
     """Update an existing document."""
-    data = {"path": path_id, "content": content, "metadata": metadata}
-    response = await client.put(f"/documents/{path_id}", json=data)
-    await log_api_call("PUT", f"/documents/{path_id}", data, response)
+    data = {"path": path, "content": content, "metadata": metadata}
+    response = await client.put(f"/documents/{path}/", json=data)
+    await log_api_call("PUT", f"/documents/{path}/", data, response)
     return response.json()
+
 
 @mcp.tool()
 async def list_documents() -> list:
     """List all documents."""
-    response = await client.get("/documents")
-    await log_api_call("GET", "/documents", None, response)
+    response = await client.get("/documents/")
+    await log_api_call("GET", "/documents/", None, response)
     return response.json()
 
+
 @mcp.tool()
-async def delete_document(path_id: str) -> dict:
-    """Update an existing document."""
-    response = await client.put(f"/documents/{path_id}")
-    await log_api_call("DELETE", f"/documents/{path_id}", None, response)
-    return response.json()
+async def delete_document(path: str) -> dict:
+    """Delete an existing document."""
+    response = await client.delete(f"/documents/{path}/")
+    await log_api_call("DELETE", f"/documents/{path}/", None, response)
+    if response.status_code == 204:
+        return {"deleted": True}
+
 
 if __name__ == "__main__":
     setup_logging()
