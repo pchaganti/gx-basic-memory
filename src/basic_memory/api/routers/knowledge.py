@@ -9,14 +9,13 @@ from basic_memory.deps import (
 )
 from basic_memory.schemas import (
     CreateEntityRequest,
-    CreateEntityResponse,
+    EntityListResponse,
     SearchNodesRequest,
     SearchNodesResponse,
     CreateRelationsRequest,
     EntityResponse,
     AddObservationsRequest,
     OpenNodesRequest,
-    OpenNodesResponse,
     DeleteEntitiesResponse,
     DeleteObservationsRequest,
     DeleteRelationsRequest,
@@ -30,24 +29,24 @@ router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 ## Create endpoints
 
 
-@router.post("/entities", response_model=CreateEntityResponse)
+@router.post("/entities", response_model=EntityListResponse)
 async def create_entities(
     data: CreateEntityRequest, knowledge_service: KnowledgeServiceDep
-) -> CreateEntityResponse:
+) -> EntityListResponse:
     """Create new entities in the knowledge graph."""
     entities = await knowledge_service.create_entities(data.entities)
-    return CreateEntityResponse(
+    return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )
 
 
-@router.post("/relations", response_model=CreateEntityResponse)
+@router.post("/relations", response_model=EntityListResponse)
 async def create_relations(
     data: CreateRelationsRequest, knowledge_service: KnowledgeServiceDep
-) -> CreateEntityResponse:
+) -> EntityListResponse:
     """Create relations between entities."""
     updated_entities = await knowledge_service.create_relations(data.relations)
-    return CreateEntityResponse(
+    return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in updated_entities]
     )
 
@@ -91,11 +90,11 @@ async def search_nodes(
     )
 
 
-@router.post("/nodes", response_model=OpenNodesResponse)
-async def open_nodes(data: OpenNodesRequest, entity_service: EntityServiceDep) -> OpenNodesResponse:
+@router.post("/nodes", response_model=EntityListResponse)
+async def open_nodes(data: OpenNodesRequest, entity_service: EntityServiceDep) -> EntityListResponse:
     """Open specific nodes by their names."""
     entities = await entity_service.open_nodes(data.entity_ids)
-    return OpenNodesResponse(
+    return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )
 
@@ -122,12 +121,12 @@ async def delete_observations(
     return EntityResponse.model_validate(updated_entity)
 
 
-@router.post("/relations/delete", response_model=CreateEntityResponse)
+@router.post("/relations/delete", response_model=EntityListResponse)
 async def delete_relations(
     data: DeleteRelationsRequest, knowledge_service: KnowledgeServiceDep
-) -> CreateEntityResponse:
+) -> EntityListResponse:
     """Delete relations between entities."""
     updated_entities = await knowledge_service.delete_relations(data.relations)
-    return CreateEntityResponse(
+    return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in updated_entities]
     )

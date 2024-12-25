@@ -48,8 +48,10 @@ def to_snake_case(name: str) -> str:
         memory-service -> memory_service
         Memory_Service -> memory_service
     """
-    # Replace spaces and hyphens with underscores
-    s1 = re.sub(r"[\s\-]", "_", name)
+    name = name.strip()
+    
+    # Replace spaces and hyphens and . with underscores
+    s1 = re.sub(r"[\s\-\\.]", "_", name)
 
     # Insert underscore between camelCase
     s2 = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1)
@@ -58,7 +60,22 @@ def to_snake_case(name: str) -> str:
     return s2.lower()
 
 
-PathId = Annotated[str, BeforeValidator(to_snake_case)]
+def validate_path_format(path: str) -> str:
+    """Validate path has the correct format: type/name."""
+    if not path or not isinstance(path, str):
+        raise ValueError("Path must be a non-empty string")
+
+    parts = path.split('/')
+    if len(parts) != 2:
+        raise ValueError("Path must be in format: type/name")
+
+    type_part, name_part = parts
+    if not type_part or not name_part:
+        raise ValueError("Both type and name must be non-empty")
+
+    return path
+
+PathId = Annotated[str, BeforeValidator(to_snake_case), BeforeValidator(validate_path_format)]
 """Unique identifier in format '{path}/{normalized_name}'."""
 
 Observation = Annotated[str, MinLen(1), MaxLen(1000)]

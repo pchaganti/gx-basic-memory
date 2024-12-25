@@ -36,9 +36,8 @@ from basic_memory.schemas.response import (
     ObservationResponse,
     RelationResponse,
     EntityResponse,
-    CreateEntityResponse,
+    EntityListResponse,
     SearchNodesResponse,
-    OpenNodesResponse,
     DeleteEntitiesResponse,
 )
 
@@ -56,17 +55,13 @@ __all__ = [
     "SearchNodesRequest",
     "OpenNodesRequest",
     "CreateRelationsRequest",
-    "DocumentCreateRequest",
-    "DocumentUpdateRequest",
     # Responses
     "SQLAlchemyModel",
     "ObservationResponse",
-    "ObservationsResponse",
     "RelationResponse",
     "EntityResponse",
-    "CreateEntityResponse",
+    "EntityListResponse",
     "SearchNodesResponse",
-    "OpenNodesResponse",
     "DeleteEntitiesResponse",
     # Delete Operations
     "DeleteEntitiesRequest",

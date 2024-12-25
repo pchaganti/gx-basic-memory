@@ -16,7 +16,7 @@ from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, ConfigDict, Field, AliasPath, AliasChoices
 
-from basic_memory.schemas.base import Observation, Relation, PathId
+from basic_memory.schemas.base import Observation, Relation, PathId, Entity, EntityType
 
 
 class SQLAlchemyModel(BaseModel):
@@ -38,7 +38,6 @@ class ObservationResponse(SQLAlchemyModel):
 
     Example Response:
     {
-        "id": 123,
         "content": "Implements SQLite storage for persistence"
     }
     """
@@ -112,19 +111,20 @@ class EntityResponse(SQLAlchemyModel):
     }
     """
 
+    # Note this Class does not inherit form Entity because of the Entity.path_id semantics
     path_id: PathId
     name: str
-    entity_type: str
+    entity_type: EntityType
     description: Optional[str] = None
     observations: List[ObservationResponse] = []
     relations: List[RelationResponse] = []
 
 
-class CreateEntityResponse(SQLAlchemyModel):
+class EntityListResponse(SQLAlchemyModel):
     """Response for create_entities operation.
 
-    Returns complete information about all created entities,
-    including their generated IDs, initial observations,
+    Returns complete information about entities returned from the service,
+    including their path_ids, observations,
     and any established relations.
 
     Example Response:
@@ -137,7 +137,6 @@ class CreateEntityResponse(SQLAlchemyModel):
                 "description": "Knowledge graph search",
                 "observations": [
                     {
-                        "id": 125,
                         "content": "Implements full-text search"
                     }
                 ],
@@ -150,7 +149,6 @@ class CreateEntityResponse(SQLAlchemyModel):
                 "description": "API Reference",
                 "observations": [
                     {
-                        "id": 126,
                         "content": "Documents REST endpoints"
                     }
                 ],
@@ -191,29 +189,6 @@ class SearchNodesResponse(SQLAlchemyModel):
     matches: List[EntityResponse]
     query: str
 
-
-class OpenNodesResponse(SQLAlchemyModel):
-    """Response for retrieving specific entities.
-
-    Returns complete Entity objects for all found entities.
-    Entities that don't exist are silently skipped.
-
-    Example Response:
-    {
-        "entities": [
-            {
-                "path_id": "component/memory_service",
-                "name": "MemoryService",
-                "entity_type": "component",
-                "description": "Core service",
-                "observations": [...],
-                "relations": [...]
-            }
-        ]
-    }
-    """
-
-    entities: List[EntityResponse]
 
 
 class DeleteEntitiesResponse(SQLAlchemyModel):

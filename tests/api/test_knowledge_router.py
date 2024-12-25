@@ -8,7 +8,7 @@ from httpx import AsyncClient
 
 from basic_memory.schemas import (
     EntityResponse,
-    CreateEntityResponse,
+    EntityListResponse,
     ObservationResponse,
     RelationResponse,
 )
@@ -34,7 +34,7 @@ async def create_entity(client) -> EntityResponse:
 
     assert len(entity["observations"]) == 2
 
-    create_response = CreateEntityResponse.model_validate(response_data)
+    create_response = EntityListResponse.model_validate(response_data)
     return create_response.entities[0]
 
 
@@ -76,7 +76,7 @@ async def create_related_entities(client) -> List[RelationResponse]:  # pyright:
     assert response.status_code == 200
     data = response.json()
 
-    relation_response = CreateEntityResponse.model_validate(data)
+    relation_response = EntityListResponse.model_validate(data)
     assert len(relation_response.entities) == 2
 
     source_entity = relation_response.entities[0]
@@ -299,7 +299,7 @@ async def test_delete_relations(client, relation_repository):
     assert response.status_code == 200
     data = response.json()
 
-    del_response = CreateEntityResponse.model_validate(data)
+    del_response = EntityListResponse.model_validate(data)
     assert len(del_response.entities) == 2
     assert all(len(e.relations) == 0 for e in del_response.entities)
 
@@ -346,7 +346,7 @@ async def test_delete_nonexistent_relations(client: AsyncClient):
     assert response.status_code == 200
 
     data = response.json()
-    del_response = CreateEntityResponse.model_validate(data)
+    del_response = EntityListResponse.model_validate(data)
     assert del_response.entities == []
 
 

@@ -11,6 +11,7 @@ from basic_memory.schemas import (
     SearchNodesRequest,
     OpenNodesRequest, RelationResponse,
 )
+from basic_memory.schemas.base import to_snake_case
 
 
 def test_entity_in_minimal():
@@ -53,10 +54,10 @@ def test_entity_in_validation():
 
 def test_relation_in_validation():
     """Test RelationIn validation."""
-    data = {"from_id": "123", "to_id": "456", "relation_type": "test"}
+    data = {"from_id": "test/123", "to_id": "test/456", "relation_type": "test"}
     relation = Relation.model_validate(data)
-    assert relation.from_id == "123"
-    assert relation.to_id == "456"
+    assert relation.from_id == "test/123"
+    assert relation.to_id == "test/456"
     assert relation.relation_type == "test"
     assert relation.context is None
 
@@ -71,10 +72,10 @@ def test_relation_in_validation():
 
 def test_relation_response():
     """Test RelationResponse validation."""
-    data = {"from_id": 123, "to_id": 456, "relation_type": "test", "from_entity":{"path_id": "123"}, "to_entity":{"path_id": "456"}}
+    data = {"from_id": "test/123", "to_id": "test/456", "relation_type": "test", "from_entity":{"path_id": "test/123"}, "to_entity":{"path_id": "test/456"}}
     relation = RelationResponse.model_validate(data)
-    assert relation.from_id == "123"
-    assert relation.to_id == "456"
+    assert relation.from_id == "test/123"
+    assert relation.to_id == "test/456"
     assert relation.relation_type == "test"
     assert relation.context is None
 
@@ -154,9 +155,86 @@ def test_search_nodes_input():
 
 def test_open_nodes_input():
     """Test OpenNodesInput validation."""
-    open_input = OpenNodesRequest.model_validate({"entity_ids": ["test", "test2"]})
+    open_input = OpenNodesRequest.model_validate({"entity_ids": ["test/test", "test/test2"]})
     assert len(open_input.entity_ids) == 2
 
     # Empty names list should fail
     with pytest.raises(ValidationError):
         OpenNodesRequest.model_validate({"entity_ids": []})
+
+
+def test_path_sanitization():
+    """Test to_snake_case() handles various inputs correctly."""
+    test_cases = [
+        ("BasicMemory", "basic_memory"),  # CamelCase
+        ("Memory Service", "memory_service"),  # Spaces
+        ("memory-service", "memory_service"),  # Hyphens
+        ("Memory_Service", "memory_service"),  # Already has underscore
+        ("API2Service", "api2_service"),  # Numbers
+        ("  Spaces  ", "spaces"),  # Extra spaces
+        ("mixedCase", "mixed_case"),  # Mixed case
+        ("snake_case_already", "snake_case_already"),  # Already snake case
+        ("ALLCAPS", "allcaps"),  # All caps
+        ("with.dots", "with_dots"),  # Dots
+    ]
+
+    for input_str, expected in test_cases:
+        result = to_snake_case(input_str)
+        assert result == expected, f"Failed for input: {input_str}"
+
+
+def test_path_id_generation():
+    """Test path_id property generates correct paths."""
+    test_cases = [
+        (
+            {"name": "BasicMemory", "entity_type": "Project"},
+            "project/basic_memory"
+        ),
+        (
+            {"name": "Memory Service", "entity_type": "Component"},
+            "component/memory_service"
+        ),
+        (
+            {"name": "API Gateway", "entity_type": "Service"},
+            "service/api_gateway"
+        ),
+        (
+            {"name": "TestCase1", "entity_type": "Test"},
+            "test/test_case1"
+        ),
+    ]
+
+    for input_data, expected_path in test_cases:
+        entity = Entity.model_validate(input_data)
+        assert entity.path_id == expected_path, f"Failed for input: {input_data}"
+
+
+def test_path_id_validation():
+    """Test path ID format validation."""
+    valid_paths = [
+        "project/basic_memory",
+        "test/test_case_1",
+        "component/api_gateway",
+    ]
+
+    invalid_paths = [
+        "no_separator",  # Missing /
+        "/missing_type",  # Missing type
+        "type/",  # Missing name
+        "type//double",  # Double separator
+        "../path/traversal",  # Path traversal attempt
+        "type/name/extra",  # Too many parts
+        "",  # Empty string
+    ]
+
+    # Test valid paths
+    for path in valid_paths:
+        try:
+            Relation.model_validate({"from_id": path, "to_id": path, "relation_type": "test"})
+        except ValidationError as e:
+            assert False, f"Valid path {path} failed validation: {e}"
+
+    # Test invalid paths
+    for path in invalid_paths:
+        with pytest.raises(ValidationError):
+            Relation.model_validate({"from_id": path, "to_id": "test/valid", "relation_type": "test"})
