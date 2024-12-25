@@ -133,4 +133,4 @@ class DeleteObservationsRequest(BaseModel):
     """
 
     path_id: PathId
-    deletions: Annotated[List[Observation], MinLen(1)]
+    observations: Annotated[List[Observation], MinLen(1)]

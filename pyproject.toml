@@ -20,7 +20,8 @@ dependencies = [
     "pyright>=1.1.390",
     "basic-foundation",
     "markdown-it-py>=3.0.0",
-    "python-frontmatter>=1.1.0"
+    "python-frontmatter>=1.1.0",
+    "fastmcp>=0.4.1",
 ]
 
 [project.optional-dependencies]

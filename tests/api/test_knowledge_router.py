@@ -268,7 +268,7 @@ async def test_delete_observations(client, observation_repository):
     observations = await add_observations(client, "test/TestEntity")  # adds 2
 
     # Delete specific observations
-    request_data = {"path_id": "test/TestEntity", "deletions": [observations[0].content]}
+    request_data = {"path_id": "test/TestEntity", "observations": [observations[0].content]}
     response = await client.post("/knowledge/observations/delete", json=request_data)
     assert response.status_code == 200
     data = response.json()
@@ -321,7 +321,7 @@ async def test_delete_nonexistent_observations(client: AsyncClient):
     entity_data = {"name": "TestEntity", "entity_type": "test"}
     await client.post("/knowledge/entities", json={"entities": [entity_data]})
 
-    request_data = {"path_id": "test/TestEntity", "deletions": ["Nonexistent observation"]}
+    request_data = {"path_id": "test/TestEntity", "observations": ["Nonexistent observation"]}
     response = await client.post("/knowledge/observations/delete", json=request_data)
     assert response.status_code == 200
 

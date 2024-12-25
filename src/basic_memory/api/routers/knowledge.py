@@ -103,7 +103,7 @@ async def open_nodes(data: OpenNodesRequest, entity_service: EntityServiceDep) -
 
 
 @router.post("/entities/delete", response_model=DeleteEntitiesResponse)
-async def delete_entity(
+async def delete_entities(
     data: DeleteEntitiesRequest, knowledge_service: KnowledgeServiceDep
 ) -> DeleteEntitiesResponse:
     """Delete a specific entity by PathId."""
@@ -117,7 +117,7 @@ async def delete_observations(
 ) -> EntityResponse:
     """Delete observations from an entity."""
     path_id = data.path_id
-    updated_entity = await knowledge_service.delete_observations(path_id, data.deletions)
+    updated_entity = await knowledge_service.delete_observations(path_id, data.observations)
     return EntityResponse.model_validate(updated_entity)
 
 
