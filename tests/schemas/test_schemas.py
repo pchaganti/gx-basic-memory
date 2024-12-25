@@ -9,7 +9,7 @@ from basic_memory.schemas import (
     Relation,
     CreateEntityRequest,
     SearchNodesRequest,
-    OpenNodesRequest,
+    OpenNodesRequest, RelationResponse,
 )
 
 
@@ -53,10 +53,10 @@ def test_entity_in_validation():
 
 def test_relation_in_validation():
     """Test RelationIn validation."""
-    data = {"from_id": 123, "to_id": 456, "relation_type": "test"}
+    data = {"from_id": "123", "to_id": "456", "relation_type": "test"}
     relation = Relation.model_validate(data)
-    assert relation.from_id == 123
-    assert relation.to_id == 456
+    assert relation.from_id == "123"
+    assert relation.to_id == "456"
     assert relation.relation_type == "test"
     assert relation.context is None
 
@@ -68,6 +68,15 @@ def test_relation_in_validation():
     # Missing required fields
     with pytest.raises(ValidationError):
         Relation.model_validate({"from_id": "123", "to_id": "456"})  # Missing relationType
+
+def test_relation_response():
+    """Test RelationResponse validation."""
+    data = {"from_id": 123, "to_id": 456, "relation_type": "test", "from_entity":{"path_id": "123"}, "to_entity":{"path_id": "456"}}
+    relation = RelationResponse.model_validate(data)
+    assert relation.from_id == "123"
+    assert relation.to_id == "456"
+    assert relation.relation_type == "test"
+    assert relation.context is None
 
 
 def test_create_entities_input():

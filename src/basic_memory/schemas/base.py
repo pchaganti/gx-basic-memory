@@ -32,25 +32,36 @@ Common Relation Types:
 - 'tested_by': Test coverage
 """
 
+import re
 from typing import List, Optional, Annotated
 
 from annotated_types import MinLen, MaxLen
 from pydantic import BaseModel, BeforeValidator
 
 
-# Strip whitespace
-def strip_whitespace(obs: str) -> str:
-    return obs.strip()
+def to_snake_case(name: str) -> str:
+    """Convert a string to snake_case.
+
+    Examples:
+        BasicMemory -> basic_memory
+        Memory Service -> memory_service
+        memory-service -> memory_service
+        Memory_Service -> memory_service
+    """
+    # Replace spaces and hyphens with underscores
+    s1 = re.sub(r"[\s\-]", "_", name)
+
+    # Insert underscore between camelCase
+    s2 = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1)
+
+    # Convert to lowercase
+    return s2.lower()
 
 
-def lower_strip_whitespace(val: str) -> str:
-    return strip_whitespace(val.lower())
-
-
-PathId = Annotated[str, BeforeValidator(lower_strip_whitespace)]
+PathId = Annotated[str, BeforeValidator(to_snake_case)]
 """Unique identifier in format '{path}/{normalized_name}'."""
 
-Observation = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(1000)]
+Observation = Annotated[str, MinLen(1), MaxLen(1000)]
 """A single piece of information about an entity. Must be non-empty and under 1000 characters.
 
 Best Practices:
@@ -65,7 +76,7 @@ Examples:
 - "Depends on SQLAlchemy for database operations"
 """
 
-EntityType = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(200)]
+EntityType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
 """Classification of entity (e.g., 'person', 'project', 'concept'). 
 
 The type serves multiple purposes:
@@ -77,7 +88,7 @@ The type serves multiple purposes:
 Common types are listed in the module docstring.
 """
 
-RelationType = Annotated[str, BeforeValidator(strip_whitespace), MinLen(1), MaxLen(200)]
+RelationType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
 """Type of relationship between entities. Always use active voice present tense.
 
 Guidelines:
@@ -127,8 +138,8 @@ class Relation(BaseModel):
        }
     """
 
-    from_id: int
-    to_id: int
+    from_id: PathId
+    to_id: PathId
     relation_type: RelationType
     context: Optional[str] = None
 
@@ -147,7 +158,7 @@ class Entity(BaseModel):
 
     1. Project Entity:
     {
-        "name": "Basic_Memory",
+        "name": "BasicMemory",
         "entity_type": "project",
         "description": "Knowledge graph system for AI-human collaboration",
         "observations": [
@@ -193,13 +204,13 @@ class Entity(BaseModel):
     }
     """
 
-    id: Optional[int] = None
     name: str
     entity_type: EntityType
     description: Optional[str] = None
     observations: List[Observation] = []
 
     @property
-    def file_path(self) -> str:
-        """The relative file path for this entity."""
-        return f"{id}.md"
+    def path_id(self) -> PathId:
+        """Get the path ID in format {type}/{snake_case_name}."""
+        normalized_name = to_snake_case(self.name)
+        return f"{self.entity_type}/{normalized_name}"

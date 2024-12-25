@@ -32,10 +32,10 @@ class Entity(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String)
     entity_type: Mapped[str] = mapped_column(String)
+    path_id: Mapped[str] = mapped_column(String, index=True)
 
     # Content and validation
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    path: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Metadata and tracking

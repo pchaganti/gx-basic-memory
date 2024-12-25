@@ -22,6 +22,7 @@ from basic_memory.schemas import (
     DeleteRelationsRequest,
     DeleteEntitiesRequest,
 )
+from basic_memory.schemas.base import PathId
 from basic_memory.services.exceptions import EntityNotFoundError
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -66,14 +67,14 @@ async def add_observations(
 ## Read endpoints
 
 
-@router.get("/entities/{entity_id}", response_model=EntityResponse)
-async def get_entity(entity_id: int, entity_service: EntityServiceDep) -> EntityResponse:
+@router.get("/entities/{path_id:path}", response_model=EntityResponse)
+async def get_entity(path_id: PathId, entity_service: EntityServiceDep) -> EntityResponse:
     """Get a specific entity by ID."""
     try:
-        entity = await entity_service.get_entity(entity_id)
+        entity = await entity_service.get_by_path_id(path_id)
         return EntityResponse.model_validate(entity)
     except EntityNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Entity {entity_id} not found")
+        raise HTTPException(status_code=404, detail=f"Entity with {path_id} not found")
 
 
 @router.post("/search", response_model=SearchNodesResponse)
@@ -106,7 +107,7 @@ async def open_nodes(data: OpenNodesRequest, entity_service: EntityServiceDep) -
 async def delete_entity(
     data: DeleteEntitiesRequest, knowledge_service: KnowledgeServiceDep
 ) -> DeleteEntitiesResponse:
-    """Delete a specific entity by ID."""
+    """Delete a specific entity by PathId."""
     deleted = await knowledge_service.delete_entities(data.entity_ids)
     return DeleteEntitiesResponse(deleted=deleted)
 
@@ -116,8 +117,8 @@ async def delete_observations(
     data: DeleteObservationsRequest, knowledge_service: KnowledgeServiceDep
 ) -> EntityResponse:
     """Delete observations from an entity."""
-    entity_id = data.entity_id
-    updated_entity = await knowledge_service.delete_observations(entity_id, data.deletions)
+    path_id = data.entity_id
+    updated_entity = await knowledge_service.delete_observations(path_id, data.deletions)
     return EntityResponse.model_validate(updated_entity)
 
 

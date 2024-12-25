@@ -109,7 +109,7 @@ class FileService:
     async def add_frontmatter(
         self,
         *,
-        id: int,
+        id: str,
         content: str,
         created: datetime | None = None,
         updated: datetime | None = None,

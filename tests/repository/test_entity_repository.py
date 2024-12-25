@@ -181,26 +181,6 @@ async def test_find_by_id(entity_repository: EntityRepository, sample_entity: En
 
 
 @pytest.mark.asyncio
-async def test_find_by_type_and_name(entity_repository: EntityRepository, sample_entity: Entity):
-    """Test finding an entity by name"""
-    found = await entity_repository.get_entity_by_type_and_name(
-        sample_entity.entity_type, sample_entity.name
-    )
-    assert found is not None
-    assert found.id == sample_entity.id
-    assert found.name == sample_entity.name
-
-    # Verify against direct database query
-    async with db.scoped_session(entity_repository.session_maker) as session:
-        stmt = select(Entity).where(Entity.name == sample_entity.name)
-        result = await session.execute(stmt)
-        db_entity = result.scalar_one()
-        assert db_entity.id == found.id
-        assert db_entity.name == found.name
-        assert db_entity.description == found.description
-
-
-@pytest.mark.asyncio
 async def test_update_entity(entity_repository: EntityRepository, sample_entity: Entity):
     """Test updating an entity"""
     updated = await entity_repository.update(
@@ -360,3 +340,110 @@ async def test_search(session_maker, entity_repository: EntityRepository):
     results = await entity_repository.search("searchable")
     assert len(results) == 1
     assert results[0].id == entity1.id
+
+
+@pytest_asyncio.fixture
+async def test_entities(session_maker):
+    """Create multiple test entities."""
+    async with db.scoped_session(session_maker) as session:
+        entities = [
+            Entity(
+                name="entity1",
+                entity_type="type1",
+                description="First test entity",
+                path_id="type1/entity1",
+            ),
+            Entity(
+                name="entity2",
+                entity_type="type1",
+                description="Second test entity",
+                path_id="type1/entity2",
+            ),
+            Entity(
+                name="entity3",
+                entity_type="type2",
+                description="Third test entity",
+                path_id="type2/entity3",
+            ),
+        ]
+        session.add_all(entities)
+        return entities
+
+
+@pytest.mark.asyncio
+async def test_find_by_path_ids(entity_repository: EntityRepository, test_entities):
+    """Test finding multiple entities by their type/name pairs."""
+    # Test finding multiple entities
+    path_ids = [e.path_id for e in test_entities]
+    found = await entity_repository.find_by_path_ids(path_ids)
+    assert len(found) == 3
+    names = {e.name for e in found}
+    assert names == {"entity1", "entity2", "entity3"}
+
+    # Test finding subset of entities
+    path_ids = [e.path_id for e in test_entities if e.name != "entity2"]
+    found = await entity_repository.find_by_path_ids(path_ids)
+    assert len(found) == 2
+    names = {e.name for e in found}
+    assert names == {"entity1", "entity3"}
+
+    # Test with non-existent entities
+    path_ids = ["type1/entity1", "type3/nonexistent"]
+    found = await entity_repository.find_by_path_ids(path_ids)
+    assert len(found) == 1
+    assert found[0].name == "entity1"
+
+    # Test empty input
+    found = await entity_repository.find_by_path_ids([])
+    assert len(found) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_by_path_ids(entity_repository: EntityRepository, test_entities):
+    """Test deleting entities by type/name pairs."""
+    # Test deleting multiple entities
+    path_ids = [e.path_id for e in test_entities if e.name != "entity3"]
+    deleted_count = await entity_repository.delete_by_path_ids(path_ids)
+    assert deleted_count == 2
+
+    # Verify deletions
+    remaining = await entity_repository.find_all()
+    assert len(remaining) == 1
+    assert remaining[0].name == "entity3"
+
+    # Test deleting non-existent entities
+    path__ids = ["type3/nonexistent"]
+    deleted_count = await entity_repository.delete_by_path_ids(path__ids)
+    assert deleted_count == 0
+
+    # Test empty input
+    deleted_count = await entity_repository.delete_by_path_ids([])
+    assert deleted_count == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_by_path_ids_with_observations(
+    entity_repository: EntityRepository, test_entities, session_maker
+):
+    """Test deleting entities with observations by type/name pairs."""
+    # Add observations
+    async with db.scoped_session(session_maker) as session:
+        observations = [
+            Observation(entity_id=test_entities[0].id, content="First observation"),
+            Observation(entity_id=test_entities[1].id, content="Second observation"),
+        ]
+        session.add_all(observations)
+
+    # Delete entities
+    path_ids = [e.path_id for e in test_entities]
+    deleted_count = await entity_repository.delete_by_path_ids(path_ids)
+    assert deleted_count == 3
+
+    # Verify observations were cascaded
+    async with db.scoped_session(session_maker) as session:
+        query = select(Observation).filter(
+            Observation.entity_id.in_([e.id for e in test_entities[:2]])
+        )
+        result = await session.execute(query)
+        remaining_observations = result.scalars().all()
+        assert len(remaining_observations) == 0

@@ -18,26 +18,26 @@ class ObservationOperations(RelationOperations):
         self.observation_service = observation_service
 
     async def add_observations(
-        self, entity_id: int, observations: List[str], context: str | None = None
+        self, path_id: str, observations: List[str], context: str | None = None
     ) -> EntityModel:
         """Add observations to entity and update its file."""
-        logger.debug(f"Adding observations to entity {entity_id}")
+        logger.debug(f"Adding observations to entity {path_id}")
 
         try:
             # Get entity to update
-            entity = await self.entity_service.get_entity(entity_id)
+            entity = await self.entity_service.get_by_path_id(path_id)
             if not entity:
-                raise EntityNotFoundError(f"Entity not found: {entity_id}")
+                raise EntityNotFoundError(f"Entity not found: {path_id}")
 
             # Add observations to DB
-            await self.observation_service.add_observations(entity_id, observations, context)
+            await self.observation_service.add_observations(entity.id, observations, context)
 
             # Get updated entity
-            updated_entity = await self.entity_service.get_entity(entity_id)
+            updated_entity = await self.entity_service.get_by_path_id(path_id)
 
             # Write updated file and checksum
             checksum = await self.write_entity_file(entity)
-            await self.entity_service.update_entity(entity_id, {"checksum": checksum})
+            await self.entity_service.update_entity(path_id, {"checksum": checksum})
 
             return updated_entity
 
@@ -45,25 +45,25 @@ class ObservationOperations(RelationOperations):
             logger.error(f"Failed to add observations: {e}")
             raise
 
-    async def delete_observations(self, entity_id: int, observations: List[str]) -> EntityModel:
+    async def delete_observations(self, path_id: str, observations: List[str]) -> EntityModel:
         """Delete observations from entity and update its file."""
-        logger.debug(f"Deleting observations from entity {entity_id}")
+        logger.debug(f"Deleting observations from entity {path_id}")
 
         try:
             # Get updated entity
-            entity = await self.entity_service.get_entity(entity_id)
+            entity = await self.entity_service.get_by_path_id(path_id)
             if not entity:
-                raise EntityNotFoundError(f"Entity not found: {entity_id}")
+                raise EntityNotFoundError(f"Entity not found: {path_id}")
 
             # Delete observations from DB
-            await self.observation_service.delete_observations(entity_id, observations)
+            await self.observation_service.delete_observations(entity.id, observations)
 
             # Write updated file
             checksum = await self.write_entity_file(entity)
-            await self.entity_service.update_entity(entity_id, {"checksum": checksum})
+            await self.entity_service.update_entity(path_id, {"checksum": checksum})
 
             # Get final entity with all updates
-            return await self.entity_service.get_entity(entity_id)
+            return await self.entity_service.get_by_path_id(path_id)
 
         except Exception as e:
             logger.error(f"Failed to delete observations: {e}")

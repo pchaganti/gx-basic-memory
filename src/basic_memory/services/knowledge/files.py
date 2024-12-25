@@ -1,6 +1,7 @@
 """File operations for knowledge service."""
 
 from pathlib import Path
+from typing import Tuple
 
 from loguru import logger
 
@@ -30,24 +31,24 @@ class FileOperations:
         """Generate filesystem path for entity."""
         return self.base_path / entity.entity_type / f"{entity.name}.md"
 
-    async def write_entity_file(self, entity: EntityModel) -> str:
+    async def write_entity_file(self, entity: EntityModel) -> Tuple[Path, str]:
         """Write entity to filesystem and return checksum."""
         try:
             # Ensure we have a fresh entity with all relations loaded
-            entity = await self.entity_service.get_entity(entity.id)
+            entity = await self.entity_service.get_by_path_id(entity.path_id)
 
             # Format content
             path = self.get_entity_path(entity)
             entity_content = await self.knowledge_writer.format_content(entity)
             file_content = await self.file_service.add_frontmatter(
-                id=entity.id,
+                id=entity.path_id,
                 content=entity_content,
                 created=entity.created_at,
                 updated=entity.updated_at,
             )
 
             # Write and get checksum
-            return await self.file_service.write_file(path, file_content)
+            return path, await self.file_service.write_file(path, file_content)
 
         except Exception as e:
             logger.error(f"Failed to write entity file: {e}")

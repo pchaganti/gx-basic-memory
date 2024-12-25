@@ -18,13 +18,9 @@ class EntityRepository(Repository[Entity]):
         """Initialize with session maker."""
         super().__init__(session_maker, Entity)
 
-    async def get_entity_by_type_and_name(self, entity_type: str, name: str) -> Optional[Entity]:
+    async def get_by_path_id(self, path_id: str) -> Optional[Entity]:
         """Get entity by type and name."""
-        query = (
-            self.select()
-            .options(*self.get_load_options())
-            .where(Entity.entity_type == entity_type, Entity.name == name)
-        )
+        query = self.select().where(Entity.path_id == path_id).options(*self.get_load_options())
         return await self.find_one(query)
 
     async def list_entities(
@@ -86,3 +82,31 @@ class EntityRepository(Repository[Entity]):
             selectinload(Entity.from_relations).selectinload(Relation.to_entity),
             selectinload(Entity.to_relations).selectinload(Relation.from_entity),
         ]
+
+    async def find_by_path_ids(self, path_ids: List[str]) -> Sequence[Entity]:
+        """Find multiple entities by their entity_type and name pairs."""
+
+        # Handle empty input explicitly
+        if not path_ids:
+            return []
+
+        # Use existing select pattern
+        query = self.select().options(*self.get_load_options()).where(Entity.path_id.in_(path_ids))
+
+        result = await self.execute_query(query)
+        return list(result.scalars().all())
+
+    async def delete_by_path_ids(self, path_ids: List[str]) -> int:
+        """Delete multiple entities by entity_type and name pairs."""
+
+        # Handle empty input explicitly
+        if not path_ids:
+            return 0
+
+        # Find matching entities
+        entities = await self.find_by_path_ids(path_ids)
+        if not entities:
+            return 0
+
+        # Use existing delete_by_ids
+        return await self.delete_by_ids([entity.id for entity in entities])

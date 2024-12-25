@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.interfaces import LoaderOption
 
-from basic_memory.models import Relation
+from basic_memory.models import Relation, Entity
 from basic_memory.repository.repository import Repository
 
 

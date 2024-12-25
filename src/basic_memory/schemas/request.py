@@ -45,7 +45,7 @@ class AddObservationsRequest(BaseModel):
     4. Add observations in logical groups for better history tracking
     """
 
-    entity_id: int
+    entity_id: PathId
     context: Optional[str] = None
     observations: List[Observation]
 
@@ -152,7 +152,7 @@ class OpenNodesRequest(BaseModel):
     relations between entities that interest you.
     """
 
-    entity_ids: Annotated[List[int], MinLen(1)]
+    entity_ids: Annotated[List[PathId], MinLen(1)]
 
 
 class CreateRelationsRequest(BaseModel):

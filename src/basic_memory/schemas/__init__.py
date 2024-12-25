@@ -34,7 +34,6 @@ from basic_memory.schemas.request import (
 from basic_memory.schemas.response import (
     SQLAlchemyModel,
     ObservationResponse,
-    ObservationsResponse,
     RelationResponse,
     EntityResponse,
     CreateEntityResponse,

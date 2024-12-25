@@ -1,12 +1,11 @@
 """Service for managing relations in the database."""
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Sequence
 
 from loguru import logger
 
-from basic_memory.models import Relation as RelationModel
+from basic_memory.models import Entity, Relation
 from basic_memory.repository.relation_repository import RelationRepository
-from basic_memory.schemas import Entity as EntitySchema, Relation
 from .service import BaseService
 
 
@@ -19,13 +18,13 @@ class RelationService(BaseService[RelationRepository]):
     def __init__(self, relation_repository: RelationRepository):
         super().__init__(relation_repository)
 
-    async def create_relation(self, relation: Relation) -> RelationModel:
+    async def create_relation(self, relation: Relation) -> Relation:
         """Create a new relation in the database."""
         logger.debug(f"Creating relation: {relation}")
-        return await self.repository.create(relation.model_dump())
+        return await self.repository.add(relation)
 
     async def delete_relation(
-        self, from_entity: EntitySchema, to_entity: EntitySchema, relation_type: str
+        self, from_entity: Entity, to_entity: Entity, relation_type: str
     ) -> bool:
         """Delete a specific relation between entities."""
         logger.debug(f"Deleting relation between {from_entity.id} and {to_entity.id}")
@@ -53,9 +52,8 @@ class RelationService(BaseService[RelationRepository]):
 
         return deleted
 
-    async def create_relations(self, relations_data: List[Relation]) -> List[RelationModel]:
+    async def create_relations(self, relations: List[Relation]) -> Sequence[Relation]:
         """Create multiple relations between entities."""
-        logger.debug(f"Creating {len(relations_data)} relations")
-        return await self.repository.create_all(
-            [Relation.model_dump(relation) for relation in relations_data]
-        )
+        logger.debug(f"Creating {len(relations)} relations")
+        return await self.repository.add_all(relations)
+

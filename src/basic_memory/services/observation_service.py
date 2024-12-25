@@ -21,7 +21,7 @@ class ObservationService(BaseService[ObservationRepository]):
 
     async def add_observations(
         self, entity_id: int, observations: List[str], context: str | None = None
-    ) -> List[ObservationModel]:
+    ) -> Sequence[ObservationModel]:
         """Add multiple observations to an entity."""
         logger.debug(f"Adding {len(observations)} observations to entity: {entity_id}")
         return await self.repository.create_all(

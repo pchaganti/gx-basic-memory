@@ -15,6 +15,7 @@ def entity_model(entity):
     model = EntityModel(
         name=entity.name,
         entity_type=entity.entity_type,
+        path_id=entity.path_id,
         description=entity.description,
         observations=[Observation(content=observation) for observation in entity.observations],
     )
@@ -44,46 +45,41 @@ class EntityService(BaseService[EntityRepository]):
         created = await self.repository.add_all([entity_model(entity) for entity in entities_in])
         return created
 
-    async def update_entity(self, entity_id: int, update_data: Dict[str, Any]) -> EntityModel:
+    async def update_entity(self, path_id: str, update_data: Dict[str, Any]) -> EntityModel:
         """Update an entity's fields."""
-        logger.debug(f"Updating entity {entity_id} with data: {update_data}")
-        updated = await self.repository.update(entity_id, update_data)
+        logger.debug(f"Updating entity path_id: {path_id} with data: {update_data}")
+        entity = await self.get_by_path_id(path_id)
+
+        updated = await self.repository.update(entity.id, update_data)
         if not updated:
-            raise EntityNotFoundError(f"Entity not found: {entity_id}")
+            raise EntityNotFoundError(f"Entity not found: {path_id}")
         return updated
 
-    async def get_entity(self, entity_id: int) -> EntityModel:
-        """Get entity by ID."""
-        logger.debug(f"Getting entity by ID: {entity_id}")
-        db_entity = await self.repository.find_by_id(entity_id)
-        if not db_entity:
-            raise EntityNotFoundError(f"Entity not found: {entity_id}")
-        return db_entity
-
-    async def get_by_type_and_name(self, entity_type: str, name: str) -> EntityModel:
+    async def get_by_path_id(self, path_id: str) -> EntityModel:
         """Get entity by type and name combination."""
-        logger.debug(f"Getting entity by type/name: {entity_type}/{name}")
-        db_entity = await self.repository.get_entity_by_type_and_name(entity_type, name)
+        logger.debug(f"Getting entity by path_id: {path_id}")
+        db_entity = await self.repository.get_by_path_id(path_id)
         if not db_entity:
-            raise EntityNotFoundError(f"Entity not found: {entity_type}/{name}")
+            raise EntityNotFoundError(f"Entity not found: {path_id}")
         return db_entity
 
     async def get_all(self) -> Sequence[EntityModel]:
         """Get all entities."""
         return await self.repository.find_all()
 
-    async def delete_entity(self, entity_id: int) -> bool:
+    async def delete_entity(self, path_id: str) -> bool:
         """Delete entity from database."""
-        logger.debug(f"Deleting entity: {entity_id}")
-        return await self.repository.delete(entity_id)
+        logger.debug(f"Deleting entity path_id: {path_id}")
+        entity = await self.get_by_path_id(path_id)
+        return await self.repository.delete(entity.id)
 
-    async def open_nodes(self, entity_ids: List[int]) -> Sequence[EntityModel]:
+    async def open_nodes(self, path_ids: List[str]) -> Sequence[EntityModel]:
         """Get specific nodes and their relationships."""
-        logger.debug(f"Opening nodes entity_ids: {entity_ids}")
-        return await self.repository.find_by_ids(entity_ids)
+        logger.debug(f"Opening nodes path_ids: {path_ids}")
+        return await self.repository.find_by_path_ids(path_ids)
 
-    async def delete_entities(self, entity_ids: List[int]) -> bool:
+    async def delete_entities(self, path_ids: List[str]) -> bool:
         """Delete entities and their files."""
-        logger.debug(f"Deleting entities: {entity_ids}")
-        deleted_count = await self.repository.delete_by_ids(entity_ids)
+        logger.debug(f"Deleting entities: {path_ids}")
+        deleted_count = await self.repository.delete_by_path_ids(path_ids)
         return deleted_count > 0

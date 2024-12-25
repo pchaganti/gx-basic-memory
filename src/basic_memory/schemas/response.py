@@ -14,9 +14,9 @@ Key Features:
 import datetime
 from typing import List, Optional, Dict, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, AliasPath, AliasChoices
 
-from basic_memory.schemas.base import Observation, Relation
+from basic_memory.schemas.base import Observation, Relation, PathId
 
 
 class SQLAlchemyModel(BaseModel):
@@ -43,34 +43,7 @@ class ObservationResponse(SQLAlchemyModel):
     }
     """
 
-    id: int
     content: Observation
-
-
-class ObservationsResponse(SQLAlchemyModel):
-    """Response schema for bulk observation operations.
-
-    Returns all added/affected observations with their IDs and
-    the entity they were added to.
-
-    Example Response:
-    {
-        "entity_id": "component/memory_service",
-        "observations": [
-            {
-                "id": 123,
-                "content": "Added async support"
-            },
-            {
-                "id": 124,
-                "content": "Improved error handling"
-            }
-        ]
-    }
-    """
-
-    entity_id: int
-    observations: List[ObservationResponse]
 
 
 class RelationResponse(Relation, SQLAlchemyModel):
@@ -81,15 +54,28 @@ class RelationResponse(Relation, SQLAlchemyModel):
 
     Example Response:
     {
-        "id": 45,
         "from_id": "test/memory_test",
         "to_id": "component/memory_service",
         "relation_type": "validates",
         "context": "Comprehensive test suite"
     }
     """
-
-    id: int
+    from_id: PathId = Field(
+        # use the path_id from the associated Entity
+        # or the from_id value
+        validation_alias=AliasChoices(
+            AliasPath('from_entity', 'path_id'),  
+            'from_id',  
+        )
+    )
+    to_id: PathId = Field(
+        # use the path_id from the associated Entity
+        # or the to_id value
+        validation_alias=AliasChoices(
+            AliasPath('to_entity', 'path_id'),  
+            'to_id',  
+        )
+    )
 
 
 class EntityResponse(SQLAlchemyModel):
@@ -103,23 +89,20 @@ class EntityResponse(SQLAlchemyModel):
 
     Example Response:
     {
-        "id": "component/memory_service",
+        "path_id": "component/memory_service",
         "name": "MemoryService",
         "entity_type": "component",
         "description": "Core persistence service",
         "observations": [
             {
-                "id": 123,
                 "content": "Uses SQLite storage"
             },
             {
-                "id": 124,
                 "content": "Implements async operations"
             }
         ],
         "relations": [
             {
-                "id": 45,
                 "from_id": "test/memory_test",
                 "to_id": "component/memory_service",
                 "relation_type": "validates",
@@ -129,7 +112,7 @@ class EntityResponse(SQLAlchemyModel):
     }
     """
 
-    id: int
+    path_id: PathId
     name: str
     entity_type: str
     description: Optional[str] = None
@@ -148,7 +131,7 @@ class CreateEntityResponse(SQLAlchemyModel):
     {
         "entities": [
             {
-                "id": "component/search_service",
+                "path_id": "component/search_service",
                 "name": "SearchService",
                 "entity_type": "component",
                 "description": "Knowledge graph search",
@@ -161,7 +144,7 @@ class CreateEntityResponse(SQLAlchemyModel):
                 "relations": []
             },
             {
-                "id": "document/api_docs",
+                "path_id": "document/api_docs",
                 "name": "API_Documentation",
                 "entity_type": "document",
                 "description": "API Reference",
@@ -190,7 +173,7 @@ class SearchNodesResponse(SQLAlchemyModel):
     {
         "matches": [
             {
-                "id": "component/memory_service",
+                "path_id": "component/memory_service",
                 "name": "MemoryService",
                 "entity_type": "component",
                 "description": "Core service",
@@ -219,7 +202,7 @@ class OpenNodesResponse(SQLAlchemyModel):
     {
         "entities": [
             {
-                "id": "component/memory_service",
+                "path_id": "component/memory_service",
                 "name": "MemoryService",
                 "entity_type": "component",
                 "description": "Core service",
