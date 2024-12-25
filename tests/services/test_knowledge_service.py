@@ -8,8 +8,10 @@ from sqlalchemy.exc import IntegrityError
 
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema, Relation as RelationSchema
+from basic_memory.schemas.base import ObservationCategory
+from basic_memory.schemas.request import ObservationCreate
 from basic_memory.services import EntityService
-from basic_memory.services.exceptions import EntityNotFoundError, FileOperationError, EntityCreationError
+from basic_memory.services.exceptions import EntityNotFoundError, FileOperationError
 from basic_memory.services.knowledge import KnowledgeService
 
 
@@ -91,7 +93,7 @@ async def test_create_relations(knowledge_service: KnowledgeService, entity_serv
 
 
 @pytest.mark.asyncio
-async def test_add_observations(knowledge_service: KnowledgeService):
+async def test_add_observations_observation(knowledge_service: KnowledgeService):
     """Should add observations and update entity file."""
     # Create test entity
     entity = await knowledge_service.create_entity(
@@ -99,21 +101,34 @@ async def test_add_observations(knowledge_service: KnowledgeService):
     )
 
     # Add observations
-    observations = ["Test observation 1", "Test observation 2"]
+    observations = [
+        ObservationCreate(content="Test observation 1", category=ObservationCategory.TECH),
+        ObservationCreate(content="Test observation 2", category=ObservationCategory.DESIGN),
+    ]
+    context = "Test context"
     updated_entity = await knowledge_service.add_observations(
-        entity.path_id, observations, "Test context"
+        entity.path_id, observations, context
     )
 
     # Verify observations in DB
     assert len(updated_entity.observations) == 2
     assert updated_entity.observations[0].content == "Test observation 1"
+    assert updated_entity.observations[0].category == "tech"
+    assert updated_entity.observations[0].context == context
     assert updated_entity.observations[1].content == "Test observation 2"
-
+    assert updated_entity.observations[1].category == "design"
+    assert updated_entity.observations[1].context == context
+    
     # Verify file was updated
     file_path = knowledge_service.get_entity_path(updated_entity)
     content, _ = await knowledge_service.file_service.read_file(file_path)
+    
     for obs in observations:
-        assert obs in content
+        expected_line = f"- [{obs.category.value}] {obs.content} ({context})"
+        assert expected_line in content
+
+    # Also verify the Observations section header exists
+    assert "## Observations" in content
 
 
 @pytest.mark.asyncio

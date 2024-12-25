@@ -1,6 +1,5 @@
 """Writer for knowledge entity markdown files."""
 
-from datetime import datetime, UTC
 from typing import Optional, Dict, Any
 
 import yaml
@@ -14,12 +13,11 @@ class KnowledgeWriter:
 
     async def format_frontmatter(self, entity: EntityModel) -> dict:
         """Generate frontmatter metadata for entity."""
-        now = datetime.now(UTC).isoformat()
         return {
             "type": entity.entity_type,
-            "id": entity.id,
-            "created": now,
-            "modified": now
+            "id": entity.path_id,
+            "created": entity.created_at.isoformat(),
+            "modified": entity.updated_at.isoformat(),
         }
 
     async def format_metadata(self, metadata: Optional[Dict[str, Any]] = None) -> str:
@@ -40,37 +38,50 @@ class KnowledgeWriter:
             logger.warning(f"Failed to format metadata YAML: {e}")
             return ""  # Skip metadata on error
 
-    async def format_content(self, entity: EntityModel, metadata: Optional[Dict[str, Any]] = None) -> str:
+    async def format_content(
+        self, entity: EntityModel, metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Format entity content as markdown."""
         sections = [
-            f"# {entity.name}\n"
+            f"# {entity.name}\n",
+            "",  # Empty line after name
         ]
 
         if entity.description:
-            sections.extend([
-                entity.description,
-                ""
-            ])
-            
+            sections.extend([entity.description, ""])
+
         if entity.observations:
-            sections.extend([
-                "## Observations",
-                *[f"- {obs.content}" for obs in entity.observations],
-                ""
-            ])
+            sections.extend(
+                [
+                    "## Observations",
+                    "<!-- Format: - [category] Content text #tag1 #tag2 (optional context) -->",
+                    "",  # Empty line after format comment
+                    *[
+                        f"- [{obs.category}] {obs.content}"
+                        + (f" ({obs.context})" if obs.context else "")
+                        for obs in entity.observations
+                    ],
+                    "",
+                ]
+            )
 
         # Format outgoing and incoming relations separately
         if entity.to_relations or entity.from_relations:
-            sections.append("## Relations")
-            
+            sections.extend(
+                [
+                    "## Relations",
+                    "",  # Empty line after format comment
+                ]
+            )
+
             # Outgoing relations
             for rel in entity.to_relations:
                 sections.append(f"- [[{rel.from_entity.name}]] {rel.relation_type}")
-                
+
             # Incoming relations
             for rel in entity.from_relations:
                 sections.append(f"- [[{rel.to_entity.name}]] {rel.relation_type}")
-                
+
             sections.append("")
 
         if metadata:

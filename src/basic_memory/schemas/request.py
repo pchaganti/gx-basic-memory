@@ -127,6 +127,7 @@ class SearchNodesRequest(BaseModel):
     - Partial word matches
     - Returns full entity objects with relations
     - Includes all matching entities
+    - If a category is specified, only entities with that category are returned
 
     Example Queries:
     - "memory" - Find entities related to memory systems
@@ -143,6 +144,7 @@ class SearchNodesRequest(BaseModel):
     """
 
     query: Annotated[str, MinLen(1), MaxLen(200)]
+    category: Optional[ObservationCategory] = None
 
 
 class OpenNodesRequest(BaseModel):

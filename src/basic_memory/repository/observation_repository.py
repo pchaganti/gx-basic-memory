@@ -26,3 +26,15 @@ class ObservationRepository(Repository[Observation]):
         query = select(Observation).filter(Observation.context == context)
         result = await self.execute_query(query)
         return result.scalars().all()
+
+    async def find_by_category(self, category: str) -> Sequence[Observation]:
+        """Find observations with a specific context."""
+        query = select(Observation).filter(Observation.category == category)
+        result = await self.execute_query(query)
+        return result.scalars().all()
+
+    async def observation_categories(self) -> Sequence[str]:
+        """Return a list of all observation categories."""
+        query = select(Observation.category).distinct()
+        result = await self.execute_query(query)
+        return result.scalars().all()

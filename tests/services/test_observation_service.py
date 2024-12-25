@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory.models import Entity, Observation
 from basic_memory.repository.observation_repository import ObservationRepository
+from basic_memory.schemas.base import ObservationCategory
+from basic_memory.schemas.request import ObservationCreate
 from basic_memory.services.observation_service import ObservationService
 
 
@@ -157,3 +159,144 @@ async def test_get_observations_by_context(
     assert len(results) == 1
     assert results[0].content == "Contextual observation"
     assert results[0].context == "test_context"
+
+"""Additional tests for ObservationService category support."""
+
+
+
+@pytest.mark.asyncio
+async def test_add_observations_with_categories(
+    observation_service: ObservationService,
+    test_entity: Entity
+):
+    """Test adding observations with specific categories."""
+    observations = [
+        ObservationCreate(content="Tech observation", category=ObservationCategory.TECH),
+        ObservationCreate(content="Design observation", category=ObservationCategory.DESIGN),
+    ]
+
+    result = await observation_service.add_observations(test_entity.id, observations)
+
+    assert len(result) == 2
+    assert result[0].category == ObservationCategory.TECH.value
+    assert result[1].category == ObservationCategory.DESIGN.value
+
+
+@pytest.mark.asyncio
+async def test_search_observations_by_category(
+    observation_service: ObservationService,
+    test_entity: Entity
+):
+    """Test searching observations with category filter."""
+    # Add observations with different categories
+    observations = [
+        ObservationCreate(content="Tech implementation note", category=ObservationCategory.TECH),
+        ObservationCreate(content="Design pattern choice", category=ObservationCategory.DESIGN),
+        ObservationCreate(content="Another tech detail", category=ObservationCategory.TECH),
+    ]
+    await observation_service.add_observations(test_entity.id, observations)
+
+    # Search with category filter
+    tech_results = await observation_service.search_observations(
+        query="note",
+        category=ObservationCategory.TECH
+    )
+    assert len(tech_results) == 1
+    assert tech_results[0].content == "Tech implementation note"
+
+    # Search without category filter
+    all_results = await observation_service.search_observations(
+        query="tech"
+    )
+    assert len(all_results) == 2
+
+
+@pytest.mark.asyncio
+async def test_get_observations_by_category(
+    observation_service: ObservationService,
+    test_entity: Entity
+):
+    """Test retrieving observations by category."""
+    # Add observations with different categories
+    observations = [
+        ObservationCreate(content="First tech note", category=ObservationCategory.TECH),
+        ObservationCreate(content="Design decision", category=ObservationCategory.DESIGN),
+        ObservationCreate(content="Second tech note", category=ObservationCategory.TECH),
+    ]
+    await observation_service.add_observations(test_entity.id, observations)
+
+    # Get tech observations
+    tech_obs = await observation_service.get_observations_by_category(ObservationCategory.TECH)
+    assert len(tech_obs) == 2
+    assert all(obs.category == ObservationCategory.TECH.value for obs in tech_obs)
+
+    # Get observations for unused category
+    feature_obs = await observation_service.get_observations_by_category(ObservationCategory.FEATURE)
+    assert len(feature_obs) == 0
+
+
+@pytest.mark.asyncio
+async def test_observation_categories(
+    observation_service: ObservationService,
+    test_entity: Entity
+):
+    """Test retrieving distinct observation categories."""
+    # Add observations with various categories
+    observations = [
+        ObservationCreate(content="Tech note", category=ObservationCategory.TECH),
+        ObservationCreate(content="Design note", category=ObservationCategory.DESIGN),
+        ObservationCreate(content="Another tech note", category=ObservationCategory.TECH),
+        ObservationCreate(content="Feature note", category=ObservationCategory.FEATURE),
+    ]
+    await observation_service.add_observations(test_entity.id, observations)
+
+    # Get categories
+    categories = await observation_service.observation_categories()
+    assert set(categories) == {
+        ObservationCategory.TECH.value,
+        ObservationCategory.DESIGN.value,
+        ObservationCategory.FEATURE.value
+    }
+
+
+@pytest.mark.asyncio
+async def test_search_observations_empty_category(
+    observation_service: ObservationService,
+    test_entity: Entity
+):
+    """Test search behavior with empty/invalid category."""
+    # Add some observations
+    observations = [
+        ObservationCreate(content="Tech note", category=ObservationCategory.TECH),
+    ]
+    await observation_service.add_observations(test_entity.id, observations)
+
+    # Search with empty category should return all matches
+    results = await observation_service.search_observations(
+        query="note",
+        category=None
+    )
+    assert len(results) == 1
+
+    # Search with non-existent category should return empty
+    results = await observation_service.search_observations(
+        query="note",
+        category=ObservationCategory.ISSUE
+    )
+    assert len(results) == 0
+
+
+@pytest.mark.asyncio
+async def test_default_category_behavior(
+    observation_service: ObservationService,
+    test_entity: Entity
+):
+    """Test default category assignment."""
+    # Add observation without explicit category
+    observations = [
+        ObservationCreate(content="Simple note")  # No category specified
+    ]
+    result = await observation_service.add_observations(test_entity.id, observations)
+
+    assert len(result) == 1
+    assert result[0].category == ObservationCategory.NOTE.value  # Should use default

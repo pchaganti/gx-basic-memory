@@ -149,3 +149,149 @@ async def test_delete_observation_by_content(session_maker: async_sessionmaker, 
     remaining = await repo.find_by_entity(entity.id)
     assert len(remaining) == 1
     assert remaining[0].content == "Keep this observation"
+
+
+@pytest.mark.asyncio
+async def test_find_by_category(session_maker: async_sessionmaker, repo):
+    """Test finding observations by their category."""
+    # Create test entity
+    async with db.scoped_session(session_maker) as session:
+        entity = Entity(
+            name="test_entity",
+            entity_type="test",
+            description="Test entity",
+            path_id="test/test_entity"
+        )
+        session.add(entity)
+        await session.flush()
+
+        # Create test observations with different categories
+        observations = [
+            Observation(
+                entity_id=entity.id,
+                content="Tech observation",
+                category="tech"
+            ),
+            Observation(
+                entity_id=entity.id,
+                content="Design observation",
+                category="design"
+            ),
+            Observation(
+                entity_id=entity.id,
+                content="Another tech observation",
+                category="tech"
+            )
+        ]
+        session.add_all(observations)
+        await session.commit()
+
+    # Find tech observations
+    tech_obs = await repo.find_by_category("tech")
+    assert len(tech_obs) == 2
+    assert all(obs.category == "tech" for obs in tech_obs)
+    assert set(obs.content for obs in tech_obs) == {
+        "Tech observation",
+        "Another tech observation"
+    }
+
+    # Find design observations
+    design_obs = await repo.find_by_category("design")
+    assert len(design_obs) == 1
+    assert design_obs[0].category == "design"
+    assert design_obs[0].content == "Design observation"
+
+    # Search for non-existent category
+    missing_obs = await repo.find_by_category("missing")
+    assert len(missing_obs) == 0
+
+
+@pytest.mark.asyncio
+async def test_observation_categories(session_maker: async_sessionmaker, repo):
+    """Test retrieving distinct observation categories."""
+    # Create test entity
+    async with db.scoped_session(session_maker) as session:
+        entity = Entity(
+            name="test_entity",
+            entity_type="test",
+            description="Test entity",
+            path_id="test/test_entity"
+        )
+        session.add(entity)
+        await session.flush()
+
+        # Create observations with various categories
+        observations = [
+            Observation(
+                entity_id=entity.id,
+                content="First tech note",
+                category="tech"
+            ),
+            Observation(
+                entity_id=entity.id,
+                content="Second tech note",
+                category="tech"  # Duplicate category
+            ),
+            Observation(
+                entity_id=entity.id,
+                content="Design note",
+                category="design"
+            ),
+            Observation(
+                entity_id=entity.id,
+                content="Feature note",
+                category="feature"
+            )
+        ]
+        session.add_all(observations)
+        await session.commit()
+
+    # Get distinct categories
+    categories = await repo.observation_categories()
+
+    # Should have unique categories in a deterministic order
+    assert set(categories) == {"tech", "design", "feature"}
+
+
+@pytest.mark.asyncio
+async def test_find_by_category_with_empty_db(repo):
+    """Test category operations with an empty database."""
+    # Find by category should return empty list
+    obs = await repo.find_by_category("tech")
+    assert len(obs) == 0
+
+    # Get categories should return empty list
+    categories = await repo.observation_categories()
+    assert len(categories) == 0
+
+
+@pytest.mark.asyncio
+async def test_find_by_category_case_sensitivity(session_maker: async_sessionmaker, repo):
+    """Test how category search handles case sensitivity."""
+    async with db.scoped_session(session_maker) as session:
+        entity = Entity(
+            name="test_entity",
+            entity_type="test",
+            description="Test entity",
+            path_id="test/test_entity"
+        )
+        session.add(entity)
+        await session.flush()
+
+        # Create a test observation
+        obs = Observation(
+            entity_id=entity.id,
+            content="Tech note",
+            category="tech"  # lowercase in database
+        )
+        session.add(obs)
+        await session.commit()
+
+    # Search should work regardless of case
+    # Note: If we want case-insensitive search, we'll need to update the query
+    # For now, this test documents the current behavior
+    exact_match = await repo.find_by_category("tech")
+    assert len(exact_match) == 1
+
+    upper_case = await repo.find_by_category("TECH")
+    assert len(upper_case) == 0  # Currently case-sensitive

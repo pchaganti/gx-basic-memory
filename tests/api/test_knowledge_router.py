@@ -41,7 +41,14 @@ async def create_entity(client) -> EntityResponse:
 async def add_observations(client, path_id: str) -> List[ObservationResponse]:
     response = await client.post(
         "/knowledge/observations",
-        json={"path_id": path_id, "observations": ["First observation", "Second observation"]},
+        json={
+            "path_id": path_id,
+            "observations": [
+                {"content": "First observation", "category": "tech"},
+                {"content": "Second observation", "category": "note"},
+            ],
+            "context": "something special"
+        },
     )
     # Verify observations were added
     assert response.status_code == 200
@@ -407,9 +414,10 @@ async def test_full_knowledge_flow(client: AsyncClient):
         json={
             "path_id": "test/main_entity",
             "observations": [
-                "Connected to first related entity",
-                "Connected to second related entity",
+                {"content": "Connected to first related entity", "category": "tech"},
+                {"content": "Connected to second related entity", "category": "note"},
             ],
+            "context": "testing the flow"
         },
     )
 
@@ -426,7 +434,9 @@ async def test_full_knowledge_flow(client: AsyncClient):
     # 6. Search should find all related entities
     search = await client.post("/knowledge/search", json={"query": "Related"})
     matches = search.json()["matches"]
-    assert len(matches) == 3  # Should find both related entities, and the main one with the observation
+    assert (
+        len(matches) == 3
+    )  # Should find both related entities, and the main one with the observation
 
     # 7. Delete main entity
     response = await client.post(

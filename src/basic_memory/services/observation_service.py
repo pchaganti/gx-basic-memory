@@ -1,6 +1,6 @@
 """Service for managing observations in the database."""
 
-from typing import List, Sequence
+from typing import List, Sequence, Optional
 
 from loguru import logger
 from sqlalchemy import select
@@ -8,6 +8,8 @@ from sqlalchemy import select
 from basic_memory.models import Observation as ObservationModel
 from basic_memory.repository.observation_repository import ObservationRepository
 from .service import BaseService
+from ..schemas.base import ObservationCategory
+from ..schemas.request import ObservationCreate
 
 
 class ObservationService(BaseService[ObservationRepository]):
@@ -20,13 +22,22 @@ class ObservationService(BaseService[ObservationRepository]):
         super().__init__(observation_repository)
 
     async def add_observations(
-        self, entity_id: int, observations: List[str], context: str | None = None
+        self,
+        entity_id: int,
+        observations: List[str | ObservationCreate],
+        context: Optional[str] = None,
     ) -> Sequence[ObservationModel]:
         """Add multiple observations to an entity."""
         logger.debug(f"Adding {len(observations)} observations to entity: {entity_id}")
         return await self.repository.create_all(
             [
-                dict(entity_id=entity_id, content=observation, context=context)
+                # unpack the ObservationCreate values if present
+                dict(
+                    entity_id=entity_id,
+                    content=getattr(observation, "content", observation), 
+                    context=context,
+                    category=getattr(observation, "category", None),
+                )
                 for observation in observations
             ]
         )
@@ -46,14 +57,20 @@ class ObservationService(BaseService[ObservationRepository]):
         logger.debug(f"Deleting all observations for entity: {entity_id}")
         return await self.repository.delete_by_fields(entity_id=entity_id)
 
-    async def search_observations(self, query: str) -> List[ObservationModel]:
+    async def search_observations(self, query: str, category: Optional[ObservationCategory] = None) -> List[ObservationModel]:
         """Search for observations across all entities."""
         logger.debug(f"Searching observations with query: {query}")
-        result = await self.repository.execute_query(
-            select(ObservationModel).filter(
-                ObservationModel.content.contains(query) | ObservationModel.context.contains(query)
-            )
+
+        # Build base query
+        statement = select(ObservationModel).filter(
+            ObservationModel.content.contains(query) | ObservationModel.context.contains(query)
         )
+
+        # Add category filter if specified
+        if category:
+            statement = statement.filter(ObservationModel.category == category)
+
+        result = await self.repository.execute_query(statement)
         observations = result.scalars().all()
         return [ObservationModel(content=obs.content) for obs in observations]
 
@@ -61,3 +78,13 @@ class ObservationService(BaseService[ObservationRepository]):
         """Get all observations with a specific context."""
         logger.debug(f"Getting observations for context: {context}")
         return await self.repository.find_by_context(context)
+
+    async def get_observations_by_category(self, category: ObservationCategory) -> Sequence[ObservationModel]:
+        """Get all observations with a specific context."""
+        logger.debug(f"Getting observations for context: {category}")
+        return await self.repository.find_by_category(category)
+
+    async def observation_categories(self) -> Sequence[str]:
+        """Get all observation categories."""
+        logger.debug("Getting observations categories")
+        return await self.repository.observation_categories()
