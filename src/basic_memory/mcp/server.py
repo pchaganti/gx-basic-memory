@@ -23,17 +23,17 @@ server = Server("basic-memory")
 # Simple map of tool names to endpoints
 TOOLS = {
     # Knowledge endpoints
-    "create_entities": {"endpoint": "/knowledge/entities/", "method": "post"},
-    "search_nodes": {"endpoint": "/knowledge/search/", "method": "post"},
-    "open_nodes": {"endpoint": "/knowledge/nodes/", "method": "post"},
-    "add_observations": {"endpoint": "/knowledge/observations/", "method": "post"},
-    "create_relations": {"endpoint": "/knowledge/relations/", "method": "post"},
-    "delete_entities": {"endpoint": "/knowledge/entities/delete/", "method": "post"},
-    "delete_observations": {"endpoint": "/knowledge/observations/delete/", "method": "post"},
-    "delete_relations": {"endpoint": "/knowledge/relations/delete/", "method": "post"},
+    "create_entities": {"endpoint": "/knowledge/entities", "method": "post"},
+    "search_nodes": {"endpoint": "/knowledge/search", "method": "post"},
+    "open_nodes": {"endpoint": "/knowledge/nodes", "method": "post"},
+    "add_observations": {"endpoint": "/knowledge/observations", "method": "post"},
+    "create_relations": {"endpoint": "/knowledge/relations", "method": "post"},
+    "delete_entities": {"endpoint": "/knowledge/entities/delete", "method": "post"},
+    "delete_observations": {"endpoint": "/knowledge/observations/delete", "method": "post"},
+    "delete_relations": {"endpoint": "/knowledge/relations/delete", "method": "post"},
     # Document endpoints
-    "create_document": {"endpoint": "/documents/", "method": "post"},
-    "list_documents": {"endpoint": "/documents/", "method": "get"},
+    "create_document": {"endpoint": "/documents", "method": "post"},
+    "list_documents": {"endpoint": "/documents", "method": "get"},
     "get_document": {"endpoint": "/documents/{id}", "method": "get"},
     "update_document": {"endpoint": "/documents/{id}", "method": "put"},
     "delete_document": {"endpoint": "/documents/{id}", "method": "delete"},
@@ -60,23 +60,18 @@ async def handle_call_tool(name: str, arguments: dict):
     if "{id}" in endpoint:
         endpoint = endpoint.format(id=arguments.get("id"))
 
-    # Ensure non-string arguments are properly JSON serialized
-    processed_args = {}
-    for key, value in arguments.items():
-        if key == "doc_metadata" and isinstance(value, str):
-            try:
-                processed_args[key] = json.loads(value)
-            except json.JSONDecodeError:
-                processed_args[key] = None
-        else:
-            processed_args[key] = value
+    
 
     # Make request to FastAPI
     async with AsyncClient(
         transport=ASGITransport(app=fastapi_app), base_url="http://test"
     ) as client:
-        response = await getattr(client, method)(endpoint, json=processed_args)
-
+        logger.info(f"{method} {endpoint} arguments: {arguments}")
+        response = await getattr(client, method)(endpoint, json=arguments)
+        
+        data = response.json()
+        logger.info(f"Response status:{response.status_code} content: {data}  ")
+    
         # Return wrapped response
         return [
             EmbeddedResource(
@@ -84,7 +79,7 @@ async def handle_call_tool(name: str, arguments: dict):
                 resource=TextResourceContents(
                     uri="basic-memory://response",
                     mimeType="application/json",
-                    text=json.dumps(response.json() if response.content else {"status": "success"}),
+                    text=json.dumps(data),
                 ),
             )
         ]
