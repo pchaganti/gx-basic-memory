@@ -14,14 +14,14 @@ DATA_DIR_NAME = "data"
 class ProjectConfig(BaseSettings):
     """Configuration for a specific basic-memory project."""
 
-    name: str = Field(default="default")
-    path: Path = Field(
-        default_factory=lambda: Path.home() / ".basic-memory" / "projects" / "default",
-        description="Path to project files",
+    # Default to ~/.basic-memory but allow override with env var
+    home: Path = Field(
+        default_factory=lambda: Path.home() / ".basic-memory",
+        description="Base path for basic-memory files",
     )
 
     model_config = SettingsConfigDict(
-        env_prefix="BASIC_MEMORY_",  # env vars like BASIC_MEMORY_DB_URL
+        env_prefix="BASIC_MEMORY_",
         extra="ignore",
         env_file=".env",
         env_file_encoding="utf-8",
@@ -29,26 +29,20 @@ class ProjectConfig(BaseSettings):
 
     @property
     def knowledge_dir(self) -> Path:
-        """Get knowledge directory path based on project path."""
-        knowledge_path = self.path / KNOWLEDGE_DIR_NAME
-        knowledge_path.parent.mkdir(parents=True, exist_ok=True)
-        return knowledge_path
+        """Get knowledge directory path."""
+        return self.home / KNOWLEDGE_DIR_NAME
 
     @property
     def documents_dir(self) -> Path:
-        """Get documents directory path based on project path."""
-        documents_path = self.path / DOCUMENTS_DIR_NAME
-        documents_path.parent.mkdir(parents=True, exist_ok=True)
-        return documents_path
+        """Get documents directory path."""
+        return self.home / DOCUMENTS_DIR_NAME
 
     @property
     def database_path(self) -> Path:
-        """Get SQLite database URL based on project path."""
-        db_path = self.path / DATA_DIR_NAME / DATABASE_NAME
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        return db_path
+        """Get SQLite database path."""
+        return self.home / DATA_DIR_NAME / DATABASE_NAME
 
-    @field_validator("path")
+    @field_validator("home")
     @classmethod
     def ensure_path_exists(cls, v: Path) -> Path:
         """Ensure project path exists."""

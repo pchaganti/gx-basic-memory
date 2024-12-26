@@ -35,5 +35,9 @@ def init_db(
 
     asyncio.run(_init_db())
 
+@app.command()
+def hello(name: str):
+    print(f"Hello {name}")
+    
 if __name__ == "__main__":  # pragma: no cover
     app()

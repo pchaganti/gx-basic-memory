@@ -38,7 +38,7 @@ def test_config(tmp_path):
     config = ProjectConfig(
         name="test",
     )
-    config.path = tmp_path
+    config.home = tmp_path
     return config
 
 

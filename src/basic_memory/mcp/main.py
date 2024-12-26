@@ -6,6 +6,7 @@ Creates and configures the shared MCP instance and handles server startup.
 import sys
 from loguru import logger
 
+from basic_memory.config import config
 # Import shared mcp instance
 from basic_memory.mcp.server import mcp
 
@@ -14,14 +15,15 @@ from basic_memory.mcp.tools import knowledge, search, documents
 __all__ = ["mcp", "knowledge", "search", "documents"]
 
 
-def setup_logging(log_file: str = "basic-memory-mcp.log"):
+def setup_logging(home_dir: str = config.home, log_file: str = "basic-memory.log"):
     """Configure logging for the application."""
     # Remove default handler
     logger.remove()
-
+    log = f"{home_dir}/{log_file}"
+    
     # Add file handler with rotation
     logger.add(
-        log_file,
+        log,
         rotation="100 MB",
         retention="10 days",
         backtrace=True,
@@ -38,6 +40,9 @@ def setup_logging(log_file: str = "basic-memory-mcp.log"):
 
 
 if __name__ == "__main__":
-    setup_logging()
+    
+    home_dir = config.home
+    setup_logging(home_dir)
     logger.info("Starting Basic Memory MCP server")
+    logger.info(f"Home directory: {home_dir}" )
     mcp.run()
