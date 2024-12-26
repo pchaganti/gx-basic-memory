@@ -21,7 +21,7 @@ from basic_memory.services import (
     EntityService,
     ObservationService,
     RelationService,
-    DocumentService,
+    DocumentService, FileSyncService,
 )
 from basic_memory.services.file_service import FileService
 from basic_memory.services.knowledge.service import KnowledgeService
@@ -141,6 +141,12 @@ def file_service():
 def knowledge_writer():
     """Create writer instance."""
     return KnowledgeWriter()
+
+@pytest.fixture
+def file_sync_service(document_repository: DocumentRepository):
+    """Create FileService instance."""
+    return FileSyncService(document_repository)
+
 
 
 @pytest_asyncio.fixture
