@@ -128,7 +128,7 @@ async def test_read_document_by_id_file_error(document_service, test_doc_path):
     file_path, doc_path = test_doc_path
 
     # Create test document without actually writing the file
-    doc = await document_service.repository.create({"path": doc_path})
+    doc = await document_service.repository.create({"path": doc_path, "checksum": "abc123" })
 
     with pytest.raises(DocumentError):
         await document_service.read_document_by_path(doc_path)

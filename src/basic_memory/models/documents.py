@@ -26,7 +26,7 @@ class Document(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     path: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-    checksum: Mapped[str] = mapped_column(String, nullable=True)
+    checksum: Mapped[str] = mapped_column(String, nullable=False, index=True)
     doc_metadata: Mapped[Optional[dict]] = mapped_column(
         JSON, nullable=True
     )  # renamed from metadata

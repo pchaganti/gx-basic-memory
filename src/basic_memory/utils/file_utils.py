@@ -80,13 +80,13 @@ async def write_file_atomic(path: Path, content: str) -> None:
         raise FileWriteError(f"Failed to write file {path}: {e}")
 
 
-async def add_frontmatter(content: str, metadata: Dict[str, Any]) -> str:
+async def add_frontmatter(content: str, frontmatter: Dict[str, Any]) -> str:
     """
     Add YAML frontmatter to content.
     
     Args:
         content: Main content text
-        metadata: Key-value pairs for frontmatter
+        frontmatter: Key-value pairs for frontmatter
         
     Returns:
         Content with YAML frontmatter prepended
@@ -95,7 +95,7 @@ async def add_frontmatter(content: str, metadata: Dict[str, Any]) -> str:
         ParseError: If YAML serialization fails
     """
     try:
-        yaml_fm = yaml.dump(metadata, sort_keys=False)
+        yaml_fm = yaml.dump(frontmatter, sort_keys=False)
         return f"---\n{yaml_fm}---\n\n{content}"
     except yaml.YAMLError as e:
         logger.error(f"Failed to add frontmatter: {e}")

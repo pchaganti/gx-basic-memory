@@ -11,6 +11,7 @@ from loguru import logger
 from basic_memory.models import Document
 from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.services.service import BaseService
+from basic_memory.utils.file_utils import compute_checksum, ensure_directory, add_frontmatter
 
 
 class DocumentError(Exception):
@@ -52,31 +53,6 @@ class DocumentService(BaseService[DocumentRepository]):
         logger.debug(f"Document path: '{path}' file_path: {document_path}")
         return document_path
 
-    async def compute_checksum(self, content: str) -> str:
-        """Compute SHA-256 checksum of content."""
-        try:
-            return hashlib.sha256(content.encode()).hexdigest()
-        except Exception as e:  # pragma: no cover
-            # This would only happen if encode() fails or sha256 isn't available
-            logger.error(f"Failed to compute checksum: {e}")
-            raise DocumentError(f"Failed to compute checksum: {e}")
-
-    async def ensure_parent_directory(self, path: Path) -> None:
-        """
-        Ensure parent directory exists.
-
-        Args:
-            path: Path to check
-
-        Raises:
-            DocumentWriteError: If directory cannot be created
-        """
-        parent = path.parent
-        try:
-            parent.mkdir(parents=True, exist_ok=True)
-        except Exception as e:  # pragma: no cover
-            # This is covered by create_document tests, but not directly
-            raise DocumentWriteError(f"Failed to create directory: {parent}: {e}")
 
     async def add_frontmatter(
         self, content: str, path_id: str, metadata: Optional[Dict[str, Any]] = None
@@ -88,8 +64,7 @@ class DocumentService(BaseService[DocumentRepository]):
         if metadata:
             frontmatter.update(metadata)
 
-        yaml_fm = yaml.dump(frontmatter, sort_keys=False)
-        return f"---\n{yaml_fm}---\n\n{content}"
+        return await add_frontmatter(content, frontmatter)
 
     async def list_documents(self) -> Sequence[Document]:
         """List all documents."""
@@ -116,34 +91,29 @@ class DocumentService(BaseService[DocumentRepository]):
 
         # Ensure parent directories exist
         file_path = self.get_document_path(doc_path)
-        await self.ensure_parent_directory(file_path)
+        await ensure_directory(file_path.parent)
 
-        # db reference
-        document = None
         try:
-            # 1. Create initial DB record to get row id
-            document = await self.repository.create({"path": str(doc_path), "doc_metadata": metadata})
-
-            # 2. Add frontmatter with path_id
+            # 1. Add frontmatter with path_id
             content_with_frontmatter = await self.add_frontmatter(content, doc_path, metadata)
 
+            # 2. Compute checksum
+            checksum = await compute_checksum(content_with_frontmatter)
+            
             # 3. Write complete file
             file_path.write_text(content_with_frontmatter)
 
-            # 4. Update DB with checksum to mark completion
-            checksum = await self.compute_checksum(content_with_frontmatter)
-            document = await self.repository.update(document.id, {"checksum": checksum})
-
-            # If either update failed but didn't raise
-            if not document:  # pragma: no cover
-                raise DocumentError("Failed to update document after writing")
+            # 4. Create DB record with checksum
+            document = await self.repository.create({
+                "path": str(doc_path),
+                "checksum": checksum,
+                "doc_metadata": metadata
+            })
 
             return document
 
         except Exception as e:
             # Clean up on any failure
-            if document:  # DB record was created
-                await self.repository.delete(document.id)
             file_path.unlink(missing_ok=True)
             raise DocumentWriteError(f"Failed to create document: {e}")
 
@@ -212,17 +182,12 @@ class DocumentService(BaseService[DocumentRepository]):
             raise DocumentWriteError(f"Failed to write document: {e}")
 
         # Update DB record
-        checksum = await self.compute_checksum(content_with_frontmatter)
+        checksum = await compute_checksum(content_with_frontmatter)
         update_data = {"checksum": checksum}
         if metadata is not None:
             update_data["doc_metadata"] = metadata  # pyright: ignore [reportArgumentType]
 
         updated_document = await self.repository.update(document.id, update_data)
-
-        # This would only happen if DB lost connection between find and update
-        if not updated_document:  # pragma: no cover
-            raise DocumentError(f"Could not update document {path_id}")
-
         return updated_document
 
     async def delete_document_by_path(self, path_id: str) -> None:
