@@ -8,6 +8,7 @@ from typing import Set
 from loguru import logger
 
 from basic_memory.repository.document_repository import DocumentRepository
+from basic_memory.utils.file_utils import compute_checksum
 
 
 @dataclass
@@ -41,14 +42,10 @@ class FileSyncService:
     def __init__(self, document_repository: DocumentRepository):
         self.repository = document_repository
 
-    async def compute_checksum(self, content: str) -> str:
-        """Compute SHA-256 checksum of content."""
-        return hashlib.sha256(content.encode()).hexdigest()
-
     async def scan_files(self, directory: Path) -> dict[str, str]:
         """
-        Scan directory for files and their checksums.
-        Only processes files, ignores directories.
+        Scan directory for markdown files and their checksums.
+        Only processes .md files, logs and skips other files.
 
         Args:
             directory: Root directory to scan
@@ -57,7 +54,7 @@ class FileSyncService:
             Dict mapping paths to checksums
 
         Raises:
-            SyncError: If any file cannot be read
+            SyncError: If any markdown file cannot be read
         """
         logger.debug(f"Scanning directory: {directory}")
         files = {}
@@ -65,46 +62,57 @@ class FileSyncService:
 
         for path in directory.rglob('*'):
             if path.is_file():
+                if not path.name.endswith('.md'):
+                    logger.debug(f"Skipping non-markdown file: '{path}'")
+                    continue
+
                 try:
                     content = path.read_text()
-                    checksum = await self.compute_checksum(content)
+                    checksum = await compute_checksum(content)
                     # Store path relative to root directory
                     rel_path = str(path.relative_to(directory))
                     files[rel_path] = checksum
                 except Exception as e:
                     errors.append(f"Failed to read {path}: {e}")
-
+                logger.debug(f"Scanned file: {path} checksum: {checksum}")
         if errors:
             raise SyncError("Failed to read files:\n" + "\n".join(errors))
 
-        logger.debug(f"Found {len(files)} files")
+        logger.debug(f"Found {len(files)} markdown files in {directory}")
         return files
 
-    async def find_changes(self, current_files: dict[str, str]) -> SyncReport:
+    async def find_changes(self, file_system_files: dict[str, str], directory: Path) -> SyncReport:
         """
         Find changes between filesystem and database.
+        Only considers files that belong to the specified directory.
 
         Args:
-            current_files: Dict mapping paths to checksums
+            file_system_files: Dict mapping paths to checksums
+            directory: Root directory being scanned (knowledge/ or documents/)
 
         Returns:
             SyncReport detailing changes
         """
-        logger.debug("Finding changes")
+        logger.debug(f"Finding changes in {directory}")
         
         # Get all documents from DB
         db_documents = await self.repository.find_all()
+        
+        # Filter DB files to only those in this directory
         db_files = {
             doc.path: doc.checksum 
             for doc in db_documents
+            if Path(doc.path).is_relative_to(directory.name)  # e.g., 'knowledge/' or 'documents/'
         }
 
+        logger.debug(f"Found {len(db_files)} files in DB for {directory}")
+
         # Find changes
-        new = set(current_files.keys()) - set(db_files.keys())
-        deleted = set(db_files.keys()) - set(current_files.keys())
+        new = set(file_system_files.keys()) - set(db_files.keys())
+        deleted = set(db_files.keys()) - set(file_system_files.keys())
         modified = {
-            path for path in current_files
-            if path in db_files and current_files[path] != db_files[path]
+            path for path in file_system_files
+            if path in db_files and file_system_files[path] != db_files[path]
         }
 
         return SyncReport(new=new, modified=modified, deleted=deleted)
@@ -177,8 +185,8 @@ class FileSyncService:
         current_files = await self.scan_files(directory)
         
         # Find changes
-        changes = await self.find_changes(current_files)
-        logger.info(f"Found changes: {changes}")
+        changes = await self.find_changes(current_files, directory)
+        logger.info(f"Found changes in {directory}: {changes}")
 
         if changes.total_changes == 0:
             logger.info("No changes detected")
