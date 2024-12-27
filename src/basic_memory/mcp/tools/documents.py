@@ -2,7 +2,7 @@
 
 from typing import Dict, List
 
-from basic_memory.schemas.request import DocumentRequest, FilePath
+from basic_memory.schemas.request import DocumentRequest, DocumentPathId
 from basic_memory.schemas.response import DocumentResponse, DocumentCreateResponse
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
@@ -80,13 +80,13 @@ async def update_document(request: DocumentRequest) -> DocumentResponse:
         #     updated_at="2024-12-25T14:30:00Z"
         # )
     """
-    url = f"/documents/{request.path}"
+    url = f"/documents/{request.path_id}"
     response = await client.put(url, json=request.model_dump())
     return DocumentResponse.model_validate(response.json())
 
 
 @mcp.tool()
-async def get_document(path: FilePath) -> DocumentResponse:
+async def get_document(path: DocumentPathId) -> DocumentResponse:
     """Get a document by its path.
     
     Examples:
@@ -146,7 +146,7 @@ async def list_documents() -> List[DocumentCreateResponse]:
 
 
 @mcp.tool()
-async def delete_document(path: FilePath) -> Dict[str, bool]:
+async def delete_document(path: DocumentPathId) -> Dict[str, bool]:
     """Delete a document.
     
     Examples:

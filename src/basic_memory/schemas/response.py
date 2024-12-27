@@ -213,7 +213,7 @@ class DeleteEntitiesResponse(SQLAlchemyModel):
 
 
 class DocumentCreateResponse(SQLAlchemyModel):
-    path: str
+    path_id: str
     checksum: str
     doc_metadata: Optional[Dict[str, Any]] = None
     created_at: datetime.datetime

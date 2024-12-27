@@ -67,10 +67,6 @@ async def session_maker(engine_factory) -> async_sessionmaker[AsyncSession]:
     return session_maker
 
 
-@pytest_asyncio.fixture
-async def test_project_path(test_config):
-    return test_config.path
-
 
 @pytest_asyncio.fixture(scope="function")
 async def document_repository(

@@ -21,45 +21,6 @@ class AddObservationsRequest(BaseModel):
     Observations are atomic pieces of information about the entity.
     Each observation should be a single fact or note that adds value
     to our understanding of the entity.
-
-    Example Requests:
-
-    1. Adding implementation details:
-    {
-        "path_id": "component/memory_service",
-        "observations": [
-            {
-                "category": "feature",
-                "content": "Added support for async operations",
-            },
-            {
-                "category": "tech",
-                "content": "Improved error handling with custom exceptions",
-            }
-        ]   
-    }
-
-    2. Documenting a decision:
-    {
-        "path_id": "decision/db_schema_design",
-        "context": "Initial database design meeting"
-        "observations": [
-            {
-                "category": "feature",
-                "content": "Added support for async operations",
-            },
-            {
-                "category": "tech",
-                "content": "Improved error handling with custom exceptions",
-            }
-        ]
-    }
-
-    Best Practices:
-    1. Keep observations atomic - one clear fact per observation
-    2. Use complete, well-formed sentences
-    3. Include relevant context in the observation text
-    4. Add observations in logical groups for better history tracking
     """
 
     path_id: PathId
@@ -75,39 +36,6 @@ class CreateEntityRequest(BaseModel):
     automatically generated from the type and name.
     
     Observations will be assigned the default category of 'note'.
-
-    Example Request:
-    {
-        "entities": [
-            {
-                "name": "SearchService",
-                "entity_type": "component",
-                "description": "Handles knowledge graph querying",
-                "observations": [
-                    "Implements full-text search",
-                    "Uses SQLite FTS5 extension",
-                    "Supports both exact and fuzzy matching"
-                ]
-            },
-            {
-                "name": "API_Documentation",
-                "entity_type": "document",
-                "description": "Basic Memory API Reference",
-                "observations": [
-                    "Documents REST endpoints",
-                    "Includes OpenAPI schema",
-                    "Provides usage examples"
-                ]
-            }
-        ]
-    }
-
-    Best Practices:
-    1. Choose clear, descriptive names
-    2. Use appropriate entity types (see base.py for common types)
-    3. Include meaningful descriptions
-    4. Add relevant initial observations
-    5. Consider creating relations after entity creation
     """
 
     entities: Annotated[List[Entity], MinLen(1)]
@@ -138,9 +66,6 @@ class SearchNodesRequest(BaseModel):
 
     Note: Currently uses SQL ILIKE for matching. Wildcard (*) searches
     and full-text search capabilities are planned for future versions.
-
-    Best Practice: Use specific, meaningful terms that would appear
-    in the target entities' content.
     """
 
     query: Annotated[str, MinLen(1), MaxLen(200)]
@@ -153,68 +78,12 @@ class OpenNodesRequest(BaseModel):
     Used to load complete entity details including all observations
     and relations. Particularly useful for following relations
     discovered through search.
-
-    Example Request:
-    {
-        "path_ids": [
-            "component/memory_service",
-            "document/api_spec",
-            "test/memory_service_test"
-        ]
-    }
-
-    Important Notes:
-    1. IDs must include the entity type prefix
-    2. Non-existent IDs are silently skipped
-    3. Returns complete entity objects
-    4. Relations are included in response
-
-    Best Practice: Use this to explore the graph by following
-    relations between entities that interest you.
     """
 
     path_ids: Annotated[List[PathId], MinLen(1)]
 
 
 class CreateRelationsRequest(BaseModel):
-    """Create new relations between existing entities.
-
-    Relations are directed edges that connect entities in meaningful ways.
-    They use active voice verbs to describe the relationship from the
-    source entity to the target entity.
-
-    Example Request:
-    {
-        "relations": [
-            {
-                "from_id": "test/memory_service_test",
-                "to_id": "component/memory_service",
-                "relation_type": "validates",
-                "context": "Comprehensive test suite for core functionality"
-            },
-            {
-                "from_id": "person/alice",
-                "to_id": "document/architecture_spec",
-                "relation_type": "authored",
-                "context": "Initial system design"
-            },
-            {
-                "from_id": "component/memory_service",
-                "to_id": "component/database_service",
-                "relation_type": "depends_on",
-                "context": "Requires database service for persistence"
-            }
-        ]
-    }
-
-    Best Practices:
-    1. Use established relation_types when possible (see base.py)
-    2. Consider the direction carefully - relations are one-way
-    3. Add context when the relationship needs explanation
-    4. Create reciprocal relations if needed (e.g., A depends_on B, B supports A)
-    5. Verify both entities exist before creating relations
-    6. Use relations to build a rich, navigable knowledge graph
-    """
 
     relations: List[Relation]
 
@@ -222,12 +91,12 @@ class CreateRelationsRequest(BaseModel):
 ## document
 
 
-FilePath = Annotated[
+DocumentPathId = Annotated[
     str, StringConstraints(pattern=r"^[a-zA-Z0-9_/.-]+\.md$"), MinLen(1), MaxLen(255)
 ]
 
 
 class DocumentRequest(BaseModel):
-    path: FilePath
+    path_id: DocumentPathId
     content: str
     doc_metadata: Optional[Dict[str, Any]] = None

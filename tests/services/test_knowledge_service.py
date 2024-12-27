@@ -24,7 +24,7 @@ async def test_get_entity_path(knowledge_service: KnowledgeService):
 
 
 @pytest.mark.asyncio
-async def test_create_entity(knowledge_service: KnowledgeService, test_project_path: Path):
+async def test_create_entity(knowledge_service: KnowledgeService):
     """Should create entity in DB and write file correctly."""
     # Setup
     entity = EntitySchema(name="test-entity", entity_type="concept", description="Test entity")

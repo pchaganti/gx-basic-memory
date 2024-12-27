@@ -87,7 +87,13 @@ async def test_delete_observations(session_maker: async_sessionmaker, repo):
     """Test deleting observations by entity_id."""
     # Create test entity
     async with db.scoped_session(session_maker) as session:
-        entity = Entity(name="test_entity", entity_type="test", description="Test entity", path_id="test/test_entity")
+        entity = Entity(
+            name="test_entity",
+            entity_type="test",
+            description="Test entity",
+            path_id="test/test_entity",
+            file_path="test/test_entity.md",
+        )
         session.add(entity)
         await session.flush()
 
@@ -110,7 +116,13 @@ async def test_delete_observation_by_id(session_maker: async_sessionmaker, repo)
     """Test deleting a single observation by its ID."""
     # Create test entity
     async with db.scoped_session(session_maker) as session:
-        entity = Entity(name="test_entity", entity_type="test", description="Test entity", path_id="test/test_entity")
+        entity = Entity(
+            name="test_entity",
+            entity_type="test",
+            description="Test entity",
+            path_id="test/test_entity",
+            file_path="test/test_entity.md",
+        )
         session.add(entity)
         await session.flush()
 
@@ -132,7 +144,13 @@ async def test_delete_observation_by_content(session_maker: async_sessionmaker, 
     """Test deleting observations by content."""
     # Create test entity
     async with db.scoped_session(session_maker) as session:
-        entity = Entity(name="test_entity", entity_type="test", description="Test entity", path_id="test/test_entity")
+        entity = Entity(
+            name="test_entity",
+            entity_type="test",
+            description="Test entity",
+            path_id="test/test_entity",
+            file_path="test/test_entity.md",
+        )
         session.add(entity)
         await session.flush()
 
@@ -160,28 +178,17 @@ async def test_find_by_category(session_maker: async_sessionmaker, repo):
             name="test_entity",
             entity_type="test",
             description="Test entity",
-            path_id="test/test_entity"
+            path_id="test/test_entity",
+            file_path="test/test_entity.md",
         )
         session.add(entity)
         await session.flush()
 
         # Create test observations with different categories
         observations = [
-            Observation(
-                entity_id=entity.id,
-                content="Tech observation",
-                category="tech"
-            ),
-            Observation(
-                entity_id=entity.id,
-                content="Design observation",
-                category="design"
-            ),
-            Observation(
-                entity_id=entity.id,
-                content="Another tech observation",
-                category="tech"
-            )
+            Observation(entity_id=entity.id, content="Tech observation", category="tech"),
+            Observation(entity_id=entity.id, content="Design observation", category="design"),
+            Observation(entity_id=entity.id, content="Another tech observation", category="tech"),
         ]
         session.add_all(observations)
         await session.commit()
@@ -190,10 +197,7 @@ async def test_find_by_category(session_maker: async_sessionmaker, repo):
     tech_obs = await repo.find_by_category("tech")
     assert len(tech_obs) == 2
     assert all(obs.category == "tech" for obs in tech_obs)
-    assert set(obs.content for obs in tech_obs) == {
-        "Tech observation",
-        "Another tech observation"
-    }
+    assert set(obs.content for obs in tech_obs) == {"Tech observation", "Another tech observation"}
 
     # Find design observations
     design_obs = await repo.find_by_category("design")
@@ -215,33 +219,22 @@ async def test_observation_categories(session_maker: async_sessionmaker, repo):
             name="test_entity",
             entity_type="test",
             description="Test entity",
-            path_id="test/test_entity"
+            path_id="test/test_entity",
+            file_path="test/test_entity.md",
         )
         session.add(entity)
         await session.flush()
 
         # Create observations with various categories
         observations = [
-            Observation(
-                entity_id=entity.id,
-                content="First tech note",
-                category="tech"
-            ),
+            Observation(entity_id=entity.id, content="First tech note", category="tech"),
             Observation(
                 entity_id=entity.id,
                 content="Second tech note",
-                category="tech"  # Duplicate category
+                category="tech",  # Duplicate category
             ),
-            Observation(
-                entity_id=entity.id,
-                content="Design note",
-                category="design"
-            ),
-            Observation(
-                entity_id=entity.id,
-                content="Feature note",
-                category="feature"
-            )
+            Observation(entity_id=entity.id, content="Design note", category="design"),
+            Observation(entity_id=entity.id, content="Feature note", category="feature"),
         ]
         session.add_all(observations)
         await session.commit()
@@ -273,7 +266,8 @@ async def test_find_by_category_case_sensitivity(session_maker: async_sessionmak
             name="test_entity",
             entity_type="test",
             description="Test entity",
-            path_id="test/test_entity"
+            path_id="test/test_entity",
+            file_path="test/test_entity.md",
         )
         session.add(entity)
         await session.flush()
@@ -282,7 +276,7 @@ async def test_find_by_category_case_sensitivity(session_maker: async_sessionmak
         obs = Observation(
             entity_id=entity.id,
             content="Tech note",
-            category="tech"  # lowercase in database
+            category="tech",  # lowercase in database
         )
         session.add(obs)
         await session.commit()

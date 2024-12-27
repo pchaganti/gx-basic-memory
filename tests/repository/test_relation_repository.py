@@ -16,6 +16,7 @@ async def source_entity(session_maker):
         name="test_source",
         entity_type="source",
         path_id="source/test_source",
+        file_path="source/test_source.md",
         description="Source entity",
     )
     async with db.scoped_session(session_maker) as session:
@@ -31,6 +32,7 @@ async def target_entity(session_maker):
         name="test_target",
         entity_type="target",
         path_id="target/test_target",
+        file_path="target/test_target.md",
         description="Target entity",
     )
     async with db.scoped_session(session_maker) as session:
@@ -59,6 +61,7 @@ async def related_entity(entity_repository):
         "name": "Related Entity",
         "entity_type": "test",
         "path_id": "test/related_entity",
+        "file_path": "test/related_entity.md",
         "description": "A related test entity",
         "references": "",
     }

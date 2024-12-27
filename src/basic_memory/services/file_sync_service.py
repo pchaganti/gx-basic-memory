@@ -96,7 +96,7 @@ class FileSyncService:
             directory: Path,
             get_records: callable,
             normalize_path: callable = lambda x: x,
-            get_record_path: callable = lambda x: x.path
+            get_record_path: callable = lambda x: x.path_id
     ) -> SyncReport:
         """
         Find changes between filesystem and database.

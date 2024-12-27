@@ -9,19 +9,6 @@ from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.services.relation_service import RelationService
 
 
-@pytest_asyncio.fixture
-async def relation_repository(
-    session_maker: async_sessionmaker[AsyncSession],
-) -> RelationRepository:
-    """Create a RelationRepository instance."""
-    return RelationRepository(session_maker)
-
-
-@pytest_asyncio.fixture
-async def relation_service(relation_repository: RelationRepository) -> RelationService:
-    """Create RelationService with repository."""
-    return RelationService(relation_repository)
-
 
 @pytest_asyncio.fixture
 async def test_entities(
@@ -33,12 +20,14 @@ async def test_entities(
             name="test_entity_1",
             entity_type="test",
             path_id="test/test_entity_1",
+            file_path="test/test_entity_1.md",
             description="Test entity 1",
         )
         entity2 = Entity(
             name="test_entity_2",
             entity_type="test",
             path_id="test/test_entity_2",
+            file_path="test/test_entity_2.md",
             description="Test entity 2",
         )
         session.add_all([entity1, entity2])
