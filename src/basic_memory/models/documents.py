@@ -1,44 +1,42 @@
-"""Document model for tracking files in the knowledge base."""
+"""Models for storing documents."""
 
 from datetime import datetime
-from typing import Optional, List
+from typing import Dict, Any, Optional
 
-from sqlalchemy import String, DateTime, text, JSON, Index
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import String, JSON, DateTime
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import func
 
-from basic_memory.models.base import Base
+from basic_memory.db import Base
 
 
 class Document(Base):
-    """
-    Tracks documents in the filesystem.
-
-    Documents files are the source of truth for document content, while this table
-    provides indexing and metadata storage. Like git, the filesystem
-    is the real source of truth.
-    """
-
+    """Document model."""
     __tablename__ = "document"
-    __table_args__ = (
-        Index("ix_document_created_at", "created_at"),
-        Index("ix_document_updated_at", "updated_at")
-    )
+    __table_args__ = {'extend_existing': True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    path: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-    checksum: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    doc_metadata: Mapped[Optional[dict]] = mapped_column(
-        JSON, nullable=True
-    )  # renamed from metadata
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
+    # Normalized path for URIs
+    path_id: Mapped[str] = mapped_column(String, unique=True, index=True)
+    # Actual filesystem relative path
+    file_path: Mapped[str] = mapped_column(String, unique=True, index=True)  
+    checksum: Mapped[str] = mapped_column(String, nullable=False)
+    doc_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON, 
+        nullable=True,
+        default=None
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now()
     )
 
-    # Relationships
-    entities: Mapped[List["Entity"]] = relationship(  # pyright: ignore [reportUndefinedVariable]  # noqa: F821
-        "Entity", back_populates="document", cascade="all, delete-orphan"
-    )
-
-    def __repr__(self) -> str:
-        return f"Document(id={self.id}, path='{self.path}',  checksum='{self.checksum}', created_at='{self.created_at}', updated_at='{self.updated_at}')"
+    @property
+    def normalized_path(self) -> str:
+        """Get path for URI routing."""
+        return self.path_id
