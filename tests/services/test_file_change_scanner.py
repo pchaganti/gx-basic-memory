@@ -5,7 +5,7 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basic_memory.repository import DocumentRepository, EntityRepository
-from basic_memory.services import FileSyncService
+from basic_memory.services import FileChangeScanner
 from basic_memory.utils.file_utils import compute_checksum
 from basic_memory.models import Document
 
@@ -26,17 +26,17 @@ async def create_test_file(path: Path, content: str = "test content") -> None:
 
 @pytest.mark.asyncio
 async def test_scan_empty_directory(
-    file_sync_service: FileSyncService,
+        file_change_scanner: FileChangeScanner,
     temp_dir: Path
 ):
     """Test scanning empty directory."""
-    files = await file_sync_service.scan_directory(temp_dir)
+    files = await file_change_scanner.scan_directory(temp_dir)
     assert len(files) == 0
 
 
 @pytest.mark.asyncio
 async def test_scan_with_mixed_files(
-    file_sync_service: FileSyncService,
+        file_change_scanner: FileChangeScanner,
     temp_dir: Path
 ):
     """Test scanning directory with markdown and non-markdown files."""
@@ -45,7 +45,7 @@ async def test_scan_with_mixed_files(
     await create_test_file(temp_dir / "text.txt", "not markdown")
     await create_test_file(temp_dir / "notes/deep.md", "nested markdown")
 
-    files = await file_sync_service.scan_directory(temp_dir)
+    files = await file_change_scanner.scan_directory(temp_dir)
     assert len(files) == 2
     assert "doc.md" in files
     assert "notes/deep.md" in files
@@ -54,7 +54,7 @@ async def test_scan_with_mixed_files(
 
 @pytest.mark.asyncio
 async def test_detect_new_files(
-    file_sync_service: FileSyncService,
+        file_change_scanner: FileChangeScanner,
     temp_dir: Path,
     document_repository: DocumentRepository
 ):
@@ -62,7 +62,7 @@ async def test_detect_new_files(
     # Create new file
     await create_test_file(temp_dir / "new.md")
     
-    changes = await file_sync_service.find_changes(
+    changes = await file_change_scanner.find_changes(
         directory=temp_dir,
         get_records=document_repository.find_all
     )
@@ -73,7 +73,7 @@ async def test_detect_new_files(
 
 @pytest.mark.asyncio
 async def test_detect_modified_file(
-    file_sync_service: FileSyncService,
+        file_change_scanner: FileChangeScanner,
     temp_dir: Path,
     document_repository: DocumentRepository
 ):
@@ -93,7 +93,7 @@ async def test_detect_modified_file(
     # Modify file
     await create_test_file(temp_dir / path, "modified")
 
-    changes = await file_sync_service.find_changes(
+    changes = await file_change_scanner.find_changes(
         directory=temp_dir,
         get_records=document_repository.find_all
     )
@@ -104,7 +104,7 @@ async def test_detect_modified_file(
 
 @pytest.mark.asyncio
 async def test_detect_moved_file(
-    file_sync_service: FileSyncService,
+        file_change_scanner: FileChangeScanner,
     temp_dir: Path,
     document_repository: DocumentRepository
 ):
@@ -125,7 +125,7 @@ async def test_detect_moved_file(
     # Create file in new location
     await create_test_file(temp_dir / new_path, content)
 
-    changes = await file_sync_service.find_changes(
+    changes = await file_change_scanner.find_changes(
         directory=temp_dir,
         get_records=document_repository.find_all
     )
@@ -137,7 +137,7 @@ async def test_detect_moved_file(
 
 @pytest.mark.asyncio
 async def test_detect_deleted_files(
-    file_sync_service: FileSyncService,
+        file_change_scanner: FileChangeScanner,
     temp_dir: Path,
     document_repository: DocumentRepository
 ):
@@ -152,7 +152,7 @@ async def test_detect_deleted_files(
     )
     await document_repository.add(doc)
 
-    changes = await file_sync_service.find_changes(
+    changes = await file_change_scanner.find_changes(
         directory=temp_dir,
         get_records=document_repository.find_all
     )

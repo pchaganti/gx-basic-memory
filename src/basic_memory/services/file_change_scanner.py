@@ -1,4 +1,4 @@
-"""Service for syncing files with the database."""
+"""Service for detecting changes between filesystem and database."""
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,7 +21,7 @@ class FileState:
 
 @dataclass
 class SyncReport:
-    """Report of sync results."""
+    """Report of file changes found."""
     new: Set[str] = field(default_factory=set)
     modified: Set[str] = field(default_factory=set)
     deleted: Set[str] = field(default_factory=set)
@@ -46,10 +46,10 @@ class DbRecord(Protocol):
 T = TypeVar('T', bound=DbRecord)
 
 
-class FileSyncService:
+class FileChangeScanner:
     """
-    Service for keeping files and database in sync.
-    The filesystem is the source of truth.
+    Service for detecting changes between filesystem and database.
+    The filesystem is treated as the source of truth.
     """
 
     def __init__(

@@ -22,7 +22,7 @@ from basic_memory.services import (
     ObservationService,
     RelationService,
     DocumentService,
-    FileSyncService,
+    FileChangeScanner,
 )
 from basic_memory.services.file_service import FileService
 from basic_memory.services.knowledge.service import KnowledgeService
@@ -141,9 +141,9 @@ def knowledge_writer():
 
 
 @pytest_asyncio.fixture
-def file_sync_service(document_repository, entity_repository) -> FileSyncService:
-    """Create FileSyncService instance."""
-    return FileSyncService(document_repository, entity_repository)
+def file_change_scanner(document_repository, entity_repository) -> FileChangeScanner:
+    """Create FileChangeScanner instance."""
+    return FileChangeScanner(document_repository, entity_repository)
 
 
 @pytest_asyncio.fixture

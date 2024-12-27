@@ -85,7 +85,7 @@ async def test_display_verbose_changes(console):
 
 
 async def test_end_to_end_status(
-    file_sync_service,
+        file_change_scanner,
     test_config,
     document_repository,
     entity_repository
@@ -123,22 +123,22 @@ async def test_end_to_end_status(
     })
 
     # Run status check
-    await run_status(file_sync_service, verbose=True)
+    await run_status(file_change_scanner, verbose=True)
     
     # Verify changes through sync service directly
-    doc_changes = await file_sync_service.find_document_changes(docs_dir)
+    doc_changes = await file_change_scanner.find_document_changes(docs_dir)
     assert len(doc_changes.new) == 2  # test.md and nested.md
     assert "test.md" in doc_changes.new
     assert "subdir/nested.md" in doc_changes.new
     assert len(doc_changes.deleted) == 1  # old/doc.md
 
-    knowledge_changes = await file_sync_service.find_knowledge_changes(knowledge_dir)
+    knowledge_changes = await file_change_scanner.find_knowledge_changes(knowledge_dir)
     assert len(knowledge_changes.new) == 1
     assert "component/test.md" in knowledge_changes.new
 
 
 async def test_status_with_case_changes(
-    file_sync_service,
+        file_change_scanner,
     test_config,
     document_repository
 ):
@@ -164,14 +164,14 @@ async def test_status_with_case_changes(
     orig_file.rename(docs_dir / "test.md")
     
     # Check changes
-    changes = await file_sync_service.find_document_changes(docs_dir)
+    changes = await file_change_scanner.find_document_changes(docs_dir)
     assert len(changes.moved) == 1
     assert "test.md" in changes.moved
     assert changes.moved["test.md"].moved_from == original_path
 
 
 async def test_status_with_spaces(
-    file_sync_service,
+        file_change_scanner,
     test_config,
     document_repository
 ):
@@ -194,7 +194,7 @@ async def test_status_with_spaces(
     })
     
     # Check changes
-    changes = await file_sync_service.find_document_changes(docs_dir)
+    changes = await file_change_scanner.find_document_changes(docs_dir)
     assert not changes.modified  # File unchanged
     assert not changes.moved     # Path matches exactly
     assert not changes.deleted
