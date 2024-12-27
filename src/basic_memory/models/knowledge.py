@@ -39,7 +39,9 @@ class Entity(Base):
 
     # Content and validation
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # nullable is true so we can insert the row before writing file
+    # after file write the checksum is updated
+    checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
 
     # Metadata and tracking
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
