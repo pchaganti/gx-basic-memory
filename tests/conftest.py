@@ -11,6 +11,7 @@ from basic_memory import db
 from basic_memory.config import ProjectConfig
 from basic_memory.db import DatabaseType
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
+from basic_memory.markdown.knowledge_parser import KnowledgeParser
 from basic_memory.models import Base
 from basic_memory.models.knowledge import Entity
 from basic_memory.repository.document_repository import DocumentRepository
@@ -22,10 +23,10 @@ from basic_memory.services import (
     ObservationService,
     RelationService,
     DocumentService,
-    KnowledgeService,
     FileChangeScanner,
-    FileService
 )
+from basic_memory.services.file_service import FileService
+from basic_memory.services import KnowledgeService
 
 
 @pytest_asyncio.fixture
@@ -65,7 +66,6 @@ async def session_maker(engine_factory) -> async_sessionmaker[AsyncSession]:
     """Get session maker for tests."""
     _, session_maker = engine_factory
     return session_maker
-
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -140,8 +140,14 @@ def knowledge_writer():
     return KnowledgeWriter()
 
 
+@pytest.fixture
+def knowledge_parser():
+    """Create parser instance."""
+    return KnowledgeParser()
+
+
 @pytest_asyncio.fixture
-def file_change_scanner(document_repository, entity_repository) -> FileChangeScanner:
+def file_sync_service(document_repository, entity_repository) -> FileChangeScanner:
     """Create FileChangeScanner instance."""
     return FileChangeScanner(document_repository, entity_repository)
 
