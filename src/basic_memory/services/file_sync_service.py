@@ -52,6 +52,7 @@ class FileSyncService:
         """
         Scan directory for markdown files and their checksums.
         Only processes .md files, logs and skips others.
+        Keeps .md extension for filesystem source of truth.
 
         Args:
             directory: Directory to scan
@@ -71,6 +72,7 @@ class FileSyncService:
             try:
                 content = path.read_text()
                 checksum = await compute_checksum(content)
+                # Keep .md for filesystem source of truth
                 rel_path = str(path.relative_to(directory))
                 files[rel_path] = checksum
             except Exception as e:
@@ -80,10 +82,10 @@ class FileSyncService:
         return files
 
     async def find_changes(
-        self, 
-        directory: Path, 
-        get_records: callable,
-        get_path: callable = lambda x: x.path
+            self,
+            directory: Path,
+            get_records: callable,
+            get_path: callable = lambda x: x.path
     ) -> SyncReport:
         """
         Find changes between filesystem and database.
@@ -98,21 +100,38 @@ class FileSyncService:
         """
         # Get current files and checksums
         current_files = await self.scan_directory(directory)
+        logger.debug("Current files from filesystem:")
+        for path in sorted(current_files.keys()):
+            logger.debug(f"  {path}")
 
         # Get database records
         db_records = await get_records()
         db_files = {
-            get_path(record): record.checksum 
+            get_path(record): record.checksum
             for record in db_records
         }
+        logger.debug("Files from database:")
+        for path in sorted(db_files.keys()):
+            logger.debug(f"  {path}")
 
         # Compare current vs database state
         new = set(current_files.keys()) - set(db_files.keys())
+        logger.debug("New files (in filesystem but not db):")
+        for path in sorted(new):
+            logger.debug(f"  {path}")
+
         deleted = set(db_files.keys()) - set(current_files.keys())
+        logger.debug("Deleted files (in db but not filesystem):")
+        for path in sorted(deleted):
+            logger.debug(f"  {path}")
+
         modified = {
             path for path in current_files
             if path in db_files and current_files[path] != db_files[path]
         }
+        logger.debug("Modified files (checksum mismatch):")
+        for path in sorted(modified):
+            logger.debug(f"  {path}")
 
         return SyncReport(new=new, modified=modified, deleted=deleted)
 
@@ -125,8 +144,16 @@ class FileSyncService:
 
     async def find_knowledge_changes(self, directory: Path) -> SyncReport:
         """Find changes in knowledge directory."""
+        # For knowledge files, we need to strip .md to match entity.path_id
+        def get_path_without_md(entity):
+            """Get entity path_id, ensuring no .md extension."""
+            path = entity.path_id
+            if path.endswith('.md'):
+                path = path[:-3]
+            return path
+
         return await self.find_changes(
             directory=directory,
             get_records=self.entity_repository.find_all,
-            get_path=lambda x: x.path_id
+            get_path=get_path_without_md
         )

@@ -21,6 +21,7 @@ console = Console()
 
 
 async def get_sync_service(db_type=DatabaseType.FILESYSTEM) -> FileSyncService:
+    """Get sync service instance."""
     async with db.engine_session_factory(db_path=config.database_path, db_type=db_type) as (
         engine,
         session_maker,
@@ -52,54 +53,51 @@ def add_files_to_tree(tree: Tree, paths: Set[str], style: str):
             branch.add(f"[{style}]{file_name}[/{style}]")
 
 
-def display_compact_changes(title: str, changes: SyncReport):
-    """Display a compact summary of changes."""
-    # Create the base tree
-    tree = Tree(title)
-
-    if changes.total_changes == 0:
-        tree.add("No changes")
-        console.print(Panel(tree, expand=False))
-        return
-
-    # Group files by directory
-    by_dir = {}
-    for change_type, paths in [
-        ("new", changes.new),
-        ("modified", changes.modified),
-        ("deleted", changes.deleted)
-    ]:
-        for path in paths:
-            dir_name = path.split("/", 1)[0]
-            by_dir.setdefault(dir_name, {"new": 0, "modified": 0, "deleted": 0})
-            by_dir[dir_name][change_type] += 1
-
-    # Display compact summary for each directory
-    for dir_name, counts in sorted(by_dir.items()):
-        summary_parts = []
-        if counts["new"]:
-            summary_parts.append(f"[green]+{counts['new']} new[/green]")
-        if counts["modified"]:
-            summary_parts.append(f"[yellow]~{counts['modified']} modified[/yellow]")
-        if counts["deleted"]:
-            summary_parts.append(f"[red]-{counts['deleted']} deleted[/red]")
-
-        tree.add(f"[bold]{dir_name}/[/bold] {' '.join(summary_parts)}")
-
-    console.print(Panel(tree, expand=False))
-
-
 def display_changes(title: str, changes: SyncReport, verbose: bool = False):
     """Display changes using Rich for better visualization."""
     if not verbose:
-        display_compact_changes(title, changes)
-        return
-
-    # Create tree for structure (existing verbose display)
-    tree = Tree(title)
-
-    # Add summary if there are changes
-    if changes.total_changes > 0:
+        # Current compact display by directory
+        tree = Tree(title)
+        
+        if changes.total_changes == 0:
+            tree.add("No changes")
+            console.print(Panel(tree, expand=False))
+            return
+            
+        # Group by directory and count changes
+        by_dir = {}
+        for change_type, paths in [
+            ("new", changes.new),
+            ("modified", changes.modified), 
+            ("deleted", changes.deleted)
+        ]:
+            for path in paths:
+                dir_name = path.split("/", 1)[0]
+                by_dir.setdefault(dir_name, {"new": 0, "modified": 0, "deleted": 0})
+                by_dir[dir_name][change_type] += 1
+                
+        # Show directory summaries
+        for dir_name, counts in sorted(by_dir.items()):
+            summary_parts = []
+            if counts["new"]:
+                summary_parts.append(f"[green]+{counts['new']} new[/green]")
+            if counts["modified"]:
+                summary_parts.append(f"[yellow]~{counts['modified']} modified[/yellow]")
+            if counts["deleted"]:
+                summary_parts.append(f"[red]-{counts['deleted']} deleted[/red]")
+                
+            tree.add(f"[bold]{dir_name}/[/bold] {' '.join(summary_parts)}")
+            
+    else:
+        # Verbose display with full file paths
+        tree = Tree(title)
+        
+        if changes.total_changes == 0:
+            tree.add("No changes")
+            console.print(Panel(tree, expand=False))
+            return
+            
+        # Show total counts
         summary = []
         if changes.new:
             summary.append(f"[green]{len(changes.new)} new[/green]")
@@ -108,23 +106,20 @@ def display_changes(title: str, changes: SyncReport, verbose: bool = False):
         if changes.deleted:
             summary.append(f"[red]{len(changes.deleted)} deleted[/red]")
         tree.add(f"Found {', '.join(summary)}")
-
-        # Add file groups
+        
+        # Add file groups with full paths
         if changes.new:
-            new_branch = tree.add("[green]New files[/green]")
+            new_branch = tree.add("[green]New Files[/green]")
             add_files_to_tree(new_branch, changes.new, "green")
-
+            
         if changes.modified:
             mod_branch = tree.add("[yellow]Modified[/yellow]")
             add_files_to_tree(mod_branch, changes.modified, "yellow")
-
+            
         if changes.deleted:
             del_branch = tree.add("[red]Deleted[/red]")
             add_files_to_tree(del_branch, changes.deleted, "red")
-    else:
-        tree.add("No changes detected")
-
-    # Display the tree in a panel
+    
     console.print(Panel(tree, expand=False))
 
 
@@ -133,11 +128,11 @@ async def run_status(sync_service: FileSyncService, verbose: bool = False):
 
     # Check knowledge/ directory
     knowledge_changes = await sync_service.find_knowledge_changes(config.knowledge_dir)
-    display_changes("Knowledge Files", knowledge_changes)
+    display_changes("Knowledge Files", knowledge_changes, verbose)
 
-    # Check documents/ directory
+    # Check documents/ directory 
     document_changes = await sync_service.find_document_changes(config.documents_dir)
-    display_changes("Documents", document_changes)
+    display_changes("Documents", document_changes, verbose)
 
 
 @app.command()
