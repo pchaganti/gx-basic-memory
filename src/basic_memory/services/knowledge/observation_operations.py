@@ -8,7 +8,7 @@ from basic_memory.models import Entity as EntityModel
 from basic_memory.services.exceptions import EntityNotFoundError
 from basic_memory.services.observation_service import ObservationService
 from basic_memory.schemas.request import ObservationCreate
-from .relations import RelationOperations
+from .relation_operations import RelationOperations
 
 
 class ObservationOperations(RelationOperations):

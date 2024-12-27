@@ -7,7 +7,7 @@ from basic_memory.services.entity_service import EntityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services.observation_service import ObservationService
 from basic_memory.services.relation_service import RelationService
-from .observations import ObservationOperations
+from .observation_operations import ObservationOperations
 
 
 class KnowledgeService(ObservationOperations):

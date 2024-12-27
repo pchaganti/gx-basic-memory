@@ -6,7 +6,7 @@ from loguru import logger
 
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema
-from .files import FileOperations
+from .file_operations import FileOperations
 from ..exceptions import EntityCreationError, EntityNotFoundError
 
 

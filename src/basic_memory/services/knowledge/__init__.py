@@ -1,5 +1,5 @@
 """Knowledge service package."""
 
-from .service import KnowledgeService
+from .knowledge_service import KnowledgeService
 
 __all__ = ["KnowledgeService"]

@@ -9,7 +9,7 @@ from basic_memory.models import Relation as RelationModel
 from basic_memory.schemas import Relation as RelationSchema
 from basic_memory.services.exceptions import EntityNotFoundError
 from basic_memory.services.relation_service import RelationService
-from .entities import EntityOperations
+from .entity_operations import EntityOperations
 
 
 class RelationOperations(EntityOperations):

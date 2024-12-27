@@ -22,10 +22,10 @@ from basic_memory.services import (
     ObservationService,
     RelationService,
     DocumentService,
+    KnowledgeService,
     FileChangeScanner,
+    FileService
 )
-from basic_memory.services.file_service import FileService
-from basic_memory.services.knowledge.service import KnowledgeService
 
 
 @pytest_asyncio.fixture
