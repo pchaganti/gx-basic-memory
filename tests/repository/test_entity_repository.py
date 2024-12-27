@@ -32,12 +32,14 @@ async def related_entities(session_maker):
             name="source",
             entity_type="source",
             path_id="source/source",
+            file_path="source/source.md",
             description="Source entity",
         )
         target = Entity(
             name="target",
             entity_type="target",
             path_id="target/target",
+            file_path="target/target.md",
             description="Target entity",
         )
         session.add(source)
@@ -57,6 +59,7 @@ async def test_create_entity(entity_repository: EntityRepository):
         "name": "Test",
         "entity_type": "test",
         "path_id": "test/test",
+        "file_path": "test/test.md",
         "description": "Test description",
     }
     entity = await entity_repository.create(entity_data)
@@ -89,12 +92,14 @@ async def test_create_all(entity_repository: EntityRepository):
             "name": "Test_1",
             "entity_type": "test",
             "path_id": "test/test_1",
+            "file_path": "test/test_1.md",
             "description": "Test description",
         },
         {
             "name": "Test-2",
             "entity_type": "test",
             "path_id": "test/test_2",
+            "file_path": "test/test_2.md",
             "description": "Test description",
         },
     ]
@@ -124,6 +129,7 @@ async def test_entity_type_name_unique_constraint(entity_repository: EntityRepos
         "name": "Test Entity",
         "entity_type": "type1",
         "path_id": "type1/test_entity",
+        "file_path": "type1/test_entity1.md", 
         "description": "First entity",
     }
     await entity_repository.create(entity1_data)
@@ -133,6 +139,7 @@ async def test_entity_type_name_unique_constraint(entity_repository: EntityRepos
         "name": "Test Entity",  # Same name
         "entity_type": "type1",  # Same type
         "path_id": "type1/test_entity",
+        "file_path": "type1/test_entity2.md",
         "description": "Second entity",
     }
 
@@ -149,6 +156,7 @@ async def test_create_entity_null_description(session_maker, entity_repository: 
         "name": "Test",
         "entity_type": "test",
         "path_id": "test/test",
+        "file_path": "test/test.md",
         "description": None,
     }
     entity = await entity_repository.create(entity_data)
@@ -297,12 +305,14 @@ async def test_search(session_maker, entity_repository: EntityRepository):
             name="Search Test 1",
             entity_type="test",
             path_id="test/search_test_1",
+            file_path="test/search_test_1.md",
             description="First test entity",
         )
         entity2 = Entity(
             name="Search Test 2",
             entity_type="other",
             path_id="other/search_test_2",
+            file_path="other/search_test_2.md",
             description="Second test entity",
         )
         session.add_all([entity1, entity2])
@@ -353,18 +363,21 @@ async def test_entities(session_maker):
                 entity_type="type1",
                 description="First test entity",
                 path_id="type1/entity1",
+                file_path="type1/entity1.md",
             ),
             Entity(
                 name="entity2",
                 entity_type="type1",
                 description="Second test entity",
                 path_id="type1/entity2",
+                file_path="type1/entity2.md",
             ),
             Entity(
                 name="entity3",
                 entity_type="type2",
                 description="Third test entity",
                 path_id="type2/entity3",
+                file_path="type2/entity3.md",
             ),
         ]
         session.add_all(entities)

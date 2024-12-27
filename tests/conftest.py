@@ -21,7 +21,8 @@ from basic_memory.services import (
     EntityService,
     ObservationService,
     RelationService,
-    DocumentService, FileSyncService,
+    DocumentService,
+    FileSyncService,
 )
 from basic_memory.services.file_service import FileService
 from basic_memory.services.knowledge.service import KnowledgeService
@@ -142,11 +143,11 @@ def knowledge_writer():
     """Create writer instance."""
     return KnowledgeWriter()
 
+
 @pytest_asyncio.fixture
 def file_sync_service(document_repository, entity_repository) -> FileSyncService:
     """Create FileSyncService instance."""
     return FileSyncService(document_repository, entity_repository)
-
 
 
 @pytest_asyncio.fixture
@@ -172,5 +173,11 @@ async def knowledge_service(
 @pytest_asyncio.fixture(scope="function")
 async def sample_entity(entity_repository: EntityRepository) -> Entity:
     """Create a sample entity for testing."""
-    entity_data = {"name": "Test Entity", "entity_type": "test", "description": "A test entity", "path_id": "test/test_entity"}
+    entity_data = {
+        "name": "Test Entity",
+        "entity_type": "test",
+        "description": "A test entity",
+        "path_id": "test/test_entity",
+        "file_path": "test/test_entity.md",
+    }
     return await entity_repository.create(entity_data)
