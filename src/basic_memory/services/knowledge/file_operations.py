@@ -13,7 +13,7 @@ from basic_memory.services.file_service import FileService
 
 
 class FileOperations:
-    """File operations mixin for KnowledgeService."""
+    """File operations for knowledge entities."""
 
     def __init__(
         self,
@@ -27,12 +27,18 @@ class FileOperations:
         self.knowledge_writer = knowledge_writer
         self.base_path = base_path
 
+    async def file_exists(self, path: Path) -> bool:
+        return await self.file_service.exists(path)
+
+    async def read_file(self, path: Path) -> Tuple[str, str]:
+        return await self.file_service.read_file(path)
+
     def get_entity_path(self, entity: EntityModel) -> Path:
         """Generate filesystem path for entity."""
         return self.base_path / entity.entity_type / f"{entity.name}.md"
 
     async def write_entity_file(self, entity: EntityModel) -> Tuple[Path, str]:
-        """Write entity to filesystem and return checksum."""
+        """Write entity to filesystem and return path and checksum."""
         try:
             # Ensure we have a fresh entity with all relations loaded
             entity = await self.entity_service.get_by_path_id(entity.path_id)
@@ -53,3 +59,12 @@ class FileOperations:
         except Exception as e:
             logger.error(f"Failed to write entity file: {e}")
             raise FileOperationError(f"Failed to write entity file: {e}")
+
+    async def delete_entity_file(self, entity: EntityModel) -> None:
+        """Delete entity file from filesystem."""
+        try:
+            path = self.get_entity_path(entity)
+            await self.file_service.delete_file(path)
+        except Exception as e:
+            logger.error(f"Failed to delete entity file: {e}")
+            raise FileOperationError(f"Failed to delete entity file: {e}")

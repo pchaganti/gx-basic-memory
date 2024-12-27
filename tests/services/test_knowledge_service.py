@@ -40,7 +40,7 @@ async def test_create_entity(knowledge_service: KnowledgeService):
 
     # Verify file was written
     file_path = knowledge_service.get_entity_path(created)
-    assert await knowledge_service.file_service.exists(file_path)
+    assert await knowledge_service.file_exists(file_path)
 
 
 @pytest.mark.asyncio
@@ -57,7 +57,7 @@ async def test_create_multiple_entities(knowledge_service: KnowledgeService):
     for i, entity in enumerate(created):
         assert entity.name == f"entity-{i}"
         file_path = knowledge_service.get_entity_path(entity)
-        assert await knowledge_service.file_service.exists(file_path)
+        assert await knowledge_service.file_exists(file_path)
 
 
 @pytest.mark.asyncio
@@ -88,7 +88,7 @@ async def test_create_relations(knowledge_service: KnowledgeService, entity_serv
     for entity in [entity1, entity2]:
         found = await entity_service.get_by_path_id(entity.path_id)
         file_path = knowledge_service.get_entity_path(found)
-        content, _ = await knowledge_service.file_service.read_file(file_path)
+        content, _ = await knowledge_service.read_file(file_path)
         assert "test_relation" in content
 
 
@@ -121,7 +121,7 @@ async def test_add_observations_observation(knowledge_service: KnowledgeService)
     
     # Verify file was updated
     file_path = knowledge_service.get_entity_path(updated_entity)
-    content, _ = await knowledge_service.file_service.read_file(file_path)
+    content, _ = await knowledge_service.read_file(file_path)
     
     for obs in observations:
         expected_line = f"- [{obs.category.value}] {obs.content} ({context})"
@@ -141,18 +141,18 @@ async def test_delete_entity(knowledge_service: KnowledgeService):
     file_path = knowledge_service.get_entity_path(entity)
 
     # Verify file exists
-    assert await knowledge_service.file_service.exists(file_path)
+    assert await knowledge_service.file_exists(file_path)
 
     # Delete entity
     success = await knowledge_service.delete_entity(entity.path_id)
     assert success
 
     # Verify file was deleted
-    assert not await knowledge_service.file_service.exists(file_path)
+    assert not await knowledge_service.file_exists(file_path)
 
     # Verify entity was deleted from DB
     with pytest.raises(EntityNotFoundError):
-        await knowledge_service.entity_service.get_by_path_id(entity.path_id)
+        await knowledge_service.get_entity_by_path_id(entity.path_id)
 
 
 @pytest.mark.asyncio
@@ -173,9 +173,9 @@ async def test_delete_multiple_entities(knowledge_service: KnowledgeService):
     # Verify files were deleted
     for entity in entities:
         file_path = knowledge_service.get_entity_path(entity)
-        assert not await knowledge_service.file_service.exists(file_path)
+        assert not await knowledge_service.file_exists(file_path)
         with pytest.raises(EntityNotFoundError):
-            await knowledge_service.entity_service.get_by_path_id(entity.path_id)
+            await knowledge_service.get_entity_by_path_id(entity.path_id)
 
 
 @pytest.mark.asyncio
@@ -185,7 +185,7 @@ async def test_handle_file_operation_errors(knowledge_service: KnowledgeService,
     async def mock_write_file(*args):
         raise FileOperationError("Test error")
 
-    monkeypatch.setattr(knowledge_service.file_service, "write_file", mock_write_file)
+    monkeypatch.setattr(knowledge_service.file_ops.file_service, "write_file", mock_write_file)
 
     with pytest.raises(FileOperationError):
         await knowledge_service.create_entity(
@@ -206,7 +206,7 @@ async def test_cleanup_on_creation_failure(knowledge_service: KnowledgeService, 
     entity_ids: List[str] = []
 
     # Capture created entity ID
-    original_create = knowledge_service.entity_service.create_entity
+    original_create = knowledge_service.entity_ops.entity_service.create_entity
 
     async def mock_create_entity(*args, **kwargs):
         entity = await original_create(*args, **kwargs)
@@ -217,8 +217,8 @@ async def test_cleanup_on_creation_failure(knowledge_service: KnowledgeService, 
     async def mock_write_file(*args):
         raise FileOperationError("Test error")
 
-    monkeypatch.setattr(knowledge_service.entity_service, "create_entity", mock_create_entity)
-    monkeypatch.setattr(knowledge_service.file_service, "write_file", mock_write_file)
+    monkeypatch.setattr(knowledge_service.entity_ops.entity_service, "create_entity", mock_create_entity)
+    monkeypatch.setattr(knowledge_service.file_ops.file_service, "write_file", mock_write_file)
 
     # Attempt creation (should fail)
     with pytest.raises(FileOperationError):
@@ -229,7 +229,7 @@ async def test_cleanup_on_creation_failure(knowledge_service: KnowledgeService, 
     # Verify entity was cleaned up
     assert len(entity_ids) == 1
     with pytest.raises(EntityNotFoundError):
-        await knowledge_service.entity_service.get_by_path_id(entity_ids[0])
+        await knowledge_service.entity_ops.entity_service.get_by_path_id(entity_ids[0])
 
 
 @pytest.mark.asyncio
@@ -271,17 +271,17 @@ async def test_update_relations_in_files(knowledge_service: KnowledgeService):
     # Verify both files contain relation
     for entity in [entity1, entity2]:
         file_path = knowledge_service.get_entity_path(entity)
-        content, _ = await knowledge_service.file_service.read_file(file_path)
+        content, _ = await knowledge_service.read_file(file_path)
         assert "connects_to" in content
 
     # Source should show outgoing relation
-    content, _ = await knowledge_service.file_service.read_file(
+    content, _ = await knowledge_service.read_file(
         knowledge_service.get_entity_path(entity1)
     )
     assert "target" in content
 
     # Target should show incoming relation
-    content, _ = await knowledge_service.file_service.read_file(
+    content, _ = await knowledge_service.read_file(
         knowledge_service.get_entity_path(entity2)
     )
     assert "source" in content

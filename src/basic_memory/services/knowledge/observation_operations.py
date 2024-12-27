@@ -7,16 +7,23 @@ from loguru import logger
 from basic_memory.models import Entity as EntityModel
 from basic_memory.services.exceptions import EntityNotFoundError
 from basic_memory.services.observation_service import ObservationService
+from basic_memory.services.entity_service import EntityService
 from basic_memory.schemas.request import ObservationCreate
-from .relation_operations import RelationOperations
+from .file_operations import FileOperations
 
 
-class ObservationOperations(RelationOperations):
-    """Observation operations mixin for KnowledgeService."""
+class ObservationOperations:
+    """Observation operations for knowledge service."""
 
-    def __init__(self, *args, observation_service: ObservationService, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        observation_service: ObservationService,
+        entity_service: EntityService,
+        file_operations: FileOperations
+    ):
         self.observation_service = observation_service
+        self.entity_service = entity_service
+        self.file_operations = file_operations
 
     async def add_observations(
         self, 
@@ -50,7 +57,7 @@ class ObservationOperations(RelationOperations):
             entity = await self.entity_service.get_by_path_id(path_id)
 
             # Write updated file and checksum
-            _, checksum = await self.write_entity_file(entity)
+            _, checksum = await self.file_operations.write_entity_file(entity)
             await self.entity_service.update_entity(path_id, {"checksum": checksum})
 
             # Return final entity with all updates and relations
@@ -83,7 +90,7 @@ class ObservationOperations(RelationOperations):
             await self.observation_service.delete_observations(entity.id, observations)
 
             # Write updated file
-            _, checksum = await self.write_entity_file(entity)
+            _, checksum = await self.file_operations.write_entity_file(entity)
             await self.entity_service.update_entity(path_id, {"checksum": checksum})
 
             # Return final entity with all updates

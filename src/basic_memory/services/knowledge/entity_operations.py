@@ -6,25 +6,36 @@ from loguru import logger
 
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema
+from basic_memory.services.entity_service import EntityService
+from basic_memory.services.exceptions import EntityNotFoundError
 from .file_operations import FileOperations
-from ..exceptions import EntityCreationError, EntityNotFoundError
 
 
-class EntityOperations(FileOperations):
-    """Entity operations mixin for KnowledgeService."""
+class EntityOperations:
+    """Entity operations for knowledge service."""
+
+    def __init__(self, 
+        entity_service: EntityService,
+        file_operations: FileOperations
+    ):
+        self.entity_service = entity_service
+        self.file_operations = file_operations
+
+    async def get_by_path_id(self, path_id: str) -> EntityModel:
+        """Get entity by path ID."""
+        return await self.entity_service.get_by_path_id(path_id)    
 
     async def create_entity(self, entity: EntitySchema) -> EntityModel:
         """Create a new entity and write to filesystem."""
         logger.debug(f"Creating entity: {entity}")
 
         db_entity = None
-        file_path = None
         try:
             # 1. Create entity in DB
             db_entity = await self.entity_service.create_entity(entity)
 
             # 2. Write file and get checksum
-            file_path, checksum = await self.write_entity_file(db_entity)
+            _, checksum = await self.file_operations.write_entity_file(db_entity)
 
             # 3. Update DB with checksum
             updated = await self.entity_service.update_entity(
@@ -37,8 +48,7 @@ class EntityOperations(FileOperations):
             # Clean up on any failure
             if db_entity:
                 await self.entity_service.delete_entity(db_entity.path_id)
-            if file_path:
-                await self.file_service.delete_file(file_path)
+                await self.file_operations.delete_entity_file(db_entity)
             logger.error(f"Failed to create entity: {e}")
             raise
 
@@ -62,8 +72,7 @@ class EntityOperations(FileOperations):
             entity = await self.entity_service.get_by_path_id(path_id)
 
             # Delete file first (it's source of truth)
-            path = self.get_entity_path(entity)
-            await self.file_service.delete_file(path)
+            await self.file_operations.delete_entity_file(entity)
 
             # Delete from DB (this will cascade to observations/relations)
             return await self.entity_service.delete_entity(path_id)
@@ -81,7 +90,6 @@ class EntityOperations(FileOperations):
         logger.debug(f"Deleting entities: {path_ids}")
         success = True
 
-        # Let errors bubble up
         for path_id in path_ids:
             await self.delete_entity(path_id)
             success = True

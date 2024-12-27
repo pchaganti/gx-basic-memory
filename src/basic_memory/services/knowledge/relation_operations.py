@@ -1,6 +1,6 @@
 """Relation operations for knowledge service."""
 
-from typing import Sequence, List, Dict, Any
+from typing import Sequence, List
 
 from loguru import logger
 
@@ -9,15 +9,23 @@ from basic_memory.models import Relation as RelationModel
 from basic_memory.schemas import Relation as RelationSchema
 from basic_memory.services.exceptions import EntityNotFoundError
 from basic_memory.services.relation_service import RelationService
+from basic_memory.services.entity_service import EntityService
 from .entity_operations import EntityOperations
+from .file_operations import FileOperations
 
 
-class RelationOperations(EntityOperations):
-    """Relation operations mixin for KnowledgeService."""
+class RelationOperations:
+    """Relation operations for knowledge service."""
 
-    def __init__(self, *args, relation_service: RelationService, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        relation_service: RelationService,
+        entity_service: EntityService,
+        file_operations: FileOperations
+    ):
         self.relation_service = relation_service
+        self.entity_service = entity_service
+        self.file_operations = file_operations
 
     async def create_relations(self, relations: List[RelationSchema]) -> Sequence[EntityModel]:
         """Create relations and return updated entities."""
@@ -44,7 +52,7 @@ class RelationOperations(EntityOperations):
                 entities_to_update.add(rs.to_id)
 
             except Exception as e:
-                logger.error(f"Failed to create rs: {e}")
+                logger.error(f"Failed to create relation: {e}")
                 continue
 
         # Get fresh copies of all updated entities
@@ -54,7 +62,7 @@ class RelationOperations(EntityOperations):
                 entity = await self.entity_service.get_by_path_id(path_id)
 
                 # Write updated file
-                _, checksum = await self.write_entity_file(entity)
+                _, checksum = await self.file_operations.write_entity_file(entity)
                 updated = await self.entity_service.update_entity(path_id, {"checksum": checksum})
 
                 updated_entities.append(updated)
@@ -97,7 +105,7 @@ class RelationOperations(EntityOperations):
                         raise EntityNotFoundError(f"Entity not found: {path_id}")
 
                     # Write updated file
-                    _, checksum = await self.write_entity_file(entity)
+                    _, checksum = await self.file_operations.write_entity_file(entity)
                     updated = await self.entity_service.update_entity(
                         path_id, {"checksum": checksum}
                     )
