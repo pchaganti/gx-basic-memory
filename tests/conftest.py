@@ -142,10 +142,10 @@ def knowledge_writer():
     """Create writer instance."""
     return KnowledgeWriter()
 
-@pytest.fixture
-def file_sync_service(document_repository: DocumentRepository):
-    """Create FileService instance."""
-    return FileSyncService(document_repository)
+@pytest_asyncio.fixture
+def file_sync_service(document_repository, entity_repository) -> FileSyncService:
+    """Create FileSyncService instance."""
+    return FileSyncService(document_repository, entity_repository)
 
 
 

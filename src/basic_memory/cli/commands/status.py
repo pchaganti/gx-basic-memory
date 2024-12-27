@@ -12,7 +12,7 @@ from basic_memory import db
 from basic_memory.cli.app import app
 from basic_memory.config import config
 from basic_memory.db import DatabaseType
-from basic_memory.repository import DocumentRepository
+from basic_memory.repository import DocumentRepository, EntityRepository
 from basic_memory.services import FileSyncService
 from basic_memory.services.file_sync_service import SyncReport
 
@@ -26,7 +26,8 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM) -> FileSyncService:
         session_maker,
     ):
         document_repository = DocumentRepository(session_maker)
-        sync_service = FileSyncService(document_repository)
+        entity_repository = EntityRepository(session_maker)
+        sync_service = FileSyncService(document_repository, entity_repository)
         return sync_service
 
 
@@ -131,13 +132,11 @@ async def run_status(sync_service: FileSyncService, verbose: bool = False):
     """Check sync status of files vs database."""
 
     # Check knowledge/ directory
-    files = await sync_service.scan_files(config.knowledge_dir)
-    knowledge_changes = await sync_service.find_changes(files, config.knowledge_dir)
+    knowledge_changes = await sync_service.find_knowledge_changes(config.knowledge_dir)
     display_changes("Knowledge Files", knowledge_changes)
 
     # Check documents/ directory
-    files = await sync_service.scan_files(config.documents_dir)
-    document_changes = await sync_service.find_changes(files, config.documents_dir)
+    document_changes = await sync_service.find_document_changes(config.documents_dir)
     display_changes("Documents", document_changes)
 
 
