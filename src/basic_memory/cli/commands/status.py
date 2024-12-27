@@ -4,6 +4,7 @@ import asyncio
 from typing import Set, Dict
 
 import typer
+from loguru import logger
 from rich.console import Console
 from rich.panel import Panel
 from rich.tree import Tree
@@ -179,5 +180,6 @@ def status(
         sync_service = asyncio.run(get_sync_service())
         asyncio.run(run_status(sync_service, verbose))
     except Exception as e:
+        logger.error(f"Error checking status: {e}")
         typer.echo(f"Error checking status: {e}", err=True)
         raise typer.Exit(1)

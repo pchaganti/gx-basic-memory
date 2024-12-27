@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Set, Dict, Protocol, TypeVar, Generic, List, Optional
+from typing import Set, Dict, Protocol, TypeVar, Generic, Optional
 
 from loguru import logger
 
@@ -16,7 +16,6 @@ class FileState:
     """State of a file including path and checksum info."""
     path: str
     checksum: str
-    normalized_path: str  # For comparison
     moved_from: Optional[str] = None
 
 
@@ -37,7 +36,9 @@ class SyncReport:
 class DbRecord(Protocol):
     """Protocol for database records with path and checksum."""
     @property
-    def path(self) -> str: ...
+    def file_path(self) -> Optional[str]: ...
+    @property
+    def path_id(self) -> str: ...
     @property
     def checksum(self) -> str: ...
 
@@ -94,9 +95,7 @@ class FileSyncService:
     async def find_changes(
             self,
             directory: Path,
-            get_records: callable,
-            normalize_path: callable = lambda x: x,
-            get_record_path: callable = lambda x: x.path_id
+            get_records: callable
     ) -> SyncReport:
         """
         Find changes between filesystem and database.
@@ -104,8 +103,6 @@ class FileSyncService:
         Args:
             directory: Directory to check
             get_records: Function to get database records
-            normalize_path: Function to normalize paths for comparison
-            get_record_path: Function to get path from record
 
         Returns:
             SyncReport detailing changes
@@ -121,34 +118,32 @@ class FileSyncService:
         for path, checksum in current_files.items():
             report.checksums[path] = checksum
 
-        # Build DB state with normalized paths
+        # Build DB state - use path_id if file_path is NULL
         db_records = await get_records()
-        db_files: Dict[str, tuple[str, str]] = {
-            normalize_path(get_record_path(record)): (get_record_path(record), record.checksum)
-            for record in db_records
-        }
-        
-        logger.debug("Files from database:")
-        for norm_path, (orig_path, checksum) in sorted(db_files.items()):
-            logger.debug(f"  {norm_path} ({checksum[:8]}) [original: {orig_path}]")
+        db_files = {}
+        for record in db_records:
+            path = record.file_path if record.file_path is not None else record.path_id
+            db_files[path] = (path, record.checksum)
 
-        # Track files by checksum to detect moves
-        checksum_locations: Dict[str, List[str]] = {}
-        for path, checksum in current_files.items():
-            norm_path = normalize_path(path)
-            locations = checksum_locations.setdefault(checksum, [])
-            locations.append(norm_path)
+        logger.debug("Files from database:")
+        for path, (_, checksum) in sorted(db_files.items()):
+            logger.debug(f"  {path} ({checksum[:8]})")
+
+        # Track files by checksum for move detection
+        db_paths_by_checksum = {}
+        for path, (_, checksum) in db_files.items():
+            paths = db_paths_by_checksum.setdefault(checksum, [])
+            paths.append(path)
 
         processed_current = set()
         processed_db = set()
 
         # First pass - check for unchanged and modified files
         for curr_path, curr_checksum in current_files.items():
-            norm_curr_path = normalize_path(curr_path)
-            if norm_curr_path in db_files:
-                db_orig_path, db_checksum = db_files[norm_curr_path]
-                processed_current.add(norm_curr_path)
-                processed_db.add(norm_curr_path)
+            if curr_path in db_files:
+                _, db_checksum = db_files[curr_path]
+                processed_current.add(curr_path)
+                processed_db.add(curr_path)
                 
                 if curr_checksum != db_checksum:
                     logger.debug(f"Modified: {curr_path} (checksum changed)")
@@ -156,38 +151,35 @@ class FileSyncService:
 
         # Second pass - look for moves
         for curr_path, curr_checksum in current_files.items():
-            norm_curr_path = normalize_path(curr_path)
-            if norm_curr_path in processed_current:
+            if curr_path in processed_current:
                 continue
 
-            # Look for files with same checksum in DB
+            # Look for any files with same checksum in DB
             was_move = False
-            for db_norm_path, (db_orig_path, db_checksum) in db_files.items():
-                if db_norm_path in processed_db:
-                    continue
-                if curr_checksum == db_checksum:
-                    logger.debug(f"Moved: {db_orig_path} -> {curr_path}")
-                    report.moved[curr_path] = FileState(
-                        path=curr_path,
-                        checksum=curr_checksum,
-                        normalized_path=norm_curr_path,
-                        moved_from=db_orig_path
-                    )
-                    processed_current.add(norm_curr_path)
-                    processed_db.add(db_norm_path)
-                    was_move = True
-                    break
-            
+            if curr_checksum in db_paths_by_checksum:
+                for db_path in db_paths_by_checksum[curr_checksum]:
+                    if db_path not in processed_db:
+                        logger.debug(f"Moved: {db_path} -> {curr_path}")
+                        report.moved[curr_path] = FileState(
+                            path=curr_path,
+                            checksum=curr_checksum,
+                            moved_from=db_path
+                        )
+                        processed_current.add(curr_path)
+                        processed_db.add(db_path)
+                        was_move = True
+                        break
+
             if not was_move:
                 logger.debug(f"New: {curr_path}")
                 report.new.add(curr_path)
-                processed_current.add(norm_curr_path)
+                processed_current.add(curr_path)
 
         # Remaining DB files must be deleted
-        for db_norm_path, (db_orig_path, _) in db_files.items():
-            if db_norm_path not in processed_db:
-                logger.debug(f"Deleted: {db_orig_path}")
-                report.deleted.add(db_orig_path)
+        for path, (db_path, _) in db_files.items():
+            if path not in processed_db:
+                logger.debug(f"Deleted: {db_path}")
+                report.deleted.add(db_path)
 
         # Log summary
         logger.debug(f"Changes found: {report.total_changes}")
@@ -200,35 +192,14 @@ class FileSyncService:
 
     async def find_document_changes(self, directory: Path) -> SyncReport:
         """Find changes in document directory."""
-        def normalize_doc_path(path: str) -> str:
-            """Normalize document paths."""
-            return str(Path(path))
-
         return await self.find_changes(
             directory=directory,
-            get_records=self.document_repository.find_all,
-            normalize_path=normalize_doc_path
+            get_records=self.document_repository.find_all
         )
 
     async def find_knowledge_changes(self, directory: Path) -> SyncReport:
         """Find changes in knowledge directory."""
-        def normalize_entity_path(path: str) -> str:
-            """Normalize entity paths."""
-            path = path.lower()
-            if path.endswith('.md'):
-                path = path[:-3]
-            return path
-
-        def get_entity_path(entity) -> str:
-            """Get path from entity record."""
-            path = entity.path_id
-            if not path.endswith('.md'):
-                path = f"{path}.md"
-            return path
-
         return await self.find_changes(
             directory=directory,
-            get_records=self.entity_repository.find_all,
-            normalize_path=normalize_entity_path,
-            get_record_path=get_entity_path
+            get_records=self.entity_repository.find_all
         )
