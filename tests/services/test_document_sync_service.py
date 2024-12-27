@@ -234,3 +234,104 @@ async def test_sync_mixed_changes(
     assert len(changes.moved) == 1
     assert move_to in changes.moved
     assert changes.moved[move_to].moved_from == move_from
+
+
+@pytest.mark.asyncio
+async def test_sync_files_with_spaces(
+    document_sync_service: DocumentSyncService,
+    test_config
+):
+    """Test syncing files with spaces in names."""
+    docs_dir = test_config.documents_dir
+    
+    # Create files with spaces
+    paths = [
+        "My Document.md",
+        "Path With/Nested Spaces.md",
+        "Special - Characters & Spaces.md"
+    ]
+    
+    for path in paths:
+        await create_test_file(docs_dir / path, f"content of {path}")
+
+    # Run sync
+    changes = await document_sync_service.sync(docs_dir)
+
+    # Verify all files were added
+    assert len(changes.new) == len(paths)
+    for path in paths:
+        assert path in changes.new
+        
+        # Verify DB state
+        doc = await document_sync_service.document_service.read_document_by_path_id(path)
+        assert doc[0].path_id == path
+        assert doc[0].file_path == path
+
+
+@pytest.mark.asyncio
+async def test_sync_deep_directory_structure(
+    document_sync_service: DocumentSyncService,
+    test_config
+):
+    """Test syncing files in deeply nested directories."""
+    docs_dir = test_config.documents_dir
+    
+    # Create deeply nested structure
+    paths = [
+        "level1/doc.md",
+        "level1/level2/doc.md",
+        "level1/level2/level3/doc.md",
+        "level1/level2/level3/level4/doc.md",
+    ]
+    
+    for i, path in enumerate(paths):
+        await create_test_file(docs_dir / path, f"content level {i+1}")
+
+    # Run sync
+    changes = await document_sync_service.sync(docs_dir)
+
+    # Verify all files were added
+    assert len(changes.new) == len(paths)
+    for path in paths:
+        assert path in changes.new
+        
+        # Verify DB state
+        doc = await document_sync_service.document_service.read_document_by_path_id(path)
+        assert doc[0].path_id == path
+        assert doc[0].file_path == path
+
+
+@pytest.mark.asyncio
+async def test_sync_case_sensitivity(
+    document_sync_service: DocumentSyncService,
+    test_config,
+    document_repository
+):
+    """Test handling of case changes in file paths."""
+    docs_dir = test_config.documents_dir
+    
+    # Create original lowercase file
+    original_path = "test.md"
+    new_path = "Test.md"  # Just case change
+    content = "test content"
+    
+    await create_test_file(docs_dir / original_path, content)
+    original_checksum = await compute_checksum(content)
+    
+    await document_repository.create({
+        "path_id": original_path,
+        "file_path": original_path,
+        "checksum": original_checksum
+    })
+
+    # Change case
+    (docs_dir / original_path).unlink()
+    await create_test_file(docs_dir / new_path, content)
+
+    # Run sync
+    changes = await document_sync_service.sync(docs_dir)
+
+    # Should detect as a move
+    assert len(changes.moved) == 1
+    assert new_path in changes.moved
+    assert changes.moved[new_path].moved_from == original_path
