@@ -14,14 +14,14 @@ from basic_memory.cli.app import app
 from basic_memory.config import config
 from basic_memory.db import DatabaseType
 from basic_memory.repository import DocumentRepository, EntityRepository
-from basic_memory.services import FileSyncService
-from basic_memory.services.file_sync_service import SyncReport, FileState
+from basic_memory.services import FileChangeScanner
+from basic_memory.services.utils import SyncReport, FileState
 
 # Create rich console
 console = Console()
 
 
-async def get_sync_service(db_type=DatabaseType.FILESYSTEM) -> FileSyncService:
+async def get_file_change_scanner(db_type=DatabaseType.FILESYSTEM) -> FileChangeScanner:
     """Get sync service instance."""
     async with db.engine_session_factory(db_path=config.database_path, db_type=db_type) as (
         engine,
@@ -29,8 +29,8 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM) -> FileSyncService:
     ):
         document_repository = DocumentRepository(session_maker)
         entity_repository = EntityRepository(session_maker)
-        sync_service = FileSyncService(document_repository, entity_repository)
-        return sync_service
+        file_change_scanner = FileChangeScanner(document_repository, entity_repository)
+        return file_change_scanner
 
 
 def add_files_to_tree(tree: Tree, paths: Set[str], style: str, checksums: Dict[str, str] = None):
@@ -159,7 +159,7 @@ def display_changes(title: str, changes: SyncReport, verbose: bool = False):
     console.print(Panel(tree, expand=False))
 
 
-async def run_status(sync_service: FileSyncService, verbose: bool = False):
+async def run_status(sync_service: FileChangeScanner, verbose: bool = False):
     """Check sync status of files vs database."""
 
     # Check knowledge/ directory
@@ -177,7 +177,7 @@ def status(
 ):
     """Show sync status between files and database."""
     try:
-        sync_service = asyncio.run(get_sync_service())
+        sync_service = asyncio.run(get_file_change_scanner())
         asyncio.run(run_status(sync_service, verbose))
     except Exception as e:
         logger.error(f"Error checking status: {e}")

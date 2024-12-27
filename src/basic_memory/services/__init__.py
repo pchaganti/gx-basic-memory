@@ -1,7 +1,7 @@
 """Services package."""
 
 from .document_service import DocumentService
-from .document_sync_service import DocumentSyncService
+from .sync.document_sync_service import DocumentSyncService
 from .entity_service import EntityService
 from .file_change_scanner import FileChangeScanner
 from .file_service import FileService

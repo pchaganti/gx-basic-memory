@@ -5,7 +5,8 @@ from pathlib import Path
 from loguru import logger
 
 from basic_memory.services.document_service import DocumentService
-from basic_memory.services.file_change_scanner import FileChangeScanner, SyncReport
+from basic_memory.services.file_change_scanner import FileChangeScanner
+from basic_memory.services.utils import SyncReport
 
 
 class DocumentSyncService:

@@ -1,36 +1,14 @@
 """Service for detecting changes between filesystem and database."""
 
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Set, Dict, Protocol, TypeVar, Generic, Optional
+from typing import Dict, Protocol, TypeVar, Optional
 
 from loguru import logger
 
 from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
+from basic_memory.services.utils import FileState, SyncReport
 from basic_memory.utils.file_utils import compute_checksum
-
-
-@dataclass
-class FileState:
-    """State of a file including path and checksum info."""
-    path: str
-    checksum: str
-    moved_from: Optional[str] = None
-
-
-@dataclass
-class SyncReport:
-    """Report of file changes found."""
-    new: Set[str] = field(default_factory=set)
-    modified: Set[str] = field(default_factory=set)
-    deleted: Set[str] = field(default_factory=set)
-    moved: Dict[str, FileState] = field(default_factory=dict)  # new_path -> state
-    checksums: Dict[str, str] = field(default_factory=dict)  # path -> checksum
-
-    @property
-    def total_changes(self) -> int:
-        return len(self.new) + len(self.modified) + len(self.deleted) + len(self.moved)
 
 
 class DbRecord(Protocol):
