@@ -1,6 +1,7 @@
 """Repository for document operations."""
 
 from typing import Optional, Sequence, List
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
@@ -14,32 +15,30 @@ class DocumentRepository(Repository[Document]):
     def __init__(self, session_maker: async_sessionmaker[AsyncSession]):
         super().__init__(session_maker, Document)
 
-    async def find_by_path(self, path: str) -> Optional[Document]:
-        """Find a document by its path."""
-        query = select(Document).where(Document.path == path)
+    async def find_by_path_id(self, path_id: str) -> Optional[Document]:
+        """Find a document by its path_id."""
+        query = select(Document).where(Document.path_id == path_id)
         return await self.find_one(query)
 
     async def find_by_checksum(self, checksum: str) -> Sequence[Document]:
         """Find all documents with a given checksum."""
         async with self.session_maker() as session:
-            result = await session.execute(
-                select(Document).where(Document.checksum == checksum)
-            )
+            result = await session.execute(select(Document).where(Document.checksum == checksum))
             return result.scalars().all()
 
     async def find_changed(self, checksums: dict[str, str]) -> List[Document]:
         """
         Find documents that have changed based on their checksums.
-        
+
         Args:
             checksums: Dict mapping paths to their current checksums
-            
+
         Returns:
             List of documents whose checksums don't match (excluding untracked files)
         """
         changed = []
         for path, checksum in checksums.items():
-            doc = await self.find_by_path(path)
+            doc = await self.find_by_path_id(path)
             if doc and doc.checksum != checksum:  # Only include tracked files that changed
                 changed.append(doc)
         return changed

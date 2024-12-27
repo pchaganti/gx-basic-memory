@@ -134,7 +134,7 @@ class DocumentService(BaseService[DocumentRepository]):
         logger.debug(f"Reading document with path_id: {path_id}")
 
         # Get document record
-        document = await self.repository.find_by_path(path_id)
+        document = await self.repository.find_by_path_id(path_id)
         if not document:
             raise DocumentNotFoundError(f"Document not found: {path_id}")
 
@@ -167,7 +167,7 @@ class DocumentService(BaseService[DocumentRepository]):
         logger.debug(f"Updating document with ID: {path_id}")
 
         # Find document first
-        document = await self.repository.find_by_path(path_id)
+        document = await self.repository.find_by_path_id(path_id)
         if not document:
             raise DocumentNotFoundError(f"Document not found: {path_id}")
 
@@ -204,7 +204,7 @@ class DocumentService(BaseService[DocumentRepository]):
         logger.debug(f"Deleting document with path_id {path_id}")
 
         # Get document record first
-        document = await self.repository.find_by_path(path_id)
+        document = await self.repository.find_by_path_id(path_id)
         if not document:
             raise DocumentNotFoundError(f"Document not found: {path_id}")
 
