@@ -1,7 +1,8 @@
 from pathlib import Path
 
-from basic_memory.markdown import KnowledgeParser
-from basic_memory.services import FileChangeScanner, KnowledgeService
+from basic_memory.markdown import KnowledgeParser, EntityMarkdown
+from basic_memory.models.knowledge import Entity as EntityModel
+from basic_memory.services import FileChangeScanner, KnowledgeService, EntityService
 from basic_memory.services.sync.utils import FileState, SyncReport
 
 
@@ -9,17 +10,31 @@ class KnowledgeSyncService:
     def __init__(
         self,
         scanner: FileChangeScanner,
-        knowledge_service: KnowledgeService,
+        entity_service: EntityService,
         knowledge_parser: KnowledgeParser,
     ):
         self.scanner = scanner
-        self.knowledge_service = knowledge_service
+        self.entity_service = entity_service
         self.knowledge_parser = knowledge_parser
+        
+    # async def markdown_to_entity_model(self, markdown_entity: EntityMarkdown) -> EntityModel:
+    #     return EntityModel(
+    #         name=markdown_entity.frontmatter.id,
+    #         entity_type=markdown_entity.frontmatter.entity_type,
+    #         path_id=markdown_entity.frontmatter.id,
+    #         file_path=
+    #         description=markdown_entity.content.description,
+    #         checksum=
+    #         created_at=
+    #         updated_at=
+    #         observations=
+    #     
+    #     )
 
     async def sync_new_entity(self, directory: Path, path: str) -> None:
         """Handle syncing a new entity file."""
         entity = await self.knowledge_parser.parse_file(directory / path)
-        await self.knowledge_service.create_entity(entity)
+        await self.entity_service.add(entity)
 
     async def sync_modified_entity(self, directory: Path, path: str) -> None:
         """Handle syncing a modified entity file."""

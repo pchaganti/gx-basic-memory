@@ -8,7 +8,7 @@ from loguru import logger
 
 from basic_memory.markdown.base_parser import MarkdownParser, ParseError
 from basic_memory.markdown.schemas import (
-    Entity,
+    EntityMarkdown,
     EntityFrontmatter,
     EntityContent,
     EntityMetadata,
@@ -17,7 +17,7 @@ from basic_memory.markdown.schemas import (
 )
 
 
-class KnowledgeParser(MarkdownParser[Entity]):
+class KnowledgeParser(MarkdownParser[EntityMarkdown]):
     """Parser for entity markdown files.
 
     Entity files must have:
@@ -277,6 +277,6 @@ class KnowledgeParser(MarkdownParser[Entity]):
 
     async def create_document(
         self, frontmatter: EntityFrontmatter, content: EntityContent, metadata: EntityMetadata
-    ) -> Entity:
+    ) -> EntityMarkdown:
         """Create entity from parsed sections."""
-        return Entity(frontmatter=frontmatter, content=content, entity_metadata=metadata)
+        return EntityMarkdown(frontmatter=frontmatter, content=content, entity_metadata=metadata)

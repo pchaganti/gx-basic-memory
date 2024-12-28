@@ -50,7 +50,7 @@ class EntityMetadata(BaseModel):
     data: Dict[str, Any] = {}
 
 
-class Entity(BaseModel):
+class EntityMarkdown(BaseModel):
     """Complete entity combining frontmatter, content, and metadata."""
 
     frontmatter: EntityFrontmatter

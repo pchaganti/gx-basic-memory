@@ -6,7 +6,7 @@ from textwrap import dedent
 import pytest
 
 from basic_memory.markdown.knowledge_parser import KnowledgeParser
-from basic_memory.markdown.schemas import Entity, EntityFrontmatter, EntityContent
+from basic_memory.markdown.schemas import EntityMarkdown, EntityFrontmatter, EntityContent
 from basic_memory.utils.file_utils import ParseError, FileError
 
 
@@ -56,7 +56,7 @@ async def test_parse_complete_file(tmp_path, valid_entity_content):
     entity = await parser.parse_file(test_file)
 
     # Verify entity structure
-    assert isinstance(entity, Entity)
+    assert isinstance(entity, EntityMarkdown)
     assert isinstance(entity.frontmatter, EntityFrontmatter)
     assert isinstance(entity.content, EntityContent)
 
@@ -131,7 +131,7 @@ async def test_parse_content_str(valid_entity_content):
     parser = KnowledgeParser()
     entity = await parser.parse_content_str(valid_entity_content)
 
-    assert isinstance(entity, Entity)
+    assert isinstance(entity, EntityMarkdown)
     assert entity.frontmatter.type == "component"
     assert entity.content.title == "Auth Service"
     assert len(entity.content.observations) == 3

@@ -2,7 +2,7 @@
 
 from basic_memory.markdown.knowledge_parser import KnowledgeParser
 from basic_memory.markdown.schemas import (
-    Entity,
+    EntityMarkdown,
     EntityContent,
     EntityFrontmatter,
     EntityMetadata,
@@ -12,7 +12,7 @@ from basic_memory.markdown.schemas import (
 from basic_memory.utils.file_utils import ParseError
 
 __all__ = [
-    "Entity",
+    "EntityMarkdown",
     "EntityContent",
     "EntityFrontmatter",
     "EntityMetadata",
