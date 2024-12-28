@@ -147,7 +147,7 @@ def knowledge_parser():
 
 
 @pytest_asyncio.fixture
-def file_sync_service(document_repository, entity_repository) -> FileChangeScanner:
+def file_change_scanner(document_repository, entity_repository) -> FileChangeScanner:
     """Create FileChangeScanner instance."""
     return FileChangeScanner(document_repository, entity_repository)
 

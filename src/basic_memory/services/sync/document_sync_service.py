@@ -6,7 +6,7 @@ from loguru import logger
 
 from basic_memory.services import DocumentService
 from basic_memory.services import FileChangeScanner
-from basic_memory.services.utils import SyncReport
+from basic_memory.services.sync. utils import SyncReport
 
 
 class DocumentSyncService:

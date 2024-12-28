@@ -2,7 +2,7 @@ from pathlib import Path
 
 from basic_memory.markdown import KnowledgeParser
 from basic_memory.services import FileChangeScanner, KnowledgeService
-from basic_memory.services.utils import FileState, SyncReport
+from basic_memory.services.sync.utils import FileState, SyncReport
 
 
 class KnowledgeSyncService:

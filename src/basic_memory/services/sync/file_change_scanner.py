@@ -7,7 +7,7 @@ from loguru import logger
 
 from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
-from basic_memory.services.utils import FileState, SyncReport
+from basic_memory.services.sync.utils import FileState, SyncReport
 from basic_memory.utils.file_utils import compute_checksum
 
 
