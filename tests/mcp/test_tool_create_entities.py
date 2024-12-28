@@ -2,21 +2,26 @@
 
 import pytest
 
-from basic_memory.mcp.tools import create_entities
-from basic_memory.schemas.base import ObservationCategory
+from basic_memory.mcp.tools.knowledge import create_entities
+from basic_memory.schemas.base import ObservationCategory, Entity
+from basic_memory.schemas.request import CreateEntityRequest
 
 
 @pytest.mark.asyncio
 async def test_create_basic_entity(client):
     """Test creating a simple entity."""
-    result = await create_entities([
-        {
-            "name": "TestEntity",
-            "entity_type": "test",
-            "description": "A test entity",
-            "observations": ["First observation"]
-        }
-    ])
+    request = CreateEntityRequest(
+        entities=[
+            Entity(
+                name="TestEntity",
+                entity_type="test",
+                description="A test entity",
+                observations=["First observation"]
+            )
+        ]
+    )
+
+    result = await create_entities(request)
 
     # Result should be an EntityListResponse
     assert len(result.entities) == 1
@@ -41,18 +46,22 @@ async def test_create_basic_entity(client):
 @pytest.mark.asyncio
 async def test_create_entity_with_multiple_observations(client):
     """Test creating an entity with multiple observations."""
-    result = await create_entities([
-        {
-            "name": "TestEntity",
-            "entity_type": "test",
-            "description": "A test entity",
-            "observations": [
-                "First observation",
-                "Second observation",
-                "Third observation"
-            ]
-        }
-    ])
+    request = CreateEntityRequest(
+        entities=[
+            Entity(
+                name="TestEntity",
+                entity_type="test",
+                description="A test entity",
+                observations=[
+                    "First observation",
+                    "Second observation",
+                    "Third observation"
+                ]
+            )
+        ]
+    )
+
+    result = await create_entities(request)
 
     entity = result.entities[0]
     assert len(entity.observations) == 3
@@ -72,20 +81,22 @@ async def test_create_entity_with_multiple_observations(client):
 @pytest.mark.asyncio
 async def test_create_multiple_entities(client):
     """Test creating multiple entities in one request."""
-    entities = [
-        {
-            "name": "Entity1",
-            "entity_type": "test",
-            "observations": ["Observation 1"]
-        },
-        {
-            "name": "Entity2", 
-            "entity_type": "test",
-            "observations": ["Observation 2"]
-        }
-    ]
+    request = CreateEntityRequest(
+        entities=[
+            Entity(
+                name="Entity1",
+                entity_type="test",
+                observations=["Observation 1"]
+            ),
+            Entity(
+                name="Entity2", 
+                entity_type="test",
+                observations=["Observation 2"]
+            )
+        ]
+    )
 
-    result = await create_entities(entities)
+    result = await create_entities(request)
     assert len(result.entities) == 2
     
     # Entities should be in order
@@ -100,13 +111,17 @@ async def test_create_multiple_entities(client):
 @pytest.mark.asyncio
 async def test_create_entity_without_observations(client):
     """Test creating an entity without any observations."""
-    result = await create_entities([
-        {
-            "name": "TestEntity",
-            "entity_type": "test",
-            "description": "A test entity without observations"
-        }
-    ])
+    request = CreateEntityRequest(
+        entities=[
+            Entity(
+                name="TestEntity",
+                entity_type="test",
+                description="A test entity without observations"
+            )
+        ]
+    )
+
+    result = await create_entities(request)
 
     entity = result.entities[0]
     assert entity.name == "TestEntity"
@@ -116,12 +131,16 @@ async def test_create_entity_without_observations(client):
 @pytest.mark.asyncio
 async def test_create_minimal_entity(client):
     """Test creating an entity with just name and type."""
-    result = await create_entities([
-        {
-            "name": "MinimalEntity",
-            "entity_type": "test"
-        }
-    ])
+    request = CreateEntityRequest(
+        entities=[
+            Entity(
+                name="MinimalEntity",
+                entity_type="test"
+            )
+        ]
+    )
+
+    result = await create_entities(request)
 
     entity = result.entities[0]
     assert entity.name == "MinimalEntity"

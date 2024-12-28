@@ -2,6 +2,8 @@
 
 from typing import Dict
 
+import httpx
+
 from basic_memory.schemas.base import Entity, Relation, ObservationCategory, PathId
 from basic_memory.schemas.request import (
     CreateEntityRequest,
@@ -16,6 +18,7 @@ from basic_memory.schemas.delete import (
 from basic_memory.schemas.response import EntityListResponse, EntityResponse
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
+from basic_memory.services.exceptions import EntityNotFoundError
 
 
 @mcp.tool()
@@ -55,9 +58,19 @@ async def get_entity(path_id: PathId) -> EntityResponse:
         decisions = [obs for obs in spec.observations 
                     if obs.category == ObservationCategory.DESIGN]
     """
-    url = f"/knowledge/entities/{path_id}"
-    response = await client.get(url)
-    return EntityResponse.model_validate(response.json())
+    try:
+        url = f"/knowledge/entities/{path_id}"
+        response = await client.get(url)
+        if response.status_code == 404:
+            raise EntityNotFoundError(f"Entity not found: {path_id}")
+        response.raise_for_status()
+        return EntityResponse.model_validate(response.json())
+    except httpx.HTTPStatusError as e:
+        # If we got a 404, the entity doesn't exist
+        if e.response.status_code == 404:
+            raise EntityNotFoundError(f"Entity not found: {path_id}")
+        # For any other HTTP error, re-raise
+        raise
 
 
 @mcp.tool()
