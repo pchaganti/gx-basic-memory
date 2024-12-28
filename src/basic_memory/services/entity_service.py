@@ -11,7 +11,7 @@ from basic_memory.services.exceptions import EntityNotFoundError
 from .service import BaseService
 
 
-def entity_model(entity):
+def entity_model(entity: EntitySchema):
     model = EntityModel(
         name=entity.name,
         entity_type=entity.entity_type,
