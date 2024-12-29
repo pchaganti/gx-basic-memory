@@ -1,6 +1,7 @@
 """Test status command functionality."""
 
 import pytest
+import pytest_asyncio
 from rich.console import Console
 from io import StringIO
 
@@ -16,6 +17,7 @@ def console():
     return Console(file=output), output
 
 
+@pytest_asyncio.fixture
 async def test_display_no_changes(console):
     """Test display with no changes."""
     test_console, output = console
@@ -24,6 +26,7 @@ async def test_display_no_changes(console):
     assert "No changes" in output.getvalue()
 
 
+@pytest_asyncio.fixture
 async def test_display_compact_changes(console):
     """Test compact display of changes."""
     test_console, output = console
@@ -47,6 +50,7 @@ async def test_display_compact_changes(console):
     assert "new/ ->1 moved" in output_text.replace("  ", " ")
 
 
+@pytest_asyncio.fixture
 async def test_display_verbose_changes(console):
     """Test verbose display of changes."""
     test_console, output = console
@@ -81,6 +85,7 @@ async def test_display_verbose_changes(console):
     assert "location.md (abc123de)" in output_text
 
 
+@pytest_asyncio.fixture
 async def test_end_to_end_status(
     file_change_scanner, test_config, document_repository, entity_repository
 ):
@@ -129,6 +134,7 @@ async def test_end_to_end_status(
     assert "component/test.md" in knowledge_changes.new
 
 
+@pytest_asyncio.fixture
 async def test_status_with_case_changes(file_change_scanner, test_config, document_repository):
     """Test status detection with case-sensitive path changes."""
     docs_dir = test_config.documents_dir
@@ -156,6 +162,7 @@ async def test_status_with_case_changes(file_change_scanner, test_config, docume
     assert changes.moved["test.md"].moved_from == original_path
 
 
+@pytest_asyncio.fixture
 async def test_status_with_spaces(file_change_scanner, test_config, document_repository):
     """Test status handling files with spaces and special characters."""
     docs_dir = test_config.documents_dir

@@ -27,3 +27,7 @@ db-reset:
 clean:
 	find . -type f -name '*.pyc' -delete
 	find . -type d -name '__pycache__' -exec rm -r {} +
+
+
+run-dev:
+	fastmcp dev src/basic_memory/mcp/server.py

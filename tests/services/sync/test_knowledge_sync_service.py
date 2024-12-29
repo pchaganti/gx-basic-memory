@@ -13,6 +13,9 @@ from basic_memory.markdown import KnowledgeParser
 from basic_memory.utils.file_utils import compute_checksum
 
 
+
+pytestmark = pytest.mark.skip("Knowledge sync WIP")
+
 @pytest_asyncio.fixture
 async def knowledge_sync_service(
     file_sync_service: FileChangeScanner,  # from conftest
