@@ -30,4 +30,4 @@ clean:
 
 
 run-dev:
-	fastmcp dev src/basic_memory/mcp/server.py
+	uv run fastmcp dev src/basic_memory/mcp/main.py

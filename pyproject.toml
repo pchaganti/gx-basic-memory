@@ -20,7 +20,7 @@ dependencies = [
     "basic-foundation",
     "markdown-it-py>=3.0.0",
     "python-frontmatter>=1.1.0",
-    "fastmcp>=0.4.1",
+    "fastmcp",  # Removed version constraint since we're using local version
     "rich>=13.9.4",
 ]
 
@@ -64,6 +64,7 @@ dev-dependencies = [
 
 [tool.uv.sources]
 basic-foundation = { path = "../basic-foundation", editable = true }
+fastmcp = { path = "../fastmcp", editable = true }
 
 [tool.pyright]
 include = [

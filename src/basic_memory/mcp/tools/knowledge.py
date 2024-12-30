@@ -1,8 +1,6 @@
 """Knowledge graph management tools for Basic Memory MCP server."""
 
-from typing import Dict
-
-import httpx
+from typing import Dict, List, Optional
 
 from basic_memory.schemas.base import Entity, Relation, ObservationCategory, PathId
 from basic_memory.schemas.request import (
@@ -17,47 +15,82 @@ from basic_memory.schemas.delete import (
 )
 from basic_memory.schemas.response import EntityListResponse, EntityResponse
 from basic_memory.mcp.async_client import client
-from basic_memory.mcp.server import mcp
 from basic_memory.services.exceptions import EntityNotFoundError
+from basic_memory.mcp.tools.enhanced import enhanced_tool
 
 
-@mcp.tool()
-async def get_entity(path_id: PathId) -> EntityResponse:
-    """Get a specific entity by its path_id.
+@enhanced_tool(
+    category="knowledge",
+    examples=[{
+        "name": "Create Component",
+        "description": "Create a new technical component",
+        "code": """
+await create_entities({
+    "entities": [{
+        "name": "SearchService",
+        "entity_type": "component",
+        "description": "Full-text search capability",
+        "observations": [
+            "Implements FTS5 for better performance",
+            "Supports fuzzy matching"
+        ]
+    }]
+})
+"""
+    }]
+)
+async def create_entities(request: CreateEntityRequest) -> EntityListResponse:
+    """Create new entities in the knowledge graph.
     
-    Examples:
-        # Load implementation details
-        response = await get_entity("component/memory_service")
-        
-        # Response contains complete entity:
-        # EntityResponse(
-        #     path_id="component/memory_service",
-        #     name="memory_service",
-        #     entity_type="component",
-        #     description="Core knowledge persistence service",
-        #     observations=[
-        #         Observation(
-        #             category="TECH",
-        #             content="Using SQLite for storage",
-        #             context="Initial implementation"
-        #         ),
-        #         ...
-        #     ],
-        #     relations=[
-        #         Relation(
-        #             from_id="component/memory_service",
-        #             to_id="component/file_service",
-        #             relation_type="depends_on"
-        #         ),
-        #         ...
-        #     ]
-        # )
-
-        # Load and analyze a design spec
-        spec = await get_entity("specification/file_format")
-        decisions = [obs for obs in spec.observations 
-                    if obs.category == ObservationCategory.DESIGN]
+    Entities can include initial observations and properties. Entity IDs
+    are automatically generated from the type and name.
     """
+    url = "/knowledge/entities"
+    response = await client.post(url, json=request.model_dump())
+    return EntityListResponse.model_validate(response.json())
+
+
+@enhanced_tool(
+    category="knowledge",
+    examples=[{
+        "name": "Add Dependency",
+        "description": "Create dependency relationship between components",
+        "code": """
+await create_relations({
+    "relations": [{
+        "from_id": "component/search_service",
+        "to_id": "component/storage_service",
+        "relation_type": "depends_on",
+        "context": "Needs storage for search indexes"
+    }]
+})
+"""
+    }]
+)
+async def create_relations(request: CreateRelationsRequest) -> EntityListResponse:
+    """Create relations between existing entities."""
+    url = "/knowledge/relations"
+    response = await client.post(url, json=request.model_dump())
+    return EntityListResponse.model_validate(response.json())
+
+
+@enhanced_tool(
+    category="knowledge",
+    examples=[{
+        "name": "Get Entity Details",
+        "description": "Load complete entity information",
+        "code": """
+# Get component details
+entity = await get_entity("component/search_service")
+print(f"Name: {entity.name}")
+print(f"Type: {entity.entity_type}")
+for obs in entity.observations:
+    print(f"- {obs.content}")
+"""
+    }]
+)
+async def get_entity(path_id: PathId) -> EntityResponse:
+    """Get a specific entity by its path_id."""
     try:
         url = f"/knowledge/entities/{path_id}"
         response = await client.get(url)
@@ -65,101 +98,14 @@ async def get_entity(path_id: PathId) -> EntityResponse:
             raise EntityNotFoundError(f"Entity not found: {path_id}")
         response.raise_for_status()
         return EntityResponse.model_validate(response.json())
-    except httpx.HTTPStatusError as e:
-        # If we got a 404, the entity doesn't exist
-        if e.response.status_code == 404:
+    except Exception as e:
+        if hasattr(e, "response") and e.response.status_code == 404:
             raise EntityNotFoundError(f"Entity not found: {path_id}")
-        # For any other HTTP error, re-raise
         raise
 
 
-@mcp.tool()
-async def create_entities(request: CreateEntityRequest) -> EntityListResponse:
-    """Create new entities in the knowledge graph.
-    
-    Examples:
-        # Create a component with implementation details
-        request = CreateEntityRequest(
-            entities=[
-                Entity(
-                    name="memory_service",
-                    entity_type="component",
-                    description="Core service for knowledge persistence",
-                    observations=[
-                        "Using SQLite for storage",
-                        "Implements filesystem as source of truth",
-                        "Handles atomic file operations"
-                    ]
-                )
-            ]
-        )
-        response = await create_entities(request)
-        
-        # Response contains full entity details:
-        # EntityListResponse(
-        #     entities=[
-        #         EntityResponse(
-        #             path_id="component/memory_service",
-        #             name="memory_service",
-        #             entity_type="component",
-        #             description="Core service for knowledge persistence",
-        #             observations=[...],  # List[Observation]
-        #             relations=[]  # Empty for new entities
-        #         )
-        #     ]
-        # )
-    """
-    url = "/knowledge/entities"
-    response = await client.post(url, json=request.model_dump())
-    return EntityListResponse.model_validate(response.json())
 
-
-@mcp.tool()
-async def create_relations(request: CreateRelationsRequest) -> EntityListResponse:
-    """Create relations between existing entities.
-    
-    Examples:
-        # Document system dependencies
-        request = CreateRelationsRequest(
-            relations=[
-                Relation(
-                    from_id="component/memory_service",
-                    to_id="component/file_service",
-                    relation_type="depends_on",
-                    context="File operations for persistence"
-                ),
-                Relation(
-                    from_id="component/file_service",
-                    to_id="component/memory_service", 
-                    relation_type="supports",
-                    context="Provides atomic file operations"
-                )
-            ]
-        )
-        response = await create_relations(request)
-        
-        # Response shows both entities with new relations:
-        # EntityListResponse(
-        #     entities=[
-        #         EntityResponse(  # memory_service
-        #             relations=[
-        #                 Relation(to_id="component/file_service", ...)
-        #             ]
-        #         ),
-        #         EntityResponse(  # file_service
-        #             relations=[
-        #                 Relation(to_id="component/memory_service", ...)
-        #             ]
-        #         )
-        #     ]
-        # )
-    """
-    url = "/knowledge/relations"
-    response = await client.post(url, json=request.model_dump())
-    return EntityListResponse.model_validate(response.json())
-
-
-@mcp.tool()
+@enhanced_tool()
 async def add_observations(request: AddObservationsRequest) -> EntityResponse:
     """Add observations to an existing entity.
     
@@ -203,7 +149,7 @@ async def add_observations(request: AddObservationsRequest) -> EntityResponse:
     return EntityResponse.model_validate(response.json())
 
 
-@mcp.tool()
+@enhanced_tool()
 async def delete_observations(request: DeleteObservationsRequest) -> EntityResponse:
     """Delete specific observations from an entity.
     
@@ -229,7 +175,7 @@ async def delete_observations(request: DeleteObservationsRequest) -> EntityRespo
     return EntityResponse.model_validate(response.json())
 
 
-@mcp.tool()
+@enhanced_tool()
 async def delete_relations(request: DeleteRelationsRequest) -> EntityListResponse:
     """Delete relations between entities.
     
@@ -263,7 +209,7 @@ async def delete_relations(request: DeleteRelationsRequest) -> EntityListRespons
     return EntityListResponse.model_validate(response.json())
 
 
-@mcp.tool()
+@enhanced_tool()
 async def delete_entities(request: DeleteEntitiesRequest) -> Dict[str, bool]:
     """Delete entities from the knowledge graph.
     
