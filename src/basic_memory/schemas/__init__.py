@@ -41,6 +41,12 @@ from basic_memory.schemas.response import (
     DeleteEntitiesResponse,
 )
 
+# Discovery and analytics models
+from basic_memory.schemas.discovery import (
+    EntityTypeList,
+    ObservationCategoryList,
+)
+
 # For convenient imports, export all models
 __all__ = [
     # Base
@@ -67,4 +73,7 @@ __all__ = [
     "DeleteEntitiesRequest",
     "DeleteRelationsRequest",
     "DeleteObservationsRequest",
+    # Discovery and Analytics
+    "EntityTypeList",
+    "ObservationCategoryList",
 ]

@@ -67,6 +67,11 @@ class EntityService(BaseService[EntityRepository]):
     async def get_all(self) -> Sequence[EntityModel]:
         """Get all entities."""
         return await self.repository.find_all()
+        
+    async def get_entity_types(self) -> List[str]:
+        """Get list of all distinct entity types in the system."""
+        logger.debug("Getting all distinct entity types")
+        return await self.repository.get_entity_types()
 
     async def delete_entity(self, path_id: str) -> bool:
         """Delete entity from database."""

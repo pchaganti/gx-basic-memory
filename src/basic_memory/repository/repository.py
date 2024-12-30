@@ -246,10 +246,10 @@ class Repository[T: Base]:
             logger.debug(f"Counted {count} {self.Model.__name__} records")
             return count
 
-    async def execute_query(self, query: Executable) -> Result[Any]:
+    async def execute_query(self, query: Executable, use_query_options:bool = True) -> Result[Any]:
         """Execute a query asynchronously."""
 
-        query = query.options(*self.get_load_options())
+        query = query.options(*self.get_load_options()) if use_query_options else query
 
         logger.debug(f"Executing query: {query}")
         async with db.scoped_session(self.session_maker) as session:

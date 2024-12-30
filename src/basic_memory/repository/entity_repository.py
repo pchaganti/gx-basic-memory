@@ -43,7 +43,7 @@ class EntityRepository(Repository[Entity]):
         """Get list of distinct entity types."""
         query = select(Entity.entity_type).distinct()
 
-        result = await self.execute_query(query)
+        result = await self.execute_query(query, use_query_options=False)
         return list(result.scalars().all())
 
     async def search(self, query_str: str) -> List[Entity]:
