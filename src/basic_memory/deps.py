@@ -1,6 +1,6 @@
 """Dependency injection functions for basic-memory services."""
 
-from typing import Annotated, AsyncGenerator
+from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import (
@@ -41,13 +41,10 @@ ProjectConfigDep = Annotated[ProjectConfig, Depends(get_project_config)]
 
 
 async def get_engine_factory(
-    project_config: ProjectConfigDep, db_type=DatabaseType.FILESYSTEM
-) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
-    async with db.engine_session_factory(db_path=project_config.database_path, db_type=db_type) as (
-        engine,
-        session_maker,
-    ):
-        yield engine, session_maker
+    project_config: ProjectConfigDep,
+) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
+    """Get engine and session maker."""
+    return await db.get_or_create_db(project_config.database_path)
 
 
 EngineFactoryDep = Annotated[
@@ -56,12 +53,13 @@ EngineFactoryDep = Annotated[
 
 
 async def get_session_maker(engine_factory: EngineFactoryDep) -> async_sessionmaker[AsyncSession]:
-    """Get session maker for tests."""
+    """Get session maker."""
     _, session_maker = engine_factory
     return session_maker
 
 
 SessionMakerDep = Annotated[async_sessionmaker, Depends(get_session_maker)]
+
 
 ## repositories
 
@@ -104,6 +102,7 @@ async def get_document_repository(
 
 
 DocumentRepositoryDep = Annotated[DocumentRepository, Depends(get_document_repository)]
+
 
 ## services
 

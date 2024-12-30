@@ -2,7 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from enum import Enum, auto
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from loguru import logger
 from sqlalchemy import text
@@ -15,6 +15,11 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from basic_memory.models import Base
+
+
+# Module level state
+_engine: Optional[AsyncEngine] = None
+_session_maker: Optional[async_sessionmaker[AsyncSession]] = None
 
 
 class DatabaseType(Enum):
@@ -72,13 +77,48 @@ async def init_db(session: AsyncSession):
     await session.commit()
 
 
+async def get_or_create_db(
+    db_path: Path,
+    db_type: DatabaseType = DatabaseType.FILESYSTEM,
+) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
+    """Get or create database engine and session maker."""
+    global _engine, _session_maker
+    
+    if _engine is None:
+        db_url = DatabaseType.get_db_url(db_path, db_type)
+        logger.debug(f"Creating engine for db_url: {db_url}")
+        _engine = create_async_engine(db_url, connect_args={"check_same_thread": False})
+        _session_maker = async_sessionmaker(_engine, expire_on_commit=False)
+
+        # Initialize database
+        logger.debug("Initializing database...")
+        async with scoped_session(_session_maker) as db_session:
+            await init_db(db_session)
+
+    return _engine, _session_maker
+
+
+async def shutdown_db():
+    """Clean up database connections."""
+    global _engine, _session_maker
+    
+    if _engine:
+        await _engine.dispose()
+        _engine = None
+        _session_maker = None
+
+
 @asynccontextmanager
 async def engine_session_factory(
     db_path: Path,
     db_type: DatabaseType = DatabaseType.FILESYSTEM,
     init: bool = True,
 ) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
-    """Create engine and session factory."""
+    """Create engine and session factory.
+    
+    Note: This is primarily used for testing where we want a fresh database
+    for each test. For production use, use get_or_create_db() instead.
+    """
     db_url = DatabaseType.get_db_url(db_path, db_type)
     logger.debug(f"Creating engine for db_url: {db_url}")
     engine = create_async_engine(db_url, connect_args={"check_same_thread": False})
