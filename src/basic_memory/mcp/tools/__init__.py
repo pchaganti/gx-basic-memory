@@ -37,6 +37,7 @@ from basic_memory.mcp.tools.documents import (
 
 from basic_memory.mcp.tools.discovery import (
     get_entity_types,
+    get_observation_categories,
 )
 
 __all__ = [
@@ -62,4 +63,5 @@ __all__ = [
 
     # Discovery tools
     "get_entity_types",
+    "get_observation_categories",
 ]
