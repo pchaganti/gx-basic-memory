@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Sequence
 
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, asc, desc
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.interfaces import LoaderOption
@@ -27,14 +27,21 @@ class EntityRepository(Repository[Entity]):
         self,
         entity_type: Optional[str] = None,
         doc_id: Optional[int] = None,
+        sort_by: Optional[str] = "updated_at",
     ) -> Sequence[Entity]:
-        """List all entities, optionally filtered by type."""
+        """List all entities, optionally filtered by type and sorted."""
         query = self.select().options(*self.get_load_options())
 
+        # Apply filters
         if entity_type:
             query = query.where(Entity.entity_type == entity_type)
         if doc_id:
             query = query.where(Entity.doc_id == doc_id)
+
+        # Apply sorting
+        if sort_by:
+            sort_field = getattr(Entity, sort_by, Entity.updated_at)
+            query = query.order_by(asc(sort_field))
 
         result = await self.execute_query(query)
         return list(result.scalars().all())

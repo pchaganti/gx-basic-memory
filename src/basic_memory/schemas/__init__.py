@@ -44,7 +44,7 @@ from basic_memory.schemas.response import (
 # Discovery and analytics models
 from basic_memory.schemas.discovery import (
     EntityTypeList,
-    ObservationCategoryList,
+    ObservationCategoryList, TypedEntityList,
 )
 
 # For convenient imports, export all models
@@ -76,4 +76,5 @@ __all__ = [
     # Discovery and Analytics
     "EntityTypeList",
     "ObservationCategoryList",
+    "TypedEntityList"
 ]

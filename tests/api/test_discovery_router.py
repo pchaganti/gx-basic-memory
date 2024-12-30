@@ -6,7 +6,7 @@ from httpx import AsyncClient
 
 from basic_memory.models.knowledge import Entity, Observation
 from basic_memory.repository.entity_repository import EntityRepository
-from basic_memory.schemas import EntityTypeList, ObservationCategoryList
+from basic_memory.schemas import EntityTypeList, ObservationCategoryList, TypedEntityList
 
 
 pytestmark = pytest.mark.asyncio
@@ -47,6 +47,17 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             observations=[
                 Observation(category="note", content="Team discussed options"),
                 Observation(category="design", content="Selected for scalability"),
+            ]
+        ),
+        # Add another technical component for sorting tests
+        Entity(
+            name="API Service",
+            entity_type="technical_component",
+            description="API layer",
+            path_id="component/api_service",
+            file_path="component/api_service.md",
+            observations=[
+                Observation(category="tech", content="FastAPI based"),
             ]
         ),
     ]
@@ -100,3 +111,51 @@ async def test_get_observation_categories(client: AsyncClient, test_entities):
     
     # Categories should be unique
     assert len(data.categories) == len(set(data.categories))
+
+
+async def test_list_entities_by_type(client: AsyncClient, test_entities):
+    """Test listing entities by type."""
+    # List technical components
+    response = await client.get("/discovery/entities/technical_component")
+    assert response.status_code == 200
+    
+    # Parse response
+    data = TypedEntityList.model_validate(response.json())
+    
+    # Check response structure
+    assert data.entity_type == "technical_component"
+    assert len(data.entities) == 2
+    assert data.total == 2
+    
+    # Verify content
+    names = {e.name for e in data.entities}
+    assert "Memory Service" in names
+    assert "API Service" in names
+
+
+async def test_list_entities_with_sorting(client: AsyncClient, test_entities):
+    """Test listing entities with different sort options."""
+    # Sort by name
+    response = await client.get("/discovery/entities/technical_component?sort_by=name")
+    assert response.status_code == 200
+    data = TypedEntityList.model_validate(response.json())
+    names = [e.name for e in data.entities]
+    assert names == sorted(names)  # Should be alphabetical
+
+    # Sort by path_id
+    response = await client.get("/discovery/entities/technical_component?sort_by=path_id")
+    assert response.status_code == 200
+    data = TypedEntityList.model_validate(response.json())
+    path_ids = [e.path_id for e in data.entities]
+    assert path_ids == sorted(path_ids)
+
+
+async def test_list_entities_empty_type(client: AsyncClient, test_entities):
+    """Test listing entities for a type that doesn't exist."""
+    response = await client.get("/discovery/entities/nonexistent_type")
+    assert response.status_code == 200
+    
+    data = TypedEntityList.model_validate(response.json())
+    assert data.entity_type == "nonexistent_type"
+    assert len(data.entities) == 0
+    assert data.total == 0

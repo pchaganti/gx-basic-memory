@@ -2,16 +2,14 @@
 
 import pytest
 
-from basic_memory.mcp.tools.discovery import get_entity_types, get_observation_categories
-from basic_memory.schemas import (
-    Entity,
-    CreateEntityRequest,
-    AddObservationsRequest,
-    EntityTypeList,
-    ObservationCategoryList,
+from basic_memory.mcp.tools.discovery import (
+    get_entity_types, 
+    get_observation_categories,
+    list_by_type,
 )
+from basic_memory.schemas import Entity, CreateEntityRequest, EntityTypeList, ObservationCategoryList
 from basic_memory.mcp.tools.knowledge import create_entities, add_observations
-from basic_memory.schemas.request import ObservationCreate
+from basic_memory.schemas.request import ObservationCreate, AddObservationsRequest
 
 
 @pytest.mark.asyncio
@@ -25,22 +23,22 @@ async def test_get_entity_types(client):
                 entity_type="technical_component",
                 path_id="component/memory_service",
                 description="Core memory service",
-                observations=["First observation"],
+                observations=["Using SQLite for storage", "Local-first architecture"]
             ),
             Entity(
                 name="File Format",
                 entity_type="specification",
                 path_id="specification/file_format",
                 description="File format spec",
-                observations=["Format details"],
+                observations=["Support for frontmatter", "UTF-8 encoding"]
             ),
             Entity(
                 name="Tech Choice",
                 entity_type="decision",
                 path_id="decision/tech_choice",
                 description="Technology decision",
-                observations=["Decision context"],
-            ),
+                observations=["Team discussed options", "Selected for scalability"]
+            )
         ]
     )
     await create_entities(request)
@@ -74,8 +72,7 @@ async def test_get_observation_categories(client):
         entities=[
             Entity(
                 name="Test Entity",
-                entity_type="test",
-                path_id="test/entity",
+                entity_type="test_observation",
                 description="Test entity",
                 observations=[],
             )
@@ -105,6 +102,30 @@ async def test_get_observation_categories(client):
     assert "feature" in observation_categories.categories
     assert "note" in observation_categories.categories
 
+
+
+@pytest.mark.asyncio
+async def test_list_by_type_with_sorting(client):
+    """Test listing entities with different sort options."""
+    # Sort by name
+    result = await list_by_type("technical_component", sort_by="name")
+    names = [e.name for e in result.entities]
+    assert names == sorted(names)
+
+    # Sort by path_id
+    result = await list_by_type("technical_component", sort_by="path_id")
+    path_ids = [e.path_id for e in result.entities]
+    assert path_ids == sorted(path_ids)
+
+
+@pytest.mark.asyncio
+async def test_list_by_type_empty(client):
+    """Test listing entities for a type that doesn't exist."""
+    result = await list_by_type("nonexistent_type")
+
+    assert result.entity_type == "nonexistent_type"
+    assert len(result.entities) == 0
+    assert result.total == 0
 
 
 @pytest.mark.asyncio
