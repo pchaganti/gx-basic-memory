@@ -36,5 +36,5 @@ class ObservationRepository(Repository[Observation]):
     async def observation_categories(self) -> Sequence[str]:
         """Return a list of all observation categories."""
         query = select(Observation.category).distinct()
-        result = await self.execute_query(query)
+        result = await self.execute_query(query, use_query_options=False)
         return result.scalars().all()

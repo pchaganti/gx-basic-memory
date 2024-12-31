@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Sequence
 
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, asc, desc
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.interfaces import LoaderOption
@@ -24,17 +24,41 @@ class EntityRepository(Repository[Entity]):
         return await self.find_one(query)
 
     async def list_entities(
-        self,
-        entity_type: Optional[str] = None,
-        doc_id: Optional[int] = None,
+            self,
+            entity_type: Optional[str] = None,
+            doc_id: Optional[int] = None,
+            sort_by: Optional[str] = "updated_at",
+            include_related: bool = False,
     ) -> Sequence[Entity]:
-        """List all entities, optionally filtered by type."""
-        query = self.select().options(*self.get_load_options())
+        """List all entities, optionally filtered by type and sorted."""
+        query = self.select()
 
+        # Always load base relations
+        query = query.options(*self.get_load_options())
+
+        # Apply filters
         if entity_type:
-            query = query.where(Entity.entity_type == entity_type)
+            # When include_related is True, get both:
+            # 1. Entities of the requested type
+            # 2. Entities that have relations with entities of the requested type
+            if include_related:
+                query = query.where(
+                    or_(
+                        Entity.entity_type == entity_type,
+                        Entity.from_relations.any(Relation.to_entity.has(entity_type=entity_type)),
+                        Entity.to_relations.any(Relation.from_entity.has(entity_type=entity_type))
+                    )
+                )
+            else:
+                query = query.where(Entity.entity_type == entity_type)
+
         if doc_id:
             query = query.where(Entity.doc_id == doc_id)
+
+        # Apply sorting
+        if sort_by:
+            sort_field = getattr(Entity, sort_by, Entity.updated_at)
+            query = query.order_by(asc(sort_field))
 
         result = await self.execute_query(query)
         return list(result.scalars().all())
@@ -43,7 +67,7 @@ class EntityRepository(Repository[Entity]):
         """Get list of distinct entity types."""
         query = select(Entity.entity_type).distinct()
 
-        result = await self.execute_query(query)
+        result = await self.execute_query(query, use_query_options=False)
         return list(result.scalars().all())
 
     async def search(self, query_str: str) -> List[Entity]:

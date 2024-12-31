@@ -461,3 +461,80 @@ async def test_delete_by_path_ids_with_observations(
         result = await session.execute(query)
         remaining_observations = result.scalars().all()
         assert len(remaining_observations) == 0
+
+
+@pytest.mark.asyncio
+async def test_list_entities_with_related(entity_repository: EntityRepository, session_maker):
+    """Test listing entities with related entities included."""
+    
+    # Create test entities
+    async with db.scoped_session(session_maker) as session:
+        # Core entities
+        core = Entity(
+            name="core_service",
+            entity_type="service",
+            path_id="service/core",
+            file_path="service/core.md",
+            description="Core service"
+        )
+        dbe = Entity(
+            name="db_service",
+            entity_type="service",
+            path_id="service/db",
+            file_path="service/db.md",
+            description="Database service"
+        )
+        # Related entity of different type
+        config = Entity(
+            name="service_config",
+            entity_type="configuration",
+            path_id="config/service",
+            file_path="config/service.md",
+            description="Service configuration"
+        )
+        session.add_all([core, dbe, config])
+        await session.flush()
+
+        # Create relations in both directions
+        relations = [
+            # core -> db (depends_on)
+            Relation(from_id=core.id, to_id=dbe.id, relation_type="depends_on"),
+            # config -> core (configures)
+            Relation(from_id=config.id, to_id=core.id, relation_type="configures")
+        ]
+        session.add_all(relations)
+
+    # Test 1: List services without related entities
+    services = await entity_repository.list_entities(
+        entity_type="service",
+        include_related=False
+    )
+    assert len(services) == 2
+    service_names = {s.name for s in services}
+    assert service_names == {"core_service", "db_service"}
+
+    # Test 2: List services with related entities
+    services_and_related = await entity_repository.list_entities(
+        entity_type="service",
+        include_related=True
+    )
+    assert len(services_and_related) == 3
+    # Should include both services and the config
+    entity_names = {e.name for e in services_and_related}
+    assert entity_names == {"core_service", "db_service", "service_config"}
+
+    # Test 3: Verify relations are loaded
+    core_service = next(e for e in services_and_related if e.name == "core_service")
+    assert len(core_service.from_relations) > 0  # Has incoming relation from config
+    assert len(core_service.to_relations) > 0    # Has outgoing relation to db
+
+    # Test 4: List configurations with related
+    configs = await entity_repository.list_entities(
+        entity_type="configuration",
+        include_related=True,
+        sort_by="name"
+    )
+    config_names = {c.name for c in configs}
+    # Should include both config and the services it relates to
+    assert "service_config" in config_names
+    assert "core_service" in config_names  # Related via configures relation

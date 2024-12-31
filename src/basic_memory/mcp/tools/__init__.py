@@ -9,6 +9,8 @@ all tools with the MCP server.
 from basic_memory.mcp.tools import knowledge  # noqa: F401
 from basic_memory.mcp.tools import search     # noqa: F401
 from basic_memory.mcp.tools import documents  # noqa: F401
+from basic_memory.mcp.tools import discovery  # noqa: F401
+from basic_memory.mcp.tools import activity   # noqa: F401
 
 # Export the tools
 from basic_memory.mcp.tools.knowledge import (
@@ -34,6 +36,16 @@ from basic_memory.mcp.tools.documents import (
     delete_document,
 )
 
+from basic_memory.mcp.tools.discovery import (
+    get_entity_types,
+    get_observation_categories,
+)
+
+from basic_memory.mcp.tools.activity import (
+    get_recent_activity,
+)
+
+
 __all__ = [
     # Knowledge graph tools
     "create_entities",
@@ -54,4 +66,11 @@ __all__ = [
     "update_document",
     "list_documents",
     "delete_document",
+
+    # Discovery tools
+    "get_entity_types",
+    "get_observation_categories",
+    
+    # Activity tools
+    "get_recent_activity",
 ]

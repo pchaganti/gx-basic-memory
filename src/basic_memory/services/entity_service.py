@@ -1,6 +1,6 @@
 """Service for managing entities in the database."""
 
-from typing import Dict, Any, Sequence, List
+from typing import Dict, Any, Sequence, List, Optional
 
 from loguru import logger
 
@@ -67,6 +67,24 @@ class EntityService(BaseService[EntityRepository]):
     async def get_all(self) -> Sequence[EntityModel]:
         """Get all entities."""
         return await self.repository.find_all()
+        
+    async def get_entity_types(self) -> List[str]:
+        """Get list of all distinct entity types in the system."""
+        logger.debug("Getting all distinct entity types")
+        return await self.repository.get_entity_types()
+        
+    async def list_entities(
+        self, 
+        entity_type: Optional[str] = None,
+        sort_by: Optional[str] = "updated_at",
+        include_related: bool = False,
+    ) -> Sequence[EntityModel]:
+        """List entities with optional filtering and sorting."""
+        logger.debug(f"Listing entities: type={entity_type} sort={sort_by}")
+        return await self.repository.list_entities(
+            entity_type=entity_type,
+            sort_by=sort_by
+        )
 
     async def delete_entity(self, path_id: str) -> bool:
         """Delete entity from database."""
