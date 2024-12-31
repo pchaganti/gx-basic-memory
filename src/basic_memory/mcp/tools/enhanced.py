@@ -1,37 +1,119 @@
 """Enhanced MCP tool support with rich schema information."""
 
-import inspect
 from typing import Any, Callable, Dict, List, Optional, Type
+import inspect
 from pydantic import BaseModel, Field
+
+from fastmcp.tools import Tool as FastMCPTool
+from fastmcp.tools.tool_manager import ToolManager as FastMCPToolManager
 
 
 class ToolExample(BaseModel):
     """Example usage of a tool."""
-    name: str
-    description: str
-    code: str
+    name: str = Field(description="Name of the example")
+    description: str = Field(description="Description of what the example demonstrates")
+    code: str = Field(description="Example code")
 
 
-class EnhancedToolMetadata(BaseModel):
-    """Enhanced tool metadata."""
-    name: str = Field(description="Tool name")
-    description: str = Field(description="Tool description")
-    examples: List[ToolExample] = Field(
-        default_factory=list,
-        description="Example tool usage"
-    )
-    category: Optional[str] = Field(
-        default=None,
-        description="Tool category for organization"
-    )
-    input_schema: Optional[Dict] = Field(
-        default=None,
-        description="Input parameter schema"
-    )
-    output_schema: Optional[Dict] = Field(
-        default=None,
-        description="Return value schema"
-    )
+class EnhancedTool(FastMCPTool):
+    """Extended tool registration with rich metadata."""
+    examples: List[ToolExample] = Field(default_factory=list)
+    category: Optional[str] = Field(None)
+    input_schema: Optional[Dict] = Field(None)
+    output_schema: Optional[Dict] = Field(None)
+    
+    @classmethod
+    def from_function(
+        cls,
+        fn: Callable,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        examples: Optional[List[Dict]] = None,
+        category: Optional[str] = None,
+    ) -> "EnhancedTool":
+        """Create an enhanced tool from a function."""
+        # First create the base tool
+        base_tool = super().from_function(fn, name=name, description=description)
+        
+        # Extract return type schema if available
+        return_schema = None
+        sig = inspect.signature(fn)
+        return_type = sig.return_annotation
+        
+        if hasattr(return_type, "model_json_schema"):
+            return_schema = return_type.model_json_schema()
+            
+        # Convert examples to ToolExample models
+        tool_examples = [ToolExample(**ex) for ex in (examples or [])]
+        
+        return cls(
+            fn=fn,
+            name=base_tool.name,
+            description=base_tool.description,
+            parameters=base_tool.parameters,
+            fn_metadata=base_tool.fn_metadata,
+            is_async=base_tool.is_async,
+            context_kwarg=base_tool.context_kwarg,
+            examples=tool_examples,
+            category=category,
+            input_schema=base_tool.parameters,
+            output_schema=return_schema
+        )
+
+    def get_schema(self) -> Dict:
+        """Get complete tool schema including examples and metadata."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "category": self.category,
+            "inputSchema": self.input_schema,
+            "outputSchema": self.output_schema,
+            "examples": [ex.model_dump() for ex in self.examples]
+        }
+
+
+class EnhancedToolManager(FastMCPToolManager):
+    """Tool manager with enhanced metadata support."""
+
+    def add_tool(
+        self,
+        fn: Callable,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        examples: Optional[List[Dict]] = None,
+        category: Optional[str] = None,
+    ) -> EnhancedTool:
+        """Add a tool with enhanced metadata."""
+        tool = EnhancedTool.from_function(
+            fn, 
+            name=name,
+            description=description,
+            examples=examples,
+            category=category
+        )
+        self._tools[tool.name] = tool
+        return tool
+
+    def get_schema_catalog(self) -> Dict:
+        """Get complete schema catalog for all tools."""
+        catalog = {
+            "tools": {},
+            "categories": {}
+        }
+        
+        for tool in self._tools.values():
+            if isinstance(tool, EnhancedTool):
+                catalog["tools"][tool.name] = tool.get_schema()
+                
+                if tool.category:
+                    if tool.category not in catalog["categories"]:
+                        catalog["categories"][tool.category] = {
+                            "name": tool.category,
+                            "tools": []
+                        }
+                    catalog["categories"][tool.category]["tools"].append(tool.name)
+                    
+        return catalog
 
 
 def enhanced_tool(
@@ -39,45 +121,17 @@ def enhanced_tool(
     description: Optional[str] = None,
     examples: Optional[List[Dict]] = None,
     category: Optional[str] = None,
-    input_schema: Optional[Dict] = None,
-    output_schema: Optional[Dict] = None,
 ):
-    """Enhanced MCP tool decorator with rich metadata."""
-    def decorator(fn: Callable):
-        # Create metadata
-        metadata = EnhancedToolMetadata(
-            name=name or fn.__name__,
-            description=description or fn.__doc__ or "",
-            examples=[ToolExample(**ex) for ex in (examples or [])],
-            category=category,
-            input_schema=input_schema,
-            output_schema=output_schema
-        )
-        
-        # Try to extract schemas from type hints if not provided
-        if input_schema is None or output_schema is None:
-            sig = inspect.signature(fn)
-            
-            # Input schema from parameters
-            if input_schema is None:
-                for param in sig.parameters.values():
-                    if hasattr(param.annotation, "model_json_schema"):
-                        metadata.input_schema = param.annotation.model_json_schema()
-                        break
-            
-            # Output schema from return type
-            if output_schema is None:
-                return_type = sig.return_annotation
-                if hasattr(return_type, "model_json_schema"):
-                    metadata.output_schema = return_type.model_json_schema()
-        
-        # Use regular MCP decorator first
-        from basic_memory.mcp.server import mcp
-        tool = mcp.tool(name=metadata.name, description=metadata.description)(fn)
-        
-        # Store metadata on tool model
-        setattr(tool, "_enhanced_metadata", metadata)
-        
-        return tool
-    
+    """Decorator for registering enhanced tools."""
+    def decorator(fn: Callable) -> Callable:
+        # Store metadata on the function for later
+        if not hasattr(fn, "_tool_metadata"):
+            fn._tool_metadata = {}
+        fn._tool_metadata.update({
+            "name": name,
+            "description": description,
+            "examples": examples,
+            "category": category
+        })
+        return fn
     return decorator

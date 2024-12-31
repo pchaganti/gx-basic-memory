@@ -1,6 +1,8 @@
 """Knowledge graph management tools for Basic Memory MCP server."""
 
-from typing import Dict, List, Optional
+from typing import Dict
+
+import httpx
 
 from basic_memory.schemas.base import Entity, Relation, ObservationCategory, PathId
 from basic_memory.schemas.request import (
@@ -90,7 +92,41 @@ for obs in entity.observations:
     }]
 )
 async def get_entity(path_id: PathId) -> EntityResponse:
-    """Get a specific entity by its path_id."""
+    """Get a specific entity by its path_id.
+    
+    Examples:
+        # Load implementation details
+        response = await get_entity("component/memory_service")
+        
+        # Response contains complete entity:
+        # EntityResponse(
+        #     path_id="component/memory_service",
+        #     name="memory_service",
+        #     entity_type="component",
+        #     description="Core knowledge persistence service",
+        #     observations=[
+        #         Observation(
+        #             category="TECH",
+        #             content="Using SQLite for storage",
+        #             context="Initial implementation"
+        #         ),
+        #         ...
+        #     ],
+        #     relations=[
+        #         Relation(
+        #             from_id="component/memory_service",
+        #             to_id="component/file_service",
+        #             relation_type="depends_on"
+        #         ),
+        #         ...
+        #     ]
+        # )
+
+        # Load and analyze a design spec
+        spec = await get_entity("specification/file_format")
+        decisions = [obs for obs in spec.observations 
+                    if obs.category == ObservationCategory.DESIGN]
+    """
     try:
         url = f"/knowledge/entities/{path_id}"
         response = await client.get(url)
@@ -98,10 +134,13 @@ async def get_entity(path_id: PathId) -> EntityResponse:
             raise EntityNotFoundError(f"Entity not found: {path_id}")
         response.raise_for_status()
         return EntityResponse.model_validate(response.json())
-    except Exception as e:
-        if hasattr(e, "response") and e.response.status_code == 404:
+    except httpx.HTTPStatusError as e:
+        # If we got a 404, the entity doesn't exist
+        if e.response.status_code == 404:
             raise EntityNotFoundError(f"Entity not found: {path_id}")
+        # For any other HTTP error, re-raise
         raise
+
 
 
 
