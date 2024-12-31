@@ -2,13 +2,13 @@
 
 from typing import Dict, List
 
+from basic_memory.mcp.tools.enhanced import enhanced_tool
 from basic_memory.schemas.request import DocumentRequest, DocumentPathId
 from basic_memory.schemas.response import DocumentResponse, DocumentCreateResponse
 from basic_memory.mcp.async_client import client
-from basic_memory.mcp.server import mcp
 
 
-@mcp.tool()
+@enhanced_tool()
 async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
     """Create a new markdown document.
     
@@ -48,7 +48,7 @@ async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
     return DocumentCreateResponse.model_validate(response.json())
 
 
-@mcp.tool()
+@enhanced_tool()
 async def update_document(request: DocumentRequest) -> DocumentResponse:
     """Update an existing document.
     
@@ -85,7 +85,7 @@ async def update_document(request: DocumentRequest) -> DocumentResponse:
     return DocumentResponse.model_validate(response.json())
 
 
-@mcp.tool()
+@enhanced_tool()
 async def get_document(path: DocumentPathId) -> DocumentResponse:
     """Get a document by its path.
     
@@ -114,7 +114,7 @@ async def get_document(path: DocumentPathId) -> DocumentResponse:
     return DocumentResponse.model_validate(response.json())
 
 
-@mcp.tool()
+@enhanced_tool()
 async def list_documents() -> List[DocumentCreateResponse]:
     """List all documents in the system.
     
@@ -145,7 +145,7 @@ async def list_documents() -> List[DocumentCreateResponse]:
     return [DocumentCreateResponse.model_validate(doc) for doc in response.json()]
 
 
-@mcp.tool()
+@enhanced_tool()
 async def delete_document(path: DocumentPathId) -> Dict[str, bool]:
     """Delete a document.
     

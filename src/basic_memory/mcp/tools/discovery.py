@@ -4,26 +4,26 @@ from typing import List, Optional
 
 from loguru import logger
 
+from basic_memory.mcp.tools.enhanced import enhanced_tool
 from basic_memory.schemas import EntityTypeList, ObservationCategoryList, TypedEntityList
 from basic_memory.mcp.async_client import client
-from basic_memory.mcp.server import mcp
 
 
-@mcp.tool()
+@enhanced_tool()
 async def get_entity_types() -> List[str]:
     """List all unique entity types in use across the knowledge graph.
-    
+
     Examples:
         types = await get_entity_types()
-        
+
         # Returns list of strings like:
         # [
         #     "technical_component",
-        #     "specification", 
+        #     "specification",
         #     "decision",
         #     "feature"
         # ]
-        
+
         Returns:
             List of unique entity type strings used in the knowledge graph
     """
@@ -33,7 +33,7 @@ async def get_entity_types() -> List[str]:
     return EntityTypeList.model_validate(response.json())
 
 
-@mcp.tool()
+@enhanced_tool()
 async def get_observation_categories() -> List[str]:
     """List all unique observation categories in use across the knowledge graph.
 
@@ -57,11 +57,9 @@ async def get_observation_categories() -> List[str]:
     return ObservationCategoryList.model_validate(response.json())
 
 
-@mcp.tool()
+@enhanced_tool()
 async def list_by_type(
-        entity_type: str,
-        include_related: bool = False,
-        sort_by: Optional[str] = "updated_at"
+    entity_type: str, include_related: bool = False, sort_by: Optional[str] = "updated_at"
 ) -> TypedEntityList:
     """List all entities of a specific type.
 
@@ -76,9 +74,7 @@ async def list_by_type(
         )
     """
     logger.debug(f"Listing entities of type: {entity_type}")
-    params = {
-        "include_related": "true" if include_related else "false"
-    }
+    params = {"include_related": "true" if include_related else "false"}
     if sort_by:
         params["sort_by"] = sort_by
 

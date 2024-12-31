@@ -1,16 +1,17 @@
 """Search and query tools for Basic Memory MCP server."""
+
 from typing import Dict
 
+from basic_memory.mcp.tools.enhanced import enhanced_tool
 from basic_memory.schemas.request import SearchNodesRequest, OpenNodesRequest
 from basic_memory.schemas.response import SearchNodesResponse, EntityResponse
 from basic_memory.mcp.async_client import client
-from basic_memory.mcp.server import mcp
 
 
-@mcp.tool()
+@enhanced_tool()
 async def search_nodes(request: SearchNodesRequest) -> SearchNodesResponse:
     """Search for entities in the knowledge graph.
-    
+
     Examples:
         # Find technical implementation details
         request = SearchNodesRequest(
@@ -18,7 +19,7 @@ async def search_nodes(request: SearchNodesRequest) -> SearchNodesResponse:
             category=ObservationCategory.TECH
         )
         response = await search_nodes(request)
-        
+
         # Response contains matching entities:
         # SearchNodesResponse(
         #     matches=[
@@ -50,10 +51,10 @@ async def search_nodes(request: SearchNodesRequest) -> SearchNodesResponse:
     return SearchNodesResponse.model_validate(response.json())
 
 
-@mcp.tool()
+@enhanced_tool()
 async def open_nodes(request: OpenNodesRequest) -> Dict[str, EntityResponse]:
     """Load multiple entities by their path_ids.
-    
+
     Examples:
         # Load related components and their specs
         request = OpenNodesRequest(
@@ -64,14 +65,14 @@ async def open_nodes(request: OpenNodesRequest) -> Dict[str, EntityResponse]:
             ]
         )
         response = await open_nodes(request)
-        
+
         # Response maps path_ids to entities:
         # {
         #     "component/memory_service": EntityResponse(...),
         #     "component/file_service": EntityResponse(...),
         #     "specification/file_format": EntityResponse(...)
         # }
-        
+
         # Follow relation chains
         request = OpenNodesRequest(
             path_ids=[
@@ -84,5 +85,7 @@ async def open_nodes(request: OpenNodesRequest) -> Dict[str, EntityResponse]:
     """
     url = "/knowledge/nodes"
     response = await client.post(url, json=request.model_dump())
-    return {entity["path_id"]: EntityResponse.model_validate(entity) 
-            for entity in response.json()["entities"]}
+    return {
+        entity["path_id"]: EntityResponse.model_validate(entity)
+        for entity in response.json()["entities"]
+    }
