@@ -25,6 +25,7 @@ from basic_memory.services import (
     DocumentService,
     FileChangeScanner,
 )
+from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services import KnowledgeService
 
@@ -170,6 +171,12 @@ async def knowledge_service(
         knowledge_writer=knowledge_writer,
         base_path=test_config.knowledge_dir,
     )
+
+@pytest_asyncio.fixture
+async def activity_service(document_service, entity_service, relation_service):
+    """Create activity service with real dependencies."""
+    return ActivityService(entity_service, document_service, relation_service)
+
 
 
 @pytest_asyncio.fixture(scope="function")

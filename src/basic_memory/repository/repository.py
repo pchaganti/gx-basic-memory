@@ -1,5 +1,6 @@
 """Base repository implementation."""
 
+from datetime import datetime
 from typing import Type, Optional, Any, Sequence, TypeVar, List
 
 from loguru import logger
@@ -147,6 +148,35 @@ class Repository[T: Base]:
         else:
             logger.debug(f"No {self.Model.__name__} found")
         return entity
+
+    async def find_modified_since(self, since: datetime) -> Sequence[T]:
+        """Find all records modified since the given timestamp.
+        
+        This method assumes the model has an updated_at column. Override
+        in subclasses if a different column should be used.
+        
+        Args:
+            since: Datetime to search from
+            
+        Returns:
+            Sequence of records modified since the timestamp
+        """
+        logger.debug(f"Finding {self.Model.__name__} modified since: {since}")
+        
+        if not hasattr(self.Model, 'updated_at'):
+            raise AttributeError(f"{self.Model.__name__} does not have updated_at column")
+            
+        query = (
+            select(self.Model)
+            .filter(self.Model.updated_at >= since)
+            .options(*self.get_load_options())
+        )
+        
+        async with db.scoped_session(self.session_maker) as session:
+            result = await session.execute(query)
+            items = result.scalars().all()
+            logger.debug(f"Found {len(items)} modified {self.Model.__name__} records")
+            return items
 
     async def create(self, data: dict) -> T:
         """Create a new record from a model instance."""

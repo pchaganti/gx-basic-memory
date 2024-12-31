@@ -1,7 +1,8 @@
 """Test repository implementation."""
 
+from datetime import datetime, timedelta
 import pytest
-from sqlalchemy import String
+from sqlalchemy import String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 
 from basic_memory.models import Base
@@ -16,6 +17,12 @@ class TestModel(Base):
     id: Mapped[str] = mapped_column(String(255), primary_key=True)
     name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, 
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
 
 
 @pytest.fixture
@@ -114,3 +121,57 @@ async def test_delete_by_ids(repository):
     assert await repository.find_by_id(ids_to_delete[0]) is None
     assert await repository.find_by_id(ids_to_delete[1]) is None
     assert await repository.find_by_id(ids_to_delete[2]) is None
+
+
+@pytest.mark.asyncio
+async def test_find_modified_since(repository):
+    """Test finding entities modified since a timestamp."""
+    # Create initial test data
+    now = datetime.utcnow()
+    base_instances = [
+        TestModel(
+            id=f"test_{i}", 
+            name=f"Test {i}",
+            created_at=now - timedelta(days=2),
+            updated_at=now - timedelta(days=2)
+        ) for i in range(5)
+    ]
+    await repository.create_all([instance.__dict__ for instance in base_instances])
+
+    # Update some instances to have recent changes
+    cutoff_time = now - timedelta(hours=1)
+    recent_updates = ["test_1", "test_3"]
+    
+    for id in recent_updates:
+        await repository.update(id, {"name": f"Updated {id}"})
+
+    # Find recently modified
+    modified = await repository.find_modified_since(cutoff_time)
+    assert len(modified) == 2
+    assert sorted([e.id for e in modified]) == sorted(recent_updates)
+    for entity in modified:
+        assert entity.updated_at >= cutoff_time
+        assert entity.name.startswith("Updated")
+
+    # Test with older cutoff
+    all_modified = await repository.find_modified_since(now - timedelta(days=3))
+    assert len(all_modified) == 5  # Should find all instances
+
+    # Test with future cutoff
+    future_modified = await repository.find_modified_since(now + timedelta(hours=1))
+    assert len(future_modified) == 0  # Should find no instances
+
+
+@pytest.mark.asyncio
+async def test_find_modified_since_invalid_model():
+    """Test finding modified entities on model without updated_at."""
+    class InvalidModel(Base):
+        __tablename__ = "invalid_model"
+        id: Mapped[str] = mapped_column(String(255), primary_key=True)
+        name: Mapped[str] = mapped_column(String(255))
+
+    repository = Repository(None, InvalidModel)  # type: ignore
+    
+    with pytest.raises(AttributeError) as exc:
+        await repository.find_modified_since(datetime.utcnow())
+    assert "does not have updated_at column" in str(exc.value)
