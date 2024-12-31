@@ -24,7 +24,7 @@ router = APIRouter(
 async def get_recent_activity(
     activity_service: ActivityService = Depends(get_activity_service),
     timeframe: str = "1d",
-    activity_types: Optional[List[str]] = Query(None),  # Use Query for array params
+    activity_types: Optional[List[ActivityType]] = Query(None),  # Use ActivityType enum
     include_content: bool = True
 ) -> RecentActivity:
     """
@@ -32,7 +32,7 @@ async def get_recent_activity(
 
     Args:
         timeframe: Time window to look back (1h, 1d, 1w, 1m)
-        activity_types: Optional list of types to include
+        activity_types: Optional list of ActivityType values to include
         include_content: Whether to include full content
 
     Returns:
@@ -45,6 +45,6 @@ async def get_recent_activity(
 
     return await activity_service.get_recent_activity(
         timeframe=timeframe,
-        activity_types=activity_types,
+        activity_types=[t.value for t in activity_types] if activity_types else None,
         include_content=include_content
     )
