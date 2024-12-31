@@ -24,8 +24,7 @@ router = APIRouter(
 async def get_recent_activity(
     activity_service: ActivityService = Depends(get_activity_service),
     timeframe: str = "1d",
-    activity_types: Optional[List[ActivityType]] = Query(None),  # Use ActivityType enum
-    include_content: bool = True
+    activity_types: Optional[List[ActivityType]] = Query(None),
 ) -> RecentActivity:
     """
     Get recent activity across the knowledge base.
@@ -33,18 +32,16 @@ async def get_recent_activity(
     Args:
         timeframe: Time window to look back (1h, 1d, 1w, 1m)
         activity_types: Optional list of ActivityType values to include
-        include_content: Whether to include full content
 
     Returns:
         RecentActivity with changes and summary
     """
     logger.debug(
         f"Getting recent activity (timeframe={timeframe}, "
-        f"types={activity_types}, include_content={include_content})"
+        f"types={activity_types})"
     )
 
     return await activity_service.get_recent_activity(
         timeframe=timeframe,
         activity_types=[t.value for t in activity_types] if activity_types else None,
-        include_content=include_content
     )

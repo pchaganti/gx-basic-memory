@@ -101,24 +101,3 @@ async def test_get_recent_activity_filtered_types(activity_service, document_ser
     assert result.summary.document_changes == 1
     assert result.summary.entity_changes == 0
     assert result.changes[0].activity_type == "document"
-
-
-@pytest.mark.asyncio
-async def test_get_recent_activity_without_content(activity_service, document_service):
-    """Test getting activity without content."""
-    # Create test document with content
-    await create_test_document(
-        document_service, 
-        "no_content_doc", 
-        content="This content should not appear"
-    )
-
-    # Get activity without content
-    result = await activity_service.get_recent_activity(
-        timeframe="1d",
-        include_content=False
-    )
-
-    # Should find doc but without content
-    assert len(result.changes) == 1
-    assert result.changes[0].content is None

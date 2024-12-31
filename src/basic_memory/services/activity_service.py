@@ -33,14 +33,12 @@ class ActivityService:
         self,
         timeframe: str = "1d",
         activity_types: Optional[List[str]] = None,
-        include_content: bool = True
     ) -> RecentActivity:
         """Get all recent activity in the knowledge base.
         
         Args:
             timeframe: Time window to look back (1h, 1d, 1w, 1m)
             activity_types: Optional list of types to include
-            include_content: Whether to include full content
             
         Returns:
             RecentActivity object containing changes and summary
@@ -70,11 +68,6 @@ class ActivityService:
             if change.timestamp.tzinfo is None:
                 change.timestamp = change.timestamp.replace(tzinfo=timezone.utc)
         changes.sort(key=lambda x: x.timestamp, reverse=True)
-
-        # Remove content if not requested
-        if not include_content:
-            for change in changes:
-                change.content = None
 
         # Generate summary
         summary = ActivitySummary(
@@ -136,7 +129,7 @@ class ActivityService:
                     timestamp=updated_at,
                     path_id=doc.path_id,
                     summary=f"{change_type.value.title()} document: {doc.path_id}",
-                    content=None  # For documents we don't include content by default
+                    content=None  # Document content lives in the filesystem
                 )
             )
             

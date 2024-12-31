@@ -80,26 +80,40 @@ async def test_get_recent_activity_filtered(client):
 
 
 @pytest.mark.asyncio
-async def test_get_recent_activity_without_content(client):
-    """Test getting activity without content."""
-    # Create test document
+async def test_get_recent_activity_content_handling(client):
+    """Test content handling for different activity types."""
+    # Create document and entity with description
     doc = await create_document(
         DocumentRequest(
-            path_id="test/no_content_doc.md",
-            content="This content should not appear",
+            path_id="test/content_doc.md",
+            content="Document content",
             doc_metadata={}
         )
     )
-
-    # Get activity without content
-    result = await get_recent_activity(
-        timeframe="1d",
-        include_content=False
+    
+    entity_request = CreateEntityRequest(
+        entities=[Entity(
+            name="ContentEntity", 
+            entity_type="test",
+            description="Entity description"
+        )]
     )
+    entity = await create_entities(entity_request)
 
-    # Should find doc but without content
-    assert len(result.changes) == 1
-    assert result.changes[0].content is None
+    # Get activity
+    result = await get_recent_activity(timeframe="1d")
+
+    # Find the document and entity changes
+    doc_changes = [c for c in result.changes if c.activity_type == ActivityType.DOCUMENT]
+    entity_changes = [c for c in result.changes if c.activity_type == ActivityType.ENTITY]
+    
+    # Document should have no content (lives in filesystem)
+    assert len(doc_changes) == 1
+    assert doc_changes[0].content is None
+    
+    # Entity should include description as content
+    assert len(entity_changes) == 1
+    assert entity_changes[0].content == "Entity description"
 
 
 @pytest.mark.asyncio

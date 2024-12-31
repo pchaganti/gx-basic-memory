@@ -13,7 +13,6 @@ from basic_memory.schemas.activity import ActivityType, RecentActivity
 async def get_recent_activity(
     timeframe: str = "1d",
     activity_types: Optional[List[ActivityType]] = None,
-    include_content: bool = True
 ) -> RecentActivity:
     """
     Get recent activity across your knowledge base.
@@ -26,7 +25,6 @@ async def get_recent_activity(
     You can filter by:
     - Timeframe (e.g., 1h, 1d, 1w, 1m)
     - Activity types (document, entity, relation)
-    - Whether to include content
     
     Examples:
         # Get all activity in last day
@@ -35,8 +33,7 @@ async def get_recent_activity(
         # Get only document changes
         docs = await get_recent_activity(
             timeframe="1h",
-            activity_types=[ActivityType.DOCUMENT],
-            include_content=False
+            activity_types=[ActivityType.DOCUMENT]
         )
         
         Returns:
@@ -44,16 +41,15 @@ async def get_recent_activity(
     """
     logger.debug(
         f"Getting recent activity (timeframe={timeframe}, "
-        f"types={activity_types}, include_content={include_content})"
+        f"types={activity_types})"
     )
 
     # Build params
     params = {
         "timeframe": timeframe,
-        "include_content": str(include_content).lower()
     }
     if activity_types:
-        params["activity_types"] = [t.value for t in activity_types]  # Convert enums to values
+        params["activity_types"] = [t.value for t in activity_types]
 
     # Get activity
     response = await client.get("/activity/recent", params=params)
