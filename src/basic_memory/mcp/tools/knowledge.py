@@ -4,7 +4,8 @@ from typing import Dict
 
 import httpx
 
-from basic_memory.schemas.base import Entity, Relation, ObservationCategory, PathId
+from basic_memory.mcp.server import mcp
+from basic_memory.schemas.base import PathId
 from basic_memory.schemas.request import (
     CreateEntityRequest,
     CreateRelationsRequest,
@@ -13,20 +14,20 @@ from basic_memory.schemas.request import (
 from basic_memory.schemas.delete import (
     DeleteEntitiesRequest,
     DeleteObservationsRequest,
-    DeleteRelationsRequest
+    DeleteRelationsRequest,
 )
 from basic_memory.schemas.response import EntityListResponse, EntityResponse
 from basic_memory.mcp.async_client import client
 from basic_memory.services.exceptions import EntityNotFoundError
-from basic_memory.mcp.tools.enhanced import enhanced_tool
 
 
-@enhanced_tool(
+@mcp.tool(
     category="knowledge",
-    examples=[{
-        "name": "Create Component",
-        "description": "Create a new technical component",
-        "code": """
+    examples=[
+        {
+            "name": "Create Component",
+            "description": "Create a new technical component",
+            "code": """
 await create_entities({
     "entities": [{
         "name": "SearchService",
@@ -38,12 +39,13 @@ await create_entities({
         ]
     }]
 })
-"""
-    }]
+""",
+        }
+    ],
 )
 async def create_entities(request: CreateEntityRequest) -> EntityListResponse:
     """Create new entities in the knowledge graph.
-    
+
     Entities can include initial observations and properties. Entity IDs
     are automatically generated from the type and name.
     """
@@ -52,12 +54,13 @@ async def create_entities(request: CreateEntityRequest) -> EntityListResponse:
     return EntityListResponse.model_validate(response.json())
 
 
-@enhanced_tool(
+@mcp.tool(
     category="knowledge",
-    examples=[{
-        "name": "Add Dependency",
-        "description": "Create dependency relationship between components",
-        "code": """
+    examples=[
+        {
+            "name": "Add Dependency",
+            "description": "Create dependency relationship between components",
+            "code": """
 await create_relations({
     "relations": [{
         "from_id": "component/search_service",
@@ -66,8 +69,9 @@ await create_relations({
         "context": "Needs storage for search indexes"
     }]
 })
-"""
-    }]
+""",
+        }
+    ],
 )
 async def create_relations(request: CreateRelationsRequest) -> EntityListResponse:
     """Create relations between existing entities."""
@@ -76,28 +80,30 @@ async def create_relations(request: CreateRelationsRequest) -> EntityListRespons
     return EntityListResponse.model_validate(response.json())
 
 
-@enhanced_tool(
+@mcp.tool(
     category="knowledge",
-    examples=[{
-        "name": "Get Entity Details",
-        "description": "Load complete entity information",
-        "code": """
+    examples=[
+        {
+            "name": "Get Entity Details",
+            "description": "Load complete entity information",
+            "code": """
 # Get component details
 entity = await get_entity("component/search_service")
 print(f"Name: {entity.name}")
 print(f"Type: {entity.entity_type}")
 for obs in entity.observations:
     print(f"- {obs.content}")
-"""
-    }]
+""",
+        }
+    ],
 )
 async def get_entity(path_id: PathId) -> EntityResponse:
     """Get a specific entity by its path_id.
-    
+
     Examples:
         # Load implementation details
         response = await get_entity("component/memory_service")
-        
+
         # Response contains complete entity:
         # EntityResponse(
         #     path_id="component/memory_service",
@@ -124,7 +130,7 @@ async def get_entity(path_id: PathId) -> EntityResponse:
 
         # Load and analyze a design spec
         spec = await get_entity("specification/file_format")
-        decisions = [obs for obs in spec.observations 
+        decisions = [obs for obs in spec.observations
                     if obs.category == ObservationCategory.DESIGN]
     """
     try:
@@ -142,12 +148,10 @@ async def get_entity(path_id: PathId) -> EntityResponse:
         raise
 
 
-
-
-@enhanced_tool()
+@mcp.tool()
 async def add_observations(request: AddObservationsRequest) -> EntityResponse:
     """Add observations to an existing entity.
-    
+
     Examples:
         # Document implementation decisions with context
         request = AddObservationsRequest(
@@ -169,7 +173,7 @@ async def add_observations(request: AddObservationsRequest) -> EntityResponse:
             ]
         )
         response = await add_observations(request)
-        
+
         # Response shows entity with new observations:
         # EntityResponse(
         #     path_id="component/search_service",
@@ -188,10 +192,10 @@ async def add_observations(request: AddObservationsRequest) -> EntityResponse:
     return EntityResponse.model_validate(response.json())
 
 
-@enhanced_tool()
+@mcp.tool()
 async def delete_observations(request: DeleteObservationsRequest) -> EntityResponse:
     """Delete specific observations from an entity.
-    
+
     Examples:
         # Remove obsolete implementation notes
         request = DeleteObservationsRequest(
@@ -202,7 +206,7 @@ async def delete_observations(request: DeleteObservationsRequest) -> EntityRespo
             ]
         )
         response = await delete_observations(request)
-        
+
         # Response shows entity with observations removed:
         # EntityResponse(
         #     path_id="component/indexer",
@@ -214,10 +218,10 @@ async def delete_observations(request: DeleteObservationsRequest) -> EntityRespo
     return EntityResponse.model_validate(response.json())
 
 
-@enhanced_tool()
+@mcp.tool()
 async def delete_relations(request: DeleteRelationsRequest) -> EntityListResponse:
     """Delete relations between entities.
-    
+
     Examples:
         # Remove obsolete dependency
         request = DeleteRelationsRequest(
@@ -230,7 +234,7 @@ async def delete_relations(request: DeleteRelationsRequest) -> EntityListRespons
             ]
         )
         response = await delete_relations(request)
-        
+
         # Response shows updated entities:
         # EntityListResponse(
         #     entities=[
@@ -248,10 +252,10 @@ async def delete_relations(request: DeleteRelationsRequest) -> EntityListRespons
     return EntityListResponse.model_validate(response.json())
 
 
-@enhanced_tool()
+@mcp.tool()
 async def delete_entities(request: DeleteEntitiesRequest) -> Dict[str, bool]:
     """Delete entities from the knowledge graph.
-    
+
     Examples:
         # Remove obsolete components
         request = DeleteEntitiesRequest(
@@ -261,7 +265,7 @@ async def delete_entities(request: DeleteEntitiesRequest) -> Dict[str, bool]:
             ]
         )
         response = await delete_entities(request)
-        
+
         # Response indicates success:
         # {
         #     "deleted": true

@@ -2,25 +2,25 @@
 
 from typing import Dict, List
 
-from basic_memory.mcp.tools.enhanced import enhanced_tool
+from basic_memory.mcp.server import mcp
 from basic_memory.schemas.request import DocumentRequest, DocumentPathId
 from basic_memory.schemas.response import DocumentResponse, DocumentCreateResponse
 from basic_memory.mcp.async_client import client
 
 
-@enhanced_tool()
+@mcp.tool()
 async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
     """Create a new markdown document.
-    
+
     Examples:
         # Create a technical specification
         request = DocumentRequest(
             path="specs/memory_format.md",
             content='''# Memory Format Specification
-                
+
                 ## Overview
                 This document defines the standard format for memory files.
-                
+
                 ## Format
                 - Markdown with frontmatter
                 - UTF-8 encoding
@@ -33,7 +33,7 @@ async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
             }
         )
         response = await create_document(request)
-        
+
         # Response contains document info:
         # DocumentCreateResponse(
         #     path="specs/memory_format.md",
@@ -48,16 +48,16 @@ async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
     return DocumentCreateResponse.model_validate(response.json())
 
 
-@enhanced_tool()
+@mcp.tool()
 async def update_document(request: DocumentRequest) -> DocumentResponse:
     """Update an existing document.
-    
+
     Examples:
         # Update implementation docs with new details
         request = DocumentRequest(
             path="docs/implementation.md",
             content='''# Implementation Details
-                
+
                 ## Recent Changes
                 - Added FTS5 support
                 - Improved error handling
@@ -69,14 +69,14 @@ async def update_document(request: DocumentRequest) -> DocumentResponse:
             }
         )
         response = await update_document(request)
-        
+
         # Response contains updated document:
         # DocumentResponse(
         #     path="docs/implementation.md",
         #     content="# Implementation Details\n...",
         #     checksum="def456...",
         #     doc_metadata={...},
-        #     created_at="2024-12-20T10:00:00Z", 
+        #     created_at="2024-12-20T10:00:00Z",
         #     updated_at="2024-12-25T14:30:00Z"
         # )
     """
@@ -85,14 +85,14 @@ async def update_document(request: DocumentRequest) -> DocumentResponse:
     return DocumentResponse.model_validate(response.json())
 
 
-@enhanced_tool()
+@mcp.tool()
 async def get_document(path: DocumentPathId) -> DocumentResponse:
     """Get a document by its path.
-    
+
     Examples:
         # Load an API specification
         response = await get_document("specs/api_format.md")
-        
+
         # Response contains complete document:
         # DocumentResponse(
         #     path="specs/api_format.md",
@@ -114,14 +114,14 @@ async def get_document(path: DocumentPathId) -> DocumentResponse:
     return DocumentResponse.model_validate(response.json())
 
 
-@enhanced_tool()
+@mcp.tool()
 async def list_documents() -> List[DocumentCreateResponse]:
     """List all documents in the system.
-    
+
     Examples:
         # Get all documents with metadata
         documents = await list_documents()
-        
+
         # Response is list of document info:
         # [
         #     DocumentCreateResponse(
@@ -145,14 +145,14 @@ async def list_documents() -> List[DocumentCreateResponse]:
     return [DocumentCreateResponse.model_validate(doc) for doc in response.json()]
 
 
-@enhanced_tool()
+@mcp.tool()
 async def delete_document(path: DocumentPathId) -> Dict[str, bool]:
     """Delete a document.
-    
+
     Examples:
         # Remove an obsolete document
         result = await delete_document("docs/outdated_spec.md")
-        
+
         # Response indicates success:
         # {
         #     "deleted": true

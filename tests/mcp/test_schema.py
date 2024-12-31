@@ -2,7 +2,10 @@
 
 import pytest
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
+
+from basic_memory.mcp.server import mcp
+from basic_memory.mcp.tools.help import get_schema
 
 
 class TestInput(BaseModel):
@@ -20,12 +23,8 @@ class TestOutput(BaseModel):
 @pytest.mark.asyncio
 async def test_get_schema_all():
     """Test getting complete tool catalog."""
-    from basic_memory.mcp.server import mcp
-    from basic_memory.mcp.tools.enhanced import enhanced_tool
-    from basic_memory.mcp.tools.help import get_schema
-    
     # Create test tools
-    @enhanced_tool(
+    @mcp.tool(
         name="test_tool",
         description="A test tool with enhanced metadata",
         category="test",
@@ -63,11 +62,7 @@ async def test_get_schema_all():
 @pytest.mark.asyncio
 async def test_get_schema_enhanced_tool():
     """Test getting schema for enhanced tool."""
-    from basic_memory.mcp.server import mcp
-    from basic_memory.mcp.tools.enhanced import enhanced_tool
-    from basic_memory.mcp.tools.help import get_schema
-    
-    @enhanced_tool(
+    @mcp.tool(
         name="test_tool",
         description="A test tool with enhanced metadata",
         category="test",
@@ -104,9 +99,6 @@ async def test_get_schema_enhanced_tool():
 @pytest.mark.asyncio
 async def test_get_schema_basic_tool():
     """Test getting schema for basic tool."""
-    from basic_memory.mcp.server import mcp
-    from basic_memory.mcp.tools.help import get_schema
-    
     @mcp.tool(name="basic_tool")
     async def basic_tool(value: str) -> str:
         """A basic tool without enhanced metadata"""
@@ -126,10 +118,7 @@ async def test_get_schema_basic_tool():
 @pytest.mark.asyncio
 async def test_get_schema_filter_examples():
     """Test filtering out examples from schema."""
-    from basic_memory.mcp.tools.enhanced import enhanced_tool
-    from basic_memory.mcp.tools.help import get_schema
-    
-    @enhanced_tool(
+    @mcp.tool(
         name="test_tool",
         description="A test tool with enhanced metadata",
         category="test",
@@ -153,7 +142,5 @@ async def test_get_schema_filter_examples():
 @pytest.mark.asyncio
 async def test_get_schema_unknown_tool():
     """Test getting schema for unknown tool."""
-    from basic_memory.mcp.tools.help import get_schema
-    
     with pytest.raises(ValueError, match="Unknown tool: unknown_tool"):
         await get_schema("unknown_tool")

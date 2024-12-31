@@ -4,12 +4,12 @@ from typing import List, Optional
 
 from loguru import logger
 
-from basic_memory.mcp.tools.enhanced import enhanced_tool
+from basic_memory.mcp.server import mcp
 from basic_memory.schemas import EntityTypeList, ObservationCategoryList, TypedEntityList
 from basic_memory.mcp.async_client import client
 
 
-@enhanced_tool()
+@mcp.tool()
 async def get_entity_types() -> List[str]:
     """List all unique entity types in use across the knowledge graph.
 
@@ -33,7 +33,7 @@ async def get_entity_types() -> List[str]:
     return EntityTypeList.model_validate(response.json())
 
 
-@enhanced_tool()
+@mcp.tool()
 async def get_observation_categories() -> List[str]:
     """List all unique observation categories in use across the knowledge graph.
 
@@ -57,7 +57,7 @@ async def get_observation_categories() -> List[str]:
     return ObservationCategoryList.model_validate(response.json())
 
 
-@enhanced_tool()
+@mcp.tool()
 async def list_by_type(
     entity_type: str, include_related: bool = False, sort_by: Optional[str] = "updated_at"
 ) -> TypedEntityList:

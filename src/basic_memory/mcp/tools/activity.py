@@ -5,11 +5,11 @@ from typing import List, Optional
 from loguru import logger
 
 from basic_memory.mcp.async_client import client
-from basic_memory.mcp.tools.enhanced import enhanced_tool
+from basic_memory.mcp.server import mcp
 from basic_memory.schemas.activity import ActivityType, RecentActivity
 
 
-@enhanced_tool()
+@mcp.tool()
 async def get_recent_activity(
     timeframe: str = "1d",
     activity_types: Optional[List[ActivityType]] = None,

@@ -2,13 +2,13 @@
 
 from typing import Dict
 
-from basic_memory.mcp.tools.enhanced import enhanced_tool
+from basic_memory.mcp.server import mcp
 from basic_memory.schemas.request import SearchNodesRequest, OpenNodesRequest
 from basic_memory.schemas.response import SearchNodesResponse, EntityResponse
 from basic_memory.mcp.async_client import client
 
 
-@enhanced_tool()
+@mcp.tool()
 async def search_nodes(request: SearchNodesRequest) -> SearchNodesResponse:
     """Search for entities in the knowledge graph.
 
@@ -51,7 +51,7 @@ async def search_nodes(request: SearchNodesRequest) -> SearchNodesResponse:
     return SearchNodesResponse.model_validate(response.json())
 
 
-@enhanced_tool()
+@mcp.tool()
 async def open_nodes(request: OpenNodesRequest) -> Dict[str, EntityResponse]:
     """Load multiple entities by their path_ids.
 
