@@ -24,22 +24,6 @@ async def get_schema(
     tool_name: Optional[str] = None, include_examples: bool = True, include_referenced: bool = True
 ) -> Dict:
     """Get schema information about available tools.
-
-    Args:
-        tool_name: Optional name of specific tool to get schema for
-        include_examples: Whether to include usage examples
-        include_referenced: Whether to include referenced model schemas
-
-    Returns:
-        Complete tool catalog if tool_name is None,
-        or specific tool schema if tool_name is provided.
-
-    Tool catalog includes:
-    - Tool descriptions and purposes
-    - Input/output schemas
-    - Example usage (if include_examples=True)
-    - Referenced Pydantic models (if include_referenced=True)
-    - Tool categories
     """
     # Our tool manager has the enhanced schema support
     catalog = mcp._tool_manager.get_schema_catalog()
