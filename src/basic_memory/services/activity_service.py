@@ -1,4 +1,6 @@
-from datetime import datetime
+"""Service for tracking and querying activity across the knowledge base."""
+
+from datetime import datetime, timezone
 from typing import List, Optional, Sequence
 
 from . import EntityService, DocumentService, RelationService
@@ -45,7 +47,7 @@ class ActivityService:
         """
         # Parse timeframe and get cutoff date
         tf = TimeFrame(timeframe)
-        since = datetime.utcnow() - tf.to_timedelta
+        since = datetime.now(timezone.utc) - tf.to_timedelta
 
         # Get changes based on requested types
         changes = []
@@ -63,7 +65,10 @@ class ActivityService:
             elif activity_type == ActivityType.RELATION:
                 changes.extend(await self._get_relation_changes(since))
 
-        # Sort all changes by timestamp
+        # Sort all changes by timestamp, ensuring timezone awareness
+        for change in changes:
+            if change.timestamp.tzinfo is None:
+                change.timestamp = change.timestamp.replace(tzinfo=timezone.utc)
         changes.sort(key=lambda x: x.timestamp, reverse=True)
 
         # Remove content if not requested
@@ -92,17 +97,17 @@ class ActivityService:
         
         changes = []
         for entity in entities:
-            change_type = (
-                ChangeType.CREATED 
-                if entity.created_at >= since 
-                else ChangeType.UPDATED
-            )
+            # Ensure timestamps are timezone-aware
+            created_at = entity.created_at.replace(tzinfo=timezone.utc) if entity.created_at.tzinfo is None else entity.created_at
+            updated_at = entity.updated_at.replace(tzinfo=timezone.utc) if entity.updated_at.tzinfo is None else entity.updated_at
+            
+            change_type = ChangeType.CREATED if created_at >= since else ChangeType.UPDATED
             
             changes.append(
                 ActivityChange(
                     activity_type=ActivityType.ENTITY,
                     change_type=change_type,
-                    timestamp=entity.updated_at,
+                    timestamp=updated_at,
                     path_id=entity.path_id,
                     summary=f"{change_type.value.title()} entity: {entity.name}",
                     content=entity.description
@@ -118,20 +123,20 @@ class ActivityService:
         
         changes = []
         for doc in documents:
-            change_type = (
-                ChangeType.CREATED 
-                if doc.created_at >= since 
-                else ChangeType.UPDATED
-            )
+            # Ensure timestamps are timezone-aware
+            created_at = doc.created_at.replace(tzinfo=timezone.utc) if doc.created_at.tzinfo is None else doc.created_at
+            updated_at = doc.updated_at.replace(tzinfo=timezone.utc) if doc.updated_at.tzinfo is None else doc.updated_at
+            
+            change_type = ChangeType.CREATED if created_at >= since else ChangeType.UPDATED
             
             changes.append(
                 ActivityChange(
                     activity_type=ActivityType.DOCUMENT,
                     change_type=change_type,
-                    timestamp=doc.updated_at,
+                    timestamp=updated_at,
                     path_id=doc.path_id,
                     summary=f"{change_type.value.title()} document: {doc.path_id}",
-                    #content=doc.content[:500] if doc.content else None  # First 500 chars
+                    content=None  # For documents we don't include content by default
                 )
             )
             
@@ -144,17 +149,17 @@ class ActivityService:
         
         changes = []
         for relation in relations:
-            change_type = (
-                ChangeType.CREATED 
-                if relation.created_at >= since 
-                else ChangeType.UPDATED
-            )
+            # Ensure timestamps are timezone-aware
+            created_at = relation.created_at.replace(tzinfo=timezone.utc) if relation.created_at.tzinfo is None else relation.created_at
+            updated_at = relation.updated_at.replace(tzinfo=timezone.utc) if relation.updated_at.tzinfo is None else relation.updated_at
+            
+            change_type = ChangeType.CREATED if created_at >= since else ChangeType.UPDATED
             
             changes.append(
                 ActivityChange(
                     activity_type=ActivityType.RELATION,
                     change_type=change_type,
-                    timestamp=relation.updated_at,
+                    timestamp=updated_at,
                     path_id=f"{relation.from_id}->{relation.to_id}",
                     summary=(
                         f"{change_type.value.title()} relation: "

@@ -9,6 +9,7 @@ from basic_memory import db
 from .routers import documents
 from .routers import knowledge
 from .routers import discovery
+from .routers.activity_router import router as activity_router
 
 
 @asynccontextmanager
@@ -32,3 +33,4 @@ app = FastAPI(
 app.include_router(knowledge.router)
 app.include_router(documents.router)
 app.include_router(discovery.router)
+app.include_router(activity_router)

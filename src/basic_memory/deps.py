@@ -23,6 +23,7 @@ from basic_memory.services import (
     RelationService,
     DocumentService,
 )
+from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services.knowledge import KnowledgeService
 
@@ -141,6 +142,22 @@ async def get_document_service(
 
 
 DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
+
+
+async def get_activity_service(
+    entity_service: EntityServiceDep,
+    document_service: DocumentServiceDep,
+    relation_service: RelationServiceDep,
+) -> ActivityService:
+    """Create ActivityService with dependencies."""
+    return ActivityService(
+        entity_service=entity_service,
+        document_service=document_service,
+        relation_service=relation_service
+    )
+
+
+ActivityServiceDep = Annotated[ActivityService, Depends(get_activity_service)]
 
 
 async def get_file_service() -> FileService:
