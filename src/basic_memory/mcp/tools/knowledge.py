@@ -16,7 +16,7 @@ from basic_memory.schemas.delete import (
     DeleteObservationsRequest,
     DeleteRelationsRequest,
 )
-from basic_memory.schemas.response import EntityListResponse, EntityResponse
+from basic_memory.schemas.response import EntityListResponse, EntityResponse, DeleteEntitiesResponse
 from basic_memory.mcp.async_client import client
 from basic_memory.services.exceptions import EntityNotFoundError
 
@@ -79,7 +79,8 @@ await create_entities({
 })
 """
         }
-    ]
+    ],
+    output_model=EntityListResponse
 )
 async def create_entities(request: CreateEntityRequest) -> EntityListResponse:
     """Create new entities in the knowledge graph."""
@@ -136,7 +137,8 @@ await create_relations({
 })
 """
         }
-    ]
+    ],
+    output_model=EntityListResponse
 )
 async def create_relations(request: CreateRelationsRequest) -> EntityListResponse:
     """Create relations between existing entities."""
@@ -155,12 +157,6 @@ async def create_relations(request: CreateRelationsRequest) -> EntityListRespons
     - All observations with categories
     - All relations (both incoming and outgoing)
     - Timestamps and metadata
-
-    Useful for:
-    - Understanding entity details
-    - Following relationships
-    - Finding related knowledge
-    - Analyzing implementation patterns
     """,
     examples=[
         {
@@ -185,7 +181,8 @@ for dep in deps:
     print(f"- {dep.to_id}")
 """
         }
-    ]
+    ],
+    output_model=EntityResponse
 )
 async def get_entity(path_id: PathId) -> EntityResponse:
     """Get a specific entity by its path_id."""
@@ -248,7 +245,8 @@ await add_observations(
 )
 """
         }
-    ]
+    ],
+    output_model=EntityResponse
 )
 async def add_observations(request: AddObservationsRequest) -> EntityResponse:
     """Add observations to an existing entity."""
@@ -288,7 +286,8 @@ await delete_observations(
 )
 """
         }
-    ]
+    ],
+    output_model=EntityResponse
 )
 async def delete_observations(request: DeleteObservationsRequest) -> EntityResponse:
     """Delete specific observations from an entity."""
@@ -328,7 +327,8 @@ await delete_relations(
 )
 """
         }
-    ]
+    ],
+    output_model=EntityListResponse 
 )
 async def delete_relations(request: DeleteRelationsRequest) -> EntityListResponse:
     """Delete relations between entities."""
@@ -366,12 +366,11 @@ await delete_entities(
 )
 """
         }
-    ]
+    ],
+    output_model=Dict[str, bool]
 )
-async def delete_entities(request: DeleteEntitiesRequest) -> Dict[str, bool]:
+async def delete_entities(request: DeleteEntitiesRequest) -> DeleteEntitiesResponse:
     """Delete entities from the knowledge graph."""
     url = "/knowledge/entities/delete"
     response = await client.post(url, json=request.model_dump())
-    if response.status_code == 204:
-        return {"deleted": True}
-    return response.json()
+    return DeleteEntitiesResponse.model_validate( response.json())

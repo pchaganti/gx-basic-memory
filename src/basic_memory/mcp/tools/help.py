@@ -1,8 +1,58 @@
 """Help and schema introspection tools."""
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel, Field
 
 from basic_memory.mcp.server import mcp
+
+
+class ToolExample(BaseModel):
+    """Example usage of a tool."""
+    name: str = Field(description="Name of the example")
+    description: str = Field(description="Description of what the example demonstrates")
+    code: str = Field(description="Example code showing how to use the tool")
+
+
+class ToolSchema(BaseModel):
+    """Schema information for a single tool."""
+    name: str = Field(description="Name of the tool")
+    description: str = Field(description="Description of what the tool does")
+    category: Optional[str] = Field(None, description="Optional category for organization")
+    input_schema: Dict = Field(description="Schema for tool inputs")
+    output_schema: Dict = Field(description="Schema for tool outputs")
+    examples: List[ToolExample] = Field(
+        default_factory=list,
+        description="Example usages of the tool"
+    )
+
+
+class CategoryInfo(BaseModel):
+    """Information about a tool category."""
+    name: str = Field(description="Category name")
+    tools: List[str] = Field(description="Tools in this category")
+
+
+class SchemaCatalog(BaseModel):
+    """Complete schema catalog for all tools."""
+    tools: Dict[str, ToolSchema] = Field(
+        description="Map of tool names to their schemas"
+    )
+    categories: Dict[str, CategoryInfo] = Field(
+        default_factory=dict,
+        description="Tool categories and their tools"
+    )
+    referenced_models: Dict[str, Dict] = Field(
+        default_factory=dict,
+        description="Shared type definitions used by tools",
+        alias="referencedModels"
+    )
+
+    class Config:
+        """Pydantic config."""
+        json_schema_extra = {
+            "description": "Tool schema catalog showing available tools and their capabilities"
+        }
 
 
 @mcp.tool(
@@ -77,55 +127,7 @@ for tool in sorted(tools):
 """
         }
     ],
-    output_schema={
-        "description": "Tool schema catalog",
-        "properties": {
-            "tools": {
-                "type": "object",
-                "description": "Map of tool names to their schemas",
-                "additionalProperties": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string"},
-                        "description": {"type": "string"},
-                        "category": {"type": "string"},
-                        "inputSchema": {"type": "object"},
-                        "outputSchema": {"type": "object"},
-                        "examples": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "name": {"type": "string"},
-                                    "description": {"type": "string"},
-                                    "code": {"type": "string"}
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "categories": {
-                "type": "object",
-                "description": "Tool categories and their tools",
-                "additionalProperties": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string"},
-                        "tools": {
-                            "type": "array",
-                            "items": {"type": "string"}
-                        }
-                    }
-                }
-            },
-            "referencedModels": {
-                "type": "object",
-                "description": "Shared type definitions",
-                "additionalProperties": {"type": "object"}
-            }
-        }
-    }
+    output_model=SchemaCatalog
 )
 async def get_schema(
     tool_name: Optional[str] = None, 
@@ -147,12 +149,14 @@ async def get_schema(
             tool_schema.pop("examples", None)
 
         if include_referenced:
-            return {
+            response = {
                 "tools": {tool_name: tool_schema},
                 "referencedModels": tool_schema.get("referencedModels", {})
             }
         else:
-            return {"tools": {tool_name: tool_schema}}
+            response = {"tools": {tool_name: tool_schema}}
+
+        return SchemaCatalog.model_validate(response).model_dump()
 
     # Return full catalog with requested inclusions
     result = catalog
@@ -161,4 +165,4 @@ async def get_schema(
         for tool in result["tools"].values():
             tool.pop("examples", None)
 
-    return result
+    return SchemaCatalog.model_validate(result).model_dump()

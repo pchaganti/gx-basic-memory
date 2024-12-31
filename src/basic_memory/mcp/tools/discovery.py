@@ -55,14 +55,7 @@ for t in custom_types:
 """
         }
     ],
-    output_schema={
-        "type": "array",
-        "description": "List of entity type strings",
-        "items": {
-            "type": "string",
-            "description": "Unique entity type identifier"
-        }
-    }
+    output_model=EntityTypeList
 )
 async def get_entity_types() -> List[str]:
     """List all unique entity types in use."""
@@ -115,15 +108,7 @@ for category in categories:
 """
         }
     ],
-    output_schema={
-        "type": "array",
-        "description": "List of observation category strings",
-        "items": {
-            "type": "string",
-            "enum": ["tech", "design", "feature", "note", "issue", "todo"],
-            "description": "Category identifier"
-        }
-    }
+    output_model=List[str] #TODO
 )
 async def get_observation_categories() -> List[str]:
     """List all unique observation categories in use."""
@@ -190,30 +175,7 @@ for entity in features.entities:
 """
         }
     ],
-    output_schema={
-        "description": "List of entities of a specific type",
-        "properties": {
-            "entity_type": {
-                "type": "string",
-                "description": "The type of entities listed"
-            },
-            "entities": {
-                "type": "array",
-                "description": "List of matching entities",
-                "items": {
-                    "$ref": "#/definitions/EntityResponse"
-                }
-            },
-            "total": {
-                "type": "integer",
-                "description": "Total number of entities of this type"
-            },
-            "include_related": {
-                "type": "boolean",
-                "description": "Whether related entities are included"
-            }
-        }
-    }
+    output_model=TypedEntityList,
 )
 async def list_by_type(
     entity_type: str, 

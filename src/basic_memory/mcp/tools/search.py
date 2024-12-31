@@ -1,7 +1,5 @@
 """Search and query tools for Basic Memory MCP server."""
 
-from typing import Dict
-
 from basic_memory.mcp.server import mcp
 from basic_memory.schemas.request import SearchNodesRequest, OpenNodesRequest
 from basic_memory.schemas.response import SearchNodesResponse, EntityResponse
@@ -47,10 +45,10 @@ for entity in results.matches:
     print("Relevant observations:")
     for obs in entity.observations:
         print(f"- {obs.content}")
-"""
+""",
         },
         {
-            "name": "Category-Filtered Search", 
+            "name": "Category-Filtered Search",
             "description": "Find technical implementation details",
             "code": """
 # Search for tech implementation details
@@ -68,7 +66,7 @@ for entity in tech_results.matches:
     print(f"\\n{entity.name} - {len(tech_obs)} tech notes")
     for obs in tech_obs:
         print(f"- {obs.content}")
-"""
+""",
         },
         {
             "name": "Design Decision Search",
@@ -89,64 +87,10 @@ for entity in design.matches:
         if obs.context:
             print(f"{obs.context}:")
         print(f"- {obs.content}")
-"""
-        }
-    ],
-    output_schema={
-        "description": "Search results with matching entities and query info",
-        "properties": {
-            "matches": {
-                "type": "array",
-                "description": "List of entities matching the search criteria",
-                "items": {
-                    "$ref": "#/definitions/EntityResponse"
-                }
-            },
-            "query": {
-                "type": "string",
-                "description": "Original search query for reference"
-            }
+""",
         },
-        "definitions": {
-            "EntityResponse": {
-                "description": "Complete entity information",
-                "properties": {
-                    "path_id": {
-                        "type": "string",
-                        "description": "Unique identifier for the entity"
-                    },
-                    "name": {
-                        "type": "string",
-                        "description": "Human-readable entity name"
-                    },
-                    "entity_type": {
-                        "type": "string",
-                        "description": "Classification of the entity"
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "Overview of the entity's purpose",
-                        "nullable": True
-                    },
-                    "observations": {
-                        "type": "array",
-                        "description": "List of observations about the entity",
-                        "items": {
-                            "$ref": "#/definitions/ObservationResponse"
-                        }
-                    },
-                    "relations": {
-                        "type": "array",
-                        "description": "List of relationships with other entities",
-                        "items": {
-                            "$ref": "#/definitions/RelationResponse"
-                        }
-                    }
-                },
-                "required": ["path_id", "name", "entity_type"]
-            }
-        }
-    }
+    ],
+    output_model=SearchNodesResponse,
 )
 async def search_nodes(request: SearchNodesRequest) -> SearchNodesResponse:
     """Search for entities in the knowledge graph."""
@@ -194,7 +138,7 @@ for path_id, entity in response.items():
     print("Relations:")
     for rel in entity.relations:
         print(f"- {rel.relation_type} {rel.to_id}")
-"""
+""",
         },
         {
             "name": "Feature Implementation Chain",
@@ -220,23 +164,20 @@ test = chain["test/search_test"]
 print(f"Feature: {feature.name}")
 print(f"Implementation: {impl.description}")
 print(f"Test Status: {'test' in [r.relation_type for r in test.relations]}")
-"""
-        }
+""",
+        },
     ],
     output_schema={
         "description": "Map of path_ids to their complete entity data",
         "type": "object",
         "additionalProperties": {
             "$ref": "#/definitions/EntityResponse",
-            "description": "Full entity data including observations and relations"
-        }
-    }
+            "description": "Full entity data including observations and relations",
+        },
+    },
 )
-async def open_nodes(request: OpenNodesRequest) -> Dict[str, EntityResponse]:
+async def open_nodes(request: OpenNodesRequest) -> EntityResponse:
     """Load multiple entities by their path_ids."""
     url = "/knowledge/nodes"
     response = await client.post(url, json=request.model_dump())
-    return {
-        entity["path_id"]: EntityResponse.model_validate(entity)
-        for entity in response.json()["entities"]
-    }
+    return EntityResponse.model_validate(response.json())

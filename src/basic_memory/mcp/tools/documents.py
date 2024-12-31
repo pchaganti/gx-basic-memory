@@ -82,35 +82,7 @@ Need reliable local storage with SQL features.
 """
         }
     ],
-    output_schema={
-        "description": "Created document information",
-        "properties": {
-            "path_id": {
-                "type": "string",
-                "description": "Document path and filename"
-            },
-            "checksum": {
-                "type": "string",
-                "description": "Content checksum for version tracking"
-            },
-            "doc_metadata": {
-                "type": "object",
-                "description": "Custom document metadata",
-                "additionalProperties": True
-            },
-            "created_at": {
-                "type": "string",
-                "format": "date-time",
-                "description": "Creation timestamp"
-            },
-            "updated_at": {
-                "type": "string",
-                "format": "date-time",
-                "description": "Last modification timestamp"
-            }
-        },
-        "required": ["path_id", "checksum", "created_at", "updated_at"]
-    }
+    output_model=DocumentCreateResponse
 )
 async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
     """Create a new markdown document."""
@@ -164,36 +136,7 @@ print(f"New checksum: {updated.checksum}")
 """
         }
     ],
-    output_schema={
-        "description": "Updated document with content",
-        "properties": {
-            "path_id": {
-                "type": "string",
-                "description": "Document path and filename"
-            },
-            "content": {
-                "type": "string",
-                "description": "Current document content"
-            },
-            "checksum": {
-                "type": "string",
-                "description": "New content checksum"
-            },
-            "doc_metadata": {
-                "type": "object",
-                "description": "Current document metadata"
-            },
-            "created_at": {
-                "type": "string",
-                "format": "date-time"
-            },
-            "updated_at": {
-                "type": "string",
-                "format": "date-time"
-            }
-        },
-        "required": ["path_id", "content", "checksum"]
-    }
+    output_model=DocumentResponse
 )
 async def update_document(request: DocumentRequest) -> DocumentResponse:
     """Update an existing document."""
@@ -231,27 +174,7 @@ print(doc.content)
 """
         }
     ],
-    output_schema={
-        "description": "Complete document information",
-        "properties": {
-            "path_id": {
-                "type": "string",
-                "description": "Document identifier"
-            },
-            "content": {
-                "type": "string",
-                "description": "Document content"
-            },
-            "checksum": {
-                "type": "string",
-                "description": "Content checksum"
-            },
-            "doc_metadata": {
-                "type": "object",
-                "description": "Document metadata"
-            }
-        }
-    }
+    output_model=DocumentResponse
 )
 async def get_document(path: DocumentPathId) -> DocumentResponse:
     """Get a document by its path."""
@@ -296,27 +219,7 @@ for status, items in by_status.items():
 """
         }
     ],
-    output_schema={
-        "description": "List of document information",
-        "type": "array",
-        "items": {
-            "type": "object",
-            "properties": {
-                "path_id": {
-                    "type": "string",
-                    "description": "Document path"
-                },
-                "checksum": {
-                    "type": "string",
-                    "description": "Version checksum"
-                },
-                "doc_metadata": {
-                    "type": "object",
-                    "description": "Document metadata"
-                }
-            }
-        }
-    }
+    output_model=List[DocumentCreateResponse] #TODO
 )
 async def list_documents() -> List[DocumentCreateResponse]:
     """List all documents in the system."""
@@ -349,16 +252,7 @@ if result['deleted']:
 """
         }
     ],
-    output_schema={
-        "description": "Deletion result",
-        "type": "object",
-        "properties": {
-            "deleted": {
-                "type": "boolean",
-                "description": "Whether deletion succeeded"
-            }
-        }
-    }
+    output_model=Dict[str, bool] #TODO
 )
 async def delete_document(path: DocumentPathId) -> Dict[str, bool]:
     """Delete a document."""
