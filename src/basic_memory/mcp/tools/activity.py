@@ -10,24 +10,7 @@ from basic_memory.schemas.activity import ActivityType, RecentActivity
 
 
 @mcp.tool(
-    description="""
-    Get recent activity across your knowledge base.
-
-    This tool provides a comprehensive view of changes across your knowledge base,
-    including document modifications, entity updates, and relationship changes.
-    It supports flexible time ranges and filtering by activity type.
-
-    The activity log helps you:
-    - Track recent changes to your knowledge base
-    - Monitor document and entity modifications
-    - Understand system usage patterns
-    - Identify most active areas
-
-    Activity is tracked for:
-    - Document changes (creation, updates, deletion)
-    - Entity modifications 
-    - Relation changes between entities
-    """,
+    description="Track recent changes to documents, entities, and relations",
     examples=[
         {
             "name": "Daily Changes Overview",
@@ -89,9 +72,7 @@ async def get_recent_activity(
     timeframe: str = "1d",
     activity_types: Optional[List[ActivityType]] = None,
 ) -> RecentActivity:
-    """
-    Get recent activity across your knowledge base.
-    """
+    """Get recent activity across your knowledge base."""
     logger.debug(f"Getting recent activity (timeframe={timeframe}, types={activity_types})")
 
     # Build params 

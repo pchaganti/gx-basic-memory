@@ -23,23 +23,7 @@ from basic_memory.services.exceptions import EntityNotFoundError
 
 @mcp.tool(
     category="knowledge",
-    description="""
-    Create new entities in the knowledge graph.
-
-    Entities are the core building blocks of the knowledge graph. Each entity:
-    - Has a unique name and type
-    - Can have multiple observations
-    - Can have relations to other entities
-    - Maintains creation/update timestamps
-    - Supports optional descriptions
-
-    Entity types help organize knowledge and enable patterns like:
-    - Components for technical implementations
-    - Features for user-facing capabilities 
-    - Concepts for abstract ideas
-    - Decisions for architectural choices
-    - Documents for detailed writeups
-    """,
+    description="Create new entities in the knowledge graph with names, types, and observations",
     examples=[
         {
             "name": "Create Component",
@@ -91,21 +75,7 @@ async def create_entities(request: CreateEntityRequest) -> EntityListResponse:
 
 @mcp.tool(
     category="knowledge",
-    description="""
-    Create relations between existing entities.
-
-    Relations form the edges of the knowledge graph, connecting entities with:
-    - Directional relationships (from_id -> to_id)
-    - Typed connections (implements, depends_on, etc.)
-    - Optional context notes
-    - Automatic timestamp tracking
-
-    Common relation patterns:
-    - Component implements Feature
-    - Component depends_on Component
-    - Test validates Component
-    - Document describes Feature
-    """,
+    description="Create typed relationships between existing entities",
     examples=[
         {
             "name": "Add Dependency",
@@ -149,15 +119,7 @@ async def create_relations(request: CreateRelationsRequest) -> EntityListRespons
 
 @mcp.tool(
     category="knowledge",
-    description="""
-    Get complete information about a specific entity.
-
-    Returns the full entity context including:
-    - Basic entity details (name, type, description)
-    - All observations with categories
-    - All relations (both incoming and outgoing)
-    - Timestamps and metadata
-    """,
+    description="Get complete information about a specific entity including observations and relations",
     examples=[
         {
             "name": "View Component Details",
@@ -200,23 +162,7 @@ async def get_entity(path_id: PathId) -> EntityResponse:
 
 
 @mcp.tool(
-    description="""
-    Add new observations to an existing entity.
-
-    Observations capture atomic pieces of knowledge about an entity:
-    - Technical details
-    - Design decisions
-    - Feature specifications
-    - Implementation notes
-    - Issues or concerns
-    - Todo items
-
-    Each observation has:
-    - A category for organization
-    - Content describing the observation
-    - Optional context for additional detail
-    - Automatic timestamp tracking
-    """,
+    description="Add categorized observations to an existing entity",
     examples=[
         {
             "name": "Add Implementation Notes",
@@ -256,19 +202,7 @@ async def add_observations(request: AddObservationsRequest) -> EntityResponse:
 
 
 @mcp.tool(
-    description="""
-    Delete specific observations from an entity.
-
-    This tool:
-    - Removes selected observations
-    - Maintains entity history
-    - Updates timestamps
-    - Preserves relations
-    
-    Observations must match exactly for deletion.
-    The operation is selective - only specified
-    observations are removed.
-    """,
+    description="Delete specific observations from an entity while preserving other content",
     examples=[
         {
             "name": "Remove Obsolete Notes",
@@ -297,19 +231,7 @@ async def delete_observations(request: DeleteObservationsRequest) -> EntityRespo
 
 
 @mcp.tool(
-    description="""
-    Delete relations between entities.
-
-    This tool:
-    - Removes specific relationships
-    - Updates both source and target entities
-    - Maintains entity history
-    - Preserves observations
-    
-    Relations must match exactly (from_id, to_id, and type)
-    for deletion. The operation only affects the specified
-    relations, leaving other connections intact.
-    """,
+    description="Delete relationships between entities while preserving the entities themselves",
     examples=[
         {
             "name": "Remove Dependency",
@@ -338,18 +260,7 @@ async def delete_relations(request: DeleteRelationsRequest) -> EntityListRespons
 
 
 @mcp.tool(
-    description="""
-    Delete entities from the knowledge graph.
-
-    This operation:
-    1. Removes the entity completely
-    2. Deletes all its observations
-    3. Removes all relations (both ways)
-    4. Updates related indexes
-    
-    This is a permanent operation that cannot be
-    undone through the API. Use with caution.
-    """,
+    description="Permanently delete entities and all related content (observations and relations)",
     examples=[
         {
             "name": "Remove Old Components",
@@ -373,4 +284,4 @@ async def delete_entities(request: DeleteEntitiesRequest) -> DeleteEntitiesRespo
     """Delete entities from the knowledge graph."""
     url = "/knowledge/entities/delete"
     response = await client.post(url, json=request.model_dump())
-    return DeleteEntitiesResponse.model_validate( response.json())
+    return DeleteEntitiesResponse.model_validate(response.json())

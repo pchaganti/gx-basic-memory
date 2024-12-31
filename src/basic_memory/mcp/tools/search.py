@@ -2,32 +2,12 @@
 
 from basic_memory.mcp.server import mcp
 from basic_memory.schemas.request import SearchNodesRequest, OpenNodesRequest
-from basic_memory.schemas.response import SearchNodesResponse, EntityResponse
+from basic_memory.schemas.response import SearchNodesResponse, EntityListResponse
 from basic_memory.mcp.async_client import client
 
 
 @mcp.tool(
-    description="""
-    Search for entities in the knowledge graph.
-    
-    This is a powerful semantic search that looks across:
-    - Entity names and types
-    - Descriptions and metadata
-    - Observation content
-    - Relation contexts
-
-    Features:
-    - Case-insensitive matching
-    - Partial word matches
-    - Category filtering
-    - Returns full entity context
-    - Natural language friendly
-
-    The search combines multiple approaches to find relevant entities,
-    including text matching, category filtering, and context awareness.
-    Results include complete entity information with observations
-    and relations to help understand the context.
-    """,
+    description="Search for entities across names, descriptions, observations, and relations",
     examples=[
         {
             "name": "Basic Text Search",
@@ -100,22 +80,7 @@ async def search_nodes(request: SearchNodesRequest) -> SearchNodesResponse:
 
 
 @mcp.tool(
-    description="""
-    Load multiple entities by their path_ids.
-
-    This tool efficiently loads multiple entities in a single request,
-    retrieving their complete information including observations
-    and relations. It's particularly useful for:
-    
-    - Following relation chains
-    - Loading related entities
-    - Batch entity retrieval
-    - Context building
-
-    The response maps each path_id to its full entity data,
-    making it easy to access specific entities while maintaining
-    their relationships.
-    """,
+    description="Load multiple entities by their path_ids in a single request",
     examples=[
         {
             "name": "Load Related Components",
@@ -167,17 +132,10 @@ print(f"Test Status: {'test' in [r.relation_type for r in test.relations]}")
 """,
         },
     ],
-    output_schema={
-        "description": "Map of path_ids to their complete entity data",
-        "type": "object",
-        "additionalProperties": {
-            "$ref": "#/definitions/EntityResponse",
-            "description": "Full entity data including observations and relations",
-        },
-    },
+    output_model=EntityListResponse,
 )
-async def open_nodes(request: OpenNodesRequest) -> EntityResponse:
+async def open_nodes(request: OpenNodesRequest) -> EntityListResponse:
     """Load multiple entities by their path_ids."""
     url = "/knowledge/nodes"
     response = await client.post(url, json=request.model_dump())
-    return EntityResponse.model_validate(response.json())
+    return EntityListResponse.model_validate(response.json())

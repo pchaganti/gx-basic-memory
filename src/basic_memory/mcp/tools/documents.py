@@ -9,19 +9,7 @@ from basic_memory.mcp.async_client import client
 
 
 @mcp.tool(
-    description="""
-    Create a new markdown document in the knowledge base.
-
-    This tool stores markdown documents with:
-    - Structured frontmatter metadata
-    - Rich markdown content
-    - Version tracking via checksums
-    - Automatic timestamp management
-    - Optional custom metadata
-
-    Documents are stored in a git-friendly format and can be
-    edited either through the API or directly in the filesystem.
-    """,
+    description="Create a new markdown document with frontmatter metadata and content",
     examples=[
         {
             "name": "Create Technical Spec",
@@ -92,18 +80,7 @@ async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
 
 
 @mcp.tool(
-    description="""
-    Update an existing document while preserving its history.
-    
-    This tool handles:
-    - Content updates
-    - Metadata changes
-    - Version tracking
-    - Timestamp management
-    
-    The update preserves document history and maintains
-    consistency with any linked knowledge graph entities.
-    """,
+    description="Update an existing markdown document while preserving its history",
     examples=[
         {
             "name": "Update Content",
@@ -146,18 +123,7 @@ async def update_document(request: DocumentRequest) -> DocumentResponse:
 
 
 @mcp.tool(
-    description="""
-    Retrieve a document's content and metadata.
-    
-    This tool provides access to:
-    - Full document content
-    - Current metadata
-    - Version information
-    - Timestamps
-    
-    Documents are returned with their complete context, useful
-    for reading or preparing updates.
-    """,
+    description="Retrieve a document's content and metadata by path",
     examples=[
         {
             "name": "Read Documentation",
@@ -184,17 +150,7 @@ async def get_document(path: DocumentPathId) -> DocumentResponse:
 
 
 @mcp.tool(
-    description="""
-    List all documents in the knowledge base.
-    
-    Provides an overview of the document collection including:
-    - Document paths and names
-    - Metadata for each document
-    - Version information
-    - Timestamps
-    
-    Useful for browsing content or finding specific documents.
-    """,
+    description="List all documents with their metadata and version information",
     examples=[
         {
             "name": "List All Documents",
@@ -219,7 +175,7 @@ for status, items in by_status.items():
 """
         }
     ],
-    output_model=List[DocumentCreateResponse] #TODO
+    output_model=List[DocumentCreateResponse] 
 )
 async def list_documents() -> List[DocumentCreateResponse]:
     """List all documents in the system."""
@@ -229,17 +185,7 @@ async def list_documents() -> List[DocumentCreateResponse]:
 
 
 @mcp.tool(
-    description="""
-    Delete a document from the knowledge base.
-    
-    This tool:
-    - Removes the document file
-    - Updates related indexes
-    - Maintains consistency
-    
-    Note that deletion is permanent and cannot be undone
-    through the API (though git history may preserve it).
-    """,
+    description="Delete a document and update related indexes",
     examples=[
         {
             "name": "Remove Document",
@@ -252,7 +198,7 @@ if result['deleted']:
 """
         }
     ],
-    output_model=Dict[str, bool] #TODO
+    output_model=Dict[str, bool] 
 )
 async def delete_document(path: DocumentPathId) -> Dict[str, bool]:
     """Delete a document."""

@@ -10,20 +10,7 @@ from basic_memory.mcp.async_client import client
 
 
 @mcp.tool(
-    description="""
-    List all unique entity types in use across the knowledge graph.
-    
-    This tool helps understand the structure of your knowledge base by showing:
-    - All entity types currently in use
-    - Custom types you've created
-    - System-defined types
-    
-    Useful for:
-    - Understanding knowledge organization
-    - Finding available entity types
-    - Discovering custom types
-    - Planning knowledge structure
-    """,
+    description="List all unique entity types in use across the knowledge graph",
     examples=[
         {
             "name": "List Entity Types",
@@ -66,20 +53,7 @@ async def get_entity_types() -> List[str]:
 
 
 @mcp.tool(
-    description="""
-    List all unique observation categories used in the knowledge graph.
-    
-    Categories help organize different types of observations like:
-    - Technical details (tech)
-    - Design decisions (design)  
-    - Features (feature)
-    - General notes (note)
-    - Issues/bugs (issue)
-    - Todo items (todo)
-    
-    This helps understand how knowledge is categorized and find
-    specific types of information.
-    """,
+    description="List all unique observation categories used for organizing information",
     examples=[
         {
             "name": "List Categories",
@@ -119,21 +93,7 @@ async def get_observation_categories() -> List[str]:
 
 
 @mcp.tool(
-    description="""
-    List all entities of a specific type with optional related entities.
-    
-    This tool provides:
-    - All entities of a given type
-    - Optional related entities
-    - Sorting options
-    - Complete entity information
-    
-    Useful for:
-    - Exploring entity collections
-    - Finding related entities
-    - Understanding entity relationships
-    - Analyzing knowledge structure
-    """,
+    description="List all entities of a specific type with optional sorting and relations",
     examples=[
         {
             "name": "List Components",

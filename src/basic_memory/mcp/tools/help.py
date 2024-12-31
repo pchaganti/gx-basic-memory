@@ -57,24 +57,7 @@ class SchemaCatalog(BaseModel):
 
 @mcp.tool(
     category="system",
-    description="""
-    Get schema information about available tools.
-    
-    This tool provides access to the MCP schema catalog, showing:
-    - Available tools and their capabilities
-    - Input/output type definitions
-    - Example usage patterns
-    - Related schema models
-    
-    You can:
-    - Get the full tool catalog
-    - Look up specific tools
-    - Control example inclusion
-    - Access referenced models
-    
-    The schema information helps understand tool capabilities
-    and ensure correct usage.
-    """,
+    description="Get schema information about available tools and their capabilities",
     examples=[
         {
             "name": "View All Tools",
