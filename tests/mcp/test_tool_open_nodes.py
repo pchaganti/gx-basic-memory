@@ -4,6 +4,7 @@ import pytest
 
 from basic_memory.mcp.tools.search import open_nodes
 from basic_memory.mcp.tools.knowledge import create_entities
+from basic_memory.schemas import EntityListResponse
 from basic_memory.schemas.base import Entity 
 from basic_memory.schemas.request import CreateEntityRequest, OpenNodesRequest
 
@@ -32,12 +33,16 @@ async def test_open_multiple_entities(client):
     # Open the nodes
     request = OpenNodesRequest(path_ids=path_ids)
     result = await open_nodes(request)
+    assert isinstance(result, EntityListResponse)
+    response = EntityListResponse.model_validate(result)
     
     # Verify we got a dictionary with both entities
-    assert len(result) == 2
-    assert all(path_id in result for path_id in path_ids)
-    assert all(entity.name in ["Entity1", "Entity2"] for entity in result.values())
-
+    assert len(response.entities) == 2
+    
+    for response_entity in response.entities:
+        assert response_entity.path_id in path_ids
+        assert response_entity.name in ["Entity1", "Entity2"]
+        
 
 @pytest.mark.asyncio
 async def test_open_nodes_with_details(client):
@@ -59,9 +64,10 @@ async def test_open_nodes_with_details(client):
     # Open the node
     request = OpenNodesRequest(path_ids=[path_id])
     result = await open_nodes(request)
+    response = EntityListResponse.model_validate(result)
 
     # Verify all details are present
-    entity = result[path_id]
+    entity = response.entities[0]
     assert entity.name == "DetailedEntity"
     assert entity.entity_type == "test"
     assert entity.description == "Test entity with details"
@@ -108,10 +114,11 @@ async def test_open_nodes_with_relations(client):
     # Open both nodes
     request = OpenNodesRequest(path_ids=path_ids)
     result = await open_nodes(request)
+    response = EntityListResponse.model_validate(result)
 
     # Verify relations are present
-    assert len(result[path_ids[0]].relations) == 1
-    assert len(result[path_ids[1]].relations) == 1
+    assert len(response.entities[0].relations) == 1
+    assert len(response.entities[1].relations) == 1
 
 
 @pytest.mark.asyncio
@@ -134,10 +141,11 @@ async def test_open_nonexistent_nodes(client):
         path_ids=[real_path_id, "test/nonexistent"]
     )
     result = await open_nodes(request)
+    response = EntityListResponse.model_validate(result)
 
     # Should only get the real entity back
-    assert len(result) == 1
-    assert real_path_id in result
+    assert len(response.entities) == 1
+    assert real_path_id in response.entities[0].path_id
 
 
 @pytest.mark.asyncio
@@ -158,7 +166,8 @@ async def test_open_single_node(client):
     # Open just one node
     request = OpenNodesRequest(path_ids=[path_id])
     result = await open_nodes(request)
+    response = EntityListResponse.model_validate(result)
 
     # Should get just that entity
-    assert len(result) == 1
-    assert path_id in result
+    assert len(response.entities) == 1
+    assert path_id in response.entities[0].path_id
