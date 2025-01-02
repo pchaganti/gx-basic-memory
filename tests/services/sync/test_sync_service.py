@@ -1,0 +1,173 @@
+"""Test sync service."""
+
+from pathlib import Path
+import pytest
+
+from basic_memory.services import DocumentService, EntityService, FileChangeScanner
+from basic_memory.services.sync.sync_service import SyncService
+from basic_memory.markdown import KnowledgeParser, EntityMarkdown
+from basic_memory.models import Document, Entity, Observation
+
+
+@pytest.fixture
+async def sync_service(
+    document_service: DocumentService,
+    entity_service: EntityService,
+    file_change_scanner: FileChangeScanner,
+    knowledge_parser: KnowledgeParser,
+) -> SyncService:
+    """Create sync service for testing."""
+    return SyncService(
+        scanner=file_change_scanner,
+        document_service=document_service,
+        entity_service=entity_service,
+        knowledge_parser=knowledge_parser,
+    )
+
+
+@pytest.fixture
+def root_dir(tmp_path: Path) -> Path:
+    """Create temp directory structure."""
+    (tmp_path / "documents").mkdir()
+    (tmp_path / "knowledge").mkdir()
+    return tmp_path
+
+
+async def create_test_file(path: Path, content: str = "test content") -> None:
+    """Create a test file with given content."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content)
+
+
+@pytest.mark.asyncio
+async def test_sync_empty_directories(sync_service: SyncService, root_dir: Path):
+    """Test syncing empty directories."""
+    await sync_service.sync(root_dir)
+    
+    # Should not raise exceptions for empty dirs
+    assert (root_dir / "documents").exists()
+    assert (root_dir / "knowledge").exists()
+
+
+@pytest.mark.asyncio
+async def test_sync_documents(
+    sync_service: SyncService,
+    root_dir: Path,
+    document_service: DocumentService
+):
+    """Test syncing document files."""
+    # Create test files
+    docs_dir = root_dir / "documents"
+    await create_test_file(docs_dir / "new.md", "new document")
+    await create_test_file(docs_dir / "modified.md", "modified document")
+    
+    # Add existing doc to DB
+    doc = Document(
+        path_id="modified.md",
+        file_path="modified.md",
+        content="original content"
+    )
+    await document_service.repository.add(doc)
+    
+    # Run sync
+    await sync_service.sync(root_dir)
+    
+    # Verify results
+    async with document_service.repository.session() as session:
+        documents = await document_service.repository.find_all(session)
+        assert len(documents) == 2
+        
+        paths = {d.path_id for d in documents}
+        assert "new.md" in paths
+        assert "modified.md" in paths
+        
+        # Check content was updated
+        modified = next(d for d in documents if d.path_id == "modified.md")
+        assert modified.content == "modified document"
+
+
+@pytest.mark.asyncio
+async def test_sync_knowledge(
+    sync_service: SyncService,
+    root_dir: Path,
+    entity_service: EntityService
+):
+    """Test syncing knowledge files."""
+    # Create test files
+    knowledge_dir = root_dir / "knowledge"
+    
+    # New entity with relation
+    new_content = """---
+type: concept
+id: concept/test_concept
+---
+# Test Concept
+
+A test concept.
+
+## Relations
+- depends_on [[concept/other]]
+"""
+    await create_test_file(knowledge_dir / "concept/test_concept.md", new_content)
+    
+    # Create related entity in DB
+    other = Entity(
+        path_id="concept/other",
+        name="Other",
+        entity_type="concept"
+    )
+    await entity_service.repository.add(other)
+    
+    # Run sync
+    await sync_service.sync(root_dir)
+    
+    # Verify results
+    async with entity_service.repository.session() as session:
+        entities = await entity_service.repository.find_all(session)
+        assert len(entities) == 2
+        
+        # Find new entity
+        test_concept = next(e for e in entities if e.path_id == "concept/test_concept")
+        assert test_concept.entity_type == "concept"
+        
+        # Verify relation was created
+        relations = await entity_service.repository.get_relations(session, test_concept.id)
+        assert len(relations) == 1
+        assert relations[0].relation_type == "depends_on"
+        assert relations[0].to_id == other.id
+
+
+@pytest.mark.asyncio
+async def test_sync_deletes(
+    sync_service: SyncService,
+    root_dir: Path,
+    document_service: DocumentService,
+    entity_service: EntityService
+):
+    """Test sync handles deletions."""
+    # Add records to DB that don't exist in filesystem
+    doc = Document(
+        path_id="deleted.md",
+        file_path="deleted.md",
+        content="deleted content"
+    )
+    await document_service.repository.add(doc)
+    
+    entity = Entity(
+        path_id="concept/deleted",
+        name="Deleted",
+        entity_type="concept"
+    )
+    await entity_service.repository.add(entity)
+    
+    # Run sync
+    await sync_service.sync(root_dir)
+    
+    # Verify deletions
+    async with document_service.repository.session() as session:
+        docs = await document_service.repository.find_all(session)
+        assert len(docs) == 0
+        
+    async with entity_service.repository.session() as session:
+        entities = await entity_service.repository.find_all(session)
+        assert len(entities) == 0
