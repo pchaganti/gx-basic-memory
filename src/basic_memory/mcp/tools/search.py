@@ -7,7 +7,21 @@ from basic_memory.mcp.async_client import client
 
 
 @mcp.tool(
-    description="Search for entities across names, descriptions, observations, and relations",
+    category="search",
+    description="""Search for entities across names, descriptions, observations, and relations.
+    
+    This tool enables sophisticated knowledge exploration by:
+    - Searching across multiple knowledge dimensions (names, descriptions, observations)
+    - Filtering results by category (tech, design, feature, etc.)
+    - Finding semantic relationships between entities
+    - Discovering relevant context and related information
+    
+    Particularly useful for AI tools to:
+    - Build context from existing knowledge
+    - Find related implementation details
+    - Discover design decisions
+    - Navigate complex knowledge structures
+    """,
     examples=[
         {
             "name": "Basic Text Search",
@@ -73,14 +87,35 @@ for entity in design.matches:
     output_model=SearchNodesResponse,
 )
 async def search_nodes(request: SearchNodesRequest) -> SearchNodesResponse:
-    """Search for entities in the knowledge graph."""
+    """Search for entities in the knowledge graph.
+    
+    Args:
+        request: Search parameters including query text and optional category filter
+        
+    Returns:
+        SearchNodesResponse containing matching entities and search metadata
+    """
     url = "/knowledge/search"
     response = await client.post(url, json=request.model_dump())
     return SearchNodesResponse.model_validate(response.json())
 
 
 @mcp.tool(
-    description="Load multiple entities by their path_ids in a single request",
+    category="search",
+    description="""Load multiple entities by their path_ids in a single request.
+    
+    This tool enables efficient knowledge graph navigation by:
+    - Loading multiple related entities in a single request
+    - Retrieving complete entity details including observations and relations
+    - Building comprehensive context from multiple sources
+    - Analyzing relationships between entities
+    
+    Essential for AI tools to:
+    - Follow relationship chains through the knowledge graph
+    - Build complete understanding of features or components
+    - Analyze implementation status across related entities
+    - Verify consistency between related items
+    """,
     examples=[
         {
             "name": "Load Related Components",
@@ -135,7 +170,14 @@ print(f"Test Status: {'test' in [r.relation_type for r in test.relations]}")
     output_model=EntityListResponse,
 )
 async def open_nodes(request: OpenNodesRequest) -> EntityListResponse:
-    """Load multiple entities by their path_ids."""
+    """Load multiple entities by their path_ids.
+    
+    Args:
+        request: OpenNodesRequest containing list of path_ids to load
+        
+    Returns:
+        EntityListResponse containing complete details for each requested entity
+    """
     url = "/knowledge/nodes"
     response = await client.post(url, json=request.model_dump())
     return EntityListResponse.model_validate(response.json())

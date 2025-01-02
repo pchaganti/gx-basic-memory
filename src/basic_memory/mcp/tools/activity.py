@@ -10,7 +10,17 @@ from basic_memory.schemas.activity import ActivityType, RecentActivity
 
 
 @mcp.tool(
-    description="Track recent changes to documents, entities, and relations",
+    category="activity",
+    description="""Track recent changes to documents, entities, and relations.
+    
+    This tool provides visibility into knowledge base evolution by:
+    - Monitoring document, entity, and relation changes
+    - Tracking the chronological history of modifications
+    - Analyzing patterns of knowledge development
+    - Identifying active areas of development
+    
+    Activity tracking helps maintain context across AI-human collaboration sessions.
+    """,
     examples=[
         {
             "name": "Daily Changes Overview",
@@ -72,7 +82,15 @@ async def get_recent_activity(
     timeframe: str = "1d",
     activity_types: Optional[List[ActivityType]] = None,
 ) -> RecentActivity:
-    """Get recent activity across your knowledge base."""
+    """Get recent activity across your knowledge base.
+    
+    Args:
+        timeframe: Time window to analyze, e.g., "1h", "1d", "1w"
+        activity_types: Optional list of activity types to filter by
+        
+    Returns:
+        RecentActivity object containing changes and summary statistics
+    """
     logger.debug(f"Getting recent activity (timeframe={timeframe}, types={activity_types})")
 
     # Build params 

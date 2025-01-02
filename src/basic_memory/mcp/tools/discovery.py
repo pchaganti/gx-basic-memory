@@ -10,7 +10,21 @@ from basic_memory.mcp.async_client import client
 
 
 @mcp.tool(
-    description="List all unique entity types in use across the knowledge graph",
+    category="discovery",
+    description="""List all unique entity types in use across the knowledge graph.
+    
+    This tool helps understand knowledge organization by:
+    - Discovering available entity types
+    - Understanding knowledge graph structure
+    - Identifying custom entity types
+    - Analyzing knowledge organization patterns
+    
+    Essential for AI tools to:
+    - Navigate knowledge hierarchy
+    - Understand domain modeling
+    - Identify specialized entity types
+    - Plan knowledge organization
+    """,
     examples=[
         {
             "name": "List Entity Types",
@@ -45,7 +59,11 @@ for t in custom_types:
     output_model=EntityTypeList
 )
 async def get_entity_types() -> List[str]:
-    """List all unique entity types in use."""
+    """List all unique entity types in use.
+    
+    Returns:
+        List of unique entity type names used in the knowledge graph
+    """
     logger.debug("Getting all entity types")
     url = "/discovery/entity-types"
     response = await client.get(url)
@@ -53,7 +71,21 @@ async def get_entity_types() -> List[str]:
 
 
 @mcp.tool(
-    description="List all unique observation categories used for organizing information",
+    category="discovery",
+    description="""List all unique observation categories used for organizing information.
+    
+    This tool helps understand knowledge classification by:
+    - Revealing knowledge categorization schemes
+    - Understanding observation types
+    - Discovering knowledge patterns
+    - Identifying domain-specific categories
+    
+    Valuable for AI tools to:
+    - Organize new observations correctly
+    - Filter and find relevant information
+    - Maintain consistent categorization
+    - Understand knowledge structure
+    """,
     examples=[
         {
             "name": "List Categories",
@@ -82,10 +114,14 @@ for category in categories:
 """
         }
     ],
-    output_model=List[str] #TODO
+    output_model=List[str]
 )
 async def get_observation_categories() -> List[str]:
-    """List all unique observation categories in use."""
+    """List all unique observation categories in use.
+    
+    Returns:
+        List of unique category names used for observations
+    """
     logger.debug("Getting all observation categories")
     url = "/discovery/observation-categories"
     response = await client.get(url)
@@ -93,7 +129,21 @@ async def get_observation_categories() -> List[str]:
 
 
 @mcp.tool(
-    description="List all entities of a specific type with optional sorting and relations",
+    category="discovery",
+    description="""List all entities of a specific type with optional sorting and relations.
+    
+    This tool enables systematic knowledge exploration by:
+    - Retrieving all entities of a given type
+    - Including relationship information
+    - Sorting by various criteria
+    - Building comprehensive type-specific views
+    
+    Particularly useful for AI tools to:
+    - Analyze implementation patterns
+    - Track feature status
+    - Understand component relationships
+    - Build type-specific context
+    """,
     examples=[
         {
             "name": "List Components",
@@ -142,7 +192,16 @@ async def list_by_type(
     include_related: bool = False, 
     sort_by: Optional[str] = "updated_at"
 ) -> TypedEntityList:
-    """List all entities of a specific type."""
+    """List all entities of a specific type.
+    
+    Args:
+        entity_type: Type of entities to retrieve
+        include_related: Whether to include related entities
+        sort_by: Field to sort results by, defaults to 'updated_at'
+        
+    Returns:
+        TypedEntityList containing matching entities and metadata
+    """
     logger.debug(f"Listing entities of type: {entity_type}")
     params = {"include_related": "true" if include_related else "false"}
     if sort_by:

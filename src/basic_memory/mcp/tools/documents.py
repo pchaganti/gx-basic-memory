@@ -9,7 +9,22 @@ from basic_memory.mcp.async_client import client
 
 
 @mcp.tool(
-    description="Create a new markdown document with frontmatter metadata and content",
+    category="documents",
+    description="""Create a new markdown document with frontmatter metadata and content.
+    
+    This tool is essential for AI-human collaboration as it allows:
+    - Creating structured documentation from conversations
+    - Capturing design decisions with metadata
+    - Building knowledge base content
+    - Maintaining project documentation
+    
+    Documents are stored as markdown files with YAML frontmatter for metadata.
+    The content supports full markdown syntax including:
+    - Headers and sections
+    - Lists and tables
+    - Code blocks with syntax highlighting
+    - Links to other documents
+    """,
     examples=[
         {
             "name": "Create Technical Spec",
@@ -73,14 +88,31 @@ Need reliable local storage with SQL features.
     output_model=DocumentCreateResponse
 )
 async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
-    """Create a new markdown document."""
+    """Create a new markdown document.
+    
+    Args:
+        request: Document creation request containing path, content and metadata
+        
+    Returns:
+        DocumentCreateResponse with document details and checksum
+    """
     url = "/documents/create"
     response = await client.post(url, json=request.model_dump())
     return DocumentCreateResponse.model_validate(response.json())
 
 
 @mcp.tool(
-    description="Update an existing markdown document while preserving its history",
+    category="documents",
+    description="""Update an existing markdown document while preserving its history.
+    
+    This tool enables iterative document development by:
+    - Preserving document history and metadata
+    - Allowing incremental content updates
+    - Maintaining document integrity
+    - Tracking document evolution
+    
+    Updates are atomic and maintain document consistency.
+    """,
     examples=[
         {
             "name": "Update Content",
@@ -116,14 +148,31 @@ print(f"New checksum: {updated.checksum}")
     output_model=DocumentResponse
 )
 async def update_document(request: DocumentRequest) -> DocumentResponse:
-    """Update an existing document."""
+    """Update an existing document.
+    
+    Args:
+        request: Document update request with new content and metadata
+        
+    Returns:
+        DocumentResponse with updated document details
+    """
     url = f"/documents/{request.path_id}"
     response = await client.put(url, json=request.model_dump())
     return DocumentResponse.model_validate(response.json())
 
 
 @mcp.tool(
-    description="Retrieve a document's content and metadata by path",
+    category="documents",
+    description="""Retrieve a document's content and metadata by path.
+    
+    This tool provides:
+    - Access to document content and structure
+    - Retrieval of document metadata
+    - Version information
+    - Document history
+    
+    Enables AI tools to read and analyze existing documentation.
+    """,
     examples=[
         {
             "name": "Read Documentation",
@@ -143,14 +192,31 @@ print(doc.content)
     output_model=DocumentResponse
 )
 async def get_document(path: DocumentPathId) -> DocumentResponse:
-    """Get a document by its path."""
+    """Get a document by its path.
+    
+    Args:
+        path: Path to the document to retrieve
+        
+    Returns:
+        DocumentResponse containing document content and metadata
+    """
     url = f"/documents/{path}"
     response = await client.get(url)
     return DocumentResponse.model_validate(response.json())
 
 
 @mcp.tool(
-    description="List all documents with their metadata and version information",
+    category="documents",
+    description="""List all documents with their metadata and version information.
+    
+    This tool enables:
+    - Document discovery and exploration
+    - Metadata-based filtering and organization
+    - Understanding document relationships
+    - Knowledge base navigation
+    
+    Essential for maintaining awareness of available documentation.
+    """,
     examples=[
         {
             "name": "List All Documents",
@@ -178,14 +244,28 @@ for status, items in by_status.items():
     output_model=List[DocumentCreateResponse] 
 )
 async def list_documents() -> List[DocumentCreateResponse]:
-    """List all documents in the system."""
+    """List all documents in the system.
+    
+    Returns:
+        List of document information including paths and metadata
+    """
     url = "/documents/list"
     response = await client.get(url)
     return [DocumentCreateResponse.model_validate(doc) for doc in response.json()]
 
 
 @mcp.tool(
-    description="Delete a document and update related indexes",
+    category="documents",
+    description="""Delete a document and update related indexes.
+    
+    This tool:
+    - Removes document content and metadata
+    - Updates document indexes
+    - Maintains knowledge base consistency
+    - Preserves related content
+    
+    Use with caution as deletions are permanent.
+    """,
     examples=[
         {
             "name": "Remove Document",
@@ -201,7 +281,14 @@ if result['deleted']:
     output_model=Dict[str, bool] 
 )
 async def delete_document(path: DocumentPathId) -> Dict[str, bool]:
-    """Delete a document."""
+    """Delete a document.
+    
+    Args:
+        path: Path of document to delete
+        
+    Returns:
+        Dict indicating success of deletion
+    """
     url = f"/documents/{path}"
     response = await client.delete(url)
     if response.status_code == 204:
