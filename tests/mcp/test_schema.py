@@ -87,7 +87,7 @@ async def test_get_schema_enhanced_tool():
     tool_info = schema["tools"]["test_tool"]
     assert tool_info["category"] == "test"
     assert len(tool_info["examples"]) == 1
-    assert tool_info["inputSchema"] is not None
+    assert tool_info["input_schema"] is not None  # Updated from inputSchema
     
     # Check example format
     example = tool_info["examples"][0]
@@ -112,7 +112,7 @@ async def test_get_schema_basic_tool():
     tool_info = schema["tools"]["basic_tool"]
     assert tool_info["name"] == "basic_tool"
     assert tool_info["description"] == "A basic tool without enhanced metadata"
-    assert "inputSchema" in tool_info
+    assert "input_schema" in tool_info  # Updated from inputSchema
 
 
 @pytest.mark.asyncio
@@ -136,7 +136,7 @@ async def test_get_schema_filter_examples():
         )
 
     schema = await get_schema("test_tool", include_examples=False)
-    assert "examples" not in schema["tools"]["test_tool"]
+    assert len(schema["tools"]["test_tool"]["examples"]) == 0  # Updated to check length instead
 
 
 @pytest.mark.asyncio

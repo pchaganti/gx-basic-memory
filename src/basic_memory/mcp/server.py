@@ -1,11 +1,10 @@
 """Enhanced FastMCP server instance for Basic Memory."""
 
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from fastmcp import FastMCP
 import inspect
-from pydantic import BaseModel, Field, create_model
-from pydantic.json_schema import model_json_schema
+from pydantic import BaseModel, Field, TypeAdapter
 from loguru import logger
 
 from fastmcp.tools import Tool as FastMCPTool
@@ -28,7 +27,7 @@ class BasicMemoryServer(FastMCP):
         description: Optional[str] = None,
         examples: Optional[List[Dict]] = None,
         category: Optional[str] = None,
-        output_model: Optional[Type[BaseModel]] = None,
+        output_model: Any = None,
     ):
         """Decorator to register an enhanced tool."""
         def decorator(fn: Callable) -> Callable:
@@ -49,7 +48,7 @@ class ToolExample(BaseModel):
     """Example usage of a tool."""
     name: str = Field(description="Name of the example")
     description: str = Field(description="Description of what the example demonstrates")
-    code: str = Field(description="Example code")
+    code: str = Field(description="Example code showing how to use the tool")
 
 
 class EnhancedTool(FastMCPTool):
@@ -58,7 +57,31 @@ class EnhancedTool(FastMCPTool):
     category: Optional[str] = Field(None)
     input_schema: Optional[Dict] = Field(None)
     output_schema: Optional[Dict] = Field(None)
-    output_model: Optional[Type[BaseModel]] = Field(None)
+    output_model: Any = Field(None)
+
+    @staticmethod
+    def _get_schema(type_: Any) -> Optional[Dict[str, Any]]:
+        """Get JSON schema for a type using TypeAdapter."""
+        try:
+            # If it's already a dict schema, return it
+            if isinstance(type_, dict):
+                return type_
+                
+            # Handle simple types directly
+            if type_ in (str, int, float, bool):
+                return {"type": {
+                    str: "string",
+                    int: "integer",
+                    float: "number",
+                    bool: "boolean"
+                }[type_]}
+                
+            # Try using TypeAdapter for complex types
+            adapter = TypeAdapter(type_)
+            return adapter.json_schema()
+        except Exception as e:
+            logger.debug(f"Error getting schema for {type_}: {e}")
+            return None
 
     @classmethod
     def from_function(
@@ -68,14 +91,33 @@ class EnhancedTool(FastMCPTool):
         description: Optional[str] = None,
         examples: Optional[List[Dict]] = None,
         category: Optional[str] = None,
-        output_model: Optional[Type[BaseModel]] = None,
+        output_model: Any = None,
     ) -> "EnhancedTool":
         """Create an enhanced tool from a function."""
         # First create the base tool
         base_tool = super().from_function(fn, name=name, description=description)
 
-        # Create instance for schema extraction
-        instance = cls(
+        # Get output schema
+        output_schema = None
+        if output_model:
+            logger.debug(f"Getting schema for output_model {output_model}")
+            output_schema = cls._get_schema(output_model)
+        else:
+            # Try return type annotation
+            sig = inspect.signature(fn)
+            return_type = sig.return_annotation
+            if return_type != inspect.Signature.empty:
+                logger.debug(f"Getting schema from return type {return_type}")
+                output_schema = cls._get_schema(return_type)
+
+        # Provide basic schema if we couldn't get a proper one
+        if output_schema is None:
+            output_schema = {"type": "object"}
+
+        # Convert examples to ToolExample models
+        tool_examples = [ToolExample(**ex) for ex in (examples or [])]
+
+        return cls(
             fn=fn,
             name=base_tool.name,
             description=base_tool.description,
@@ -83,80 +125,12 @@ class EnhancedTool(FastMCPTool):
             fn_metadata=base_tool.fn_metadata,
             is_async=base_tool.is_async,
             context_kwarg=base_tool.context_kwarg,
-            examples=[],
+            examples=tool_examples,
             category=category,
+            input_schema=base_tool.parameters,
+            output_schema=output_schema,
+            output_model=output_model,
         )
-
-        # Get output schema either from output_model or return type annotation
-        output_schema = None
-        if output_model:
-            try:
-                schema_dict = model_json_schema(output_model)
-                # Take top level schema if exists, otherwise look in $defs
-                if 'properties' in schema_dict:
-                    output_schema = schema_dict
-                elif '$defs' in schema_dict and output_model.__name__ in schema_dict['$defs']:
-                    output_schema = schema_dict['$defs'][output_model.__name__]
-            except Exception as e:
-                logger.error(f"Error getting schema for {output_model.__name__}: {e}")
-                output_schema = {"type": "object"}
-        else:
-            # Try to get schema from return type annotation
-            sig = inspect.signature(fn)
-            return_type = sig.return_annotation
-            if return_type != inspect.Signature.empty:
-                if hasattr(return_type, 'model_json_schema'):
-                    try:
-                        schema_dict = model_json_schema(return_type)
-                        if 'properties' in schema_dict:
-                            output_schema = schema_dict
-                        elif '$defs' in schema_dict and return_type.__name__ in schema_dict['$defs']:
-                            output_schema = schema_dict['$defs'][return_type.__name__]
-                    except Exception as e:
-                        logger.error(f"Error getting schema from return type {return_type}: {e}")
-                        output_schema = {"type": "object"}
-                elif hasattr(return_type, '__origin__'):  # Handle List[T], Dict[K,V] etc
-                    try:
-                        if return_type.__origin__ == list:
-                            schema_dict = {
-                                "type": "array",
-                                "items": {"type": "object"}  # Basic schema for items
-                            }
-                            # Try to get item type schema if it's a pydantic model
-                            item_type = return_type.__args__[0]
-                            if hasattr(item_type, 'model_json_schema'):
-                                try:
-                                    item_schema = model_json_schema(item_type)
-                                    schema_dict["items"] = item_schema
-                                except Exception as e:
-                                    logger.error(f"Error getting item schema: {e}")
-                        elif return_type.__origin__ == dict:
-                            schema_dict = {
-                                "type": "object",
-                                "additionalProperties": True
-                            }
-                            # Try to get value type schema if it's a pydantic model
-                            key_type, value_type = return_type.__args__
-                            if hasattr(value_type, 'model_json_schema'):
-                                try:
-                                    value_schema = model_json_schema(value_type)
-                                    schema_dict["additionalProperties"] = value_schema
-                                except Exception as e:
-                                    logger.error(f"Error getting value schema: {e}")
-                        output_schema = schema_dict
-                    except Exception as e:
-                        logger.error(f"Error handling complex type {return_type}: {e}")
-                        output_schema = {"type": "object"}
-
-        # Convert examples to ToolExample models
-        tool_examples = [ToolExample(**ex) for ex in (examples or [])]
-
-        # Update instance with final values
-        instance.examples = tool_examples
-        instance.output_schema = output_schema
-        instance.output_model = output_model
-        
-        return instance
 
     def get_schema(self) -> Dict:
         """Get complete tool schema including examples and metadata."""
@@ -164,8 +138,8 @@ class EnhancedTool(FastMCPTool):
             "name": self.name,
             "description": self.description,
             "category": self.category,
-            "inputSchema": self.input_schema,
-            "outputSchema": self.output_schema,
+            "input_schema": self.input_schema,
+            "output_schema": self.output_schema,
             "examples": [ex.model_dump() for ex in self.examples],
         }
 
@@ -180,7 +154,7 @@ class EnhancedToolManager(FastMCPToolManager):
         description: Optional[str] = None,
         examples: Optional[List[Dict]] = None,
         category: Optional[str] = None,
-        output_model: Optional[Type[BaseModel]] = None,
+        output_model: Any = None,
     ) -> EnhancedTool:
         """Add a tool with enhanced metadata."""
         tool = EnhancedTool.from_function(
