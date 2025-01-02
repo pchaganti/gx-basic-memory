@@ -1,5 +1,7 @@
+"""Types and utilities for file sync."""
+
 from dataclasses import dataclass, field
-from typing import Optional, Set, Dict
+from typing import Set, Dict, Optional
 
 
 @dataclass
@@ -7,7 +9,13 @@ class FileState:
     """State of a file including path and checksum info."""
     path: str
     checksum: str
-    moved_from: Optional[str] = None
+
+
+@dataclass 
+class ScanResult:
+    """Result of scanning a directory."""
+    files: Dict[str, FileState] = field(default_factory=dict)
+    errors: Dict[str, str] = field(default_factory=dict)  # path -> error message
 
 
 @dataclass
@@ -23,8 +31,7 @@ class SyncReport:
     new: Set[str] = field(default_factory=set)
     modified: Set[str] = field(default_factory=set)
     deleted: Set[str] = field(default_factory=set)
-    moved: Dict[str, FileState] = field(default_factory=dict)  # new_path -> state
-    checksums: Dict[str, str] = field(default_factory=dict)  # path -> checksum
+    checksums: Dict[str, str] = field(default_factory=dict)
 
     @property
     def total_changes(self) -> int:
