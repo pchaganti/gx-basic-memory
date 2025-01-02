@@ -12,7 +12,14 @@ class FileState:
 
 @dataclass
 class SyncReport:
-    """Report of file changes found."""
+    """Report of file changes found compared to database state.
+    
+    Attributes:
+        new: Files that exist on disk but not in database
+        modified: Files that exist in both but have different checksums
+        deleted: Files that exist in database but not on disk
+        checksums: Current checksums for files on disk
+    """
     new: Set[str] = field(default_factory=set)
     modified: Set[str] = field(default_factory=set)
     deleted: Set[str] = field(default_factory=set)
@@ -21,4 +28,5 @@ class SyncReport:
 
     @property
     def total_changes(self) -> int:
-        return len(self.new) + len(self.modified) + len(self.deleted) + len(self.moved)
+        """Total number of files that need attention."""
+        return len(self.new) + len(self.modified) + len(self.deleted)

@@ -15,7 +15,7 @@ from basic_memory.config import config
 from basic_memory.db import DatabaseType
 from basic_memory.repository import DocumentRepository, EntityRepository
 from basic_memory.services import FileChangeScanner
-from basic_memory.services.sync.utils import SyncReport, FileState
+from basic_memory.services.sync.utils import SyncReport
 
 # Create rich console
 console = Console()
@@ -58,110 +58,65 @@ def add_files_to_tree(tree: Tree, paths: Set[str], style: str, checksums: Dict[s
                 branch.add(f"[{style}]{file_name}[/{style}]")
 
 
-def add_moves_to_tree(tree: Tree, moves: Dict[str, FileState]):
-    """Add moved files to tree, grouped by directory."""
-    # Group by directory
+def group_changes_by_directory(changes: SyncReport) -> Dict[str, Dict[str, int]]:
+    """Group changes by directory for summary view."""
     by_dir = {}
-    for new_path, state in sorted(moves.items()):
-        parts = new_path.split("/", 1)
-        dir_name = parts[0] if len(parts) > 1 else ""
-        file_name = parts[1] if len(parts) > 1 else parts[0]
-        by_dir.setdefault(dir_name, []).append((file_name, state))
+    for change_type, paths in [
+        ("new", changes.new),
+        ("modified", changes.modified),
+        ("deleted", changes.deleted)
+    ]:
+        for path in paths:
+            dir_name = path.split("/", 1)[0]
+            by_dir.setdefault(dir_name, {"new": 0, "modified": 0, "deleted": 0})
+            by_dir[dir_name][change_type] += 1
+    return by_dir
 
-    # Add to tree
-    for dir_name, moves in sorted(by_dir.items()):
-        if dir_name:
-            branch = tree.add(f"[bold]{dir_name}/[/bold]")
-        else:
-            branch = tree
 
-        for file_name, state in sorted(moves):
-            checksum_short = state.checksum[:8]
-            branch.add(f"[blue]{file_name}[/blue] ({checksum_short}) (from {state.moved_from})")
+def build_directory_summary(counts: Dict[str, int]) -> str:
+    """Build summary string for directory changes."""
+    parts = []
+    if counts["new"]: 
+        parts.append(f"[green]+{counts['new']} new[/green]")
+    if counts["modified"]:
+        parts.append(f"[yellow]~{counts['modified']} modified[/yellow]")
+    if counts["deleted"]:
+        parts.append(f"[red]-{counts['deleted']} deleted[/red]")
+    return " ".join(parts)
 
 
 def display_changes(title: str, changes: SyncReport, verbose: bool = False):
     """Display changes using Rich for better visualization."""
-    if not verbose:
-        # Current compact display by directory
-        tree = Tree(title)
+    tree = Tree(title)
+    
+    if changes.total_changes == 0:
+        tree.add("No changes")
+        console.print(Panel(tree, expand=False))
+        return
         
-        if changes.total_changes == 0:
-            tree.add("No changes")
-            console.print(Panel(tree, expand=False))
-            return
-            
-        # Group by directory and count changes
-        by_dir = {}
-        for change_type, paths in [
-            ("new", changes.new),
-            ("modified", changes.modified), 
-            ("deleted", changes.deleted),
-            ("moved", set(changes.moved.keys()))
-        ]:
-            for path in paths:
-                dir_name = path.split("/", 1)[0]
-                by_dir.setdefault(dir_name, {"new": 0, "modified": 0, "deleted": 0, "moved": 0})
-                by_dir[dir_name][change_type] += 1
-                
-        # Show directory summaries
-        for dir_name, counts in sorted(by_dir.items()):
-            summary_parts = []
-            if counts["new"]:
-                summary_parts.append(f"[green]+{counts['new']} new[/green]")
-            if counts["modified"]:
-                summary_parts.append(f"[yellow]~{counts['modified']} modified[/yellow]")
-            if counts["deleted"]:
-                summary_parts.append(f"[red]-{counts['deleted']} deleted[/red]")
-            if counts["moved"]:
-                summary_parts.append(f"[blue]->{counts['moved']} moved[/blue]")
-                
-            tree.add(f"[bold]{dir_name}/[/bold] {' '.join(summary_parts)}")
-            
-    else:
-        # Verbose display with full file paths
-        tree = Tree(title)
-        
-        if changes.total_changes == 0:
-            tree.add("No changes")
-            console.print(Panel(tree, expand=False))
-            return
-            
-        # Show total counts
-        summary = []
-        if changes.new:
-            summary.append(f"[green]{len(changes.new)} new[/green]")
-        if changes.modified:
-            summary.append(f"[yellow]{len(changes.modified)} modified[/yellow]")
-        if changes.deleted:
-            summary.append(f"[red]{len(changes.deleted)} deleted[/red]")
-        if changes.moved:
-            summary.append(f"[blue]{len(changes.moved)} moved[/blue]")
-        tree.add(f"Found {', '.join(summary)}")
-        
-        # Add file groups with full paths
+    if verbose:
+        # Full file listing with checksums
         if changes.new:
             new_branch = tree.add("[green]New Files[/green]")
             add_files_to_tree(new_branch, changes.new, "green", changes.checksums)
-            
         if changes.modified:
             mod_branch = tree.add("[yellow]Modified[/yellow]")
             add_files_to_tree(mod_branch, changes.modified, "yellow", changes.checksums)
-            
         if changes.deleted:
             del_branch = tree.add("[red]Deleted[/red]")
             add_files_to_tree(del_branch, changes.deleted, "red")
-            
-        if changes.moved:
-            moved_branch = tree.add("[blue]Moved[/blue]")
-            add_moves_to_tree(moved_branch, changes.moved)
+    else:
+        # Show directory summaries
+        by_dir = group_changes_by_directory(changes)
+        for dir_name, counts in sorted(by_dir.items()):
+            summary = build_directory_summary(counts)
+            tree.add(f"[bold]{dir_name}/[/bold] {summary}")
     
     console.print(Panel(tree, expand=False))
 
 
 async def run_status(sync_service: FileChangeScanner, verbose: bool = False):
     """Check sync status of files vs database."""
-
     # Check knowledge/ directory
     knowledge_changes = await sync_service.find_knowledge_changes(config.knowledge_dir)
     display_changes("Knowledge Files", knowledge_changes, verbose)
@@ -180,6 +135,6 @@ def status(
         sync_service = asyncio.run(get_file_change_scanner())
         asyncio.run(run_status(sync_service, verbose))
     except Exception as e:
-        logger.error(f"Error checking status: {e}")
+        logger.exception(f"Error checking status: {e}")
         typer.echo(f"Error checking status: {e}", err=True)
         raise typer.Exit(1)

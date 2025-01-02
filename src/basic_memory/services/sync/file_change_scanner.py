@@ -52,6 +52,10 @@ class FileChangeScanner:
         logger.debug(f"Scanning directory: {directory}")
         files = {}
 
+        if not directory.exists():
+            logger.debug(f"Directory does not exist: {directory}")
+            return files
+
         for path in directory.rglob("*"):
             if not path.is_file() or not path.name.endswith(".md"):
                 if path.is_file():
@@ -63,7 +67,7 @@ class FileChangeScanner:
                 checksum = await compute_checksum(content)
                 rel_path = str(path.relative_to(directory))
                 files[rel_path] = checksum
-                logger.debug(f"Found file: {rel_path} with checksum: {checksum[:8]}")
+                logger.debug(f"Found file: {rel_path} with checksum: {checksum[:8] if checksum else 'None'}")
             except Exception as e:
                 logger.error(f"Failed to read {path}: {e}")
 
@@ -89,29 +93,32 @@ class FileChangeScanner:
         current_files = await self.scan_directory(directory)
         logger.debug("Current files from filesystem:")
         for path, checksum in sorted(current_files.items()):
-            logger.debug(f"  {path} ({checksum[:8]})")
+            logger.debug(f"  {path} ({checksum[:8] if checksum else 'No checksum'})")
 
         # Track checksums for display
         report = SyncReport()
         for path, checksum in current_files.items():
-            report.checksums[path] = checksum
+            if checksum:  # Only store valid checksums
+                report.checksums[path] = checksum
 
         # Build DB state - use path_id if file_path is NULL
         db_records = await get_records()
         db_files = {}
         for record in db_records:
-            path = record.file_path if record.file_path is not None else record.path_id
-            db_files[path] = (path, record.checksum)
+            if record and hasattr(record, 'path_id'):  # Guard against None records
+                path = record.file_path if record.file_path is not None else record.path_id
+                db_files[path] = (path, record.checksum)
 
         logger.debug("Files from database:")
         for path, (_, checksum) in sorted(db_files.items()):
-            logger.debug(f"  {path} ({checksum[:8]})")
+            logger.debug(f"  {path} ({checksum[:8] if checksum else 'No checksum'})")
 
         # Track files by checksum for move detection
         db_paths_by_checksum = {}
         for path, (_, checksum) in db_files.items():
-            paths = db_paths_by_checksum.setdefault(checksum, [])
-            paths.append(path)
+            if checksum:  # Only track valid checksums
+                paths = db_paths_by_checksum.setdefault(checksum, [])
+                paths.append(path)
 
         processed_current = set()
         processed_db = set()
@@ -134,7 +141,7 @@ class FileChangeScanner:
 
             # Look for any files with same checksum in DB
             was_move = False
-            if curr_checksum in db_paths_by_checksum:
+            if curr_checksum and curr_checksum in db_paths_by_checksum:  # Only check valid checksums
                 for db_path in db_paths_by_checksum[curr_checksum]:
                     if db_path not in processed_db:
                         logger.debug(f"Moved: {db_path} -> {curr_path}")
