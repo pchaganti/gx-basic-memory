@@ -10,25 +10,11 @@ from basic_memory.mcp.async_client import client
 
 @mcp.tool(
     category="documents",
-    description="""Create a new markdown document with frontmatter metadata and content.
-    
-    This tool is essential for AI-human collaboration as it allows:
-    - Creating structured documentation from conversations
-    - Capturing design decisions with metadata
-    - Building knowledge base content
-    - Maintaining project documentation
-    
-    Documents are stored as markdown files with YAML frontmatter for metadata.
-    The content supports full markdown syntax including:
-    - Headers and sections
-    - Lists and tables
-    - Code blocks with syntax highlighting
-    - Links to other documents
-    """,
+    description="Create a new markdown document with frontmatter metadata and content",
     examples=[
         {
-            "name": "Create Technical Spec",
-            "description": "Create a new technical specification document",
+            "name": "Technical Spec",
+            "description": "Create a specification with structured metadata",
             "code": """
 # Create new spec with metadata
 spec = await create_document(
@@ -56,29 +42,48 @@ print(f"Version: {spec.doc_metadata['version']}")
 """
         },
         {
-            "name": "Create Design Document",
-            "description": "Document a design decision with context",
+            "name": "Design Decision",
+            "description": "Document architectural decisions with context",
             "code": """
-# Create design document
+# Create ADR with metadata
 design = await create_document(
     request=DocumentRequest(
-        path_id="design/database_schema.md",
-        content='''# Database Schema Design
-
-## Decision
-Using SQLite for local-first storage.
+        path_id="design/decisions/use-sqlite.md",
+        content='''# Use SQLite for Local Storage
 
 ## Context
-Need reliable local storage with SQL features.
+We need reliable local-first storage that provides:
+- SQL query capabilities
+- Atomic transactions
+- No external dependencies
+- Simple deployment
+
+## Decision
+We will use SQLite as our primary storage engine.
 
 ## Consequences
-+ Simple deployment
-+ Local-first operation
-- Limited concurrent access''',
+### Positive
+- Simple deployment (single file)
+- Full SQL support
+- Strong atomicity guarantees
+- Local-first operation
+- Proven reliability
+
+### Negative
+- Limited concurrent access
+- No built-in replication
+- Size limitations for some filesystems
+
+## Implementation Notes
+- Using SQLite version 3.35+ for JSON support
+- Implementing connection pooling
+- Adding automated backups''',
         doc_metadata={
             "type": "decision",
             "status": "accepted",
-            "date": "2024-12-25"
+            "date": "2024-12-25",
+            "impact": "high",
+            "area": "storage"
         }
     )
 )
@@ -91,7 +96,7 @@ async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
     """Create a new markdown document.
     
     Args:
-        request: Document creation request containing path, content and metadata
+        request: Document creation request with path, content and metadata
         
     Returns:
         DocumentCreateResponse with document details and checksum
@@ -103,45 +108,100 @@ async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
 
 @mcp.tool(
     category="documents",
-    description="""Update an existing markdown document while preserving its history.
-    
-    This tool enables iterative document development by:
-    - Preserving document history and metadata
-    - Allowing incremental content updates
-    - Maintaining document integrity
-    - Tracking document evolution
-    
-    Updates are atomic and maintain document consistency.
-    """,
+    description="Update an existing markdown document while preserving its history",
     examples=[
         {
-            "name": "Update Content",
-            "description": "Add new content to existing document",
+            "name": "Implementation Update",
+            "description": "Document implementation changes with structured sections",
             "code": """
 # Update implementation details
 updated = await update_document(
     request=DocumentRequest(
-        path_id="docs/implementation.md",
-        content='''# Implementation Details
+        path_id="docs/components/memory-service.md",
+        content='''# Memory Service
 
-## Recent Updates
-- Added async support
+## Overview
+Core service handling knowledge persistence and retrieval.
+
+## Recent Changes
+- Added async/await support
 - Improved error handling
-- Enhanced performance
+- Enhanced performance monitoring
 
-## New Features
-- Batch processing
-- Automatic retries
-- Error recovery''',
+## Implementation Details
+### Storage Layer
+- Using SQLite 3.35 with JSON1 extension
+- Connection pooling via aiosqlite
+- Automated backup system
+
+### Key Features
+- Atomic file operations
+- Transactional consistency
+- Automated recovery
+- Full text search
+
+### Error Handling
+- Retries with exponential backoff
+- Detailed error context
+- Automatic cleanup
+- Failure auditing
+
+## Performance Notes
+- Query optimization implemented
+- Index tuning automated
+- Cache layer added
+- Bulk operation support''',
         doc_metadata={
-            "status": "current",
-            "last_updated": "2024-12-25"
+            "status": "stable",
+            "last_updated": "2024-12-25",
+            "reviewed_by": ["@alice", "@bob"]
         }
     )
 )
 
+# Verify update
 print(f"Updated: {updated.path_id}")
 print(f"New checksum: {updated.checksum}")
+"""
+        },
+        {
+            "name": "Collaborative Documentation",
+            "description": "Build documentation through tool collaboration",
+            "code": """
+# First, get recent changes
+activity = await get_recent_activity(
+    timeframe="1d",
+    activity_types=["entity"]
+)
+
+# Build documentation from changes
+doc_content = ["# Recent Development Activity\\n"]
+doc_content.append("## Key Changes\\n")
+
+# Group changes by component
+changes_by_type = defaultdict(list)
+for change in activity.changes:
+    type_ = change.path_id.split("/")[0]
+    changes_by_type[type_].append(change)
+
+# Document each area's changes
+for type_, changes in changes_by_type.items():
+    doc_content.append(f"### {type_.title()}\\n")
+    for change in changes:
+        doc_content.append(f"- {change.summary}\\n")
+
+# Create the document
+await create_document(
+    request=DocumentRequest(
+        path_id=f"docs/changes/daily-update-{datetime.now():%Y-%m-%d}.md",
+        content="\\n".join(doc_content),
+        doc_metadata={
+            "type": "changelog",
+            "auto_generated": True,
+            "source": "activity_tracking"
+        }
+    )
+)
 """
         }
     ],
@@ -163,29 +223,67 @@ async def update_document(request: DocumentRequest) -> DocumentResponse:
 
 @mcp.tool(
     category="documents",
-    description="""Retrieve a document's content and metadata by path.
-    
-    This tool provides:
-    - Access to document content and structure
-    - Retrieval of document metadata
-    - Version information
-    - Document history
-    
-    Enables AI tools to read and analyze existing documentation.
-    """,
+    description="Get a document's content and metadata",
     examples=[
         {
-            "name": "Read Documentation",
-            "description": "Load and display a document",
+            "name": "Load Documentation",
+            "description": "Read and analyze document content",
             "code": """
 # Get API documentation
-doc = await get_document("docs/api_reference.md")
+doc = await get_document("docs/api/memory-service.md")
 
-# Show document info
+# Show document structure
 print(f"Document: {doc.path_id}")
 print(f"Status: {doc.doc_metadata.get('status', 'unknown')}")
-print("\\nContent:")
-print(doc.content)
+print(f"Last updated: {doc.updated_at}")
+print("\\nContent sections:")
+
+# Simple section parser
+sections = []
+current = []
+for line in doc.content.split("\\n"):
+    if line.startswith("# "):
+        if current:
+            sections.append("\\n".join(current))
+        current = [line]
+    else:
+        current.append(line)
+if current:
+    sections.append("\\n".join(current))
+
+for i, section in enumerate(sections, 1):
+    title = section.split("\\n")[0].lstrip("#").strip()
+    print(f"{i}. {title}")
+"""
+        },
+        {
+            "name": "Build Context",
+            "description": "Extract technical context from documentation",
+            "code": """
+# Get implementation spec
+doc = await get_document("specs/implementation/memory-service.md")
+
+# Extract code examples
+import re
+code_blocks = re.findall(r"```(.*?)```", doc.content, re.DOTALL)
+if code_blocks:
+    print("Found code examples:")
+    for i, block in enumerate(code_blocks, 1):
+        print(f"\\nExample {i}:")
+        print(block.strip())
+
+# Look for decision points
+decisions = []
+lines = doc.content.split("\\n")
+for i, line in enumerate(lines):
+    if "decided" in line.lower() or "decision" in line.lower():
+        context = lines[max(0, i-1):min(len(lines), i+2)]
+        decisions.append("\\n".join(context))
+
+if decisions:
+    print("\\nKey decisions:")
+    for d in decisions:
+        print(f"\\n- {d.strip()}")
 """
         }
     ],
@@ -195,7 +293,7 @@ async def get_document(path: DocumentPathId) -> DocumentResponse:
     """Get a document by its path.
     
     Args:
-        path: Path to the document to retrieve
+        path: Path of the document to retrieve
         
     Returns:
         DocumentResponse containing document content and metadata
@@ -207,41 +305,86 @@ async def get_document(path: DocumentPathId) -> DocumentResponse:
 
 @mcp.tool(
     category="documents",
-    description="""List all documents with their metadata and version information.
-    
-    This tool enables:
-    - Document discovery and exploration
-    - Metadata-based filtering and organization
-    - Understanding document relationships
-    - Knowledge base navigation
-    
-    Essential for maintaining awareness of available documentation.
-    """,
+    description="List all documents with metadata and version information",
     examples=[
         {
-            "name": "List All Documents",
-            "description": "Show overview of all documents",
+            "name": "Document Overview",
+            "description": "Analyze document organization and status",
             "code": """
 # Get document listing
 docs = await list_documents()
 
-# Group by status
+# Group by status and type
 from collections import defaultdict
 by_status = defaultdict(list)
+by_type = defaultdict(list)
 
 for doc in docs:
-    status = doc.doc_metadata.get('status', 'unknown')
+    status = doc.doc_metadata.get("status", "unknown")
+    doc_type = doc.doc_metadata.get("type", "unknown")
     by_status[status].append(doc)
+    by_type[doc_type].append(doc)
 
-# Show summary
+# Show status summary
+print("Document Status:")
 for status, items in by_status.items():
-    print(f"\\n{status.title()} Documents:")
+    print(f"\\n{status.title()} ({len(items)} docs):")
     for doc in items:
         print(f"- {doc.path_id}")
-"""
+
+# Show type distribution
+print("\\nDocument Types:")
+for doc_type, items in by_type.items():
+    print(f"{doc_type}: {len(items)} documents")"""
+        },
+        {
+            "name": "Documentation Analysis",
+            "description": "Analyze documentation patterns and gaps",
+            "code": """
+# Get all documents
+docs = await list_documents()
+
+# Analyze coverage
+coverage = {
+    "components": set(),
+    "features": set(),
+    "apis": set()
+}
+
+# Extract documented items
+for doc in docs:
+    path = doc.path_id.lower()
+    if "components" in path:
+        coverage["components"].add(path.split("/")[-1])
+    elif "features" in path:
+        coverage["features"].add(path.split("/")[-1])
+    elif "api" in path:
+        coverage["apis"].add(path.split("/")[-1])
+
+# Get actual components
+components = await list_by_type("component")
+features = await list_by_type("feature")
+
+# Find documentation gaps
+component_names = {e.name.lower() for e in components.entities}
+feature_names = {e.name.lower() for e in features.entities}
+
+missing_components = component_names - coverage["components"]
+missing_features = feature_names - coverage["features"]
+
+print("Documentation Gaps:")
+if missing_components:
+    print("\\nUndocumented Components:")
+    for c in missing_components:
+        print(f"- {c}")
+
+if missing_features:
+    print("\\nUndocumented Features:")
+    for f in missing_features:
+        print(f"- {f}")"""
         }
     ],
-    output_model=List[DocumentCreateResponse] 
+    output_model=List[DocumentCreateResponse]
 )
 async def list_documents() -> List[DocumentCreateResponse]:
     """List all documents in the system.
@@ -256,29 +399,39 @@ async def list_documents() -> List[DocumentCreateResponse]:
 
 @mcp.tool(
     category="documents",
-    description="""Delete a document and update related indexes.
-    
-    This tool:
-    - Removes document content and metadata
-    - Updates document indexes
-    - Maintains knowledge base consistency
-    - Preserves related content
-    
-    Use with caution as deletions are permanent.
-    """,
+    description="Delete a document and update related indexes",
     examples=[
         {
-            "name": "Remove Document",
-            "description": "Delete an obsolete document",
+            "name": "Safe Document Removal",
+            "description": "Delete a document with relation checking",
             "code": """
-# Delete old specification
-result = await delete_document("specs/old_format.md")
-if result['deleted']:
-    print("Document successfully removed")
-"""
+# First check for references
+results = await search_nodes(
+    request=SearchNodesRequest(
+        query=f"specs/old_format.md"
+    )
+)
+
+# Check if document is referenced
+has_references = any(
+    "specs/old_format.md" in obs.content
+    for entity in results.matches
+    for obs in entity.observations
+)
+
+if has_references:
+    print("Document is referenced by other entities!")
+    print("\\nReferences found in:")
+    for entity in results.matches:
+        print(f"- {entity.path_id}")
+else:
+    # Safe to delete
+    result = await delete_document("specs/old_format.md")
+    if result["deleted"]:
+        print("Document successfully removed")"""
         }
     ],
-    output_model=Dict[str, bool] 
+    output_model=Dict[str, bool]
 )
 async def delete_document(path: DocumentPathId) -> Dict[str, bool]:
     """Delete a document.

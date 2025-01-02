@@ -11,20 +11,11 @@ from basic_memory.schemas.activity import ActivityType, RecentActivity
 
 @mcp.tool(
     category="activity",
-    description="""Track recent changes to documents, entities, and relations.
-    
-    This tool provides visibility into knowledge base evolution by:
-    - Monitoring document, entity, and relation changes
-    - Tracking the chronological history of modifications
-    - Analyzing patterns of knowledge development
-    - Identifying active areas of development
-    
-    Activity tracking helps maintain context across AI-human collaboration sessions.
-    """,
+    description="Track recent changes to documents, entities, and relations",
     examples=[
         {
-            "name": "Daily Changes Overview",
-            "description": "Get a summary of all changes in the last day",
+            "name": "Activity Summary",
+            "description": "Get a high-level overview of changes",
             "code": """
 # Get last 24 hours of activity
 activity = await get_recent_activity()
@@ -42,37 +33,85 @@ for path in activity.summary.most_active_paths:
 """
         },
         {
-            "name": "Filter Document Changes",
-            "description": "Focus on recent document activity",
+            "name": "Document Changes",
+            "description": "Track document evolution over time",
             "code": """
-# Get only document changes from last hour
+# Get hourly document changes with context
 docs = await get_recent_activity(
     timeframe="1h",
     activity_types=[ActivityType.DOCUMENT]
 )
 
-# Show document changes chronologically
+# Show document evolution chronologically
 for change in sorted(docs.changes, key=lambda x: x.timestamp):
     print(f"{change.timestamp}: {change.path_id}")
     print(f"  {change.change_type}: {change.summary}")
 """
         },
         {
-            "name": "Weekly Activity Analysis",
-            "description": "Analyze patterns over past week",
+            "name": "Knowledge Evolution",
+            "description": "Analyze how knowledge structure changes over time",
             "code": """
-# Get full week of activity
+# Get weekly activity for change pattern analysis
 weekly = await get_recent_activity(timeframe="1w")
 
-# Group changes by type
+# Group changes by type for pattern analysis
 from collections import defaultdict
 changes_by_type = defaultdict(list)
 for change in weekly.changes:
     changes_by_type[change.activity_type].append(change)
 
-# Show distribution
+# Analyze change distribution
 for type_, changes in changes_by_type.items():
     print(f"{type_}: {len(changes)} changes")
+    
+# Find most modified entities
+entity_changes = defaultdict(int)
+for change in weekly.changes:
+    if change.activity_type == "entity":
+        entity_changes[change.path_id] += 1
+
+print("\\nMost active entities:")
+for path_id, count in sorted(
+    entity_changes.items(), 
+    key=lambda x: x[1], 
+    reverse=True
+)[:5]:
+    print(f"- {path_id}: {count} changes")
+"""
+        },
+        {
+            "name": "Context Building",
+            "description": "Use activity history to build rich context",
+            "code": """
+# Get recent activity across all types
+activity = await get_recent_activity(timeframe="1d")
+
+# Extract changed entities for deeper analysis
+entity_ids = [
+    change.path_id for change in activity.changes
+    if change.activity_type == "entity"
+]
+
+# Load full entity details
+if entity_ids:
+    entities = await open_nodes(
+        request=OpenNodesRequest(path_ids=entity_ids)
+    )
+    
+    # Analyze recent development focus
+    tech_changes = defaultdict(list)
+    for entity in entities.entities:
+        tech_obs = [o for o in entity.observations 
+                   if o.category == "tech"]
+        if tech_obs:
+            tech_changes[entity.name] = tech_obs
+
+    print("Recent technical changes:")
+    for name, observations in tech_changes.items():
+        print(f"\\n{name}:")
+        for obs in observations:
+            print(f"- {obs.content}")
 """
         }
     ],
@@ -82,14 +121,14 @@ async def get_recent_activity(
     timeframe: str = "1d",
     activity_types: Optional[List[ActivityType]] = None,
 ) -> RecentActivity:
-    """Get recent activity across your knowledge base.
+    """Track changes across the knowledge base.
     
     Args:
-        timeframe: Time window to analyze, e.g., "1h", "1d", "1w"
-        activity_types: Optional list of activity types to filter by
+        timeframe: Time window to analyze ("1h", "1d", "1w")
+        activity_types: Optional list of types to filter by
         
     Returns:
-        RecentActivity object containing changes and summary statistics
+        RecentActivity object with changes and summary statistics
     """
     logger.debug(f"Getting recent activity (timeframe={timeframe}, types={activity_types})")
 
