@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 from basic_memory.repository import DocumentRepository, EntityRepository
-from basic_memory.services import FileChangeScanner
+from basic_memory.services.sync import FileChangeScanner
 from basic_memory.services.sync.utils import DbState
 from basic_memory.utils.file_utils import compute_checksum
 from basic_memory.models import Document, Entity

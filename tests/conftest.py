@@ -23,8 +23,8 @@ from basic_memory.services import (
     ObservationService,
     RelationService,
     DocumentService,
-    FileChangeScanner,
 )
+from basic_memory.services.sync import FileChangeScanner
 from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services import KnowledgeService

@@ -1,7 +1,6 @@
 """Services package."""
 
 from .document_service import DocumentService
-from .sync.file_change_scanner import FileChangeScanner
 from .entity_service import EntityService
 from .file_service import FileService
 from .knowledge import KnowledgeService
@@ -16,6 +15,5 @@ __all__ = [
     "FileService",
     "ObservationService",
     "RelationService",
-    "FileChangeScanner",
     "KnowledgeService",
 ]

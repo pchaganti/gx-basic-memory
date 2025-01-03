@@ -14,7 +14,7 @@ from basic_memory.cli.app import app
 from basic_memory.config import config
 from basic_memory.db import DatabaseType
 from basic_memory.repository import DocumentRepository, EntityRepository
-from basic_memory.services import FileChangeScanner
+from basic_memory.services.sync import FileChangeScanner
 from basic_memory.services.sync.utils import SyncReport
 
 # Create rich console

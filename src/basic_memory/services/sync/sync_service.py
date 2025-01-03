@@ -3,14 +3,15 @@
 from pathlib import Path
 from loguru import logger
 
-from basic_memory.services import FileChangeScanner, EntityService, DocumentService
+from basic_memory.services import DocumentService
+from basic_memory.services.sync import FileChangeScanner
 from basic_memory.markdown import KnowledgeParser
 from basic_memory.services.sync.knowledge_sync_service import KnowledgeSyncService
 
 
 class SyncService:
     """Syncs documents and knowledge files with database.
-    
+
     Implements two-pass sync strategy for knowledge files to handle relations:
     1. First pass creates/updates entities without relations
     2. Second pass processes relations after all entities exist
@@ -46,7 +47,9 @@ class SyncService:
                 await self.document_service.create_document(path_id=path, content=content)
             else:
                 logger.debug(f"Updating document: {path}")
-                await self.document_service.update_document_by_path_id(path_id=path, content=content)
+                await self.document_service.update_document_by_path_id(
+                    path_id=path, content=content
+                )
 
     async def sync_knowledge(self, directory: Path) -> None:
         """Sync knowledge files with database."""
@@ -73,12 +76,16 @@ class SyncService:
             else:
                 path_id = entity_markdown.frontmatter.id
                 logger.debug(f"Updating entity_markdown: {path_id}")
-                await self.knowledge_sync_service.update_entity_and_observations(path_id, entity_markdown)
+                await self.knowledge_sync_service.update_entity_and_observations(
+                    path_id, entity_markdown
+                )
 
         # Second pass: Process relations
         for file_path, entity_markdown in parsed_entities.items():
             logger.debug(f"Updating relations for: {file_path}")
-            await self.knowledge_sync_service.update_entity_relations(entity_markdown, checksum=changes.checksums[file_path])
+            await self.knowledge_sync_service.update_entity_relations(
+                entity_markdown, checksum=changes.checksums[file_path]
+            )
 
     async def sync(self, root_dir: Path) -> None:
         """Sync all files with database."""
@@ -86,7 +93,7 @@ class SyncService:
         docs_dir = root_dir / "documents"
         if docs_dir.exists():
             await self.sync_documents(docs_dir)
-        
+
         # Then sync knowledge files
         knowledge_dir = root_dir / "knowledge"
         if knowledge_dir.exists():
