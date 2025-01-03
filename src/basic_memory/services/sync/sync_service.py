@@ -20,12 +20,12 @@ class SyncService:
         self,
         scanner: FileChangeScanner,
         document_service: DocumentService,
-        entity_service: KnowledgeSyncService,
+        knowledge_sync_service: KnowledgeSyncService,
         knowledge_parser: KnowledgeParser,
     ):
         self.scanner = scanner
         self.document_service = document_service
-        self.entity_service = entity_service
+        self.knowledge_sync_service = knowledge_sync_service
         self.knowledge_parser = knowledge_parser
 
     async def sync_documents(self, directory: Path) -> None:
@@ -56,7 +56,7 @@ class SyncService:
         # Handle deletions first
         for path_id in changes.deleted:
             logger.debug(f"Deleting entity: {path_id}")
-            await self.entity_service.delete_entity(path_id)
+            await self.knowledge_sync_service.delete_entity(path_id)
 
         # Parse files that need updating
         parsed_entities = {}
@@ -68,15 +68,15 @@ class SyncService:
         for path_id, entity in parsed_entities.items():
             if path_id in changes.new:
                 logger.debug(f"Creating new entity: {path_id}")
-                await self.entity_service.create_entity_and_observations(entity)
+                await self.knowledge_sync_service.create_entity_and_observations(entity)
             else:
                 logger.debug(f"Updating entity: {path_id}")
-                await self.entity_service.update_entity_and_observations(entity)
+                await self.knowledge_sync_service.update_entity_and_observations(entity)
 
         # Second pass: Process relations
         for path_id, entity in parsed_entities.items():
             logger.debug(f"Updating relations for: {path_id}")
-            await self.entity_service.update_entity_relations(entity)
+            await self.knowledge_sync_service.update_entity_relations(entity, checksum=changes.checksums[path_id])
 
     async def sync(self, root_dir: Path) -> None:
         """Sync all files with database."""

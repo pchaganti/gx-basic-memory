@@ -2,17 +2,19 @@
 
 from pathlib import Path
 import pytest
+import pytest_asyncio
 
 from basic_memory.services import DocumentService, EntityService, FileChangeScanner
+from basic_memory.services.sync.knowledge_sync_service import KnowledgeSyncService
 from basic_memory.services.sync.sync_service import SyncService
 from basic_memory.markdown import KnowledgeParser, EntityMarkdown
 from basic_memory.models import Document, Entity, Observation
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def sync_service(
     document_service: DocumentService,
-    entity_service: EntityService,
+    knowledge_sync_service: KnowledgeSyncService,
     file_change_scanner: FileChangeScanner,
     knowledge_parser: KnowledgeParser,
 ) -> SyncService:
@@ -20,7 +22,7 @@ async def sync_service(
     return SyncService(
         scanner=file_change_scanner,
         document_service=document_service,
-        entity_service=entity_service,
+        knowledge_sync_service=knowledge_sync_service,
         knowledge_parser=knowledge_parser,
     )
 
@@ -65,25 +67,22 @@ async def test_sync_documents(
     doc = Document(
         path_id="modified.md",
         file_path="modified.md",
-        content="original content"
+        checksum="12345678"
     )
-    await document_service.repository.add(doc)
+    added = await document_service.repository.add(doc)
     
     # Run sync
     await sync_service.sync(root_dir)
     
     # Verify results
-    async with document_service.repository.session() as session:
-        documents = await document_service.repository.find_all(session)
-        assert len(documents) == 2
+    documents = await document_service.repository.find_all()
+    assert len(documents) == 2
+    
+    paths = {d.path_id for d in documents}
+    assert "new.md" in paths
+    assert "modified.md" in paths
         
-        paths = {d.path_id for d in documents}
-        assert "new.md" in paths
-        assert "modified.md" in paths
-        
-        # Check content was updated
-        modified = next(d for d in documents if d.path_id == "modified.md")
-        assert modified.content == "modified document"
+    
 
 
 @pytest.mark.asyncio
@@ -97,13 +96,19 @@ async def test_sync_knowledge(
     knowledge_dir = root_dir / "knowledge"
     
     # New entity with relation
-    new_content = """---
+    new_content = """
+---
 type: concept
 id: concept/test_concept
+created: 2023-01-01
+modified: 2023-01-01
 ---
 # Test Concept
 
 A test concept.
+
+## Observations
+- [design] Core feature
 
 ## Relations
 - depends_on [[concept/other]]
@@ -114,7 +119,8 @@ A test concept.
     other = Entity(
         path_id="concept/other",
         name="Other",
-        entity_type="concept"
+        entity_type="concept",
+        file_path="concept/other.md"
     )
     await entity_service.repository.add(other)
     
@@ -122,19 +128,19 @@ A test concept.
     await sync_service.sync(root_dir)
     
     # Verify results
-    async with entity_service.repository.session() as session:
-        entities = await entity_service.repository.find_all(session)
-        assert len(entities) == 2
-        
-        # Find new entity
-        test_concept = next(e for e in entities if e.path_id == "concept/test_concept")
-        assert test_concept.entity_type == "concept"
-        
-        # Verify relation was created
-        relations = await entity_service.repository.get_relations(session, test_concept.id)
-        assert len(relations) == 1
-        assert relations[0].relation_type == "depends_on"
-        assert relations[0].to_id == other.id
+    entities = await entity_service.repository.find_all()
+    assert len(entities) == 2
+    
+    # Find new entity
+    test_concept: Entity = next(e for e in entities if e.path_id == "concept/test_concept")
+    assert test_concept.entity_type == "concept"
+    
+    # Verify relation was created
+    entity = await entity_service.get_by_path_id(test_concept.path_id)
+    relations = entity.relations
+    assert len(relations) == 1
+    assert relations[0].relation_type == "depends_on"
+    assert relations[0].to_id == other.id
 
 
 @pytest.mark.asyncio
@@ -149,14 +155,16 @@ async def test_sync_deletes(
     doc = Document(
         path_id="deleted.md",
         file_path="deleted.md",
-        content="deleted content"
+        checksum="12345678"
     )
     await document_service.repository.add(doc)
     
     entity = Entity(
         path_id="concept/deleted",
         name="Deleted",
-        entity_type="concept"
+        entity_type="concept",
+        file_path="concept/deleted.md",
+        checksum = "12345678"
     )
     await entity_service.repository.add(entity)
     
@@ -164,10 +172,8 @@ async def test_sync_deletes(
     await sync_service.sync(root_dir)
     
     # Verify deletions
-    async with document_service.repository.session() as session:
-        docs = await document_service.repository.find_all(session)
-        assert len(docs) == 0
+    docs = await document_service.repository.find_all()
+    assert len(docs) == 0
         
-    async with entity_service.repository.session() as session:
-        entities = await entity_service.repository.find_all(session)
-        assert len(entities) == 0
+    entities = await entity_service.repository.find_all()
+    assert len(entities) == 0

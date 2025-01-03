@@ -28,6 +28,7 @@ from basic_memory.services import (
 from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services import KnowledgeService
+from basic_memory.services.sync.knowledge_sync_service import KnowledgeSyncService
 
 
 @pytest_asyncio.fixture
@@ -177,6 +178,14 @@ async def activity_service(document_service, entity_service, relation_service):
     """Create activity service with real dependencies."""
     return ActivityService(entity_service, document_service, relation_service)
 
+@pytest_asyncio.fixture
+async def knowledge_sync_service(
+    entity_service: EntityService,
+    observation_service: ObservationService,
+    relation_service: RelationService,
+) -> KnowledgeSyncService:
+    """Create EntitySyncService with repository."""
+    return KnowledgeSyncService(entity_service, observation_service, relation_service)
 
 
 @pytest_asyncio.fixture(scope="function")

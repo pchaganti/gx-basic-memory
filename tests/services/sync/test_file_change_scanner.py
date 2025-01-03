@@ -177,8 +177,8 @@ async def test_get_db_state_entities(
     db_records = await file_change_scanner.get_db_state([entity])
     
     assert len(db_records) == 1
-    assert "concept/test.md" in db_records
-    assert db_records["concept/test.md"].checksum == "test-checksum"
+    assert "concept/test" in db_records
+    assert db_records["concept/test"].checksum == "test-checksum"
 
 
 @pytest.mark.asyncio

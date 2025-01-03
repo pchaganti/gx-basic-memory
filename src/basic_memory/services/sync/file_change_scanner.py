@@ -161,12 +161,13 @@ class FileChangeScanner:
         db_files = {}
 
         for record in db_records:
+            # TODO - why file_path?
             # Use file_path if available, otherwise use path_id
             path = record.file_path if record.file_path is not None else record.path_id
 
             if record.checksum:
-                db_files[path] = FileState(
-                    path=path,
+                db_files[record.path_id] = FileState(
+                    path=record.path_id,
                     checksum=record.checksum
                 )
 

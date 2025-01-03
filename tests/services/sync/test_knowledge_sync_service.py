@@ -17,14 +17,6 @@ from basic_memory.markdown.schemas import (
 )
 
 
-@pytest_asyncio.fixture
-async def knowledge_sync_service(
-    entity_service: EntityService,
-    observation_service: ObservationService,
-    relation_service: RelationService,
-) -> KnowledgeSyncService:
-    """Create EntitySyncService with repository."""
-    return KnowledgeSyncService(entity_service, observation_service, relation_service)
 
 
 @pytest_asyncio.fixture
