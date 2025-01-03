@@ -12,18 +12,6 @@ from basic_memory.services.sync.utils import FileState, SyncReport, ScanResult
 from basic_memory.utils.file_utils import compute_checksum
 
 
-class DbRecord(Protocol):
-    """Protocol for database records with path and checksum."""
-    @property
-    def file_path(self) -> Optional[str]: ...
-    @property
-    def path_id(self) -> str: ...
-    @property
-    def checksum(self) -> Optional[str]: ...
-
-
-T = TypeVar('T', bound=DbRecord)
-
 
 class FileChangeScanner:
     """
