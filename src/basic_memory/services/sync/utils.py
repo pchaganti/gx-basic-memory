@@ -5,7 +5,7 @@ from typing import Set, Dict, Optional
 
 
 @dataclass
-class FileState:
+class DbState:
     """State of a file including path and checksum info."""
     path: str
     checksum: str
@@ -14,7 +14,7 @@ class FileState:
 @dataclass 
 class ScanResult:
     """Result of scanning a directory."""
-    files: Dict[str, FileState] = field(default_factory=dict)
+    files: Dict[str, DbState] = field(default_factory=dict)
     errors: Dict[str, str] = field(default_factory=dict)  # path -> error message
 
 

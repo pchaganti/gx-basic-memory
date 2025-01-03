@@ -6,7 +6,7 @@ from rich.console import Console
 from io import StringIO
 
 from basic_memory.cli.commands.status import display_changes, run_status
-from basic_memory.services.sync.utils import SyncReport, FileState
+from basic_memory.services.sync.utils import SyncReport, DbState
 from basic_memory.utils.file_utils import compute_checksum
 
 
@@ -35,7 +35,7 @@ async def test_display_compact_changes(console):
         modified={"docs/mod.md"},
         deleted={"old/deleted.md"},
         moved={
-            "new/location.md": FileState(
+            "new/location.md": DbState(
                 path="new/location.md", checksum="abc123", moved_from="old/location.md"
             )
         },
@@ -59,7 +59,7 @@ async def test_display_verbose_changes(console):
         modified={"docs/mod.md"},
         deleted={"old/deleted.md"},
         moved={
-            "new/location.md": FileState(
+            "new/location.md": DbState(
                 path="new/location.md",
                 checksum="abc123def",  # 8 chars for display
                 moved_from="old/location.md",

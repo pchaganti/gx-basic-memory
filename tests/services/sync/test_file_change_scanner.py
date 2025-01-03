@@ -5,7 +5,7 @@ from typing import AsyncGenerator
 
 from basic_memory.repository import DocumentRepository, EntityRepository
 from basic_memory.services import FileChangeScanner
-from basic_memory.services.sync.utils import FileState
+from basic_memory.services.sync.utils import DbState
 from basic_memory.utils.file_utils import compute_checksum
 from basic_memory.models import Document, Entity
 
@@ -51,7 +51,7 @@ async def test_scan_with_mixed_files(
     assert len(result.errors) == 0
 
     # Verify FileState objects
-    assert isinstance(result.files["doc.md"], FileState)
+    assert isinstance(result.files["doc.md"], DbState)
     assert result.files["doc.md"].path == "doc.md"
     assert result.files["doc.md"].checksum is not None
 
@@ -108,7 +108,7 @@ async def test_detect_modified_file(
     # Create DB state with original checksum
     original_checksum = await compute_checksum(content)
     db_records = {
-        path: FileState(path=path, checksum=original_checksum)
+        path: DbState(path=path, checksum=original_checksum)
     }
 
     # Modify file
@@ -133,7 +133,7 @@ async def test_detect_deleted_files(
     
     # Create DB state with file that doesn't exist
     db_records = {
-        path: FileState(path=path, checksum="any-checksum")
+        path: DbState(path=path, checksum="any-checksum")
     }
 
     changes = await file_change_scanner.find_changes(

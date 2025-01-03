@@ -54,29 +54,31 @@ class SyncService:
         logger.info(f"Found {changes.total_changes} knowledge changes")
 
         # Handle deletions first
-        for path_id in changes.deleted:
-            logger.debug(f"Deleting entity: {path_id}")
-            await self.knowledge_sync_service.delete_entity_by_file_path(path_id)
+        # remove rows from db for files no longer present
+        for file_path in changes.deleted:
+            logger.debug(f"Deleting entity from db: {file_path}")
+            await self.knowledge_sync_service.delete_entity_by_file_path(file_path)
 
         # Parse files that need updating
         parsed_entities = {}
-        for path_id in [*changes.new, *changes.modified]:
-            entity = await self.knowledge_parser.parse_file(directory / path_id)
-            parsed_entities[path_id] = entity
+        for file_path in [*changes.new, *changes.modified]:
+            entity_markdown = await self.knowledge_parser.parse_file(directory / file_path)
+            parsed_entities[file_path] = entity_markdown
 
         # First pass: Create/update entities
-        for path_id, entity in parsed_entities.items():
-            if path_id in changes.new:
-                logger.debug(f"Creating new entity: {path_id}")
-                await self.knowledge_sync_service.create_entity_and_observations(entity)
+        for file_path, entity_markdown in parsed_entities.items():
+            if file_path in changes.new:
+                logger.debug(f"Creating new entity_markdown: {file_path}")
+                await self.knowledge_sync_service.create_entity_and_observations(entity_markdown)
             else:
-                logger.debug(f"Updating entity: {path_id}")
-                await self.knowledge_sync_service.update_entity_and_observations(entity)
+                path_id = entity_markdown.frontmatter.id
+                logger.debug(f"Updating entity_markdown: {path_id}")
+                await self.knowledge_sync_service.update_entity_and_observations(path_id, entity_markdown)
 
         # Second pass: Process relations
-        for path_id, entity in parsed_entities.items():
-            logger.debug(f"Updating relations for: {path_id}")
-            await self.knowledge_sync_service.update_entity_relations(entity, checksum=changes.checksums[path_id])
+        for file_path, entity_markdown in parsed_entities.items():
+            logger.debug(f"Updating relations for: {file_path}")
+            await self.knowledge_sync_service.update_entity_relations(entity_markdown, checksum=changes.checksums[file_path])
 
     async def sync(self, root_dir: Path) -> None:
         """Sync all files with database."""
