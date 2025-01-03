@@ -4,7 +4,7 @@ from typing import Dict
 
 from loguru import logger
 
-from basic_memory.models import Entity as EntityModel, Observation, Relation
+from basic_memory.models import Entity as EntityModel, Observation, Relation, ObservationCategory
 from basic_memory.markdown.schemas import EntityMarkdown
 from basic_memory.schemas.request import ObservationCreate
 from basic_memory.services import EntityService, ObservationService, RelationService
@@ -17,13 +17,27 @@ def entity_model_from_markdown(markdown: EntityMarkdown) -> EntityModel:
         markdown: Parsed markdown entity
         include_relations: Whether to include relations. Set False for first sync pass.
     """
+
+    # Validate/default category
+    def get_valid_category(obs):
+        if not obs.category or obs.category not in [c.value for c in ObservationCategory]:
+            return ObservationCategory.NOTE.value
+        return obs.category
+    
     model = EntityModel(
         name=markdown.content.title,
         entity_type=markdown.frontmatter.type,
         path_id=markdown.frontmatter.id,
         file_path=markdown.frontmatter.id,
         description=markdown.content.description,
-        observations=[Observation(content=obs.content) for obs in markdown.content.observations],
+        observations=[
+            Observation(
+                content=obs.content,
+                category=get_valid_category(obs),
+                context=obs.context
+            )
+            for obs in markdown.content.observations
+        ],
     )
     return model
 
@@ -113,17 +127,31 @@ class KnowledgeSyncService:
 
         # Clear and update relations
         await self.relation_service.delete_outgoing_relations_from_entity(db_entity.id)
-        relations = [
-            Relation(
-                from_id=db_entity.id,
-                to_id=entity_by_path[rel.target].id,
-                relation_type=rel.type,
-                context=rel.context,
-            )
-            for rel in markdown.content.relations
-            if rel.target in entity_by_path  # Only create relations if target exists
-        ]
-        await self.relation_service.create_relations(relations)
+        
+        # Use dict to deduplicate relations keyed by (target, type)
+        relation_dict = {}
+        for rel in markdown.content.relations:
+            if rel.target not in entity_by_path:
+                continue  # Skip if target doesn't exist
+
+            to_id = entity_by_path[rel.target].id
+            key = (to_id, rel.type)
+            
+            # Only keep the first instance of each relation type to a target
+            if key not in relation_dict:
+                relation_dict[key] = Relation(
+                    from_id=db_entity.id,
+                    to_id=to_id,
+                    relation_type=rel.type,
+                    context=rel.context,
+                )
+            else:
+                logger.info(
+                    f"Skipping duplicate relation '{rel.type}' to '{rel.target}' in {markdown.frontmatter.id}"
+                )
+
+        # Create unique relations
+        await self.relation_service.create_relations(list(relation_dict.values()))
 
         # Set final checksum to mark sync complete
         return await self.entity_service.update_entity(
