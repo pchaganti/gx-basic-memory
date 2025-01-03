@@ -5,6 +5,7 @@ from loguru import logger
 
 from basic_memory.services import FileChangeScanner, EntityService, DocumentService
 from basic_memory.markdown import KnowledgeParser
+from basic_memory.services.sync.entity_sync_service import EntitySyncService
 
 
 class SyncService:
@@ -19,7 +20,7 @@ class SyncService:
         self,
         scanner: FileChangeScanner,
         document_service: DocumentService,
-        entity_service: EntityService,
+        entity_service: EntitySyncService,
         knowledge_parser: KnowledgeParser,
     ):
         self.scanner = scanner
