@@ -41,8 +41,8 @@ class KnowledgeSyncService:
         self.observation_service = observation_service
         self.relation_service = relation_service
 
-    async def delete_entity(self, path_id: str) -> bool:
-        return await self.entity_service.delete_entity(path_id)
+    async def delete_entity_by_file_path(self, file_path: str) -> bool:
+        return await self.entity_service.delete_entity_by_file_path(file_path)
 
     async def create_entity_and_observations(self, markdown: EntityMarkdown) -> EntityModel:
         """First pass: Create entity and observations only.

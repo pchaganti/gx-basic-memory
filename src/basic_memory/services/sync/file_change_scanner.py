@@ -116,7 +116,7 @@ class FileChangeScanner:
         
         logger.debug("Files from database:")
         for path, state in sorted(db_records.items()):
-            logger.debug(f"  {path} ({state.checksum[:8]})")
+            logger.debug(f"  {path} ({state.checksum[:8] if state.checksum else 'no checksum'})")
 
         # Build report
         report = SyncReport()
@@ -132,8 +132,12 @@ class FileChangeScanner:
             elif curr_state.checksum != db_records[path].checksum:
                 report.modified.add(path)
 
-        # Find deleted files
-        report.deleted = set(db_records.keys()) - set(current_files.keys())
+        # Find deleted files - need to be deleted from db
+        # either not in current_files, or
+        # db row has no checksum
+        for db_path, file_state in db_records.items():
+            if db_path not in current_files or file_state.checksum is None:
+                report.deleted.add(db_path)
 
         # Log summary
         logger.debug(f"Changes found: {report.total_changes}")
@@ -148,34 +152,19 @@ class FileChangeScanner:
 
         return report
 
-    async def get_db_state(self, db_records: Sequence[Document | Entity ]) -> Dict[str, FileState]:
-        """Get current files and checksums from database.
-
+    async def get_db_file_paths(self, db_records: Sequence[Document | Entity]) -> Dict[str, FileState]:
+        """Get file_path and checksums from database.
         Args:
-            get_records: Function to query database records
-
+            db_records: database records
         Returns:
-            Dict mapping paths to FileState
+            Dict mapping file paths to FileState
             :param db_records: the data from the db 
         """
-        db_files = {}
-
-        for record in db_records:
-            # TODO - why file_path?
-            # Use file_path if available, otherwise use path_id
-            path = record.file_path if record.file_path is not None else record.path_id
-
-            if record.checksum:
-                db_files[record.path_id] = FileState(
-                    path=record.path_id,
-                    checksum=record.checksum
-                )
-
-        return db_files
+        return {r.file_path: FileState(path=r.path_id, checksum=r.checksum) for r in db_records}
 
     async def find_document_changes(self, directory: Path) -> SyncReport:
         """Find changes in document directory."""
-        db_records = await self.get_db_state(await self.document_repository.find_all())
+        db_records = await self.get_db_file_paths(await self.document_repository.find_all())
         return await self.find_changes(
             directory=directory,
             db_records=db_records
@@ -183,7 +172,7 @@ class FileChangeScanner:
 
     async def find_knowledge_changes(self, directory: Path) -> SyncReport:
         """Find changes in knowledge directory."""
-        db_records = await self.get_db_state(await self.entity_repository.find_all())
+        db_records = await self.get_db_file_paths(await self.entity_repository.find_all())
         return await self.find_changes(
             directory=directory,
             db_records=db_records

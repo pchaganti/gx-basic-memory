@@ -84,7 +84,7 @@ async def test_detect_new_files(
     await create_test_file(temp_dir / "new.md")
     
     # Empty DB state
-    db_records = await file_change_scanner.get_db_state([])
+    db_records = await file_change_scanner.get_db_file_paths([])
     
     changes = await file_change_scanner.find_changes(
         directory=temp_dir,
@@ -156,7 +156,7 @@ async def test_get_db_state_documents(
         checksum="test-checksum"
     )
     
-    db_records = await file_change_scanner.get_db_state([doc])
+    db_records = await file_change_scanner.get_db_file_paths([doc])
     
     assert len(db_records) == 1
     assert "test.md" in db_records
@@ -174,32 +174,16 @@ async def test_get_db_state_entities(
         checksum="test-checksum"
     )
     
-    db_records = await file_change_scanner.get_db_state([entity])
+    db_records = await file_change_scanner.get_db_file_paths([entity])
     
     assert len(db_records) == 1
-    assert "concept/test" in db_records
-    assert db_records["concept/test"].checksum == "test-checksum"
+    assert "concept/test.md" in db_records
+    assert db_records["concept/test.md"].checksum == "test-checksum"
+
 
 
 @pytest.mark.asyncio
-async def test_get_db_state_handles_missing_file_path(
-    file_change_scanner: FileChangeScanner
-):
-    """Test that get_db_state uses path_id when file_path is None."""
-    doc = Document(
-        path_id="test.md",
-        file_path=None,
-        checksum="test-checksum"
-    )
-    
-    db_records = await file_change_scanner.get_db_state([doc])
-    
-    assert len(db_records) == 1
-    assert "test.md" in db_records
-
-
-@pytest.mark.asyncio
-async def test_get_db_state_skips_missing_checksum(
+async def test_get_db_state_does_not_skip_missing_checksum(
     file_change_scanner: FileChangeScanner
 ):
     """Test that get_db_state skips records with missing checksums."""
@@ -209,9 +193,9 @@ async def test_get_db_state_skips_missing_checksum(
         checksum=None
     )
     
-    db_records = await file_change_scanner.get_db_state([doc])
+    db_records = await file_change_scanner.get_db_file_paths([doc])
     
-    assert len(db_records) == 0
+    assert len(db_records) == 1
 
 
 @pytest.mark.asyncio

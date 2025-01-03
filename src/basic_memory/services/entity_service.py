@@ -102,3 +102,6 @@ class EntityService(BaseService[EntityModel]):
         logger.debug(f"Deleting entities: {path_ids}")
         deleted_count = await self.repository.delete_by_path_ids(path_ids)
         return deleted_count > 0
+
+    async def delete_entity_by_file_path(self, file_path):
+        await self.repository.delete_by_file_path(file_path)

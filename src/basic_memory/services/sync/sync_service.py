@@ -56,7 +56,7 @@ class SyncService:
         # Handle deletions first
         for path_id in changes.deleted:
             logger.debug(f"Deleting entity: {path_id}")
-            await self.knowledge_sync_service.delete_entity(path_id)
+            await self.knowledge_sync_service.delete_entity_by_file_path(path_id)
 
         # Parse files that need updating
         parsed_entities = {}

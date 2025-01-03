@@ -116,11 +116,13 @@ A test concept.
     await create_test_file(knowledge_dir / "concept/test_concept.md", new_content)
     
     # Create related entity in DB
+    # will be categorized as deleted
     other = Entity(
         path_id="concept/other",
         name="Other",
         entity_type="concept",
-        file_path="concept/other.md"
+        file_path="concept/other.md",
+        checksum = "12345678"
     )
     await entity_service.repository.add(other)
     
@@ -129,18 +131,16 @@ A test concept.
     
     # Verify results
     entities = await entity_service.repository.find_all()
-    assert len(entities) == 2
+    assert len(entities) == 1
     
     # Find new entity
     test_concept: Entity = next(e for e in entities if e.path_id == "concept/test_concept")
     assert test_concept.entity_type == "concept"
     
-    # Verify relation was created
+    # Verify relation was not created
     entity = await entity_service.get_by_path_id(test_concept.path_id)
     relations = entity.relations
-    assert len(relations) == 1
-    assert relations[0].relation_type == "depends_on"
-    assert relations[0].to_id == other.id
+    assert len(relations) == 0
 
 
 @pytest.mark.asyncio

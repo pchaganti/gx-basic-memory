@@ -100,6 +100,10 @@ class EntityRepository(Repository[Entity]):
         """Delete all entities associated with a document."""
         return await self.delete_by_fields(doc_id=doc_id)
 
+    async def delete_by_file_path(self, file_path: str) -> bool:
+        """Delete entity with the provided file_path."""
+        return await self.delete_by_fields(file_path=file_path)
+
     def get_load_options(self) -> List[LoaderOption]:
         return [
             selectinload(Entity.observations),
