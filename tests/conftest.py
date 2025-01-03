@@ -29,6 +29,7 @@ from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services import KnowledgeService
 from basic_memory.services.sync.knowledge_sync_service import KnowledgeSyncService
+from basic_memory.services.sync.sync_service import SyncService
 
 
 @pytest_asyncio.fixture
@@ -37,12 +38,15 @@ def anyio_backend():
 
 
 @pytest_asyncio.fixture
-def test_config(tmp_path):
+def test_config(tmp_path) -> ProjectConfig:
     """Test configuration using in-memory DB."""
     config = ProjectConfig(
         name="test",
     )
     config.home = tmp_path
+    
+    (tmp_path / config.documents_dir.name).mkdir(parents=True, exist_ok=True)
+    (tmp_path / config.knowledge_dir.name).mkdir(parents=True, exist_ok=True)
     return config
 
 
@@ -186,6 +190,23 @@ async def knowledge_sync_service(
 ) -> KnowledgeSyncService:
     """Create EntitySyncService with repository."""
     return KnowledgeSyncService(entity_service, observation_service, relation_service)
+
+
+@pytest_asyncio.fixture
+async def sync_service(
+    document_service: DocumentService,
+    knowledge_sync_service: KnowledgeSyncService,
+    file_change_scanner: FileChangeScanner,
+    knowledge_parser: KnowledgeParser,
+) -> SyncService:
+    """Create sync service for testing."""
+    return SyncService(
+        scanner=file_change_scanner,
+        document_service=document_service,
+        knowledge_sync_service=knowledge_sync_service,
+        knowledge_parser=knowledge_parser,
+    )
+
 
 
 @pytest_asyncio.fixture(scope="function")
