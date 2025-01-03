@@ -7,12 +7,12 @@ from basic_memory.models import Base
 from basic_memory.repository.repository import Repository
 
 T = TypeVar("T", bound=Base)
-
+R = TypeVar("R", bound=Repository)
 
 class BaseService(Generic[T]):
     """Base service that takes a repository."""
 
-    def __init__(self, repository: T):
+    def __init__(self, repository: R):
         """Initialize service with repository."""
         self.repository = repository
 

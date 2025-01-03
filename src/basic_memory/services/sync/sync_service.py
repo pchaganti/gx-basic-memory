@@ -5,7 +5,7 @@ from loguru import logger
 
 from basic_memory.services import FileChangeScanner, EntityService, DocumentService
 from basic_memory.markdown import KnowledgeParser
-from basic_memory.services.sync.entity_sync_service import EntitySyncService
+from basic_memory.services.sync.knowledge_sync_service import KnowledgeSyncService
 
 
 class SyncService:
@@ -20,7 +20,7 @@ class SyncService:
         self,
         scanner: FileChangeScanner,
         document_service: DocumentService,
-        entity_service: EntitySyncService,
+        entity_service: KnowledgeSyncService,
         knowledge_parser: KnowledgeParser,
     ):
         self.scanner = scanner
@@ -68,10 +68,10 @@ class SyncService:
         for path_id, entity in parsed_entities.items():
             if path_id in changes.new:
                 logger.debug(f"Creating new entity: {path_id}")
-                await self.entity_service.create_entity_without_relations(entity)
+                await self.entity_service.create_entity_and_observations(entity)
             else:
                 logger.debug(f"Updating entity: {path_id}")
-                await self.entity_service.update_entity_without_relations(entity)
+                await self.entity_service.update_entity_and_observations(entity)
 
         # Second pass: Process relations
         for path_id, entity in parsed_entities.items():

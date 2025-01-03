@@ -1,5 +1,5 @@
 """Repository for managing Relation objects."""
-from sqlalchemy import and_ 
+from sqlalchemy import and_, delete
 from typing import Sequence, List, Optional
 
 from sqlalchemy import select
@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.orm.interfaces import LoaderOption
 
+from basic_memory import db
 from basic_memory.models import Relation, Entity
 from basic_memory.repository.repository import Repository
 
@@ -53,6 +54,17 @@ class RelationRepository(Repository[Relation]):
         query = select(Relation).filter(Relation.relation_type == relation_type)
         result = await self.execute_query(query)
         return result.scalars().all()
+
+    async def delete_outgoing_relations_from_entity(self, entity_id: int) -> None:
+        """Delete outgoing relations for an entity.
+
+        Only deletes relations where this entity is the source (from_id),
+        as these are the ones owned by this entity's markdown file.
+        """
+        async with db.scoped_session(self.session_maker) as session:
+            await session.execute(
+                delete(Relation).where(Relation.from_id == entity_id)
+            )
 
     def get_load_options(self) -> List[LoaderOption]:
         return [selectinload(Relation.from_entity), selectinload(Relation.to_entity)]

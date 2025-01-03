@@ -52,7 +52,7 @@ class ObservationService(BaseService[ObservationRepository]):
                 deleted = True
         return deleted
 
-    async def delete_by_entity(self, entity_id: str) -> bool:
+    async def delete_by_entity(self, entity_id: int) -> bool:
         """Delete all observations for an entity."""
         logger.debug(f"Deleting all observations for entity: {entity_id}")
         return await self.repository.delete_by_fields(entity_id=entity_id)

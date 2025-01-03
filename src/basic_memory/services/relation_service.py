@@ -43,7 +43,6 @@ class RelationService(BaseService[RelationRepository]):
     async def delete_relations(self, relations: List[Relation]) -> int:
         """Delete relations matching specified criteria."""
         logger.debug(f"Deleting {len(relations)} relations")
-        deleted = False
         
         ids = [relation.id for relation in relations]
         return await self.repository.delete_by_ids(ids)
@@ -53,3 +52,6 @@ class RelationService(BaseService[RelationRepository]):
         logger.debug(f"Creating {len(relations)} relations")
         return await self.repository.add_all(relations)
 
+    async def delete_outgoing_relations_from_entity(self, entity_id: int) -> None:
+        logger.debug(f"Deleting outgoing relations from {entity_id} ")
+        return await self.repository.delete_outgoing_relations_from_entity(entity_id)

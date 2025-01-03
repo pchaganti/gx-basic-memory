@@ -23,7 +23,7 @@ def entity_model(entity: EntitySchema):
     return model
 
 
-class EntityService(BaseService[EntityRepository]):
+class EntityService(BaseService[EntityModel]):
     """Service for managing entities in the database."""
 
     def __init__(self, entity_repository: EntityRepository):
