@@ -1,16 +1,13 @@
 """Command module for basic-memory sync operations."""
+
 from pathlib import Path
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple
 from dataclasses import dataclass
-from collections import defaultdict
 
 import typer
 import asyncio
 from loguru import logger
 from rich.console import Console
-from rich.panel import Panel
-from rich.padding import Padding
-from rich.text import Text
 from rich.tree import Tree
 
 from basic_memory.cli.app import app
@@ -25,72 +22,74 @@ from basic_memory.services import (
 from basic_memory.markdown import KnowledgeParser
 from basic_memory.services.sync import SyncService, FileChangeScanner, KnowledgeSyncService
 from basic_memory.utils.file_utils import ParseError
+from basic_memory.services.sync.utils import SyncReport
+
 
 console = Console()
 
-@dataclass
-class ValidationIssue:
-    file_path: str
-    error: str
 
-def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[ValidationIssue]]:
-    """Group validation issues by directory."""
-    grouped = defaultdict(list)
-    for issue in issues:
-        dir_name = Path(issue.file_path).parent.name
-        grouped[dir_name].append(issue)
-    return dict(grouped)
+def display_sync_summary(docs: SyncReport, knowledge: SyncReport):
+    """Display a one-line summary of sync changes."""
+    total_changes = docs.total_changes + knowledge.total_changes
+    if total_changes == 0:
+        console.print("[green]Everything up to date[/green]")
+        return
 
-def display_validation_errors(issues: List[ValidationIssue]):
-    """Display validation errors in a rich, organized format."""
-    # Create header
-    console.print()
-    console.print(Panel(
-        "[red bold]Error:[/red bold] Invalid frontmatter in knowledge files",
-        expand=False
-    ))
-    console.print()
+    # Format as: "Synced X files (A new, B modified, C deleted)"
+    changes = []
+    new_count = len(docs.new) + len(knowledge.new)
+    mod_count = len(docs.modified) + len(knowledge.modified)
+    del_count = len(docs.deleted) + len(knowledge.deleted)
 
-    # Group issues by directory
-    grouped_issues = group_issues_by_directory(issues)
+    if new_count:
+        changes.append(f"[green]{new_count} new[/green]")
+    if mod_count:
+        changes.append(f"[yellow]{mod_count} modified[/yellow]")
+    if del_count:
+        changes.append(f"[red]{del_count} deleted[/red]")
 
-    # Create tree structure
-    tree = Tree("Knowledge Files")
-    for dir_name, dir_issues in sorted(grouped_issues.items()):
-        # Create branch for directory
-        branch = tree.add(
-            f"[bold blue]{dir_name}/[/bold blue] "
-            f"([yellow]{len(dir_issues)} files[/yellow])"
-        )
-        
-        # Add each file issue
-        for issue in sorted(dir_issues, key=lambda x: x.file_path):
-            file_name = Path(issue.file_path).name
-            branch.add(
-                Text.assemble(
-                    ("└─ ", "dim"),
-                    (file_name, "yellow"),
-                    ": ",
-                    (issue.error, "red")
-                )
-            )
+    console.print(f"Synced {total_changes} files ({', '.join(changes)})")
 
-    # Display tree
-    console.print(Padding(tree, (1, 2)))
-    
-    # Add help text
-    console.print()
-    console.print(Panel(
-        Text.assemble(
-            ("To fix:", "bold"),
-            "\n1. Add required frontmatter fields to each file",
-            "\n2. Run ", 
-            ("basic-memory sync", "bold cyan"),
-            " again"
-        ),
-        expand=False
-    ))
-    console.print()
+
+def display_detailed_sync_results(docs: SyncReport, knowledge: SyncReport):
+    """Display detailed sync results with trees."""
+    console.print("\n[bold]Sync Results[/bold]")
+
+    if docs.total_changes > 0:
+        doc_tree = Tree("[bold]Documents[/bold]")
+        if docs.new:
+            created = doc_tree.add("[green]Created[/green]")
+            for path in sorted(docs.new):
+                checksum = docs.checksums.get(path, '')
+                created.add(f"[green]{path}[/green] ({checksum[:8]})")
+        if docs.modified:
+            modified = doc_tree.add("[yellow]Modified[/yellow]")
+            for path in sorted(docs.modified):
+                checksum = docs.checksums.get(path, '')
+                modified.add(f"[yellow]{path}[/yellow] ({checksum[:8]})")
+        if docs.deleted:
+            deleted = doc_tree.add("[red]Deleted[/red]")
+            for path in sorted(docs.deleted):
+                deleted.add(f"[red]{path}[/red]")
+        console.print(doc_tree)
+
+    if knowledge.total_changes > 0:
+        knowledge_tree = Tree("[bold]Knowledge Files[/bold]")
+        if knowledge.new:
+            created = knowledge_tree.add("[green]Created[/green]")
+            for path in sorted(knowledge.new):
+                checksum = knowledge.checksums.get(path, '')
+                created.add(f"[green]{path}[/green] ({checksum[:8]})")
+        if knowledge.modified:
+            modified = knowledge_tree.add("[yellow]Modified[/yellow]")
+            for path in sorted(knowledge.modified):
+                checksum = knowledge.checksums.get(path, '')
+                modified.add(f"[yellow]{path}[/yellow] ({checksum[:8]})")
+        if knowledge.deleted:
+            deleted = knowledge_tree.add("[red]Deleted[/red]")
+            for path in sorted(knowledge.deleted):
+                deleted.add(f"[red]{path}[/red]")
+        console.print(knowledge_tree)
 
 
 async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
@@ -128,46 +127,35 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         return sync_service
 
 
-async def validate_knowledge_files(sync_service: SyncService, directory: Path) -> List[ValidationIssue]:
-    """Pre-validate knowledge files and collect all issues."""
-    issues = []
-    changes = await sync_service.scanner.find_knowledge_changes(directory)
-
-    for file_path in [*changes.new, *changes.modified]:
-        try:
-            await sync_service.knowledge_parser.parse_file(directory / file_path)
-        except ParseError as e:
-            issues.append(ValidationIssue(file_path=file_path, error=str(e)))
-
-    return issues
-
-
-async def run_sync():
+async def run_sync(verbose: bool = False):
     """Run sync operation."""
     sync_service = await get_sync_service()
 
-    # Sync documents first
-    await sync_service.sync_documents(config.documents_dir)
+    # Scan for changes first
+    doc_changes = None
+    knowledge_changes = None
 
-    # Validate knowledge files before attempting sync
-    issues = await validate_knowledge_files(sync_service, config.knowledge_dir)
-    if issues:
-        display_validation_errors(issues)
-        raise typer.Exit(1)
-        
-    # If validation passes, sync knowledge files
-    await sync_service.sync_knowledge(config.knowledge_dir)
+    if config.documents_dir.exists():
+        doc_changes = await sync_service.scanner.find_document_changes(config.documents_dir)
+        await sync_service.sync_documents(config.documents_dir)
+
+    if config.knowledge_dir.exists():
+        knowledge_changes = await sync_service.scanner.find_knowledge_changes(config.knowledge_dir)
+        await sync_service.sync_knowledge(config.knowledge_dir)
+
+    # Use empty reports if directories don't exist
+    doc_changes = doc_changes or SyncReport()
+    knowledge_changes = knowledge_changes or SyncReport()
+
+    # Display results
+    if verbose:
+        display_detailed_sync_results(doc_changes, knowledge_changes)
+    else:
+        display_sync_summary(doc_changes, knowledge_changes)
 
 
 @app.command()
 def sync(
-    path: Optional[Path] = typer.Argument(
-        None,
-        help="Path to sync. Defaults to current project directory.",
-        exists=True,
-        dir_okay=True,
-        file_okay=False,
-    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
@@ -181,15 +169,8 @@ def sync(
     Knowledge files must have required frontmatter fields: type, id, created, modified.
     """
     try:
-        # Get project directory
-        project_dir = path or Path.cwd()
-        logger.info(f"Syncing directory: {project_dir}")
-
         # Run sync
-        asyncio.run(run_sync())
-
-        if verbose:
-            logger.info("Sync completed successfully")
+        asyncio.run(run_sync(verbose))
     
     except Exception as e:
         if not isinstance(e, typer.Exit):
