@@ -16,7 +16,7 @@ def entity_model(entity: EntitySchema):
         name=entity.name,
         entity_type=entity.entity_type,
         path_id=entity.path_id,
-        file_path=entity.path_id,
+        file_path=entity.file_path,
         description=entity.description,
         observations=[Observation(content=observation) for observation in entity.observations],
     )

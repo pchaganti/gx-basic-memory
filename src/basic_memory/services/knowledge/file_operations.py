@@ -43,14 +43,13 @@ class FileOperations:
             # Ensure we have a fresh entity with all relations loaded
             entity = await self.entity_service.get_by_path_id(entity.path_id)
 
+            frontmatter = await self.knowledge_writer.format_frontmatter(entity)
             # Format content
             path = self.get_entity_path(entity)
             entity_content = await self.knowledge_writer.format_content(entity)
-            file_content = await self.file_service.add_frontmatter(
-                id=entity.path_id,
+            file_content = await self.file_service.add_frontmatter( 
+                frontmatter=frontmatter,
                 content=entity_content,
-                created=entity.created_at,
-                updated=entity.updated_at,
             )
 
             # Write and get checksum

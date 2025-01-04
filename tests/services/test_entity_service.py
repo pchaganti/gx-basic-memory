@@ -40,6 +40,8 @@ async def test_create_entity(entity_service: EntityService):
     # Assert Entity
     assert isinstance(entity, EntityModel)
     assert entity.name == "TestEntity"
+    assert entity.path_id == entity_data.path_id
+    assert entity.file_path == entity_data.file_path
     assert entity.entity_type == "test"
     assert entity.description == "A test entity description"
     assert entity.created_at is not None

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List
 
 import pytest
+import yaml
 from sqlalchemy.exc import IntegrityError
 
 from basic_memory.models import Entity as EntityModel
@@ -41,6 +42,17 @@ async def test_create_entity(knowledge_service: KnowledgeService):
     # Verify file was written
     file_path = knowledge_service.get_entity_path(created)
     assert await knowledge_service.file_exists(file_path)
+
+    file_content, _ = await knowledge_service.read_file(file_path)
+    _, frontmatter, doc_content = file_content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+
+    # Verify frontmatter contents
+    assert metadata["id"] == entity.path_id
+    assert metadata["type"] == entity.entity_type
+    assert "created" in metadata
+    assert "modified" in metadata
+
 
 
 @pytest.mark.asyncio
@@ -84,12 +96,17 @@ async def test_create_relations(knowledge_service: KnowledgeService, entity_serv
     updated_entities = await knowledge_service.create_relations(relations)
     assert len(updated_entities) == 2
 
-    # Verify files were updated
-    for entity in [entity1, entity2]:
-        found = await entity_service.get_by_path_id(entity.path_id)
-        file_path = knowledge_service.get_entity_path(found)
-        content, _ = await knowledge_service.read_file(file_path)
-        assert "test_relation" in content
+    # Verify outgoing relation is updated
+    found = await entity_service.get_by_path_id(entity1.path_id)
+    file_path = knowledge_service.get_entity_path(found)
+    content, _ = await knowledge_service.read_file(file_path)
+    assert "test_relation" in content
+
+    # Verify other entity file is not updated
+    found = await entity_service.get_by_path_id(entity2.path_id)
+    file_path = knowledge_service.get_entity_path(found)
+    content, _ = await knowledge_service.read_file(file_path)
+    assert "test_relation" not in content
 
 
 @pytest.mark.asyncio
@@ -268,8 +285,8 @@ async def test_update_relations_in_files(knowledge_service: KnowledgeService):
 
     await knowledge_service.create_relations(relations)
 
-    # Verify both files contain relation
-    for entity in [entity1, entity2]:
+    # Verify source file contains relation
+    for entity in [entity1]:
         file_path = knowledge_service.get_entity_path(entity)
         content, _ = await knowledge_service.read_file(file_path)
         assert "connects_to" in content
@@ -280,8 +297,8 @@ async def test_update_relations_in_files(knowledge_service: KnowledgeService):
     )
     assert "target" in content
 
-    # Target should show incoming relation
+    # Target should not show incoming relation
     content, _ = await knowledge_service.read_file(
         knowledge_service.get_entity_path(entity2)
     )
-    assert "source" in content
+    assert "source" not in content

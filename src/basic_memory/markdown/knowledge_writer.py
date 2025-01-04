@@ -14,8 +14,8 @@ class KnowledgeWriter:
     async def format_frontmatter(self, entity: EntityModel) -> dict:
         """Generate frontmatter metadata for entity."""
         return {
-            "type": entity.entity_type,
             "id": entity.path_id,
+            "type": entity.entity_type,
             "created": entity.created_at.isoformat(),
             "modified": entity.updated_at.isoformat(),
         }
@@ -74,11 +74,10 @@ class KnowledgeWriter:
                 ]
             )
 
-            # Outgoing relations
-            for rel in entity.to_relations:
-                sections.append(f"- {rel.relation_type} [[{rel.from_entity.name}]] ")
-            sections.append("")
-
+            # Outgoing relations (entity is "from")
+            for rel in entity.from_relations:
+                sections.append(f"- {rel.relation_type} [[{rel.to_entity.name}]] ")
+                
         if metadata:
             sections.append("\n")
             sections.append(await self.format_metadata(metadata))

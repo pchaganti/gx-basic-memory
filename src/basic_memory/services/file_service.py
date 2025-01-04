@@ -109,20 +109,16 @@ class FileService:
     async def add_frontmatter(
         self,
         *,
-        id: str,
-        content: str,
-        created: datetime | None = None,
-        updated: datetime | None = None,
+        frontmatter: Dict[str, Any],
         metadata: Optional[Dict[str, Any]] = None,
+        content: str,
     ) -> str:
         """
         Add YAML frontmatter to content.
 
         Args:
-            id: ID to include in frontmatter
+            frontmatter: frontmatter info
             content: Content to add frontmatter to
-            created: the time the file was created
-            updated: the last time the file was updated
             metadata: Optional additional metadata
 
         Returns:
@@ -132,11 +128,6 @@ class FileService:
             FileOperationError: If frontmatter creation fails
         """
         try:
-            # Generate frontmatter with timestamps
-            now = datetime.now(UTC).isoformat()
-            created_at = created or now
-            updated_at = updated or now
-            frontmatter = {"id": id, "created": created_at, "modified": updated_at}
             if metadata:
                 frontmatter.update(metadata)
 

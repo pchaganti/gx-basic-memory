@@ -1,5 +1,6 @@
 """Tests for file operations service."""
 
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,14 +15,14 @@ async def test_exists(tmp_path: Path, file_service: FileService):
     """Test file existence checking."""
     # Test path
     test_path = tmp_path / "test.md"
-    
+
     # Should not exist initially
     assert not await file_service.exists(test_path)
-    
+
     # Create file
     test_path.write_text("test content")
     assert await file_service.exists(test_path)
-    
+
     # Delete file
     test_path.unlink()
     assert not await file_service.exists(test_path)
@@ -31,14 +32,14 @@ async def test_exists(tmp_path: Path, file_service: FileService):
 async def test_exists_error_handling(tmp_path: Path, file_service: FileService):
     """Test error handling in exists() method."""
     test_path = tmp_path / "test.md"
-    
+
     # Mock Path.exists to raise an error
-    with patch.object(Path, 'exists') as mock_exists:
+    with patch.object(Path, "exists") as mock_exists:
         mock_exists.side_effect = PermissionError("Access denied")
-        
+
         with pytest.raises(FileOperationError) as exc_info:
             await file_service.exists(test_path)
-        
+
         assert "Failed to check file existence" in str(exc_info.value)
 
 
@@ -112,14 +113,22 @@ async def test_add_frontmatter(file_service: FileService):
     test_content = "# Test\nSome content"
     test_metadata = {"type": "test", "tags": ["one", "two"]}
 
+    now = datetime.now()
+    frontmatter = {
+        "id": "test-id",
+        "type": "test",
+        "created": now.isoformat(),
+        "modified": now.isoformat(),
+    }
+
     # Add frontmatter
     content_with_fm = await file_service.add_frontmatter(
-        content=test_content, id=123, metadata=test_metadata
+        frontmatter=frontmatter, content=test_content, metadata=test_metadata
     )
 
     # Verify structure
     assert content_with_fm.startswith("---\n")
-    assert "id: 123" in content_with_fm
+    assert "id: test-id" in content_with_fm
     assert "type: test" in content_with_fm
     assert "created:" in content_with_fm
     assert "modified:" in content_with_fm
@@ -175,13 +184,21 @@ async def test_frontmatter_invalid_metadata(file_service: FileService):
         def __getstate__(self):
             raise ValueError("Can't serialize me!")
 
+    now = datetime.now()
+    frontmatter = {
+        "id": "test-id",
+        "type": "test",
+        "created": now.isoformat(),
+        "modified": now.isoformat(),
+    }
+
     bad_metadata = {"bad": NonSerializable()}
 
     # Attempting to add frontmatter with non-serializable content
     with patch("basic_memory.utils.file_utils.add_frontmatter") as mock_add:
         mock_add.side_effect = FileOperationError("Failed to serialize metadata")
         with pytest.raises(FileOperationError):
-            await file_service.add_frontmatter(content="content", id=123, metadata=bad_metadata)
+            await file_service.add_frontmatter(frontmatter=frontmatter, content="content", metadata=bad_metadata)
 
 
 @pytest.mark.asyncio
