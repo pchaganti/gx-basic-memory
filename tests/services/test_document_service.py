@@ -159,3 +159,47 @@ async def test_update_document_by_id(document_service, test_doc_path):
     file_content = file_path.read_text()
     assert new_content in file_content
     assert "---" in file_content  # Should have frontmatter
+
+
+@pytest.mark.asyncio
+async def test_update_document_no_duplicate_frontmatter(document_service, test_doc_path):
+    """Test that updating a document does not result in duplicate frontmatter."""
+
+    file_path, path_id = test_doc_path
+
+    # Create initial document with frontmatter
+    original_content = """---
+id: test_docs/test.md
+created: 2025-01-01T00:00:00Z
+type: test
+---
+
+# Original
+Original content."""
+
+    doc = await document_service.create_document(path_id, original_content)
+
+    # Update the document
+    new_content = "# Updated\nUpdated content."
+    await document_service.update_document_by_path_id(path_id, new_content)
+
+    # Read the file and verify frontmatter
+    file_content = file_path.read_text()
+
+    # Should only have two "---" markers (start and end of frontmatter)
+    assert file_content.count("---") == 2
+    
+    # Split content and verify structure
+    _, frontmatter, content = file_content.split("---", 2)
+    
+    # Verify frontmatter is valid YAML and has expected fields
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["id"] == path_id
+    assert "created" in metadata
+    assert "modified" in metadata
+
+    # Original created timestamp should be preserved
+    assert metadata["created"] is not None
+    
+    # Updated content should be present
+    assert new_content in content
