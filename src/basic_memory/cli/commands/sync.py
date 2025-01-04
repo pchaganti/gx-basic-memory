@@ -1,12 +1,17 @@
 """Command module for basic-memory sync operations."""
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 from dataclasses import dataclass
+from collections import defaultdict
 
 import typer
 import asyncio
 from loguru import logger
 from rich.console import Console
+from rich.panel import Panel
+from rich.padding import Padding
+from rich.text import Text
+from rich.tree import Tree
 
 from basic_memory.cli.app import app
 from basic_memory import db
@@ -28,16 +33,64 @@ class ValidationIssue:
     file_path: str
     error: str
 
-def display_validation_errors(issues: List[ValidationIssue]):
-    """Display validation errors in a clear, git-like format."""
-    console.print("\n[red]Error: Invalid frontmatter in knowledge files[/red]\n")
-
+def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[ValidationIssue]]:
+    """Group validation issues by directory."""
+    grouped = defaultdict(list)
     for issue in issues:
-        console.print(f"{issue.file_path}")
-        console.print(f"  {issue.error}\n")
+        dir_name = Path(issue.file_path).parent.name
+        grouped[dir_name].append(issue)
+    return dict(grouped)
 
-    console.print("To fix, add required frontmatter fields to each file")
-    console.print("Once fixed, run 'basic-memory sync' again")
+def display_validation_errors(issues: List[ValidationIssue]):
+    """Display validation errors in a rich, organized format."""
+    # Create header
+    console.print()
+    console.print(Panel(
+        "[red bold]Error:[/red bold] Invalid frontmatter in knowledge files",
+        expand=False
+    ))
+    console.print()
+
+    # Group issues by directory
+    grouped_issues = group_issues_by_directory(issues)
+
+    # Create tree structure
+    tree = Tree("Knowledge Files")
+    for dir_name, dir_issues in sorted(grouped_issues.items()):
+        # Create branch for directory
+        branch = tree.add(
+            f"[bold blue]{dir_name}/[/bold blue] "
+            f"([yellow]{len(dir_issues)} files[/yellow])"
+        )
+        
+        # Add each file issue
+        for issue in sorted(dir_issues, key=lambda x: x.file_path):
+            file_name = Path(issue.file_path).name
+            branch.add(
+                Text.assemble(
+                    ("└─ ", "dim"),
+                    (file_name, "yellow"),
+                    ": ",
+                    (issue.error, "red")
+                )
+            )
+
+    # Display tree
+    console.print(Padding(tree, (1, 2)))
+    
+    # Add help text
+    console.print()
+    console.print(Panel(
+        Text.assemble(
+            ("To fix:", "bold"),
+            "\n1. Add required frontmatter fields to each file",
+            "\n2. Run ", 
+            ("basic-memory sync", "bold cyan"),
+            " again"
+        ),
+        expand=False
+    ))
+    console.print()
 
 
 async def get_sync_service(db_type=DatabaseType.FILESYSTEM):

@@ -76,12 +76,7 @@ class KnowledgeWriter:
 
             # Outgoing relations
             for rel in entity.to_relations:
-                sections.append(f"- [[{rel.from_entity.name}]] {rel.relation_type}")
-
-            # Incoming relations
-            for rel in entity.from_relations:
-                sections.append(f"- [[{rel.to_entity.name}]] {rel.relation_type}")
-
+                sections.append(f"- {rel.relation_type} [[{rel.from_entity.name}]] ")
             sections.append("")
 
         if metadata:
