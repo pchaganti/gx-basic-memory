@@ -10,6 +10,9 @@ from basic_memory.utils.file_utils import (
     write_file_atomic,
     add_frontmatter,
     parse_frontmatter,
+    has_frontmatter,
+    remove_frontmatter,
+    parse_content_with_frontmatter,
     FileError,
     FileWriteError,
     ParseError,
@@ -83,47 +86,166 @@ async def test_add_frontmatter():
     assert "- a\n- b" in result or "['a', 'b']" in result
 
     # Should preserve content
-    assert result.endswith(content)
+    assert result.endswith(f"test content")
 
 
-@pytest.mark.asyncio
-async def test_parse_frontmatter():
+def test_has_frontmatter():
+    """Test frontmatter detection."""
+    # Valid frontmatter
+    assert has_frontmatter("""---
+title: Test
+---
+content""")
+
+    # Just content
+    assert not has_frontmatter("Just content")
+
+    # Empty content
+    assert not has_frontmatter("")
+
+    # Just delimiter
+    assert not has_frontmatter("---")
+
+    # Delimiter not at start
+    assert not has_frontmatter("""
+Some text
+---
+title: Test
+---""")
+
+    # Invalid format
+    assert not has_frontmatter("--title: test--")
+
+
+def test_parse_frontmatter():
     """Test parsing frontmatter."""
+    # Valid frontmatter
     content = """---
 title: Test
 tags:
   - a
   - b
 ---
+content"""
+    
+    result = parse_frontmatter(content)
+    assert result == {"title": "Test", "tags": ["a", "b"]}
 
+    # Empty frontmatter
+    content = """---
+---
+content"""
+    result = parse_frontmatter(content)
+    assert result == None or result == {}
+
+    # Invalid YAML
+    with pytest.raises(ParseError):
+        parse_frontmatter("""---
+[invalid yaml]
+---
+content""")
+
+    # No frontmatter
+    with pytest.raises(ParseError):
+        parse_frontmatter("Just content")
+
+    # Incomplete frontmatter
+    with pytest.raises(ParseError):
+        parse_frontmatter("""---
+title: Test
+content""")
+
+
+def test_remove_frontmatter():
+    """Test removing frontmatter."""
+    # With frontmatter
+    content = """---
+title: Test
+---
+test content"""
+    assert remove_frontmatter(content) == "test content"
+
+    # No frontmatter
+    content = "test content"
+    assert remove_frontmatter(content) == "test content"
+
+    # Only frontmatter
+    content = """---
+title: Test
+---
+"""
+    assert remove_frontmatter(content) == ""
+
+    # frontmatter missing some fields
+    assert remove_frontmatter("""---
+title: Test
+content""") == "---\ntitle: Test\ncontent"
+
+
+@pytest.mark.asyncio
+async def test_parse_content_with_frontmatter():
+    """Test combined frontmatter and content parsing."""
+    # Full document
+    content = """---
+title: Test
+tags:
+  - a
+  - b
+---
 test content"""
 
-    metadata, remaining = await parse_frontmatter(content)
+    frontmatter, body = await parse_content_with_frontmatter(content)
+    assert frontmatter == {"title": "Test", "tags": ["a", "b"]}
+    assert body == "test content"
 
-    assert metadata == {"title": "Test", "tags": ["a", "b"]}
-    assert remaining.strip() == "test content"
-
-
-@pytest.mark.asyncio
-async def test_parse_frontmatter_no_frontmatter():
-    """Test parsing content without frontmatter."""
+    # No frontmatter
     content = "test content"
-    metadata, remaining = await parse_frontmatter(content)
+    frontmatter, body = await parse_content_with_frontmatter(content)
+    assert frontmatter == {}
+    assert body == "test content"
 
-    assert metadata == {}
-    assert remaining == content
+    # Empty document
+    frontmatter, body = await parse_content_with_frontmatter("")
+    assert frontmatter == {}
+    assert body == ""
+
+    # Only frontmatter
+    content = """---
+title: Test
+---
+"""
+    frontmatter, body = await parse_content_with_frontmatter(content)
+    assert frontmatter == {"title": "Test"}
+    assert body == ""
 
 
 @pytest.mark.asyncio
-async def test_parse_frontmatter_error():
-    """Test frontmatter parse error handling."""
-    # Really invalid YAML frontmatter
+async def test_frontmatter_whitespace_handling():
+    """Test frontmatter handling with various whitespace."""
+    # Extra newlines before frontmatter
+    content = """
+
+---
+title: Test
+---
+content"""
+    assert has_frontmatter(content.strip())
+    frontmatter = parse_frontmatter(content.strip())
+    assert frontmatter == {"title": "Test"}
+
+    # Extra newlines after frontmatter
     content = """---
-[[ this is not valid yaml ]]
-title:: [}
+title: Test
 ---
 
-test content"""
 
-    with pytest.raises(ParseError):
-        await parse_frontmatter(content)
+content"""
+    result = await add_frontmatter("content", {"title": "Test"})
+    assert result.count("\n\n") == 1  # Should normalize to single blank line
+
+    # Spaces around content
+    content = """---
+title: Test
+---
+   content   """
+    assert remove_frontmatter(content).strip() == "content"

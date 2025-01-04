@@ -24,26 +24,7 @@ def test_dir():
         yield Path(tmpdir)
 
 
-@pytest.fixture
-def document_service(session_maker, test_dir):
-    """Create document service."""
-    docs_path = test_dir / 'documents'
-    repository = DocumentRepository(session_maker)
-    return DocumentService(repository, docs_path)
 
-
-@pytest.fixture
-def entity_service(session_maker):
-    """Create entity service."""
-    repository = EntityRepository(session_maker)
-    return EntityService(repository)
-
-
-@pytest.fixture
-def relation_service(session_maker):
-    """Create relation service."""
-    repository = RelationRepository(session_maker)
-    return RelationService(repository)
 
 
 @pytest.fixture

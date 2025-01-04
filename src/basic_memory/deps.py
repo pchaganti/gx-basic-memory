@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import (
 
 from basic_memory import db
 from basic_memory.config import ProjectConfig, config
-from basic_memory.db import DatabaseType
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
@@ -107,6 +106,12 @@ DocumentRepositoryDep = Annotated[DocumentRepository, Depends(get_document_repos
 
 ## services
 
+async def get_file_service() -> FileService:
+    return FileService()
+
+
+FileServiceDep = Annotated[FileService, Depends(get_file_service)]
+
 
 async def get_entity_service(entity_repository: EntityRepositoryDep) -> EntityService:
     """Create EntityService with repository."""
@@ -135,10 +140,10 @@ RelationServiceDep = Annotated[RelationService, Depends(get_relation_service)]
 
 
 async def get_document_service(
-    document_repository: DocumentRepositoryDep, project_config: ProjectConfigDep
+    document_repository: DocumentRepositoryDep, project_config: ProjectConfigDep, file_service: FileServiceDep,
 ) -> DocumentService:
     """Create RelationService with repository."""
-    return DocumentService(document_repository, project_config.documents_dir)
+    return DocumentService(document_repository, project_config.documents_dir, file_service)
 
 
 DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
@@ -153,18 +158,13 @@ async def get_activity_service(
     return ActivityService(
         entity_service=entity_service,
         document_service=document_service,
-        relation_service=relation_service
+        relation_service=relation_service,
     )
 
 
 ActivityServiceDep = Annotated[ActivityService, Depends(get_activity_service)]
 
 
-async def get_file_service() -> FileService:
-    return FileService()
-
-
-FileServiceDep = Annotated[FileService, Depends(get_file_service)]
 
 
 async def get_knowledge_writer() -> KnowledgeWriter:

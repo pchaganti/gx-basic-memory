@@ -80,6 +80,121 @@ async def write_file_atomic(path: Path, content: str) -> None:
         raise FileWriteError(f"Failed to write file {path}: {e}")
 
 
+def has_frontmatter(content: str) -> bool:
+    """
+    Check if content contains YAML frontmatter.
+
+    Args:
+        content: Content to check
+
+    Returns:
+        True if content has frontmatter delimiter (---), False otherwise
+    """
+    content = content.strip()
+    return content.startswith("---") and "---" in content[3:]
+
+
+def parse_frontmatter(content: str) -> Dict[str, Any]:
+    """
+    Parse YAML frontmatter from content.
+
+    Args:
+        content: Content with YAML frontmatter
+
+    Returns:
+        Dictionary of frontmatter values
+
+    Raises:
+        ParseError: If frontmatter is invalid or parsing fails
+    """
+    try:
+        if not has_frontmatter(content):
+            raise ParseError("Content has no frontmatter")
+
+        # Split on first two occurrences of ---
+        parts = content.split("---", 2)
+        if len(parts) < 3:
+            raise ParseError("Invalid frontmatter format")
+
+        # Parse YAML
+        try:
+            frontmatter = yaml.safe_load(parts[1])
+            # Handle empty frontmatter (None from yaml.safe_load)
+            if frontmatter is None:
+                return {}
+            if not isinstance(frontmatter, dict):
+                raise ParseError("Frontmatter must be a YAML dictionary")
+            return frontmatter
+
+        except yaml.YAMLError as e:
+            raise ParseError(f"Invalid YAML in frontmatter: {e}")
+
+    except Exception as e:
+        if not isinstance(e, ParseError):
+            logger.error(f"Failed to parse frontmatter: {e}")
+            raise ParseError(f"Failed to parse frontmatter: {e}")
+        raise
+
+
+def remove_frontmatter(content: str) -> str:
+    """
+    Remove YAML frontmatter from content.
+
+    Args:
+        content: Content with frontmatter
+
+    Returns:
+        Content with frontmatter removed
+
+    Raises:
+        ParseError: If frontmatter format is invalid
+    """
+    try:
+        if not has_frontmatter(content):
+            return content.strip()
+
+        # Split on first two occurrences of ---
+        parts = content.split("---", 2)
+        if len(parts) < 3:
+            raise ParseError("Invalid frontmatter format")
+
+        return parts[2].strip()
+
+    except Exception as e:
+        if not isinstance(e, ParseError):
+            logger.error(f"Failed to remove frontmatter: {e}")
+            raise ParseError(f"Failed to remove frontmatter: {e}")
+        raise
+
+
+def remove_frontmatter_lenient(content: str) -> str:
+    """
+    Remove frontmatter markers and anything between them without validation.
+    
+    This is a more permissive version of remove_frontmatter that doesn't
+    try to validate the YAML content. It simply removes everything between
+    the first two '---' markers if they exist.
+
+    Args:
+        content: Content that may contain frontmatter
+
+    Returns:
+        Content with any frontmatter markers and content removed
+    """
+    content = content.strip()
+    if not content.startswith("---"):
+        return content
+
+    # Find the second marker
+    rest = content[3:].strip()
+    if "---" not in rest:
+        return content
+
+    # Split on the second marker and take everything after
+    parts = rest.split("---", 1)
+    return parts[1].strip()
+
+
 async def add_frontmatter(content: str, frontmatter: Dict[str, Any]) -> str:
     """
     Add YAML frontmatter to content.
@@ -96,49 +211,35 @@ async def add_frontmatter(content: str, frontmatter: Dict[str, Any]) -> str:
     """
     try:
         yaml_fm = yaml.dump(frontmatter, sort_keys=False)
-        return f"---\n{yaml_fm}---\n\n{content}"
+        return f"---\n{yaml_fm}---\n\n{content.strip()}"
     except yaml.YAMLError as e:
         logger.error(f"Failed to add frontmatter: {e}")
         raise ParseError(f"Failed to add frontmatter: {e}")
 
 
-async def parse_frontmatter(content: str) -> Tuple[Dict[str, Any], str]:
+async def parse_content_with_frontmatter(content: str) -> Tuple[Dict[str, Any], str]:
     """
-    Parse YAML frontmatter from content.
-    
+    Parse both frontmatter and content.
+
     Args:
         content: Text content with optional frontmatter
-        
+
     Returns:
-        Tuple of (frontmatter dict, remaining content)
-        
+        Tuple of (frontmatter dict, content without frontmatter)
+
     Raises:
-        ParseError: If frontmatter parsing fails
+        ParseError: If parsing fails
     """
     try:
-        # Ensure we have frontmatter
-        if not content.strip().startswith("---"):
+        if not has_frontmatter(content):
             return {}, content.strip()
-            
-        # Split on first two occurrences of ---
-        parts = content.split("---", 2)
-        if len(parts) < 3:
-            raise ParseError("Invalid frontmatter format")
-            
-        # Parse YAML (skipping empty first part)
-        try:
-            frontmatter = yaml.safe_load(parts[1])
-            if not isinstance(frontmatter, dict):
-                raise ParseError("Frontmatter must be a YAML dictionary")
-                
-            # Return parsed frontmatter and rest of content
-            return frontmatter, parts[2].strip()
-            
-        except yaml.YAMLError as e:
-            raise ParseError(f"Invalid YAML in frontmatter: {e}")
-            
+
+        frontmatter = parse_frontmatter(content)
+        remaining = remove_frontmatter(content)
+        return frontmatter, remaining
+
     except Exception as e:
         if not isinstance(e, ParseError):
-            logger.error(f"Failed to parse frontmatter: {e}")
-            raise ParseError(f"Failed to parse frontmatter: {e}") from e
+            logger.error(f"Failed to parse content with frontmatter: {e}")
+            raise ParseError(f"Failed to parse content with frontmatter: {e}")
         raise

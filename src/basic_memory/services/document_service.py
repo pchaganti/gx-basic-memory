@@ -1,34 +1,30 @@
 """Service for managing documents in the system."""
 
-import hashlib
 from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple, Sequence
 
-import yaml
 from loguru import logger
 
 from basic_memory.models import Document
 from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.services.service import BaseService
-from basic_memory.utils.file_utils import compute_checksum, ensure_directory, add_frontmatter
+from basic_memory.services.file_service import FileService
+from basic_memory.services.exceptions import FileOperationError
 
 
 class DocumentError(Exception):
     """Base exception for document operations."""
-
     pass
 
 
 class DocumentNotFoundError(DocumentError):
     """Raised when a document doesn't exist."""
-
     pass
 
 
 class DocumentWriteError(DocumentError):
     """Raised when document file operations fail."""
-
     pass
 
 
@@ -40,38 +36,35 @@ class DocumentService(BaseService[DocumentRepository]):
     them in sync. The filesystem is the source of truth.
     """
 
-    def __init__(self, document_repository: DocumentRepository, documents_path: Path):
+    def __init__(
+        self,
+        document_repository: DocumentRepository,
+        documents_path: Path,
+        file_service: FileService,
+    ):
         super().__init__(document_repository)
         self.documents_base_path = documents_path
+        self.file_service = file_service
 
     def get_document_path(self, path_id: str) -> Path:
+        """Get full filesystem path for a document."""
         doc_path = Path(path_id)
         if doc_path.is_absolute():
             raise DocumentError(f"Document path {path_id} must be relative")
 
-        document_path = Path(self.documents_base_path / path_id)
+        document_path = self.documents_base_path / path_id
         logger.debug(f"Document path: '{path_id}' file_path: {document_path}")
         return document_path
-
-
-    async def add_frontmatter(
-        self, content: str, path_id: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Add frontmatter to document content."""
-        # Generate frontmatter with timestamps
-        now = datetime.now(UTC).isoformat()
-        frontmatter = {"id": path_id, "created": now, "modified": now}
-        if metadata:
-            frontmatter.update(metadata)
-
-        return await add_frontmatter(content, frontmatter)
 
     async def list_documents(self) -> Sequence[Document]:
         """List all documents."""
         return await self.repository.find_all()
 
     async def create_document(
-        self, path_id: str, content: str, metadata: Optional[Dict[str, Any]] = None
+        self,
+        path_id: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Document:
         """
         Create a new document.
@@ -89,24 +82,28 @@ class DocumentService(BaseService[DocumentRepository]):
         """
         logger.debug(f"Creating document path_id: {path_id}")
 
-        # Ensure parent directories exist
         file_path = self.get_document_path(path_id)
-        await ensure_directory(file_path.parent)
-
         try:
-            # 1. Add frontmatter with path_id
-            content_with_frontmatter = await self.add_frontmatter(content, path_id, metadata)
+            # Prepare frontmatter
+            now = datetime.now(UTC).isoformat()
+            frontmatter = {
+                "id": path_id,
+                "created": now,
+                "modified": now
+            }
+            if metadata:
+                frontmatter.update(metadata)
 
-            # 2. Compute checksum
-            checksum = await compute_checksum(content_with_frontmatter)
-            
-            # 3. Write complete file
-            file_path.write_text(content_with_frontmatter)
+            # Let FileService handle the write with frontmatter
+            checksum = await self.file_service.write_with_frontmatter(
+                path=file_path,
+                content=content,
+                frontmatter=frontmatter
+            )
 
-            # 4. Create DB record with checksum
+            # Create DB record
             document = await self.repository.create({
                 "path_id": path_id,
-                # for create the file_path will be the same as path_id
                 "file_path": path_id,
                 "checksum": checksum,
                 "doc_metadata": metadata
@@ -114,9 +111,11 @@ class DocumentService(BaseService[DocumentRepository]):
 
             return document
 
+        except FileOperationError as e:
+            raise DocumentWriteError(f"Failed to create document: {e}")
         except Exception as e:
             # Clean up on any failure
-            file_path.unlink(missing_ok=True)
+            await self.file_service.delete_file(file_path)
             raise DocumentWriteError(f"Failed to create document: {e}")
 
     async def read_document_by_path_id(self, path_id: str) -> Tuple[Document, str]:
@@ -140,17 +139,20 @@ class DocumentService(BaseService[DocumentRepository]):
         if not document:
             raise DocumentNotFoundError(f"Document not found: {path_id}")
 
-        # Read content since file is source of truth
-        # use the actual file_path of the doc on the filesystem
-        file_path = self.get_document_path(document.file_path)
         try:
-            content = file_path.read_text()
+            # Read content using FileService
+            file_path = self.get_document_path(document.file_path)
+            content, _ = await self.file_service.read_file(file_path)
             return document, content
-        except Exception as e:
-            raise DocumentError(f"Failed to read document {path_id}: {e} at path {file_path}")
+
+        except FileOperationError as e:
+            raise DocumentError(f"Failed to read document {path_id}: {e}")
 
     async def update_document_by_path_id(
-        self, path_id: str, content: str, metadata: Optional[Dict[str, Any]] = None
+        self,
+        path_id: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Document:
         """
         Update a document using its PathId.
@@ -174,24 +176,45 @@ class DocumentService(BaseService[DocumentRepository]):
         if not document:
             raise DocumentNotFoundError(f"Document not found: {path_id}")
 
-        # Add frontmatter with metadata
-        content_with_frontmatter = await self.add_frontmatter(content, path_id, metadata)
-
-        # Write new content first
         try:
+            # Read existing content to preserve frontmatter
             file_path = self.get_document_path(document.file_path)
-            file_path.write_text(content_with_frontmatter)
-        except Exception as e:
-            raise DocumentWriteError(f"Failed to write document: {e}")
+            old_content, _ = await self.file_service.read_file(file_path)
+            try:
+                existing_frontmatter = await self.file_service.parse_frontmatter(old_content)
+            except:
+                # If we can't parse existing frontmatter, start fresh
+                existing_frontmatter = {
+                    "id": path_id,
+                    "created": datetime.now(UTC).isoformat(),
+                }
 
-        # Update DB record
-        checksum = await compute_checksum(content_with_frontmatter)
-        update_data = {"checksum": checksum}
-        if metadata is not None:
-            update_data["doc_metadata"] = metadata  # pyright: ignore [reportArgumentType]
+            # Update frontmatter
+            now = datetime.now(UTC).isoformat()
+            frontmatter = {
+                **existing_frontmatter,
+                "modified": now,
+            }
+            if metadata:
+                frontmatter.update(metadata)
 
-        updated_document = await self.repository.update(document.id, update_data)
-        return updated_document
+            # Update file using FileService
+            checksum = await self.file_service.write_with_frontmatter(
+                path=file_path,
+                content=content,
+                frontmatter=frontmatter
+            )
+
+            # Update DB record
+            update_data = {"checksum": checksum}
+            if metadata is not None:
+                update_data["doc_metadata"] = metadata
+
+            updated_document = await self.repository.update(document.id, update_data)
+            return updated_document
+
+        except FileOperationError as e:
+            raise DocumentWriteError(f"Failed to update document: {e}")
 
     async def delete_document_by_path_id(self, path_id: str) -> None:
         """
@@ -211,12 +234,13 @@ class DocumentService(BaseService[DocumentRepository]):
         if not document:
             raise DocumentNotFoundError(f"Document not found: {path_id}")
 
-        # Delete file first since it's source of truth
         try:
+            # Delete file using FileService
             file_path = self.get_document_path(document.path_id)
-            file_path.unlink(missing_ok=True)
-        except Exception as e:
-            raise DocumentWriteError(f"Failed to delete document {path_id}: {e}")
+            await self.file_service.delete_file(file_path)
 
-        # Delete database record
-        await self.repository.delete(document.id)
+            # Delete database record
+            await self.repository.delete(document.id)
+
+        except FileOperationError as e:
+            raise DocumentWriteError(f"Failed to delete document {path_id}: {e}")

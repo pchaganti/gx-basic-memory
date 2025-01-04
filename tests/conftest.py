@@ -86,9 +86,10 @@ async def document_repository(
 async def document_service(
     document_repository: DocumentRepository,
     test_config: ProjectConfig,
+    file_service: FileService,
 ) -> DocumentService:
     """Create a DocumentService instance."""
-    return DocumentService(document_repository, test_config.documents_dir)
+    return DocumentService(document_repository, test_config.documents_dir, file_service)
 
 
 @pytest_asyncio.fixture(scope="function")

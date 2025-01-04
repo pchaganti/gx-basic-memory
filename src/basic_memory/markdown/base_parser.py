@@ -6,7 +6,7 @@ from typing import List, TypeVar, Generic, Optional, Dict, Any, Tuple
 
 from loguru import logger
 
-from basic_memory.utils.file_utils import parse_frontmatter, ParseError, FileError
+from basic_memory.utils.file_utils import parse_content_with_frontmatter, ParseError, FileError
 
 T = TypeVar("T")  # The parsed document type
 
@@ -62,7 +62,7 @@ class MarkdownParser(ABC, Generic[T]):
         """
         try:
             # Split into frontmatter and content
-            frontmatter, markdown = await parse_frontmatter(content)
+            frontmatter, markdown = await parse_content_with_frontmatter(content)
 
             # Parse frontmatter
             parsed_frontmatter = await self.parse_frontmatter(frontmatter)
