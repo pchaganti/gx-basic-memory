@@ -20,7 +20,7 @@ from basic_memory.db import DatabaseType
 from basic_memory.repository import DocumentRepository, EntityRepository, ObservationRepository, RelationRepository
 from basic_memory.services import (
     DocumentService,
-    EntityService, ObservationService, RelationService,
+    EntityService, ObservationService, RelationService, FileService,
 )
 from basic_memory.markdown import KnowledgeParser
 from basic_memory.services.sync import SyncService, FileChangeScanner, KnowledgeSyncService
@@ -109,7 +109,7 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         file_change_scanner = FileChangeScanner(document_repository, entity_repository)
         
         # Initialize services
-        document_service = DocumentService(document_repository, config.documents_dir)
+        document_service = DocumentService(document_repository, config.documents_dir, FileService())
         entity_service = EntityService(entity_repository)
         observation_service = ObservationService(observation_repository)
         relation_service = RelationService(relation_repository)
