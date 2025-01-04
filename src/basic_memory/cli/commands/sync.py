@@ -53,6 +53,10 @@ def display_sync_summary(docs: SyncReport, knowledge: SyncReport):
 
 def display_detailed_sync_results(docs: SyncReport, knowledge: SyncReport):
     """Display detailed sync results with trees."""
+    if docs.total_changes == 0 and knowledge.total_changes == 0:
+        console.print("\n[green]Everything up to date[/green]")
+        return
+
     console.print("\n[bold]Sync Results[/bold]")
 
     if docs.total_changes > 0:
@@ -156,6 +160,13 @@ async def run_sync(verbose: bool = False):
 
 @app.command()
 def sync(
+    path: Optional[Path] = typer.Argument(
+        None,
+        help="Path to sync. Defaults to current project directory.",
+        exists=True,
+        dir_okay=True,
+        file_okay=False,
+    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",
