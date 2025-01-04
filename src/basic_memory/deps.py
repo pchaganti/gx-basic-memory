@@ -16,6 +16,7 @@ from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
+from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services import (
     EntityService,
     ObservationService,
@@ -25,6 +26,7 @@ from basic_memory.services import (
 from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services.knowledge import KnowledgeService
+from basic_memory.services.search_service import SearchService
 
 
 ## project
@@ -104,7 +106,18 @@ async def get_document_repository(
 DocumentRepositoryDep = Annotated[DocumentRepository, Depends(get_document_repository)]
 
 
+async def get_search_repository(
+    session_maker: SessionMakerDep,
+) -> SearchRepository:
+    """Create a SearchRepository instance."""
+    return SearchRepository(session_maker)
+
+
+SearchRepositoryDep = Annotated[SearchRepository, Depends(get_search_repository)]
+
+
 ## services
+
 
 async def get_file_service() -> FileService:
     return FileService()
@@ -140,13 +153,25 @@ RelationServiceDep = Annotated[RelationService, Depends(get_relation_service)]
 
 
 async def get_document_service(
-    document_repository: DocumentRepositoryDep, project_config: ProjectConfigDep, file_service: FileServiceDep,
+    document_repository: DocumentRepositoryDep,
+    project_config: ProjectConfigDep,
+    file_service: FileServiceDep,
 ) -> DocumentService:
-    """Create RelationService with repository."""
+    """Create DocumentService with repository."""
     return DocumentService(document_repository, project_config.documents_dir, file_service)
 
 
 DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
+
+
+async def get_search_service(
+    search_repository: SearchRepositoryDep,
+) -> SearchService:
+    """Create SearchService with dependencies."""
+    return SearchService(search_repository)
+
+
+SearchServiceDep = Annotated[SearchService, Depends(get_search_service)]
 
 
 async def get_activity_service(
@@ -163,8 +188,6 @@ async def get_activity_service(
 
 
 ActivityServiceDep = Annotated[ActivityService, Depends(get_activity_service)]
-
-
 
 
 async def get_knowledge_writer() -> KnowledgeWriter:

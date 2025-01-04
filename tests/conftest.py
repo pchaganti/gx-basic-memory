@@ -18,12 +18,14 @@ from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
+from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services import (
     EntityService,
     ObservationService,
     RelationService,
     DocumentService,
 )
+from basic_memory.services.search_service import SearchService
 from basic_memory.services.sync import FileChangeScanner
 from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
@@ -208,6 +210,18 @@ async def sync_service(
         knowledge_parser=knowledge_parser,
     )
 
+
+@pytest_asyncio.fixture
+async def search_repository(session_maker):
+    """Create SearchRepository instance"""
+    return SearchRepository(session_maker)
+
+@pytest_asyncio.fixture
+async def search_service(search_repository: SearchRepository):
+    """Create and initialize search service"""
+    service = SearchService(search_repository)
+    await service.init_search_index()
+    return service
 
 
 @pytest_asyncio.fixture(scope="function")

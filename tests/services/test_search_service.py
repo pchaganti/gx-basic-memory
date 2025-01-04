@@ -9,17 +9,6 @@ from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.schemas.search import SearchQuery
 from basic_memory.services.search_service import SearchService
 
-@pytest_asyncio.fixture
-async def search_repository(session_maker):
-    """Create SearchRepository instance"""
-    return SearchRepository(session_maker)
-
-@pytest_asyncio.fixture
-async def search_service(search_repository: SearchRepository):
-    """Create and initialize search service"""
-    service = SearchService(search_repository)
-    await service.init_search_index()
-    return service
 
 @pytest.fixture
 def test_entity():

@@ -10,6 +10,7 @@ from .routers import documents
 from .routers import knowledge
 from .routers import discovery
 from .routers.activity_router import router as activity_router
+from .routers.search_router import router as search_router
 
 
 @asynccontextmanager
@@ -34,3 +35,4 @@ app.include_router(knowledge.router)
 app.include_router(documents.router)
 app.include_router(discovery.router)
 app.include_router(activity_router)
+app.include_router(search_router)
