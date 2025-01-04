@@ -62,7 +62,7 @@ async def test_create_entity_without_relations(
 ):
     """Test first pass creation without relations."""
     # Create entity first pass
-    entity = await knowledge_sync_service.create_entity_and_observations(test_markdown)
+    entity = await knowledge_sync_service.create_entity_and_observations("test.md", test_markdown)
 
     # Check basic fields
     assert entity.name == "Test Entity"
@@ -88,7 +88,7 @@ async def test_update_entity_without_relations(
 ):
     """Test first pass update."""
     # First create entity
-    entity = await knowledge_sync_service.create_entity_and_observations(test_markdown)
+    entity = await knowledge_sync_service.create_entity_and_observations("test.md", test_markdown)
 
     # Modify markdown content
     test_markdown.content.title = "Updated Title"
@@ -116,7 +116,7 @@ async def test_update_entity_relations(
 ):
     """Test second pass relation updates."""
     # Create main entity first
-    entity = await knowledge_sync_service.create_entity_and_observations(test_markdown)
+    entity = await knowledge_sync_service.create_entity_and_observations("test.md", test_markdown)
 
     # Create target entities that relations point to
     other_entity = EntityModel(
@@ -166,7 +166,7 @@ async def test_two_pass_sync_flow(
     await knowledge_sync_service.entity_service.add(another_entity)
 
     # First pass - create without relations
-    entity = await knowledge_sync_service.create_entity_and_observations(test_markdown)
+    entity = await knowledge_sync_service.create_entity_and_observations("test.md", test_markdown)
     assert len(entity.relations) == 0
     assert entity.checksum is None
 

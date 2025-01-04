@@ -72,7 +72,7 @@ class SyncService:
         for file_path, entity_markdown in parsed_entities.items():
             if file_path in changes.new:
                 logger.debug(f"Creating new entity_markdown: {file_path}")
-                await self.knowledge_sync_service.create_entity_and_observations(entity_markdown)
+                await self.knowledge_sync_service.create_entity_and_observations(file_path, entity_markdown)
             else:
                 path_id = entity_markdown.frontmatter.id
                 logger.debug(f"Updating entity_markdown: {path_id}")

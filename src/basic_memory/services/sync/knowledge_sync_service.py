@@ -10,7 +10,7 @@ from basic_memory.schemas.request import ObservationCreate
 from basic_memory.services import EntityService, ObservationService, RelationService
 
 
-def entity_model_from_markdown(markdown: EntityMarkdown) -> EntityModel:
+def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> EntityModel:
     """Convert markdown entity to model.
 
     Args:
@@ -28,7 +28,7 @@ def entity_model_from_markdown(markdown: EntityMarkdown) -> EntityModel:
         name=markdown.content.title,
         entity_type=markdown.frontmatter.type,
         path_id=markdown.frontmatter.id,
-        file_path=markdown.frontmatter.id,
+        file_path=file_path,
         description=markdown.content.description,
         observations=[
             Observation(
@@ -58,14 +58,14 @@ class KnowledgeSyncService:
     async def delete_entity_by_file_path(self, file_path: str) -> bool:
         return await self.entity_service.delete_entity_by_file_path(file_path)
 
-    async def create_entity_and_observations(self, markdown: EntityMarkdown) -> EntityModel:
+    async def create_entity_and_observations(self, file_path: str, markdown: EntityMarkdown) -> EntityModel:
         """First pass: Create entity and observations only.
 
         Creates the entity with null checksum to indicate sync not complete.
         Relations will be added in second pass.
         """
         logger.debug(f"Creating entity without relations: {markdown.frontmatter.id}")
-        model = entity_model_from_markdown(markdown)
+        model = entity_model_from_markdown(file_path, markdown)
         model.checksum = None  # Mark as incomplete sync
         return await self.entity_service.add(model)
 
