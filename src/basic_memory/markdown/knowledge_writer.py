@@ -65,11 +65,12 @@ class KnowledgeWriter:
                 ]
             )
 
-        # Format outgoing and incoming relations separately
-        if entity.incoming_relations or entity.outgoing_relations:
+        # only outgoing relations are included in entity file
+        if entity.outgoing_relations:
             sections.extend(
                 [
                     "## Relations",
+                    "<!-- Format: - relation_type [[Entity]] (context) -->"
                     "",  # Empty line after format comment
                 ]
             )

@@ -56,7 +56,7 @@ A test concept.
     await entity_service.repository.add(other)
 
     # Run sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Verify results
     entities = await entity_service.repository.find_all()
@@ -101,7 +101,7 @@ modified: 2024-01-01
     await create_test_file(knowledge_dir / "concept/depends_on_future.md", content)
     
     # Sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
     
     # Verify entity created but no relations
     entity = await sync_service.knowledge_sync_service.entity_service.get_by_path_id(
@@ -156,7 +156,7 @@ modified: 2024-01-01
     await create_test_file(knowledge_dir / "concept/entity_b.md", content_b)
     
     # Sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
     
     # Verify both entities and their relations
     entity_a = await sync_service.knowledge_sync_service.entity_service.get_by_path_id("concept/entity_a")
@@ -228,7 +228,7 @@ modified: 2024-01-01
     await create_test_file(knowledge_dir / "concept/duplicate_relations.md", content)
     
     # Sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
     
     # Verify duplicates are handled
     entity = await sync_service.knowledge_sync_service.entity_service.get_by_path_id(
@@ -271,7 +271,7 @@ modified: 2024-01-01
     await create_test_file(knowledge_dir / "concept/invalid_category.md", content)
     
     # Sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
     
     # Verify observations
     entity = await sync_service.knowledge_sync_service.entity_service.get_by_path_id(
@@ -351,7 +351,7 @@ modified: 2024-01-01
         await create_test_file(knowledge_dir / f"concept/entity_{name}.md", content)
     
     # Sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
     
     # Verify all relations are created correctly regardless of order
     entity_a = await sync_service.knowledge_sync_service.entity_service.get_by_path_id("concept/entity_a")

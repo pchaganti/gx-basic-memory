@@ -19,7 +19,7 @@ async def create_test_file(path: Path, content: str = "test content") -> None:
 @pytest.mark.asyncio
 async def test_sync_empty_directories(sync_service: SyncService, test_config: ProjectConfig):
     """Test syncing empty directories."""
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Should not raise exceptions for empty dirs
     assert (test_config.documents_dir).exists()
@@ -41,7 +41,7 @@ async def test_sync_file_modified_during_sync(
         doc_path.write_text("Modified during sync")
 
     # Run sync and modification concurrently
-    await asyncio.gather(sync_service.sync(test_config.home), modify_file())
+    await asyncio.gather(sync_service.sync(test_config), modify_file())
 
     # Verify final state
     doc = await sync_service.document_service.repository.find_by_path_id("changing.md")
@@ -81,7 +81,7 @@ modified: 2024-01-01
     await create_test_file(test_config.knowledge_dir / "concept/incomplete.md", content)
 
     # Run sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Verify entity was properly synced
     updated = await entity_service.get_by_path_id("concept/incomplete")
@@ -111,7 +111,7 @@ modified: 2024-01-01
     await create_test_file(test_config.knowledge_dir / "concept/test.md", knowledge_content)
 
     # Run sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Verify both types exist correctly
     doc = await sync_service.document_service.repository.find_by_path_id("test.md")
@@ -147,7 +147,7 @@ modified: 2024-01-01
 
     # Time the sync
     start_time = asyncio.get_event_loop().time()
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
     duration = asyncio.get_event_loop().time() - start_time
 
     # Verify everything synced
@@ -180,8 +180,8 @@ modified: 2024-01-01
 #
 #     # Run concurrent syncs
 #     results = await asyncio.gather(
-#         sync_service.sync(test_config.home),
-#         sync_service.sync(test_config.home),
+#         sync_service.sync(test_config),
+#         sync_service.sync(test_config),
 #         return_exceptions=True
 #     )
 #
@@ -201,7 +201,7 @@ modified: 2024-01-01
 #         assert doc.checksum is not None
 #
 #     # Running another sync should not change anything
-#     await sync_service.sync(test_config.home)
+#     await sync_service.sync(test_config)
 #     docs_after = await sync_service.document_service.repository.find_all()
 #     assert len(docs_after) == 2
 #     assert {d.path_id for d in docs_after} == {"doc1.md", "doc2.md"}

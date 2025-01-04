@@ -1,7 +1,12 @@
 """Command module for basic-memory sync operations."""
+from collections import defaultdict
+
+from rich.padding import Padding
+from rich.panel import Panel
+from rich.text import Text
 
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 from dataclasses import dataclass
 
 import typer
@@ -26,6 +31,72 @@ from basic_memory.services.sync.utils import SyncReport
 
 
 console = Console()
+
+
+@dataclass
+class ValidationIssue:
+    file_path: str
+    error: str
+
+def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[ValidationIssue]]:
+    """Group validation issues by directory."""
+    grouped = defaultdict(list)
+    for issue in issues:
+        dir_name = Path(issue.file_path).parent.name
+        grouped[dir_name].append(issue)
+    return dict(grouped)
+
+
+def display_validation_errors(issues: List[ValidationIssue]):
+    """Display validation errors in a rich, organized format."""
+    # Create header
+    console.print()
+    console.print(Panel(
+        "[red bold]Error:[/red bold] Invalid frontmatter in knowledge files",
+        expand=False
+    ))
+    console.print()
+
+    # Group issues by directory
+    grouped_issues = group_issues_by_directory(issues)
+
+    # Create tree structure
+    tree = Tree("Knowledge Files")
+    for dir_name, dir_issues in sorted(grouped_issues.items()):
+        # Create branch for directory
+        branch = tree.add(
+            f"[bold blue]{dir_name}/[/bold blue] "
+            f"([yellow]{len(dir_issues)} files[/yellow])"
+        )
+
+        # Add each file issue
+        for issue in sorted(dir_issues, key=lambda x: x.file_path):
+            file_name = Path(issue.file_path).name
+            branch.add(
+                Text.assemble(
+                    ("└─ ", "dim"),
+                    (file_name, "yellow"),
+                    ": ",
+                    (issue.error, "red")
+                )
+            )
+
+    # Display tree
+    console.print(Padding(tree, (1, 2)))
+
+    # Add help text
+    console.print()
+    console.print(Panel(
+        Text.assemble(
+            ("To fix:", "bold"),
+            "\n1. Add required frontmatter fields to each file",
+            "\n2. Run ",
+            ("basic-memory sync", "bold cyan"),
+            " again"
+        ),
+        expand=False
+    ))
+    console.print()
 
 
 def display_sync_summary(docs: SyncReport, knowledge: SyncReport):
@@ -131,26 +202,34 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         return sync_service
 
 
+async def validate_knowledge_files(sync_service: SyncService, directory: Path) -> List[ValidationIssue]:
+    """Pre-validate knowledge files and collect all issues."""
+    issues = []
+    changes = await sync_service.scanner.find_knowledge_changes(directory)
+
+    for file_path in [*changes.new, *changes.modified]:
+        try:
+            await sync_service.knowledge_parser.parse_file(directory / file_path)
+        except ParseError as e:
+            issues.append(ValidationIssue(file_path=file_path, error=str(e)))
+
+    return issues
+
+
 async def run_sync(verbose: bool = False):
     """Run sync operation."""
+    
     sync_service = await get_sync_service()
 
-    # Scan for changes first
-    doc_changes = None
-    knowledge_changes = None
+    # Validate knowledge files before attempting sync
+    issues = await validate_knowledge_files(sync_service, config.knowledge_dir)
+    if issues:
+        display_validation_errors(issues)
+        raise typer.Exit(1)
 
-    if config.documents_dir.exists():
-        doc_changes = await sync_service.scanner.find_document_changes(config.documents_dir)
-        await sync_service.sync_documents(config.documents_dir)
-
-    if config.knowledge_dir.exists():
-        knowledge_changes = await sync_service.scanner.find_knowledge_changes(config.knowledge_dir)
-        await sync_service.sync_knowledge(config.knowledge_dir)
-
-    # Use empty reports if directories don't exist
-    doc_changes = doc_changes or SyncReport()
-    knowledge_changes = knowledge_changes or SyncReport()
-
+    # Sync
+    doc_changes, knowledge_changes = await sync_service.sync(config)
+    
     # Display results
     if verbose:
         display_detailed_sync_results(doc_changes, knowledge_changes)
@@ -160,13 +239,6 @@ async def run_sync(verbose: bool = False):
 
 @app.command()
 def sync(
-    path: Optional[Path] = typer.Argument(
-        None,
-        help="Path to sync. Defaults to current project directory.",
-        exists=True,
-        dir_okay=True,
-        file_okay=False,
-    ),
     verbose: bool = typer.Option(
         False,
         "--verbose",

@@ -32,7 +32,7 @@ async def test_sync_documents(
     added = await document_service.repository.add(doc)
 
     # Run sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Verify results
     documents = await document_service.repository.find_all()
@@ -55,7 +55,7 @@ async def test_sync_new_document_adds_frontmatter(
     doc_path.write_text(original_content)
 
     # Sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Read updated file
     content = doc_path.read_text()
@@ -87,7 +87,7 @@ async def test_sync_modified_document_updates_frontmatter(
     doc_path = test_config.documents_dir / "test.md"
     original_content = "# Test Document\n\nOriginal content."
     doc_path.write_text(original_content)
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Get original timestamps
     doc = await sync_service.document_service.repository.find_by_path_id("test.md")
@@ -99,7 +99,7 @@ async def test_sync_modified_document_updates_frontmatter(
     # Modify document
     new_content = "# Test Document\n\nUpdated content."
     doc_path.write_text(new_content)
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Verify document in DB
     updated_doc = await sync_service.document_service.repository.find_by_path_id("test.md")
@@ -133,7 +133,7 @@ Content here.
     doc_path.write_text(content)
 
     # Sync should fix the frontmatter
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Read updated file
     updated_content = doc_path.read_text()
@@ -179,7 +179,7 @@ author: Test Author
     doc_path.write_text(content)
 
     # Sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Read updated file
     updated_content = doc_path.read_text()
@@ -212,7 +212,7 @@ async def test_sync_document_in_subdirectory(
     nested_path.write_text(content)
 
     # Sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Verify document in DB with correct path
     expected_path = "folder1/folder2/nested.md"
@@ -236,7 +236,7 @@ async def test_sync_empty_document(
     doc_path.write_text("")
 
     # Sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Should still add frontmatter
     content = doc_path.read_text()
@@ -273,7 +273,7 @@ async def test_sync_document_utf8_encoding(
     doc_path.write_text(content, encoding='utf-8')
 
     # Sync
-    await sync_service.sync(test_config.home)
+    await sync_service.sync(test_config)
 
     # Read back and verify content preserved
     updated_content = doc_path.read_text(encoding='utf-8')

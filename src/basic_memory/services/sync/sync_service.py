@@ -3,10 +3,12 @@
 from pathlib import Path
 from loguru import logger
 
+from basic_memory.config import ProjectConfig
 from basic_memory.services import DocumentService
 from basic_memory.services.sync import FileChangeScanner
 from basic_memory.markdown import KnowledgeParser
 from basic_memory.services.sync.knowledge_sync_service import KnowledgeSyncService
+from basic_memory.services.sync.utils import SyncReport
 
 
 class SyncService:
@@ -29,7 +31,7 @@ class SyncService:
         self.knowledge_sync_service = knowledge_sync_service
         self.knowledge_parser = knowledge_parser
 
-    async def sync_documents(self, directory: Path) -> None:
+    async def sync_documents(self, directory: Path) -> SyncReport:
         """Sync document files with database."""
         changes = await self.scanner.find_document_changes(directory)
         logger.info(f"Found {changes.total_changes} document changes")
@@ -50,8 +52,9 @@ class SyncService:
                 await self.document_service.update_document_by_path_id(
                     path_id=path, content=content
                 )
-
-    async def sync_knowledge(self, directory: Path) -> None:
+        return changes
+    
+    async def sync_knowledge(self, directory: Path) -> SyncReport:
         """Sync knowledge files with database."""
         changes = await self.scanner.find_knowledge_changes(directory)
         logger.info(f"Found {changes.total_changes} knowledge changes")
@@ -86,15 +89,16 @@ class SyncService:
             await self.knowledge_sync_service.update_entity_relations(
                 entity_markdown, checksum=changes.checksums[file_path]
             )
+        
+        return changes
 
-    async def sync(self, root_dir: Path) -> None:
+    async def sync(self, config: ProjectConfig) -> (SyncReport, SyncReport):
         """Sync all files with database."""
+        
         # Sync documents first (simpler, no relations)
-        docs_dir = root_dir / "documents"
-        if docs_dir.exists():
-            await self.sync_documents(docs_dir)
+        doc_changes = await self.sync_documents(config.documents_dir)
 
         # Then sync knowledge files
-        knowledge_dir = root_dir / "knowledge"
-        if knowledge_dir.exists():
-            await self.sync_knowledge(knowledge_dir)
+        knowledge_changes = await self.sync_knowledge(config.knowledge_dir)
+
+        return doc_changes, knowledge_changes
