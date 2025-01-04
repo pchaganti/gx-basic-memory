@@ -10,7 +10,7 @@ from basic_memory.mcp.async_client import client
 
 @mcp.tool(
     category="documents",
-    description="Create a new markdown document with frontmatter metadata and content",
+    description="Create a new markdown document. Metadata should be passed in doc_metadata, not in content.",
     examples=[
         {
             "name": "Technical Spec",
@@ -26,10 +26,11 @@ spec = await create_document(
 This document defines our standard format.
 
 ## Structure
-1. Frontmatter for metadata
-2. Markdown content for documentation
+1. Content structured in markdown
+2. Metadata handled by doc_metadata field
 3. Optional structured data sections''',
         doc_metadata={
+            "title": "Memory Format Specification",
             "status": "draft",
             "version": "0.1",
             "reviewers": ["@alice", "@bob"]
@@ -79,6 +80,7 @@ We will use SQLite as our primary storage engine.
 - Implementing connection pooling
 - Adding automated backups''',
         doc_metadata={
+            "title": "Use SQLite for Local Storage",
             "type": "decision",
             "status": "accepted",
             "date": "2024-12-25",
@@ -96,7 +98,9 @@ async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
     """Create a new markdown document.
     
     Args:
-        request: Document creation request with path, content and metadata
+        request: Document creation request. The content should be plain markdown 
+                without frontmatter. Any metadata should be passed in doc_metadata.
+                Required fields (id, created, modified) will be added automatically.
         
     Returns:
         DocumentCreateResponse with document details and checksum
@@ -152,6 +156,7 @@ Core service handling knowledge persistence and retrieval.
 - Cache layer added
 - Bulk operation support''',
         doc_metadata={
+            "title": "Memory Service",
             "status": "stable",
             "last_updated": "2024-12-25",
             "reviewed_by": ["@alice", "@bob"]
@@ -197,6 +202,7 @@ await create_document(
         content="\\n".join(doc_content),
         doc_metadata={
             "type": "changelog",
+            "title": f"Daily Update {datetime.now():%Y-%m-%d}",
             "auto_generated": True,
             "source": "activity_tracking"
         }
@@ -211,7 +217,9 @@ async def update_document(request: DocumentRequest) -> DocumentResponse:
     """Update an existing document.
     
     Args:
-        request: Document update request with new content and metadata
+        request: Document update request. Content should be plain markdown without frontmatter.
+                Metadata should be passed in doc_metadata. Frontmatter fields like created/modified
+                will be handled automatically.
         
     Returns:
         DocumentResponse with updated document details
