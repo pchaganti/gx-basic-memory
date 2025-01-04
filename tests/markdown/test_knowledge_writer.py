@@ -57,7 +57,7 @@ def test_entity():
 
     # Create relation from main entity to other
     relation = Relation(from_entity=entity, to_entity=other_entity, relation_type="relates_to")
-    entity.from_relations = [relation]
+    entity.outgoing_relations = [relation]
 
     return entity
 

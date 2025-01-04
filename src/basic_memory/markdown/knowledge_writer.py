@@ -66,7 +66,7 @@ class KnowledgeWriter:
             )
 
         # Format outgoing and incoming relations separately
-        if entity.to_relations or entity.from_relations:
+        if entity.incoming_relations or entity.outgoing_relations:
             sections.extend(
                 [
                     "## Relations",
@@ -75,7 +75,7 @@ class KnowledgeWriter:
             )
 
             # Outgoing relations (entity is "from")
-            for rel in entity.from_relations:
+            for rel in entity.outgoing_relations:
                 sections.append(f"- {rel.relation_type} [[{rel.to_entity.name}]] ")
                 
         if metadata:

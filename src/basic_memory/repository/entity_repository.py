@@ -45,8 +45,8 @@ class EntityRepository(Repository[Entity]):
                 query = query.where(
                     or_(
                         Entity.entity_type == entity_type,
-                        Entity.from_relations.any(Relation.to_entity.has(entity_type=entity_type)),
-                        Entity.to_relations.any(Relation.from_entity.has(entity_type=entity_type))
+                        Entity.outgoing_relations.any(Relation.to_entity.has(entity_type=entity_type)),
+                        Entity.incoming_relations.any(Relation.from_entity.has(entity_type=entity_type))
                     )
                 )
             else:
@@ -108,11 +108,11 @@ class EntityRepository(Repository[Entity]):
         return [
             selectinload(Entity.observations),
             # Load from_relations and both entities for each relation
-            selectinload(Entity.from_relations).selectinload(Relation.from_entity),
-            selectinload(Entity.from_relations).selectinload(Relation.to_entity),
+            selectinload(Entity.outgoing_relations).selectinload(Relation.from_entity),
+            selectinload(Entity.outgoing_relations).selectinload(Relation.to_entity),
             # Load to_relations and both entities for each relation
-            selectinload(Entity.to_relations).selectinload(Relation.from_entity),
-            selectinload(Entity.to_relations).selectinload(Relation.to_entity),
+            selectinload(Entity.incoming_relations).selectinload(Relation.from_entity),
+            selectinload(Entity.incoming_relations).selectinload(Relation.to_entity),
         ]
 
     async def find_by_path_ids(self, path_ids: List[str]) -> Sequence[Entity]:

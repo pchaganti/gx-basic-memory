@@ -525,8 +525,8 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
 
     # Test 3: Verify relations are loaded
     core_service = next(e for e in services_and_related if e.name == "core_service")
-    assert len(core_service.from_relations) > 0  # Has incoming relation from config
-    assert len(core_service.to_relations) > 0    # Has outgoing relation to db
+    assert len(core_service.outgoing_relations) > 0  # Has incoming relation from config
+    assert len(core_service.incoming_relations) > 0    # Has outgoing relation to db
 
     # Test 4: List configurations with related
     configs = await entity_repository.list_entities(

@@ -60,13 +60,13 @@ class Entity(Base):
     observations = relationship(
         "Observation", back_populates="entity", cascade="all, delete-orphan"
     )
-    from_relations = relationship(
+    outgoing_relations = relationship(
         "Relation",
         back_populates="from_entity",
         foreign_keys="[Relation.from_id]",
         cascade="all, delete-orphan",
     )
-    to_relations = relationship(
+    incoming_relations = relationship(
         "Relation",
         back_populates="to_entity",
         foreign_keys="[Relation.to_id]",
@@ -76,7 +76,7 @@ class Entity(Base):
 
     @property
     def relations(self):
-        return self.to_relations + self.from_relations
+        return self.incoming_relations + self.outgoing_relations
 
     def __repr__(self) -> str:
         return f"Entity(id={self.id}, name='{self.name}', type='{self.entity_type}')"
@@ -153,8 +153,8 @@ class Relation(Base):
     )
 
     # Relationships
-    from_entity = relationship("Entity", foreign_keys=[from_id], back_populates="from_relations")
-    to_entity = relationship("Entity", foreign_keys=[to_id], back_populates="to_relations")
+    from_entity = relationship("Entity", foreign_keys=[from_id], back_populates="outgoing_relations")
+    to_entity = relationship("Entity", foreign_keys=[to_id], back_populates="incoming_relations")
 
     def __repr__(self) -> str:
         return f"Relation(id={self.id}, from_id={self.from_id}, to_id={self.to_id}, type='{self.relation_type}')"

@@ -163,22 +163,22 @@ modified: 2024-01-01
     entity_b = await sync_service.knowledge_sync_service.entity_service.get_by_path_id("concept/entity_b")
     
     # outgoing relations
-    assert len(entity_a.from_relations) == 1
-    assert len(entity_b.from_relations) == 1
+    assert len(entity_a.outgoing_relations) == 1
+    assert len(entity_b.outgoing_relations) == 1
     
     # incoming relations
-    assert len(entity_a.to_relations) == 1
-    assert len(entity_b.to_relations) == 1
+    assert len(entity_a.incoming_relations) == 1
+    assert len(entity_b.incoming_relations) == 1
 
     # all relations
     assert len(entity_a.relations) == 2
     assert len(entity_b.relations) == 2
 
     # Verify circular reference works
-    a_relation = entity_a.from_relations[0]
+    a_relation = entity_a.outgoing_relations[0]
     assert a_relation.to_id == entity_b.id
     
-    b_relation = entity_b.from_relations[0]
+    b_relation = entity_b.outgoing_relations[0]
     assert b_relation.to_id == entity_a.id
 
 
@@ -358,13 +358,13 @@ modified: 2024-01-01
     entity_b = await sync_service.knowledge_sync_service.entity_service.get_by_path_id("concept/entity_b")
     entity_c = await sync_service.knowledge_sync_service.entity_service.get_by_path_id("concept/entity_c")
     
-    assert len(entity_a.from_relations) == 2  # Should depend on B and C
-    assert len(entity_a.to_relations) == 1  # C depends on A
+    assert len(entity_a.outgoing_relations) == 2  # Should depend on B and C
+    assert len(entity_a.incoming_relations) == 1  # C depends on A
     
     
-    assert len(entity_b.from_relations) == 1  # Should depend on C
-    assert len(entity_b.to_relations) == 1  # A depends on B
+    assert len(entity_b.outgoing_relations) == 1  # Should depend on C
+    assert len(entity_b.incoming_relations) == 1  # A depends on B
     
     
-    assert len(entity_c.from_relations) == 1  # Should depend on A
-    assert len(entity_c.to_relations) == 2  # A and B depend on C
+    assert len(entity_c.outgoing_relations) == 1  # Should depend on A
+    assert len(entity_c.incoming_relations) == 2  # A and B depend on C
