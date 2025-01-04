@@ -25,6 +25,7 @@ class Entity(Base):
     __tablename__ = "entity"
     __table_args__ = (
         UniqueConstraint("entity_type", "name", name="uix_entity_type_name"),
+        UniqueConstraint("path_id", name="uix_entity_path_id"),  # Make path_id unique
         Index("ix_entity_type", "entity_type"),
         Index("ix_entity_doc_id", "doc_id"),
         Index("ix_entity_created_at", "created_at"),  # For timeline queries
@@ -35,8 +36,7 @@ class Entity(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String)
     entity_type: Mapped[str] = mapped_column(String)
-    # Normalized path for URIs
-    # (entity_type, path_id) are unique
+    # Normalized path for URIs - must be unique
     path_id: Mapped[str] = mapped_column(String, index=True)
     # Actual filesystem relative path
     file_path: Mapped[str] = mapped_column(String, unique=True, index=True)
