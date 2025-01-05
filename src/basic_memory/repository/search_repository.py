@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory import db
 from basic_memory.repository.repository import Repository
-from basic_memory.schemas.search import SearchQuery, SearchResult
+from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
 from basic_memory.models.search import CREATE_SEARCH_INDEX
+
 
 class SearchRepository():
     """Repository for search index operations."""
@@ -38,7 +39,8 @@ class SearchRepository():
 
         # Handle type filter
         if query.types:
-            type_list = ", ".join(f"'{t}'" for t in query.types)
+            # Get string values from enums
+            type_list = ", ".join(f"'{t.value}'" for t in query.types)
             conditions.append(f"type IN ({type_list})")
 
         # Handle entity type filter
@@ -78,7 +80,7 @@ class SearchRepository():
                 SearchResult(
                     path_id=row.path_id,
                     file_path=row.file_path,
-                    type=row.type,
+                    type=SearchItemType(row.type),  # Convert string to enum
                     score=row.score,
                     metadata=json.loads(row.metadata)
                 )
@@ -90,7 +92,7 @@ class SearchRepository():
         content: str,
         path_id: str,
         file_path: str,
-        type: str,
+        type: SearchItemType,  # Now accepts enum
         metadata: dict
     ):
         """Index or update a single item."""
@@ -114,7 +116,7 @@ class SearchRepository():
                     "content": content,
                     "path_id": path_id,
                     "file_path": file_path,
-                    "type": type,
+                    "type": type.value,  # Store the string value
                     "metadata": json.dumps(metadata)
                 }
             )

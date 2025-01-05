@@ -3,7 +3,7 @@
 from typing import List, Optional
 
 from basic_memory.repository.search_repository import SearchRepository
-from basic_memory.schemas.search import SearchQuery, SearchResult
+from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
 
 
 class SearchService:
@@ -52,7 +52,7 @@ class SearchService:
                 content=content,
                 path_id=entity.path_id,
                 file_path=entity.file_path,
-                type="entity",
+                type=SearchItemType.ENTITY,
                 metadata=metadata,
             )
         else:
@@ -60,7 +60,34 @@ class SearchService:
                 content=content,
                 path_id=entity.path_id,
                 file_path=entity.file_path,
-                type="entity",
+                type=SearchItemType.ENTITY,
+                metadata=metadata,
+            )
+
+    async def index_document(self, document, content: str, background_tasks=None):
+        """Index a document and its content."""
+        metadata = {
+            **document.doc_metadata,
+            "created_at": document.created_at.isoformat(),
+            "updated_at": document.updated_at.isoformat(),
+        }
+
+        # Queue indexing if background_tasks provided
+        if background_tasks:
+            background_tasks.add_task(
+                self._do_index,
+                content=content,
+                path_id=document.path_id,
+                file_path=document.file_path,
+                type=SearchItemType.DOCUMENT,
+                metadata=metadata,
+            )
+        else:
+            await self._do_index(
+                content=content,
+                path_id=document.path_id,
+                file_path=document.file_path,
+                type=SearchItemType.DOCUMENT,
                 metadata=metadata,
             )
 
