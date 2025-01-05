@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, async_sessionmaker
 from basic_memory import db
 from basic_memory.config import ProjectConfig
 from basic_memory.db import DatabaseType
-from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.markdown.knowledge_parser import KnowledgeParser
+from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.models import Base
 from basic_memory.models.knowledge import Entity
 from basic_memory.repository.document_repository import DocumentRepository
@@ -25,13 +25,13 @@ from basic_memory.services import (
     RelationService,
     DocumentService,
 )
-from basic_memory.services.search_service import SearchService
-from basic_memory.services.sync import FileChangeScanner
+from basic_memory.services import KnowledgeService
 from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
-from basic_memory.services import KnowledgeService
-from basic_memory.services.sync.knowledge_sync_service import KnowledgeSyncService
-from basic_memory.services.sync.sync_service import SyncService
+from basic_memory.services.search_service import SearchService
+from basic_memory.sync import FileChangeScanner
+from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
+from basic_memory.sync.sync_service import SyncService
 
 
 @pytest_asyncio.fixture
@@ -46,7 +46,7 @@ def test_config(tmp_path) -> ProjectConfig:
         name="test",
     )
     config.home = tmp_path
-    
+
     (tmp_path / config.documents_dir.name).mkdir(parents=True, exist_ok=True)
     (tmp_path / config.knowledge_dir.name).mkdir(parents=True, exist_ok=True)
     return config
@@ -180,10 +180,12 @@ async def knowledge_service(
         base_path=test_config.knowledge_dir,
     )
 
+
 @pytest_asyncio.fixture
 async def activity_service(document_service, entity_service, relation_service):
     """Create activity service with real dependencies."""
     return ActivityService(entity_service, document_service, relation_service)
+
 
 @pytest_asyncio.fixture
 async def knowledge_sync_service(
@@ -215,6 +217,7 @@ async def sync_service(
 async def search_repository(session_maker):
     """Create SearchRepository instance"""
     return SearchRepository(session_maker)
+
 
 @pytest_asyncio.fixture
 async def search_service(search_repository: SearchRepository):

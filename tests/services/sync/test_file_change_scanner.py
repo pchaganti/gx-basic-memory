@@ -1,13 +1,14 @@
 """Test file sync service."""
-import pytest
-from pathlib import Path
-from typing import AsyncGenerator
 
-from basic_memory.repository import DocumentRepository, EntityRepository
-from basic_memory.services.sync import FileChangeScanner
-from basic_memory.services.sync.utils import DbState
-from basic_memory.utils.file_utils import compute_checksum
+from pathlib import Path
+
+import pytest
+
 from basic_memory.models import Document, Entity
+from basic_memory.repository import DocumentRepository
+from basic_memory.sync import FileChangeScanner
+from basic_memory.sync.utils import DbState
+from basic_memory.utils.file_utils import compute_checksum
 
 
 @pytest.fixture
@@ -23,10 +24,7 @@ async def create_test_file(path: Path, content: str = "test content") -> None:
 
 
 @pytest.mark.asyncio
-async def test_scan_empty_directory(
-    file_change_scanner: FileChangeScanner,
-    temp_dir: Path
-):
+async def test_scan_empty_directory(file_change_scanner: FileChangeScanner, temp_dir: Path):
     """Test scanning empty directory."""
     result = await file_change_scanner.scan_directory(temp_dir)
     assert len(result.files) == 0
@@ -34,10 +32,7 @@ async def test_scan_empty_directory(
 
 
 @pytest.mark.asyncio
-async def test_scan_with_mixed_files(
-    file_change_scanner: FileChangeScanner,
-    temp_dir: Path
-):
+async def test_scan_with_mixed_files(file_change_scanner: FileChangeScanner, temp_dir: Path):
     """Test scanning directory with markdown and non-markdown files."""
     # Create test files
     await create_test_file(temp_dir / "doc.md", "markdown")
@@ -57,10 +52,7 @@ async def test_scan_with_mixed_files(
 
 
 @pytest.mark.asyncio
-async def test_scan_with_unreadable_file(
-    file_change_scanner: FileChangeScanner,
-    temp_dir: Path
-):
+async def test_scan_with_unreadable_file(file_change_scanner: FileChangeScanner, temp_dir: Path):
     """Test scanning directory with an unreadable file."""
     # Create a file we'll make unreadable
     bad_file = temp_dir / "bad.md"
@@ -75,142 +67,96 @@ async def test_scan_with_unreadable_file(
 
 @pytest.mark.asyncio
 async def test_detect_new_files(
-    file_change_scanner: FileChangeScanner,
-    temp_dir: Path,
-    document_repository: DocumentRepository
+    file_change_scanner: FileChangeScanner, temp_dir: Path, document_repository: DocumentRepository
 ):
     """Test detection of new files."""
     # Create new file
     await create_test_file(temp_dir / "new.md")
-    
+
     # Empty DB state
     db_records = await file_change_scanner.get_db_file_paths([])
-    
-    changes = await file_change_scanner.find_changes(
-        directory=temp_dir,
-        db_records=db_records
-    )
-    
+
+    changes = await file_change_scanner.find_changes(directory=temp_dir, db_records=db_records)
+
     assert len(changes.new) == 1
     assert "new.md" in changes.new
 
 
 @pytest.mark.asyncio
-async def test_detect_modified_file(
-    file_change_scanner: FileChangeScanner,
-    temp_dir: Path
-):
+async def test_detect_modified_file(file_change_scanner: FileChangeScanner, temp_dir: Path):
     """Test detection of modified files."""
     path = "test.md"
     content = "original"
     await create_test_file(temp_dir / path, content)
-    
+
     # Create DB state with original checksum
     original_checksum = await compute_checksum(content)
-    db_records = {
-        path: DbState(path=path, checksum=original_checksum)
-    }
+    db_records = {path: DbState(path=path, checksum=original_checksum)}
 
     # Modify file
     await create_test_file(temp_dir / path, "modified")
 
-    changes = await file_change_scanner.find_changes(
-        directory=temp_dir,
-        db_records=db_records
-    )
+    changes = await file_change_scanner.find_changes(directory=temp_dir, db_records=db_records)
 
     assert len(changes.modified) == 1
     assert path in changes.modified
 
 
 @pytest.mark.asyncio
-async def test_detect_deleted_files(
-    file_change_scanner: FileChangeScanner,
-    temp_dir: Path
-):
+async def test_detect_deleted_files(file_change_scanner: FileChangeScanner, temp_dir: Path):
     """Test detection of deleted files."""
     path = "deleted.md"
-    
-    # Create DB state with file that doesn't exist
-    db_records = {
-        path: DbState(path=path, checksum="any-checksum")
-    }
 
-    changes = await file_change_scanner.find_changes(
-        directory=temp_dir,
-        db_records=db_records
-    )
+    # Create DB state with file that doesn't exist
+    db_records = {path: DbState(path=path, checksum="any-checksum")}
+
+    changes = await file_change_scanner.find_changes(directory=temp_dir, db_records=db_records)
 
     assert len(changes.deleted) == 1
     assert path in changes.deleted
 
 
 @pytest.mark.asyncio
-async def test_get_db_state_documents(
-    file_change_scanner: FileChangeScanner
-):
+async def test_get_db_state_documents(file_change_scanner: FileChangeScanner):
     """Test converting document records to file states."""
-    doc = Document(
-        path_id="test.md",
-        file_path="test.md",
-        checksum="test-checksum"
-    )
-    
+    doc = Document(path_id="test.md", file_path="test.md", checksum="test-checksum")
+
     db_records = await file_change_scanner.get_db_file_paths([doc])
-    
+
     assert len(db_records) == 1
     assert "test.md" in db_records
     assert db_records["test.md"].checksum == "test-checksum"
 
 
 @pytest.mark.asyncio
-async def test_get_db_state_entities(
-    file_change_scanner: FileChangeScanner
-):
+async def test_get_db_state_entities(file_change_scanner: FileChangeScanner):
     """Test converting entity records to file states."""
-    entity = Entity(
-        path_id="concept/test",
-        file_path="concept/test.md",
-        checksum="test-checksum"
-    )
-    
+    entity = Entity(path_id="concept/test", file_path="concept/test.md", checksum="test-checksum")
+
     db_records = await file_change_scanner.get_db_file_paths([entity])
-    
+
     assert len(db_records) == 1
     assert "concept/test.md" in db_records
     assert db_records["concept/test.md"].checksum == "test-checksum"
 
 
-
 @pytest.mark.asyncio
-async def test_get_db_state_does_not_skip_missing_checksum(
-    file_change_scanner: FileChangeScanner
-):
+async def test_get_db_state_does_not_skip_missing_checksum(file_change_scanner: FileChangeScanner):
     """Test that get_db_state skips records with missing checksums."""
-    doc = Document(
-        path_id="test.md",
-        file_path="test.md",
-        checksum=None
-    )
-    
+    doc = Document(path_id="test.md", file_path="test.md", checksum=None)
+
     db_records = await file_change_scanner.get_db_file_paths([doc])
-    
+
     assert len(db_records) == 1
 
 
 @pytest.mark.asyncio
-async def test_empty_directory(
-    file_change_scanner: FileChangeScanner,
-    temp_dir: Path
-):
+async def test_empty_directory(file_change_scanner: FileChangeScanner, temp_dir: Path):
     """Test handling empty/nonexistent directory."""
     nonexistent = temp_dir / "nonexistent"
-    
-    changes = await file_change_scanner.find_changes(
-        directory=nonexistent,
-        db_records={}
-    )
-    
+
+    changes = await file_change_scanner.find_changes(directory=nonexistent, db_records={})
+
     assert changes.total_changes == 0
     assert not changes.new
     assert not changes.modified

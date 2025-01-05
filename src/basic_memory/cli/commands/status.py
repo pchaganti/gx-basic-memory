@@ -14,8 +14,8 @@ from basic_memory.cli.app import app
 from basic_memory.config import config
 from basic_memory.db import DatabaseType
 from basic_memory.repository import DocumentRepository, EntityRepository
-from basic_memory.services.sync import FileChangeScanner
-from basic_memory.services.sync.utils import SyncReport
+from basic_memory.sync import FileChangeScanner
+from basic_memory.sync.utils import SyncReport
 
 # Create rich console
 console = Console()
@@ -64,7 +64,7 @@ def group_changes_by_directory(changes: SyncReport) -> Dict[str, Dict[str, int]]
     for change_type, paths in [
         ("new", changes.new),
         ("modified", changes.modified),
-        ("deleted", changes.deleted)
+        ("deleted", changes.deleted),
     ]:
         for path in paths:
             dir_name = path.split("/", 1)[0]
@@ -76,7 +76,7 @@ def group_changes_by_directory(changes: SyncReport) -> Dict[str, Dict[str, int]]
 def build_directory_summary(counts: Dict[str, int]) -> str:
     """Build summary string for directory changes."""
     parts = []
-    if counts["new"]: 
+    if counts["new"]:
         parts.append(f"[green]+{counts['new']} new[/green]")
     if counts["modified"]:
         parts.append(f"[yellow]~{counts['modified']} modified[/yellow]")
@@ -88,12 +88,12 @@ def build_directory_summary(counts: Dict[str, int]) -> str:
 def display_changes(title: str, changes: SyncReport, verbose: bool = False):
     """Display changes using Rich for better visualization."""
     tree = Tree(title)
-    
+
     if changes.total_changes == 0:
         tree.add("No changes")
         console.print(Panel(tree, expand=False))
         return
-        
+
     if verbose:
         # Full file listing with checksums
         if changes.new:
@@ -111,7 +111,7 @@ def display_changes(title: str, changes: SyncReport, verbose: bool = False):
         for dir_name, counts in sorted(by_dir.items()):
             summary = build_directory_summary(counts)
             tree.add(f"[bold]{dir_name}/[/bold] {summary}")
-    
+
     console.print(Panel(tree, expand=False))
 
 
@@ -121,7 +121,7 @@ async def run_status(sync_service: FileChangeScanner, verbose: bool = False):
     knowledge_changes = await sync_service.find_knowledge_changes(config.knowledge_dir)
     display_changes("Knowledge Files", knowledge_changes, verbose)
 
-    # Check documents/ directory 
+    # Check documents/ directory
     document_changes = await sync_service.find_document_changes(config.documents_dir)
     display_changes("Documents", document_changes, verbose)
 

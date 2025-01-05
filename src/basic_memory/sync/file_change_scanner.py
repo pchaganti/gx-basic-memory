@@ -1,16 +1,15 @@
 """Service for detecting changes between filesystem and database."""
 
 from pathlib import Path
-from typing import Dict, Protocol, TypeVar, Optional, Sequence
+from typing import Dict, Sequence
 
 from loguru import logger
 
 from basic_memory.models import Document, Entity
 from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
-from basic_memory.services.sync.utils import DbState, SyncReport, ScanResult
+from basic_memory.sync.utils import DbState, SyncReport, ScanResult
 from basic_memory.utils.file_utils import compute_checksum
-
 
 
 class FileChangeScanner:
@@ -20,9 +19,7 @@ class FileChangeScanner:
     """
 
     def __init__(
-        self, 
-        document_repository: DocumentRepository,
-        entity_repository: EntityRepository
+        self, document_repository: DocumentRepository, entity_repository: EntityRepository
     ):
         self.document_repository = document_repository
         self.entity_repository = entity_repository
@@ -56,16 +53,13 @@ class FileChangeScanner:
                 rel_path = str(path.relative_to(directory))
                 content = path.read_text()
                 checksum = await compute_checksum(content)
-                
+
                 if checksum:  # Only store valid checksums
-                    result.files[rel_path] = DbState(
-                        path=rel_path,
-                        checksum=checksum
-                    )
+                    result.files[rel_path] = DbState(path=rel_path, checksum=checksum)
                     logger.debug(f"Found file: {rel_path} ({checksum[:8]})")
                 else:
                     result.errors[rel_path] = "Failed to compute checksum"
-                    
+
             except Exception as e:
                 rel_path = str(path.relative_to(directory))
                 result.errors[rel_path] = str(e)
@@ -74,15 +68,10 @@ class FileChangeScanner:
         logger.debug(f"Found {len(result.files)} markdown files")
         if result.errors:
             logger.warning(f"Encountered {len(result.errors)} errors while scanning")
-            
+
         return result
 
-
-    async def find_changes(
-            self,
-            directory: Path,
-            db_records: Dict[str, DbState]
-    ) -> SyncReport:
+    async def find_changes(self, directory: Path, db_records: Dict[str, DbState]) -> SyncReport:
         """
         Find changes between filesystem and database.
 
@@ -96,23 +85,24 @@ class FileChangeScanner:
         # Get current files and checksums
         scan_result = await self.scan_directory(directory)
         current_files = scan_result.files
-        
+
         logger.debug("Current files from filesystem:")
         for file_path, state in sorted(current_files.items()):
             logger.debug(f"  {file_path} ({state.checksum[:8]})")
 
-        
         logger.debug("Files from database:")
         for file_path, state in sorted(db_records.items()):
-            logger.debug(f"  {file_path} ({state.checksum[:8] if state.checksum else 'no checksum'})")
+            logger.debug(
+                f"  {file_path} ({state.checksum[:8] if state.checksum else 'no checksum'})"
+            )
 
         # Build report
         report = SyncReport()
-        
+
         # Add current checksums for display
         for file_path, state in current_files.items():
             report.checksums[file_path] = state.checksum
-        
+
         # Find new and modified files
         for file_path, curr_state in current_files.items():
             if file_path not in db_records:
@@ -132,7 +122,7 @@ class FileChangeScanner:
         logger.debug(f"  New: {len(report.new)}")
         logger.debug(f"  Modified: {len(report.modified)}")
         logger.debug(f"  Deleted: {len(report.deleted)}")
-        
+
         if scan_result.errors:
             logger.warning("Files skipped due to errors:")
             for file_path, error in scan_result.errors.items():
@@ -140,28 +130,24 @@ class FileChangeScanner:
 
         return report
 
-    async def get_db_file_paths(self, db_records: Sequence[Document | Entity]) -> Dict[str, DbState]:
+    async def get_db_file_paths(
+        self, db_records: Sequence[Document | Entity]
+    ) -> Dict[str, DbState]:
         """Get file_path and checksums from database.
         Args:
             db_records: database records
         Returns:
             Dict mapping file paths to FileState
-            :param db_records: the data from the db 
+            :param db_records: the data from the db
         """
         return {r.file_path: DbState(path=r.path_id, checksum=r.checksum) for r in db_records}
 
     async def find_document_changes(self, directory: Path) -> SyncReport:
         """Find changes in document directory."""
         db_records = await self.get_db_file_paths(await self.document_repository.find_all())
-        return await self.find_changes(
-            directory=directory,
-            db_records=db_records
-        )
+        return await self.find_changes(directory=directory, db_records=db_records)
 
     async def find_knowledge_changes(self, directory: Path) -> SyncReport:
         """Find changes in knowledge directory."""
         db_records = await self.get_db_file_paths(await self.entity_repository.find_all())
-        return await self.find_changes(
-            directory=directory,
-            db_records=db_records
-        )
+        return await self.find_changes(directory=directory, db_records=db_records)

@@ -1,34 +1,40 @@
 """Command module for basic-memory sync operations."""
-from collections import defaultdict
 
+import asyncio
+from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Dict
+
+import typer
+from loguru import logger
+from rich.console import Console
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
-
-from pathlib import Path
-from typing import Optional, List, Tuple, Dict
-from dataclasses import dataclass
-
-import typer
-import asyncio
-from loguru import logger
-from rich.console import Console
 from rich.tree import Tree
 
-from basic_memory.cli.app import app
 from basic_memory import db
+from basic_memory.cli.app import app
 from basic_memory.config import config
 from basic_memory.db import DatabaseType
-from basic_memory.repository import DocumentRepository, EntityRepository, ObservationRepository, RelationRepository
+from basic_memory.markdown import KnowledgeParser
+from basic_memory.repository import (
+    DocumentRepository,
+    EntityRepository,
+    ObservationRepository,
+    RelationRepository,
+)
 from basic_memory.services import (
     DocumentService,
-    EntityService, ObservationService, RelationService, FileService,
+    EntityService,
+    ObservationService,
+    RelationService,
+    FileService,
 )
-from basic_memory.markdown import KnowledgeParser
-from basic_memory.services.sync import SyncService, FileChangeScanner, KnowledgeSyncService
+from basic_memory.sync import SyncService, FileChangeScanner, KnowledgeSyncService
+from basic_memory.sync.utils import SyncReport
 from basic_memory.utils.file_utils import ParseError
-from basic_memory.services.sync.utils import SyncReport
-
 
 console = Console()
 
@@ -37,6 +43,7 @@ console = Console()
 class ValidationIssue:
     file_path: str
     error: str
+
 
 def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[ValidationIssue]]:
     """Group validation issues by directory."""
@@ -51,10 +58,9 @@ def display_validation_errors(issues: List[ValidationIssue]):
     """Display validation errors in a rich, organized format."""
     # Create header
     console.print()
-    console.print(Panel(
-        "[red bold]Error:[/red bold] Invalid frontmatter in knowledge files",
-        expand=False
-    ))
+    console.print(
+        Panel("[red bold]Error:[/red bold] Invalid frontmatter in knowledge files", expand=False)
+    )
     console.print()
 
     # Group issues by directory
@@ -65,20 +71,14 @@ def display_validation_errors(issues: List[ValidationIssue]):
     for dir_name, dir_issues in sorted(grouped_issues.items()):
         # Create branch for directory
         branch = tree.add(
-            f"[bold blue]{dir_name}/[/bold blue] "
-            f"([yellow]{len(dir_issues)} files[/yellow])"
+            f"[bold blue]{dir_name}/[/bold blue] " f"([yellow]{len(dir_issues)} files[/yellow])"
         )
 
         # Add each file issue
         for issue in sorted(dir_issues, key=lambda x: x.file_path):
             file_name = Path(issue.file_path).name
             branch.add(
-                Text.assemble(
-                    ("└─ ", "dim"),
-                    (file_name, "yellow"),
-                    ": ",
-                    (issue.error, "red")
-                )
+                Text.assemble(("└─ ", "dim"), (file_name, "yellow"), ": ", (issue.error, "red"))
             )
 
     # Display tree
@@ -86,16 +86,18 @@ def display_validation_errors(issues: List[ValidationIssue]):
 
     # Add help text
     console.print()
-    console.print(Panel(
-        Text.assemble(
-            ("To fix:", "bold"),
-            "\n1. Add required frontmatter fields to each file",
-            "\n2. Run ",
-            ("basic-memory sync", "bold cyan"),
-            " again"
-        ),
-        expand=False
-    ))
+    console.print(
+        Panel(
+            Text.assemble(
+                ("To fix:", "bold"),
+                "\n1. Add required frontmatter fields to each file",
+                "\n2. Run ",
+                ("basic-memory sync", "bold cyan"),
+                " again",
+            ),
+            expand=False,
+        )
+    )
     console.print()
 
 
@@ -135,12 +137,12 @@ def display_detailed_sync_results(docs: SyncReport, knowledge: SyncReport):
         if docs.new:
             created = doc_tree.add("[green]Created[/green]")
             for path in sorted(docs.new):
-                checksum = docs.checksums.get(path, '')
+                checksum = docs.checksums.get(path, "")
                 created.add(f"[green]{path}[/green] ({checksum[:8]})")
         if docs.modified:
             modified = doc_tree.add("[yellow]Modified[/yellow]")
             for path in sorted(docs.modified):
-                checksum = docs.checksums.get(path, '')
+                checksum = docs.checksums.get(path, "")
                 modified.add(f"[yellow]{path}[/yellow] ({checksum[:8]})")
         if docs.deleted:
             deleted = doc_tree.add("[red]Deleted[/red]")
@@ -153,12 +155,12 @@ def display_detailed_sync_results(docs: SyncReport, knowledge: SyncReport):
         if knowledge.new:
             created = knowledge_tree.add("[green]Created[/green]")
             for path in sorted(knowledge.new):
-                checksum = knowledge.checksums.get(path, '')
+                checksum = knowledge.checksums.get(path, "")
                 created.add(f"[green]{path}[/green] ({checksum[:8]})")
         if knowledge.modified:
             modified = knowledge_tree.add("[yellow]Modified[/yellow]")
             for path in sorted(knowledge.modified):
-                checksum = knowledge.checksums.get(path, '')
+                checksum = knowledge.checksums.get(path, "")
                 modified.add(f"[yellow]{path}[/yellow] ({checksum[:8]})")
         if knowledge.deleted:
             deleted = knowledge_tree.add("[red]Deleted[/red]")
@@ -181,14 +183,16 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
 
         # Initialize scanner
         file_change_scanner = FileChangeScanner(document_repository, entity_repository)
-        
+
         # Initialize services
         document_service = DocumentService(document_repository, config.documents_dir, FileService())
         entity_service = EntityService(entity_repository)
         observation_service = ObservationService(observation_repository)
         relation_service = RelationService(relation_repository)
-        
-        knowledge_sync_service = KnowledgeSyncService(entity_service, observation_service, relation_service)
+
+        knowledge_sync_service = KnowledgeSyncService(
+            entity_service, observation_service, relation_service
+        )
         knowledge_parser = KnowledgeParser()
 
         # Create sync service
@@ -198,11 +202,13 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
             knowledge_sync_service=knowledge_sync_service,
             knowledge_parser=knowledge_parser,
         )
-        
+
         return sync_service
 
 
-async def validate_knowledge_files(sync_service: SyncService, directory: Path) -> List[ValidationIssue]:
+async def validate_knowledge_files(
+    sync_service: SyncService, directory: Path
+) -> List[ValidationIssue]:
     """Pre-validate knowledge files and collect all issues."""
     issues = []
     changes = await sync_service.scanner.find_knowledge_changes(directory)
@@ -218,7 +224,7 @@ async def validate_knowledge_files(sync_service: SyncService, directory: Path) -
 
 async def run_sync(verbose: bool = False):
     """Run sync operation."""
-    
+
     sync_service = await get_sync_service()
 
     # Validate knowledge files before attempting sync
@@ -229,7 +235,7 @@ async def run_sync(verbose: bool = False):
 
     # Sync
     doc_changes, knowledge_changes = await sync_service.sync(config)
-    
+
     # Display results
     if verbose:
         display_detailed_sync_results(doc_changes, knowledge_changes)
@@ -247,14 +253,14 @@ def sync(
     ),
 ) -> None:
     """Sync knowledge files with the database.
-    
+
     This command syncs both documents and knowledge files with the database.
     Knowledge files must have required frontmatter fields: type, id, created, modified.
     """
     try:
         # Run sync
         asyncio.run(run_sync(verbose))
-    
+
     except Exception as e:
         if not isinstance(e, typer.Exit):
             logger.exception("Sync failed")

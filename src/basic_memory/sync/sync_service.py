@@ -1,14 +1,15 @@
 """Service for syncing files between filesystem and database."""
 
 from pathlib import Path
+
 from loguru import logger
 
 from basic_memory.config import ProjectConfig
-from basic_memory.services import DocumentService
-from basic_memory.services.sync import FileChangeScanner
 from basic_memory.markdown import KnowledgeParser
-from basic_memory.services.sync.knowledge_sync_service import KnowledgeSyncService
-from basic_memory.services.sync.utils import SyncReport
+from basic_memory.services import DocumentService
+from basic_memory.sync import FileChangeScanner
+from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
+from basic_memory.sync.utils import SyncReport
 
 
 class SyncService:
@@ -53,7 +54,7 @@ class SyncService:
                     path_id=path, content=content
                 )
         return changes
-    
+
     async def sync_knowledge(self, directory: Path) -> SyncReport:
         """Sync knowledge files with database."""
         changes = await self.scanner.find_knowledge_changes(directory)
@@ -75,7 +76,9 @@ class SyncService:
         for file_path, entity_markdown in parsed_entities.items():
             if file_path in changes.new:
                 logger.debug(f"Creating new entity_markdown: {file_path}")
-                await self.knowledge_sync_service.create_entity_and_observations(file_path, entity_markdown)
+                await self.knowledge_sync_service.create_entity_and_observations(
+                    file_path, entity_markdown
+                )
             else:
                 path_id = entity_markdown.frontmatter.id
                 logger.debug(f"Updating entity_markdown: {path_id}")
@@ -89,12 +92,12 @@ class SyncService:
             await self.knowledge_sync_service.update_entity_relations(
                 entity_markdown, checksum=changes.checksums[file_path]
             )
-        
+
         return changes
 
     async def sync(self, config: ProjectConfig) -> (SyncReport, SyncReport):
         """Sync all files with database."""
-        
+
         # Sync documents first (simpler, no relations)
         doc_changes = await self.sync_documents(config.documents_dir)
 

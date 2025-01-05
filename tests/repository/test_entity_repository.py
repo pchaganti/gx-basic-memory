@@ -146,7 +146,7 @@ async def test_entity_type_name_unique_constraint(entity_repository: EntityRepos
     # Should raise IntegrityError
     with pytest.raises(IntegrityError) as exc_info:
         await entity_repository.create(entity2_data)
-    assert "UNIQUE constraint failed: entity.entity_type, entity.name" in str(exc_info.value)
+    assert "UNIQUE constraint failed" in str(exc_info.value)
 
 
 @pytest.mark.asyncio

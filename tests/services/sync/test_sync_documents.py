@@ -1,12 +1,14 @@
 """Test document sync functionality."""
+
 import asyncio
 from pathlib import Path
+
 import pytest
 
 from basic_memory.config import ProjectConfig
-from basic_memory.services import DocumentService
-from basic_memory.services.sync.sync_service import SyncService
 from basic_memory.models import Document
+from basic_memory.services import DocumentService
+from basic_memory.sync.sync_service import SyncService
 
 
 async def create_test_file(path: Path, content: str = "test content") -> None:
@@ -17,9 +19,7 @@ async def create_test_file(path: Path, content: str = "test content") -> None:
 
 @pytest.mark.asyncio
 async def test_sync_documents(
-    sync_service: SyncService, 
-    test_config: ProjectConfig, 
-    document_service: DocumentService
+    sync_service: SyncService, test_config: ProjectConfig, document_service: DocumentService
 ):
     """Test syncing document files."""
     # Create test files
@@ -45,8 +45,7 @@ async def test_sync_documents(
 
 @pytest.mark.asyncio
 async def test_sync_new_document_adds_frontmatter(
-    test_config: ProjectConfig,
-    sync_service: SyncService
+    test_config: ProjectConfig, sync_service: SyncService
 ):
     """Test that syncing a new document adds appropriate frontmatter."""
     # Create document without frontmatter
@@ -79,8 +78,7 @@ async def test_sync_new_document_adds_frontmatter(
 
 @pytest.mark.asyncio
 async def test_sync_modified_document_updates_frontmatter(
-    test_config: ProjectConfig,
-    sync_service: SyncService
+    test_config: ProjectConfig, sync_service: SyncService
 ):
     """Test that modifying a document updates frontmatter properly."""
     # First create and sync a document
@@ -95,7 +93,7 @@ async def test_sync_modified_document_updates_frontmatter(
     original_modified = doc.updated_at
 
     await asyncio.sleep(1)  # Ensure timestamps will be different
-    
+
     # Modify document
     new_content = "# Test Document\n\nUpdated content."
     doc_path.write_text(new_content)
@@ -115,8 +113,7 @@ async def test_sync_modified_document_updates_frontmatter(
 
 @pytest.mark.asyncio
 async def test_sync_document_with_invalid_frontmatter(
-    test_config: ProjectConfig,
-    sync_service: SyncService
+    test_config: ProjectConfig, sync_service: SyncService
 ):
     """Test syncing a document with malformed frontmatter."""
     # Create document with invalid frontmatter
@@ -157,8 +154,7 @@ Content here.
 
 @pytest.mark.asyncio
 async def test_sync_document_preserve_existing_metadata(
-    test_config: ProjectConfig,
-    sync_service: SyncService
+    test_config: ProjectConfig, sync_service: SyncService
 ):
     """Test that sync preserves custom metadata fields in frontmatter."""
     # Create document with custom metadata
@@ -198,16 +194,13 @@ author: Test Author
 
 
 @pytest.mark.asyncio
-async def test_sync_document_in_subdirectory(
-    test_config: ProjectConfig,
-    sync_service: SyncService
-):
+async def test_sync_document_in_subdirectory(test_config: ProjectConfig, sync_service: SyncService):
     """Test syncing documents in nested directory structure."""
     # Create nested directories and files
     base_dir = test_config.documents_dir
     nested_path = base_dir / "folder1" / "folder2" / "nested.md"
     nested_path.parent.mkdir(parents=True)
-    
+
     content = "# Nested Document\nIn subfolder"
     nested_path.write_text(content)
 
@@ -226,10 +219,7 @@ async def test_sync_document_in_subdirectory(
 
 
 @pytest.mark.asyncio
-async def test_sync_empty_document(
-    test_config: ProjectConfig,
-    sync_service: SyncService
-):
+async def test_sync_empty_document(test_config: ProjectConfig, sync_service: SyncService):
     """Test syncing an empty document."""
     # Create empty file
     doc_path = test_config.documents_dir / "empty.md"
@@ -252,10 +242,7 @@ async def test_sync_empty_document(
 
 
 @pytest.mark.asyncio
-async def test_sync_document_utf8_encoding(
-    test_config: ProjectConfig,
-    sync_service: SyncService
-):
+async def test_sync_document_utf8_encoding(test_config: ProjectConfig, sync_service: SyncService):
     """Test syncing documents with non-ASCII characters."""
     # Create document with UTF-8 content
     doc_path = test_config.documents_dir / "utf8.md"
@@ -270,13 +257,13 @@ async def test_sync_document_utf8_encoding(
 ## Various Symbols
 § ¢ € ¥ © ®️ ™️
 """
-    doc_path.write_text(content, encoding='utf-8')
+    doc_path.write_text(content, encoding="utf-8")
 
     # Sync
     await sync_service.sync(test_config)
 
     # Read back and verify content preserved
-    updated_content = doc_path.read_text(encoding='utf-8')
+    updated_content = doc_path.read_text(encoding="utf-8")
     assert "你好世界" in updated_content
     assert "こんにちは" in updated_content
     assert "🚀" in updated_content

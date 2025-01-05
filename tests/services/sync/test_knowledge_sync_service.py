@@ -1,12 +1,10 @@
 """Tests for EntitySyncService."""
 
-import pytest
-import pytest_asyncio
 from datetime import datetime
 
-from basic_memory.models import Entity as EntityModel
-from basic_memory.services import EntityService, ObservationService, RelationService
-from basic_memory.services.sync.knowledge_sync_service import KnowledgeSyncService
+import pytest
+import pytest_asyncio
+
 from basic_memory.markdown.schemas import (
     EntityMarkdown,
     EntityContent,
@@ -15,8 +13,8 @@ from basic_memory.markdown.schemas import (
     Observation as MarkdownObservation,
     Relation as MarkdownRelation,
 )
-
-
+from basic_memory.models import Entity as EntityModel
+from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
 
 
 @pytest_asyncio.fixture
@@ -120,10 +118,16 @@ async def test_update_entity_relations(
 
     # Create target entities that relations point to
     other_entity = EntityModel(
-        name="Other Entity", entity_type="concept", path_id="concept/other_entity", file_path="concept/other_entity.md"
+        name="Other Entity",
+        entity_type="concept",
+        path_id="concept/other_entity",
+        file_path="concept/other_entity.md",
     )
     another_entity = EntityModel(
-        name="Another Entity", entity_type="concept", path_id="concept/another_entity", file_path="concept/another_entity.md"
+        name="Another Entity",
+        entity_type="concept",
+        path_id="concept/another_entity",
+        file_path="concept/another_entity.md",
     )
     await knowledge_sync_service.entity_service.add(other_entity)
     await knowledge_sync_service.entity_service.add(another_entity)
@@ -157,10 +161,16 @@ async def test_two_pass_sync_flow(
     """Test complete two-pass sync flow."""
     # Create target entities first
     other_entity = EntityModel(
-        name="Other Entity", entity_type="concept", path_id="concept/other_entity", file_path="concept/other_entity.md"
+        name="Other Entity",
+        entity_type="concept",
+        path_id="concept/other_entity",
+        file_path="concept/other_entity.md",
     )
     another_entity = EntityModel(
-        name="Another Entity", entity_type="concept", path_id="concept/another_entity", file_path="concept/another_entity.md"
+        name="Another Entity",
+        entity_type="concept",
+        path_id="concept/another_entity",
+        file_path="concept/another_entity.md",
     )
     await knowledge_sync_service.entity_service.add(other_entity)
     await knowledge_sync_service.entity_service.add(another_entity)

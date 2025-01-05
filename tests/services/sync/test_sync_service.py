@@ -2,12 +2,13 @@
 
 import asyncio
 from pathlib import Path
+
 import pytest
 
 from basic_memory.config import ProjectConfig
-from basic_memory.services import EntityService
-from basic_memory.services.sync.sync_service import SyncService
 from basic_memory.models import Entity
+from basic_memory.services import EntityService
+from basic_memory.sync.sync_service import SyncService
 
 
 async def create_test_file(path: Path, content: str = "test content") -> None:

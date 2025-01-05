@@ -1,12 +1,13 @@
 """Test status command functionality."""
 
+from io import StringIO
+
 import pytest
 import pytest_asyncio
 from rich.console import Console
-from io import StringIO
 
 from basic_memory.cli.commands.status import display_changes, run_status
-from basic_memory.services.sync.utils import SyncReport, DbState
+from basic_memory.sync.utils import SyncReport, DbState
 from basic_memory.utils.file_utils import compute_checksum
 
 
