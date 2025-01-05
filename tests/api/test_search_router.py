@@ -3,13 +3,12 @@
 from datetime import datetime, timezone
 
 import pytest
-import pytest_asyncio
-from basic_memory.schemas.search import SearchQuery
-from basic_memory.services.search_service import SearchService
+from sqlalchemy import text
+from basic_memory import db
+from basic_memory.schemas.search import SearchQuery, SearchItemType
 
 
-
-@pytest_asyncio.fixture
+@pytest.fixture
 def test_entity():
     """Create a test entity."""
     class Entity:
@@ -26,11 +25,35 @@ def test_entity():
     return Entity()
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
+def test_document():
+    """Create a test document."""
+    class Document:
+        id = 1
+        path_id = "docs/test_doc.md"
+        file_path = "docs/test_doc.md"
+        doc_metadata = {
+            "title": "Test Document",
+            "type": "technical"
+        }
+        created_at = datetime.now(timezone.utc)
+        updated_at = datetime.now(timezone.utc)
+    return Document()
+
+
+@pytest.fixture
 async def indexed_entity(test_entity, search_service):
     """Create an entity and index it."""
     await search_service.index_entity(test_entity)
     return test_entity
+
+
+@pytest.fixture
+async def indexed_document(test_document, search_service):
+    """Create a document and index it."""
+    content = "Test document content for search"
+    await search_service.index_document(test_document, content)
+    return test_document, content
 
 
 @pytest.mark.asyncio
@@ -56,7 +79,7 @@ async def test_search_with_type_filter(client, indexed_entity):
         "/search/",
         json={
             "text": "test",
-            "types": ["entity"]
+            "types": [SearchItemType.ENTITY.value]
         }
     )
     assert response.status_code == 200
@@ -68,7 +91,7 @@ async def test_search_with_type_filter(client, indexed_entity):
         "/search/",
         json={
             "text": "test",
-            "types": ["document"]
+            "types": [SearchItemType.DOCUMENT.value]
         }
     )
     assert response.status_code == 200
@@ -166,11 +189,48 @@ async def test_search_empty(search_service, client):
 
 
 @pytest.mark.asyncio
-async def test_reindex(search_service, client):
+async def test_reindex(
+    client,
+    search_service,
+    entity_service,
+    document_service,
+    test_entity,
+    test_document,
+    session_maker
+):
     """Test reindex endpoint."""
-    response = await client.post("/search/reindex")
-    assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    # Create test entity and document
+    await entity_service.create_entity(test_entity)
+    await document_service.create_document(
+        test_document.path_id,
+        "Test content",
+        test_document.doc_metadata
+    )
+
+    # Clear search index
+    async with db.scoped_session(session_maker) as session:
+        await session.execute(text("DELETE FROM search_index"))
+        await session.commit()
+
+    # Verify nothing is searchable
+    response = await client.post(
+        "/search/",
+        json={"text": "test"}
+    )
+    assert len(response.json()) == 0
+
+    # Trigger reindex
+    reindex_response = await client.post("/search/reindex")
+    assert reindex_response.status_code == 200
+    assert reindex_response.json()["status"] == "ok"
+
+    # Verify content is searchable again
+    search_response = await client.post(
+        "/search/",
+        json={"text": "test"}
+    )
+    results = search_response.json()
+    assert len(results) == 2  # Both entity and document should be found
 
 
 @pytest.mark.asyncio
@@ -180,7 +240,7 @@ async def test_multiple_filters(client, indexed_entity):
         "/search/",
         json={
             "text": "test",
-            "types": ["entity"],
+            "types": [SearchItemType.ENTITY.value],
             "entity_types": ["component"],
             "after_date": datetime(2020, 1, 1, tzinfo=timezone.utc).isoformat()
         }
@@ -190,5 +250,5 @@ async def test_multiple_filters(client, indexed_entity):
     assert len(results) == 1
     result = results[0]
     assert result["path_id"] == indexed_entity.path_id
-    assert result["type"] == "entity"
+    assert result["type"] == SearchItemType.ENTITY.value
     assert result["metadata"]["entity_type"] == "component"

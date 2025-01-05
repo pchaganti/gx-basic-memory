@@ -220,9 +220,13 @@ async def search_repository(session_maker):
 
 
 @pytest_asyncio.fixture
-async def search_service(search_repository: SearchRepository):
+async def search_service(
+    search_repository: SearchRepository,
+    entity_service: EntityService,
+    document_service: DocumentService,
+) -> SearchService:
     """Create and initialize search service"""
-    service = SearchService(search_repository)
+    service = SearchService(search_repository, document_service, entity_service)
     await service.init_search_index()
     return service
 

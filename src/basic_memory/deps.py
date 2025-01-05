@@ -165,10 +165,10 @@ DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
 
 
 async def get_search_service(
-    search_repository: SearchRepositoryDep,
+    search_repository: SearchRepositoryDep, entity_service: EntityServiceDep, document_service: DocumentServiceDep
 ) -> SearchService:
     """Create SearchService with dependencies."""
-    return SearchService(search_repository)
+    return SearchService(search_repository, document_service, entity_service)
 
 
 SearchServiceDep = Annotated[SearchService, Depends(get_search_service)]

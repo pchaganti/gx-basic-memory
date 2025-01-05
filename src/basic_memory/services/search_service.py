@@ -1,28 +1,72 @@
 """Service for search operations."""
 
-from typing import List, Optional
+from typing import List, Optional, Any
+
+from fastapi import BackgroundTasks
+from loguru import logger
 
 from basic_memory.repository.search_repository import SearchRepository
+from basic_memory.services.document_service import DocumentService
+from basic_memory.services.entity_service import EntityService
 from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
 
 
 class SearchService:
     """Service for search operations."""
 
-    def __init__(self, search_repository: SearchRepository):
+    def __init__(
+        self,
+        search_repository: SearchRepository,
+        document_service: DocumentService,
+        entity_service: EntityService,
+    ):
         self.repository = search_repository
+        self.document_service = document_service
+        self.entity_service = entity_service
 
     async def init_search_index(self):
         """Create FTS5 virtual table if it doesn't exist."""
         await self.repository.init_search_index()
+        
+    async def reindex_all(
+        self,
+        background_tasks: Optional[BackgroundTasks] = None
+    ) -> None:
+        """Reindex all content from database."""
+        logger.info("Starting full reindex")
+        
+        # Clear and recreate search index
+        await self.init_search_index()
+        
+        # Reindex all entities
+        logger.debug("Indexing entities")
+        entities = await self.entity_service.get_all()
+        for entity in entities:
+            await self.index_entity(entity, background_tasks)
+            
+        # Reindex all documents
+        logger.debug("Indexing documents")
+        documents = await self.document_service.list_documents()
+        for doc in documents:
+            # Read content for each document
+            doc_with_content = await self.document_service.read_document_by_path_id(doc.path_id)
+            await self.index_document(doc, doc_with_content[1], background_tasks)
+            
+        logger.info("Reindex complete")
 
     async def search(
-        self, query: SearchQuery, context: Optional[List[str]] = None
+        self,
+        query: SearchQuery,
+        context: Optional[List[str]] = None
     ) -> List[SearchResult]:
         """Search across all indexed content."""
         return await self.repository.search(query, context)
 
-    async def index_entity(self, entity, background_tasks=None):
+    async def index_entity(
+        self,
+        entity: Any,  # Could be more specific if we have an Entity type
+        background_tasks: Optional[BackgroundTasks] = None
+    ) -> None:
         """Index an entity and its components."""
         # Build searchable content
         content = "\n".join(
@@ -64,7 +108,12 @@ class SearchService:
                 metadata=metadata,
             )
 
-    async def index_document(self, document, content: str, background_tasks=None):
+    async def index_document(
+        self,
+        document: Any,  # Could be more specific if we have a Document type
+        content: str,
+        background_tasks: Optional[BackgroundTasks] = None
+    ) -> None:
         """Index a document and its content."""
         metadata = {
             **document.doc_metadata,
@@ -91,6 +140,19 @@ class SearchService:
                 metadata=metadata,
             )
 
-    async def _do_index(self, **kwargs):
+    async def _do_index(
+        self,
+        content: str,
+        path_id: str,
+        file_path: str,
+        type: SearchItemType,
+        metadata: dict
+    ) -> None:
         """Actually perform the indexing."""
-        await self.repository.index_item(**kwargs)
+        await self.repository.index_item(
+            content=content,
+            path_id=path_id,
+            file_path=file_path,
+            type=type,
+            metadata=metadata
+        )
