@@ -12,6 +12,7 @@ from basic_memory.schemas import (
     ObservationResponse,
     RelationResponse,
 )
+from basic_memory.schemas.search import SearchItemType
 
 
 async def create_entity(client) -> EntityResponse:
@@ -47,7 +48,7 @@ async def add_observations(client, path_id: str) -> List[ObservationResponse]:
                 {"content": "First observation", "category": "tech"},
                 {"content": "Second observation", "category": "note"},
             ],
-            "context": "something special"
+            "context": "something special",
         },
     )
     # Verify observations were added
@@ -417,7 +418,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
                 {"content": "Connected to first related entity", "category": "tech"},
                 {"content": "Connected to second related entity", "category": "note"},
             ],
-            "context": "testing the flow"
+            "context": "testing the flow",
         },
     )
 
@@ -449,3 +450,128 @@ async def test_full_knowledge_flow(client: AsyncClient):
     path_id = quote("test/MainEntity")
     response = await client.get(f"/knowledge/entities/{path_id}")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_entity_indexing(client: AsyncClient):
+    """Test entity creation includes search indexing."""
+    data = {
+        "name": "SearchTest",
+        "entity_type": "test",
+        "observations": ["Unique searchable observation"],
+    }
+
+    # Create entity
+    response = await client.post("/knowledge/entities", json={"entities": [data]})
+    assert response.status_code == 200
+
+    # Verify it's searchable
+    search_response = await client.post(
+        "/search/", json={"text": "unique searchable", "types": [SearchItemType.ENTITY.value]}
+    )
+    assert search_response.status_code == 200
+    results = search_response.json()
+    assert len(results) == 1
+    assert results[0]["path_id"] == "test/search_test"
+    assert results[0]["type"] == SearchItemType.ENTITY.value
+
+
+@pytest.mark.asyncio
+async def test_observation_update_indexing(client: AsyncClient):
+    """Test observation changes are reflected in search."""
+    # Create entity
+    data = {
+        "name": "TestEntity",
+        "entity_type": "test",
+        "observations": ["Initial observation"],
+    }
+    response = await client.post("/knowledge/entities", json={"entities": [data]})
+    assert response.status_code == 200
+    entity = response.json()["entities"][0]
+
+    # Add new observation
+    await client.post(
+        "/knowledge/observations",
+        json={
+            "path_id": entity["path_id"],
+            "observations": [{"content": "Unique sphinx observation", "category": "tech"}],
+        },
+    )
+
+    # Search for new observation
+    search_response = await client.post(
+        "/search/", json={"text": "sphinx", "types": [SearchItemType.ENTITY.value]}
+    )
+    results = search_response.json()
+    assert len(results) == 1
+    assert results[0]["path_id"] == entity["path_id"]
+
+
+@pytest.mark.asyncio
+async def test_entity_delete_indexing(client: AsyncClient):
+    """Test deleted entities are removed from search index."""
+    data = {
+        "name": "DeleteTest",
+        "entity_type": "test",
+        "observations": ["Searchable observation that should be removed"],
+    }
+
+    # Create entity
+    response = await client.post("/knowledge/entities", json={"entities": [data]})
+    assert response.status_code == 200
+    entity = response.json()["entities"][0]
+
+    # Verify it's initially searchable
+    search_response = await client.post(
+        "/search/", json={"text": "should be removed", "types": [SearchItemType.ENTITY.value]}
+    )
+    assert len(search_response.json()) == 1
+
+    # Delete entity
+    delete_response = await client.post(
+        "/knowledge/entities/delete", json={"path_ids": [entity["path_id"]]}
+    )
+    assert delete_response.status_code == 200
+
+    # Verify it's no longer searchable
+    search_response = await client.post(
+        "/search/", json={"text": "should be removed", "types": [SearchItemType.ENTITY.value]}
+    )
+    assert len(search_response.json()) == 0
+
+
+@pytest.mark.asyncio
+async def test_relation_indexing(client: AsyncClient):
+    """Test relations are included in search index."""
+    # Create entities
+    entities = [
+        {"name": "SourceTest", "entity_type": "test"},
+        {"name": "TargetTest", "entity_type": "test"},
+    ]
+    create_response = await client.post("/knowledge/entities", json={"entities": entities})
+    assert create_response.status_code == 200
+
+    # Create relation with unique description
+    response = await client.post(
+        "/knowledge/relations",
+        json={
+            "relations": [
+                {
+                    "from_id": "test/source_test",
+                    "to_id": "test/target_test",
+                    "relation_type": "sphinx_relation",
+                    "context": "Unique sphinx relation context",
+                }
+            ]
+        },
+    )
+    assert response.status_code == 200
+
+    # Search should find both entities through relation
+    search_response = await client.post(
+        "/search/", json={"text": "sphinx relation", "types": [SearchItemType.ENTITY.value]}
+    )
+    results = search_response.json()
+    assert len(results) == 2  # Both source and target entities
+    path_ids = {r["path_id"] for r in results}
+    assert path_ids == {"test/source_test", "test/target_test"}

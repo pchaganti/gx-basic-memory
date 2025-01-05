@@ -2,9 +2,9 @@
 
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 
-from basic_memory.deps import DocumentServiceDep
+from basic_memory.deps import DocumentServiceDep, get_search_service
 from basic_memory.schemas.request import DocumentRequest, DocumentPathId
 from basic_memory.schemas.response import DocumentResponse, DocumentCreateResponse
 from basic_memory.services.document_service import (
@@ -20,21 +20,22 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 @router.post("/create", response_model=DocumentCreateResponse, status_code=201)
 async def create_document(
     doc: DocumentRequest,
+    background_tasks: BackgroundTasks,
     service: DocumentServiceDep,
+    search_service = Depends(get_search_service)
 ) -> DocumentCreateResponse:
-    """Create a new document.
-
-    The document will be created with appropriate frontmatter including:
-    - Generated ID
-    - Creation timestamp
-    - Last modified timestamp
-    - Any provided doc_metadata
-    """
+    """Create a new document with search indexing."""
     try:
         document = await service.create_document(
             path_id=doc.path_id,
             content=doc.content,
             metadata=doc.doc_metadata,
+        )
+        # Index the new document
+        await search_service.index_document(
+            document,
+            doc.content,
+            background_tasks=background_tasks
         )
         return DocumentCreateResponse.model_validate(document.__dict__)
     except DocumentError as e:
@@ -71,9 +72,11 @@ async def get_document(
 async def update_document(
     path_id: DocumentPathId,
     doc: DocumentRequest,
+    background_tasks: BackgroundTasks,
     service: DocumentServiceDep,
+    search_service = Depends(get_search_service)
 ) -> DocumentResponse:
-    """Update a document by ID."""
+    """Update a document by ID with search indexing."""
     # Verify FilePaths match
     if doc.path_id != path_id:
         raise HTTPException(
@@ -86,10 +89,16 @@ async def update_document(
             content=doc.content,
             metadata=doc.doc_metadata,
         )
+        # Update search index
+        await search_service.index_document(
+            document,
+            doc.content,
+            background_tasks=background_tasks
+        )
         doc_dict = document.__dict__ | {"content": doc.content}
         return DocumentResponse.model_validate(doc_dict)
     except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Document not found: {id}")
+        raise HTTPException(status_code=404, detail=f"Document not found: {path_id}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -97,12 +106,17 @@ async def update_document(
 @router.delete("/{path_id:path}", status_code=204)
 async def delete_document(
     path_id: DocumentPathId,
+    background_tasks: BackgroundTasks,
     service: DocumentServiceDep,
+    search_service = Depends(get_search_service)
 ) -> None:
-    """Delete a document by ID."""
+    """Delete a document by ID and remove from search index."""
     try:
+        # Delete from storage
         await service.delete_document_by_path_id(path_id)
+        # Remove from search index (in background)
+        background_tasks.add_task(search_service.delete_by_path_id, path_id)
     except DocumentNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Document not found: {id}")
+        raise HTTPException(status_code=404, detail=f"Document not found: {path_id}")
     except DocumentWriteError as e:
         raise HTTPException(status_code=400, detail=str(e))

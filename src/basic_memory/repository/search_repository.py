@@ -3,6 +3,8 @@
 import json
 from typing import List, Optional
 from datetime import datetime
+
+from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -120,9 +122,10 @@ class SearchRepository():
                     "metadata": json.dumps(metadata)
                 }
             )
+            logger.debug(f"indexed {path_id}")
             await session.commit()
 
-    async def delete_by_path(self, path_id: str):
+    async def delete_by_path_id(self, path_id: str):
         """Delete an item from the search index."""
         async with db.scoped_session(self.session_maker) as session:
             await session.execute(

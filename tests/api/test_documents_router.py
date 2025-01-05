@@ -6,6 +6,97 @@ import pytest
 from httpx import AsyncClient
 
 from basic_memory.config import ProjectConfig
+from basic_memory.schemas.search import SearchItemType
+
+
+@pytest.mark.asyncio
+async def test_document_indexing(client: AsyncClient, test_config):
+    """Test document creation includes search indexing."""
+    test_doc = {
+        "path_id": "test.md",
+        "content": "# Test\nThis is a test document with unique searchable content.",
+        "doc_metadata": {"type": "test", "tags": ["documentation", "test"]},
+    }
+
+    # Create document
+    response = await client.post("/documents/create", json=test_doc)
+    assert response.status_code == 201
+
+    # Verify it's searchable
+    search_response = await client.post(
+        "/search/",
+        json={"text": "unique searchable content", "types": [SearchItemType.DOCUMENT.value]},
+    )
+    assert search_response.status_code == 200
+    results = search_response.json()
+    assert len(results) == 1
+    assert results[0]["path_id"] == "test.md"
+    assert results[0]["type"] == SearchItemType.DOCUMENT.value
+
+
+@pytest.mark.asyncio
+async def test_document_update_indexing(client: AsyncClient):
+    """Test document updates are reflected in search index."""
+    # Create initial document
+    test_doc = {
+        "path_id": "test.md",
+        "content": "Original content without special terms.",
+        "doc_metadata": {"type": "test", "status": "draft"},
+    }
+    create_response = await client.post("/documents/create", json=test_doc)
+    assert create_response.status_code == 201
+
+    # Update document with new content
+    update_doc = {
+        "path_id": "test.md",
+        "content": "Updated content with special sphinx terms.",
+        "doc_metadata": {"type": "test", "status": "final"},
+    }
+    update_response = await client.put(f"/documents/{test_doc["path_id"]}", json=update_doc)
+    assert update_response.status_code == 200
+
+    # Search for new terms
+    search_response = await client.post(
+        "/search/", json={"text": "sphinx", "types": [SearchItemType.DOCUMENT.value]}
+    )
+    results = search_response.json()
+    assert len(results) == 1
+    assert results[0]["path_id"] == "test.md"
+
+    # Original terms shouldn't be found
+    search_response = await client.post(
+        "/search/", json={"text": "without special", "types": [SearchItemType.DOCUMENT.value]}
+    )
+    assert len(search_response.json()) == 0
+
+
+@pytest.mark.asyncio
+async def test_document_delete_indexing(client: AsyncClient):
+    """Test deleted documents are removed from search index."""
+    # Create document
+    test_doc = {
+        "path_id": "test.md",
+        "content": "Searchable content that should disappear.",
+        "doc_metadata": {"type": "test"},
+    }
+    create_response = await client.post("/documents/create", json=test_doc)
+    assert create_response.status_code == 201
+
+    # Verify it's initially searchable
+    search_response = await client.post(
+        "/search/", json={"text": "should disappear", "types": [SearchItemType.DOCUMENT.value]}
+    )
+    assert len(search_response.json()) == 1
+
+    # Delete document
+    delete_response = await client.delete(f"/documents/{test_doc["path_id"]}")
+    assert delete_response.status_code == 204
+
+    # Verify it's no longer searchable
+    search_response = await client.post(
+        "/search/", json={"text": "should disappear", "types": [SearchItemType.DOCUMENT.value]}
+    )
+    assert len(search_response.json()) == 0
 
 
 @pytest.mark.asyncio

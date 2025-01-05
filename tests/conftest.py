@@ -218,6 +218,11 @@ async def search_repository(session_maker):
     """Create SearchRepository instance"""
     return SearchRepository(session_maker)
 
+@pytest_asyncio.fixture(autouse=True)
+async def init_search_index(search_service):
+    await search_service.init_search_index()
+
+
 
 @pytest_asyncio.fixture
 async def search_service(

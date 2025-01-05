@@ -5,6 +5,7 @@ from typing import List, Optional, Any
 from fastapi import BackgroundTasks
 from loguru import logger
 
+from basic_memory.models import Document, Entity
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services.document_service import DocumentService
 from basic_memory.services.entity_service import EntityService
@@ -64,7 +65,7 @@ class SearchService:
 
     async def index_entity(
         self,
-        entity: Any,  # Could be more specific if we have an Entity type
+        entity: Entity,  
         background_tasks: Optional[BackgroundTasks] = None
     ) -> None:
         """Index an entity and its components."""
@@ -110,13 +111,13 @@ class SearchService:
 
     async def index_document(
         self,
-        document: Any,  # Could be more specific if we have a Document type
+        document: Document, 
         content: str,
         background_tasks: Optional[BackgroundTasks] = None
     ) -> None:
         """Index a document and its content."""
         metadata = {
-            **document.doc_metadata,
+            **(document.doc_metadata or {}),
             "created_at": document.created_at.isoformat(),
             "updated_at": document.updated_at.isoformat(),
         }
@@ -156,3 +157,7 @@ class SearchService:
             type=type,
             metadata=metadata
         )
+        
+    async def delete_by_path_id(self, path_id: str):
+        """Delete an item from the search index."""
+        await self.repository.delete_by_path_id(path_id)

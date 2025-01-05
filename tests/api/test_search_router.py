@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import text
 from basic_memory import db
 from basic_memory.schemas.search import SearchQuery, SearchItemType
@@ -41,8 +42,8 @@ def test_document():
     return Document()
 
 
-@pytest.fixture
-async def indexed_entity(test_entity, search_service):
+@pytest_asyncio.fixture
+async def indexed_entity(init_search_index, test_entity, search_service):
     """Create an entity and index it."""
     await search_service.index_entity(test_entity)
     return test_entity

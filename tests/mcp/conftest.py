@@ -6,6 +6,7 @@ from httpx import AsyncClient, ASGITransport
 
 from basic_memory.api.app import app as fastapi_app
 from basic_memory.deps import get_project_config, get_engine_factory
+from basic_memory.services.search_service import SearchService
 
 
 @pytest_asyncio.fixture
@@ -56,3 +57,8 @@ def test_directory_entity_data():
             }
         ]
     }
+
+@pytest_asyncio.fixture(autouse=True)
+async def init_search_index(search_service: SearchService):
+    await search_service.init_search_index()
+
