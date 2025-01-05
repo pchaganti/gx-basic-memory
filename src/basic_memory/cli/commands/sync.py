@@ -25,6 +25,7 @@ from basic_memory.repository import (
     ObservationRepository,
     RelationRepository,
 )
+from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services import (
     DocumentService,
     EntityService,
@@ -32,6 +33,7 @@ from basic_memory.services import (
     RelationService,
     FileService,
 )
+from basic_memory.services.search_service import SearchService
 from basic_memory.sync import SyncService, FileChangeScanner, KnowledgeSyncService
 from basic_memory.sync.utils import SyncReport
 from basic_memory.utils.file_utils import ParseError
@@ -44,6 +46,46 @@ class ValidationIssue:
     file_path: str
     error: str
 
+
+async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
+    """Get sync service instance with all dependencies."""
+    async with db.engine_session_factory(db_path=config.database_path, db_type=db_type) as (
+        engine,
+        session_maker,
+    ):
+        # Initialize repositories
+        document_repository = DocumentRepository(session_maker)
+        entity_repository = EntityRepository(session_maker)
+        observation_repository = ObservationRepository(session_maker)
+        relation_repository = RelationRepository(session_maker)
+        search_repository = SearchRepository(session_maker)
+
+        # Initialize scanner
+        file_change_scanner = FileChangeScanner(document_repository, entity_repository)
+
+        # Initialize services
+        document_service = DocumentService(document_repository, config.documents_dir, FileService())
+        entity_service = EntityService(entity_repository)
+        observation_service = ObservationService(observation_repository)
+        relation_service = RelationService(relation_repository)
+
+        knowledge_sync_service = KnowledgeSyncService(
+            entity_service, observation_service, relation_service
+        )
+        knowledge_parser = KnowledgeParser()
+        
+        search_service = SearchService(search_repository, document_service, entity_service)
+
+        # Create sync service
+        sync_service = SyncService(
+            scanner=file_change_scanner,
+            document_service=document_service,
+            knowledge_sync_service=knowledge_sync_service,
+            knowledge_parser=knowledge_parser,
+            search_service=search_service,
+        )
+
+        return sync_service
 
 def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[ValidationIssue]]:
     """Group validation issues by directory."""
@@ -167,43 +209,6 @@ def display_detailed_sync_results(docs: SyncReport, knowledge: SyncReport):
             for path in sorted(knowledge.deleted):
                 deleted.add(f"[red]{path}[/red]")
         console.print(knowledge_tree)
-
-
-async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
-    """Get sync service instance with all dependencies."""
-    async with db.engine_session_factory(db_path=config.database_path, db_type=db_type) as (
-        engine,
-        session_maker,
-    ):
-        # Initialize repositories
-        document_repository = DocumentRepository(session_maker)
-        entity_repository = EntityRepository(session_maker)
-        observation_repository = ObservationRepository(session_maker)
-        relation_repository = RelationRepository(session_maker)
-
-        # Initialize scanner
-        file_change_scanner = FileChangeScanner(document_repository, entity_repository)
-
-        # Initialize services
-        document_service = DocumentService(document_repository, config.documents_dir, FileService())
-        entity_service = EntityService(entity_repository)
-        observation_service = ObservationService(observation_repository)
-        relation_service = RelationService(relation_repository)
-
-        knowledge_sync_service = KnowledgeSyncService(
-            entity_service, observation_service, relation_service
-        )
-        knowledge_parser = KnowledgeParser()
-
-        # Create sync service
-        sync_service = SyncService(
-            scanner=file_change_scanner,
-            document_service=document_service,
-            knowledge_sync_service=knowledge_sync_service,
-            knowledge_parser=knowledge_parser,
-        )
-
-        return sync_service
 
 
 async def validate_knowledge_files(

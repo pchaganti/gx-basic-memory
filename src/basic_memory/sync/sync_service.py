@@ -7,6 +7,7 @@ from loguru import logger
 from basic_memory.config import ProjectConfig
 from basic_memory.markdown import KnowledgeParser
 from basic_memory.services import DocumentService
+from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
 from basic_memory.sync.utils import SyncReport
@@ -26,11 +27,13 @@ class SyncService:
         document_service: DocumentService,
         knowledge_sync_service: KnowledgeSyncService,
         knowledge_parser: KnowledgeParser,
+        search_service: SearchService,
     ):
         self.scanner = scanner
         self.document_service = document_service
         self.knowledge_sync_service = knowledge_sync_service
         self.knowledge_parser = knowledge_parser
+        self.search_service = search_service
 
     async def sync_documents(self, directory: Path) -> SyncReport:
         """Sync document files with database."""
@@ -47,12 +50,14 @@ class SyncService:
             content = (directory / path).read_text()
             if path in changes.new:
                 logger.debug(f"Creating new document: {path}")
-                await self.document_service.create_document(path_id=path, content=content)
+                document = await self.document_service.create_document(path_id=path, content=content)
             else:
                 logger.debug(f"Updating document: {path}")
-                await self.document_service.update_document_by_path_id(
+                document = await self.document_service.update_document_by_path_id(
                     path_id=path, content=content
                 )
+            # add to search index                
+            await self.search_service.index_document(document, content)
         return changes
 
     async def sync_knowledge(self, directory: Path) -> SyncReport:
@@ -89,9 +94,11 @@ class SyncService:
         # Second pass: Process relations
         for file_path, entity_markdown in parsed_entities.items():
             logger.debug(f"Updating relations for: {file_path}")
-            await self.knowledge_sync_service.update_entity_relations(
+            entity = await self.knowledge_sync_service.update_entity_relations(
                 entity_markdown, checksum=changes.checksums[file_path]
             )
+            # add to search index
+            await self.search_service.index_entity(entity)
 
         return changes
 
