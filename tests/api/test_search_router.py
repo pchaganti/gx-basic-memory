@@ -6,7 +6,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import text
 from basic_memory import db
-from basic_memory.schemas.search import SearchQuery, SearchItemType
+from basic_memory.schemas.search import SearchQuery, SearchItemType, SearchResponse
 
 
 @pytest.fixture
@@ -67,9 +67,9 @@ async def test_search_basic(client, indexed_entity):
         }
     )
     assert response.status_code == 200
-    results = response.json()
-    assert len(results) == 1
-    assert results[0]["path_id"] == indexed_entity.path_id
+    search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) == 1
+    assert search_results.results[0].path_id == indexed_entity.path_id
 
 
 @pytest.mark.asyncio
@@ -84,8 +84,8 @@ async def test_search_with_type_filter(client, indexed_entity):
         }
     )
     assert response.status_code == 200
-    results = response.json()
-    assert len(results) == 1
+    search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) == 1
     
     # Should not find with wrong type
     response = await client.post(
@@ -96,7 +96,8 @@ async def test_search_with_type_filter(client, indexed_entity):
         }
     )
     assert response.status_code == 200
-    assert len(response.json()) == 0
+    search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) == 0
 
 
 @pytest.mark.asyncio
@@ -111,8 +112,8 @@ async def test_search_with_entity_type_filter(client, indexed_entity):
         }
     )
     assert response.status_code == 200
-    results = response.json()
-    assert len(results) == 1
+    search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) == 1
     
     # Should not find with wrong entity type
     response = await client.post(
@@ -123,7 +124,8 @@ async def test_search_with_entity_type_filter(client, indexed_entity):
         }
     )
     assert response.status_code == 200
-    assert len(response.json()) == 0
+    search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) == 0
 
 
 @pytest.mark.asyncio
@@ -139,7 +141,8 @@ async def test_search_with_date_filter(client, indexed_entity):
         }
     )
     assert response.status_code == 200
-    assert len(response.json()) == 1
+    search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) == 1
     
     # Should not find with future date
     future_date = datetime(2030, 1, 1, tzinfo=timezone.utc)
@@ -151,7 +154,8 @@ async def test_search_with_date_filter(client, indexed_entity):
         }
     )
     assert response.status_code == 200
-    assert len(response.json()) == 0
+    search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) == 0
 
 
 @pytest.mark.asyncio
@@ -171,9 +175,12 @@ async def test_search_scoring(client, indexed_entity):
     
     assert exact_response.status_code == 200
     assert partial_response.status_code == 200
+
+    exact_result = SearchResponse.model_validate(exact_response.json())
+    partial_result = SearchResponse.model_validate(partial_response.json())
     
-    exact_score = exact_response.json()[0]["score"]
-    partial_score = partial_response.json()[0]["score"]
+    exact_score = exact_result.results[0].score
+    partial_score = partial_result.results[0].score
     
     assert exact_score > partial_score
 
@@ -186,7 +193,8 @@ async def test_search_empty(search_service, client):
         json={"text": "nonexistent"}
     )
     assert response.status_code == 200
-    assert len(response.json()) == 0
+    search_result = SearchResponse.model_validate(response.json())
+    assert len(search_result.results) == 0
 
 
 @pytest.mark.asyncio
@@ -218,7 +226,8 @@ async def test_reindex(
         "/search/",
         json={"text": "test"}
     )
-    assert len(response.json()) == 0
+    search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) == 0
 
     # Trigger reindex
     reindex_response = await client.post("/search/reindex")
@@ -230,8 +239,8 @@ async def test_reindex(
         "/search/",
         json={"text": "test"}
     )
-    results = search_response.json()
-    assert len(results) == 2  # Both entity and document should be found
+    search_results = SearchResponse.model_validate(search_response.json())
+    assert len(search_results.results) == 2  # Both entity and document should be found
 
 
 @pytest.mark.asyncio
@@ -247,9 +256,9 @@ async def test_multiple_filters(client, indexed_entity):
         }
     )
     assert response.status_code == 200
-    results = response.json()
-    assert len(results) == 1
-    result = results[0]
-    assert result["path_id"] == indexed_entity.path_id
-    assert result["type"] == SearchItemType.ENTITY.value
-    assert result["metadata"]["entity_type"] == "component"
+    search_result = SearchResponse.model_validate(response.json())
+    assert len(search_result.results) == 1
+    result = search_result.results[0]
+    assert result.path_id == indexed_entity.path_id
+    assert result.type == SearchItemType.ENTITY.value
+    assert result.metadata["entity_type"] == "component"

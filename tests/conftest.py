@@ -203,6 +203,7 @@ async def sync_service(
     knowledge_sync_service: KnowledgeSyncService,
     file_change_scanner: FileChangeScanner,
     knowledge_parser: KnowledgeParser,
+    search_service: SearchService
 ) -> SyncService:
     """Create sync service for testing."""
     return SyncService(
@@ -210,6 +211,7 @@ async def sync_service(
         document_service=document_service,
         knowledge_sync_service=knowledge_sync_service,
         knowledge_parser=knowledge_parser,
+        search_service=search_service,
     )
 
 

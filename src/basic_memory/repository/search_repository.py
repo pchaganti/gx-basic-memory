@@ -54,7 +54,7 @@ class SearchRepository():
 
         # Handle date filter
         if query.after_date:
-            params["after_date"] = query.after_date.isoformat()
+            params["after_date"] = query.after_date
             conditions.append(
                 "json_extract(metadata, '$.created_at') > :after_date"
             )

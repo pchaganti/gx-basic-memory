@@ -24,7 +24,7 @@ from basic_memory.mcp.tools.knowledge import (
 )
 
 from basic_memory.mcp.tools.search import (
-    search_nodes,
+    search,
     open_nodes,
 )
 
@@ -56,7 +56,7 @@ __all__ = [
     "delete_relations",
 
     # Search tools
-    "search_nodes",
+    "search",
     "get_entity",
     "open_nodes",
 

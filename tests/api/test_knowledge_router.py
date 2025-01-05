@@ -12,7 +12,7 @@ from basic_memory.schemas import (
     ObservationResponse,
     RelationResponse,
 )
-from basic_memory.schemas.search import SearchItemType
+from basic_memory.schemas.search import SearchItemType, SearchResponse
 
 
 async def create_entity(client) -> EntityResponse:
@@ -470,10 +470,10 @@ async def test_entity_indexing(client: AsyncClient):
         "/search/", json={"text": "unique searchable", "types": [SearchItemType.ENTITY.value]}
     )
     assert search_response.status_code == 200
-    results = search_response.json()
-    assert len(results) == 1
-    assert results[0]["path_id"] == "test/search_test"
-    assert results[0]["type"] == SearchItemType.ENTITY.value
+    search_result = SearchResponse.model_validate(search_response.json())
+    assert len(search_result.results) == 1
+    assert search_result.results[0].path_id == "test/search_test"
+    assert search_result.results[0].type == SearchItemType.ENTITY.value
 
 
 @pytest.mark.asyncio
@@ -502,9 +502,9 @@ async def test_observation_update_indexing(client: AsyncClient):
     search_response = await client.post(
         "/search/", json={"text": "sphinx", "types": [SearchItemType.ENTITY.value]}
     )
-    results = search_response.json()
-    assert len(results) == 1
-    assert results[0]["path_id"] == entity["path_id"]
+    search_result = SearchResponse.model_validate(search_response.json())
+    assert len(search_result.results) == 1
+    assert search_result.results[0].path_id == entity["path_id"]
 
 
 @pytest.mark.asyncio
@@ -525,7 +525,8 @@ async def test_entity_delete_indexing(client: AsyncClient):
     search_response = await client.post(
         "/search/", json={"text": "should be removed", "types": [SearchItemType.ENTITY.value]}
     )
-    assert len(search_response.json()) == 1
+    search_result = SearchResponse.model_validate(search_response.json())
+    assert len(search_result.results) == 1
 
     # Delete entity
     delete_response = await client.post(
@@ -537,7 +538,8 @@ async def test_entity_delete_indexing(client: AsyncClient):
     search_response = await client.post(
         "/search/", json={"text": "should be removed", "types": [SearchItemType.ENTITY.value]}
     )
-    assert len(search_response.json()) == 0
+    search_result = SearchResponse.model_validate(search_response.json())
+    assert len(search_result.results) == 0
 
 
 @pytest.mark.asyncio
@@ -571,7 +573,7 @@ async def test_relation_indexing(client: AsyncClient):
     search_response = await client.post(
         "/search/", json={"text": "sphinx relation", "types": [SearchItemType.ENTITY.value]}
     )
-    results = search_response.json()
-    assert len(results) == 2  # Both source and target entities
-    path_ids = {r["path_id"] for r in results}
+    search_result = SearchResponse.model_validate(search_response.json())
+    assert len(search_result.results) == 2 # Both source and target entities
+    path_ids = {r.path_id for r in search_result.results}
     assert path_ids == {"test/source_test", "test/target_test"}

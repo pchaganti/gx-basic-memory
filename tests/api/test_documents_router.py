@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient
 
 from basic_memory.config import ProjectConfig
-from basic_memory.schemas.search import SearchItemType
+from basic_memory.schemas.search import SearchItemType, SearchResponse
 
 
 @pytest.mark.asyncio
@@ -28,10 +28,10 @@ async def test_document_indexing(client: AsyncClient, test_config):
         json={"text": "unique searchable content", "types": [SearchItemType.DOCUMENT.value]},
     )
     assert search_response.status_code == 200
-    results = search_response.json()
-    assert len(results) == 1
-    assert results[0]["path_id"] == "test.md"
-    assert results[0]["type"] == SearchItemType.DOCUMENT.value
+    search_result = SearchResponse.model_validate(search_response.json())
+    assert len(search_result.results) == 1
+    assert search_result.results[0].path_id == "test.md"
+    assert search_result.results[0].type == SearchItemType.DOCUMENT.value
 
 
 @pytest.mark.asyncio
@@ -59,15 +59,16 @@ async def test_document_update_indexing(client: AsyncClient):
     search_response = await client.post(
         "/search/", json={"text": "sphinx", "types": [SearchItemType.DOCUMENT.value]}
     )
-    results = search_response.json()
-    assert len(results) == 1
-    assert results[0]["path_id"] == "test.md"
+    search_result = SearchResponse.model_validate(search_response.json())
+    assert len(search_result.results) == 1
+    assert search_result.results[0].path_id == "test.md"
 
     # Original terms shouldn't be found
     search_response = await client.post(
         "/search/", json={"text": "without special", "types": [SearchItemType.DOCUMENT.value]}
     )
-    assert len(search_response.json()) == 0
+    search_result = SearchResponse.model_validate(search_response.json())
+    assert len(search_result.results) == 0
 
 
 @pytest.mark.asyncio
@@ -86,7 +87,8 @@ async def test_document_delete_indexing(client: AsyncClient):
     search_response = await client.post(
         "/search/", json={"text": "should disappear", "types": [SearchItemType.DOCUMENT.value]}
     )
-    assert len(search_response.json()) == 1
+    search_result = SearchResponse.model_validate(search_response.json())
+    assert len(search_result.results) == 1
 
     # Delete document
     delete_response = await client.delete(f"/documents/{test_doc["path_id"]}")
@@ -96,7 +98,8 @@ async def test_document_delete_indexing(client: AsyncClient):
     search_response = await client.post(
         "/search/", json={"text": "should disappear", "types": [SearchItemType.DOCUMENT.value]}
     )
-    assert len(search_response.json()) == 0
+    search_result = SearchResponse.model_validate(search_response.json())
+    assert len(search_result.results) == 0
 
 
 @pytest.mark.asyncio
