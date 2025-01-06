@@ -2,6 +2,8 @@
 
 from typing import Dict, List
 
+from loguru import logger
+
 from basic_memory.mcp.server import mcp
 from basic_memory.schemas.request import DocumentRequest, DocumentPathId
 from basic_memory.schemas.response import DocumentResponse, DocumentCreateResponse
@@ -107,6 +109,8 @@ async def create_document(request: DocumentRequest) -> DocumentCreateResponse:
     """
     url = "/documents/create"
     response = await client.post(url, json=request.model_dump())
+    logger.info(response.status_code)
+    logger.info(response.json())
     return DocumentCreateResponse.model_validate(response.json())
 
 

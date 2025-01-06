@@ -1,12 +1,7 @@
 """Search tools for Basic Memory MCP server."""
 
-from typing import List, Optional
-from datetime import datetime, timezone
-import textwrap
-from collections import defaultdict
-
 from basic_memory.mcp.server import mcp
-from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
+from basic_memory.schemas.search import SearchQuery, SearchResponse
 from basic_memory.schemas.request import OpenNodesRequest
 from basic_memory.schemas.response import EntityListResponse
 from basic_memory.mcp.async_client import client
@@ -17,135 +12,165 @@ from basic_memory.mcp.async_client import client
     description="Search across all content in basic-memory, including documents and entities",
     examples=[
         {
-            "name": "Search with Metadata Analysis",
-            "description": "Search and analyze results by metadata",
+            "name": "Basic Full-text Search with Analysis",
+            "description": "Search and analyze results by metadata categories",
             "code": """
-# Search for feature specs
+# Full text search
 results = await search(
-    text="implementation", 
-    types=[SearchItemType.DOCUMENT]
+    query=SearchQuery(
+        text="implementation"  # Full text query
+    )
 )
 
-# Group by category and status
-by_category = defaultdict(list)
+# Group by status and type
 by_status = defaultdict(list)
+by_type = defaultdict(list)
 
-for r in results:
-    meta = r.metadata
-    if 'category' in meta:
-        by_category[meta['category']].append(r)
-    if 'status' in meta:
-        by_status[meta['status']].append(r)
+for result in results.results:
+    meta = result.metadata
+    path = result.path_id
+    
+    # Group by status if available
+    if "status" in meta:
+        by_status[meta["status"]].append(path)
+        
+    # Always group by type
+    by_type[result.type].append(path)
 
-print("Results by Category:")
-for category, items in by_category.items():
-    print(f"\\n{category.title()}:")
-    for item in items:
-        print(f"- {item.path_id} (score: {item.score:.2f})")
+print("\\nBy Status:")
+for status, paths in by_status.items():
+    print(f"\\n{status.title()}:")
+    for path in paths:
+        print(f"- {path}")
 
-# Find high priority items
-high_priority = [
-    r for r in results 
-    if r.metadata.get('priority') in ['high', 'highest']
-]
-"""
+print("\\nBy Type:")
+for type_, paths in by_type.items():
+    print(f"\\n{type_.title()}:")
+    for path in paths:
+        print(f"- {path}")
+""",
         },
         {
-            "name": "Recent Changes Analysis",
-            "description": "Search and analyze recent document changes",
+            "name": "Recent Changes in Entity Types",
+            "description": "Find recent changes in specific entity types",
             "code": """
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
-# Set cutoff date
+# Set search parameters
 cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+entity_types = ["component", "specification"]
 
 # Search for recent changes
-results = await search(text="database", after_date=cutoff)
+results = await search(
+    query=SearchQuery(
+        text="*",  # Match all
+        entity_types=entity_types,
+        after_date=cutoff.isoformat()
+    )
+)
 
 # Sort by update time
 sorted_results = sorted(
-    results,
-    key=lambda x: x.metadata['updated_at'],
+    results.results,
+    key=lambda x: x.metadata.get("updated_at", ""),
     reverse=True
 )
 
 print("Recent Changes:")
-for r in sorted_results[:5]:
-    print(f"\\n{r.path_id}")
-    print(f"Updated: {r.metadata['updated_at']}")
-    if 'author' in r.metadata:
-        print(f"Author: {r.metadata['author']}")
-    print(f"Score: {r.score:.2f}")
-"""
+for result in sorted_results:
+    print(f"\\n{result.path_id}")
+    print(f"Type: {result.type}")
+    print(f"Score: {result.score:.2f}")
+    if "updated_at" in result.metadata:
+        print(f"Updated: {result.metadata['updated_at']}")
+""",
         },
         {
-            "name": "Entity Context Loading",
-            "description": "Search for entities and load their full context",
+            "name": "Technical Documentation Search",
+            "description": "Search technical documentation with smart filtering",
             "code": """
-# Find relevant components
+# Search technical documentation
 results = await search(
-    text="knowledge graph",
-    types=[SearchItemType.ENTITY],
-    entity_types=["component"]
-)
-
-if results:
-    # Load full entity details
-    path_ids = [r.path_id for r in results]
-    context = await open_nodes(
-        request=OpenNodesRequest(path_ids=path_ids)
+    query=SearchQuery(
+        text="database implementation",
+        types=["document"]  # Only documents
     )
-
-    # Analyze implementation details
-    print("Implementation Components:")
-    for entity in context.entities:
-        print(f"\\n{entity.name}")
-        
-        # Show technical details
-        tech_notes = [
-            o.content for o in entity.observations 
-            if o.category == 'tech'
-        ]
-        if tech_notes:
-            print("Technical Notes:")
-            for note in tech_notes:
-                print(f"- {note}")
-                
-        # Show dependencies
-        deps = [r for r in entity.relations if r.relation_type == 'depends_on']
-        if deps:
-            print("\\nDependencies:")
-            for dep in deps:
-                print(f"- {dep.to_id}")
-"""
-        }
-    ]
 )
-async def search(
-    text: str,
-    types: Optional[List[SearchItemType]] = None,
-    entity_types: Optional[List[str]] = None,
-    after_date: Optional[datetime] = None
-) -> List[SearchResult]:
-    """Search across all content in basic-memory.
+
+# Filter and process results
+docs = []
+for result in results.results:
+    meta = result.metadata
     
-    Args:
-        text: Text to search for
-        types: Optional list of types to filter by (DOCUMENT, ENTITY)
-        entity_types: Optional list of entity types to filter by
-        after_date: Optional date to filter results after
-        
-    Returns:
-        List of SearchResult objects sorted by relevance
-    """
-    query = SearchQuery(
-        text=text,
-        types=types,
-        entity_types=entity_types,
-        after_date=after_date
+    # Include if it's a technical document
+    if (meta.get("category") in ["specification", "technical"] or
+        any(tag in meta.get("tags", []) for tag in ["technical", "spec", "documentation"])):
+        docs.append(result)
+
+# Sort by relevance score
+docs.sort(key=lambda x: x.score)
+
+print("Technical Documentation:")
+for doc in docs:
+    print(f"\\n{doc.path_id}")
+    if "title" in doc.metadata:
+        print(f"Title: {doc.metadata['title']}")
+    print(f"Score: {doc.score:.2f}")
+    if "tags" in doc.metadata:
+        print(f"Tags: {', '.join(doc.metadata['tags'])}")
+""",
+        },
+        {
+            "name": "Related Content Search",
+            "description": "Find content related to a specific entity",
+            "code": """
+# First get the entity to extract key terms
+entity = await get_entity(path_id="component/memory_service")
+
+if entity:
+    # Build search terms from entity info
+    search_terms = [
+        entity.get("name", ""),
+        *entity.get("tags", []),
+        entity.get("entity_type", "")
+    ]
+    
+    # Search using combined terms
+    results = await search(
+        query=SearchQuery(
+            text=" ".join(filter(None, search_terms))
+        )
     )
+    
+    # Filter out the original entity and sort by relevance
+    related = [r for r in results.results if r.path_id != entity["path_id"]]
+    related.sort(key=lambda x: x.score)
+
+    print(f"Content Related to {entity['name']}:")
+    for result in related[:5]:  # Top 5 most relevant
+        print(f"\\n{result.path_id}")
+        print(f"Type: {result.type}")
+        print(f"Score: {result.score:.2f}")
+""",
+        },
+    ],
+)
+async def search(query: SearchQuery) -> SearchResponse:
+
+    """Search across all content in basic-memory.
+
+    Args:
+        query: SearchQuery object with search parameters including:
+            - text: Search text (required)
+            - types: Optional list of content types to search ("document" or "entity")
+            - entity_types: Optional list of entity types to filter by
+            - after_date: Optional date filter for recent content
+
+    Returns:
+        SearchResponse with search results and metadata
+    """
     response = await client.post("/search/", json=query.model_dump())
-    return [SearchResult.model_validate(r) for r in response.json()]
+    return SearchResponse.model_validate(response.json())
 
 
 @mcp.tool(
@@ -153,46 +178,52 @@ async def search(
     description="Load multiple entities by their path_ids in a single request",
     examples=[
         {
-            "name": "Load Search Context",
-            "description": "Load full entity details from search results",
+            "name": "Load and Analyze Entity Context",
+            "description": "Load full entity details and analyze relationships",
             "code": """
-# First search for entities
+# First search for related entities
 results = await search(
-    text="database implementation",
-    types=[SearchItemType.ENTITY]
+    query=SearchQuery(
+        text="knowledge graph",
+        types=["entity"],
+        entity_types=["component", "concept"]
+    )
 )
 
-# Then load full context
-if results:
-    path_ids = [r.path_id for r in results]
+if results.results:
+    # Load full context for found entities
+    path_ids = [r.path_id for r in results.results]
     context = await open_nodes(
         request=OpenNodesRequest(path_ids=path_ids)
     )
     
-    # Group by entity type
-    by_type = defaultdict(list)
+    # Analyze relationships
+    relationship_map = defaultdict(list)
     for entity in context.entities:
-        by_type[entity.entity_type].append(entity)
+        print(f"\\n{entity.name} ({entity.entity_type})")
         
-    # Show breakdown
-    for etype, entities in by_type.items():
-        print(f"\\n{etype.title()} Components:")
-        for entity in entities:
-            print(f"- {entity.name}")
-            if entity.observations:
-                print(f"  {len(entity.observations)} observations")
-            if entity.relations:
-                print(f"  {len(entity.relations)} relations")
-"""
+        # Group by relationship type
+        for relation in entity.relations:
+            relationship_map[relation.relation_type].append(
+                (entity.name, relation.to_id)
+            )
+    
+    # Show relationship summary
+    print("\\nRelationship Summary:")
+    for rel_type, connections in relationship_map.items():
+        print(f"\\n{rel_type}:")
+        for source, target in connections:
+            print(f"- {source} -> {target}")
+""",
         }
-    ]
+    ],
 )
 async def open_nodes(request: OpenNodesRequest) -> EntityListResponse:
     """Load multiple entities by their path_ids.
-    
+
     Args:
         request: OpenNodesRequest containing list of path_ids to load
-        
+
     Returns:
         EntityListResponse containing complete details for each requested entity
     """
