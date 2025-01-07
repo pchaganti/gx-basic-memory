@@ -210,6 +210,7 @@ async def get_knowledge_service(
     relation_service: RelationServiceDep,
     file_service: FileServiceDep,
     knowledge_writer: KnowledgeWriterDep,
+    note_writer: NoteWriterDep,
     project_config: ProjectConfigDep,
 ) -> KnowledgeService:
     """Create KnowledgeService with dependencies."""
@@ -219,6 +220,7 @@ async def get_knowledge_service(
         relation_service=relation_service,
         file_service=file_service,
         knowledge_writer=knowledge_writer,
+        note_writer=note_writer,
         base_path=project_config.knowledge_dir,
     )
 

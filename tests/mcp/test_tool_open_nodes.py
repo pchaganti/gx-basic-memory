@@ -5,7 +5,7 @@ import pytest
 from basic_memory.mcp.tools.search import open_nodes
 from basic_memory.mcp.tools.knowledge import create_entities
 from basic_memory.schemas import EntityListResponse
-from basic_memory.schemas.base import Entity 
+from basic_memory.schemas.base import Entity, EntityType
 from basic_memory.schemas.request import CreateEntityRequest, OpenNodesRequest
 
 
@@ -17,12 +17,12 @@ async def test_open_multiple_entities(client):
         entities=[
             Entity(
                 name="Entity1",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 description="First test entity"
             ),
             Entity(
                 name="Entity2",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 description="Second test entity"
             )
         ]
@@ -52,7 +52,7 @@ async def test_open_nodes_with_details(client):
         entities=[
             Entity(
                 name="DetailedEntity",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 description="Test entity with details",
                 observations=["First observation", "Second observation"]
             )
@@ -69,7 +69,7 @@ async def test_open_nodes_with_details(client):
     # Verify all details are present
     entity = response.entities[0]
     assert entity.name == "DetailedEntity"
-    assert entity.entity_type == "test"
+    assert entity.entity_type == EntityType.KNOWLEDGE
     assert entity.description == "Test entity with details"
     assert len(entity.observations) == 2
 
@@ -82,12 +82,12 @@ async def test_open_nodes_with_relations(client):
         entities=[
             Entity(
                 name="Service",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 description="A service"
             ),
             Entity(
                 name="Database",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 description="A database"
             )
         ]
@@ -129,7 +129,7 @@ async def test_open_nonexistent_nodes(client):
         entities=[
             Entity(
                 name="RealEntity",
-                entity_type="test"
+                entity_type=EntityType.KNOWLEDGE
             )
         ]
     )
@@ -138,7 +138,7 @@ async def test_open_nonexistent_nodes(client):
 
     # Try to open both real and non-existent
     request = OpenNodesRequest(
-        path_ids=[real_path_id, "test/nonexistent"]
+        path_ids=[real_path_id, "nonexistent"]
     )
     result = await open_nodes(request)
     response = EntityListResponse.model_validate(result)
@@ -156,7 +156,7 @@ async def test_open_single_node(client):
         entities=[
             Entity(
                 name="SingleEntity",
-                entity_type="test"
+                entity_type=EntityType.KNOWLEDGE
             )
         ]
     )

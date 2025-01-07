@@ -3,7 +3,7 @@
 import pytest
 
 from basic_memory.mcp.tools.knowledge import get_entity, create_entities
-from basic_memory.schemas.base import Entity, ObservationCategory
+from basic_memory.schemas.base import Entity, ObservationCategory, EntityType
 from basic_memory.schemas.request import CreateEntityRequest
 from basic_memory.services.exceptions import EntityNotFoundError
 
@@ -16,7 +16,7 @@ async def test_get_basic_entity(client):
         entities=[
             Entity(
                 name="TestEntity",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 description="A test entity",
                 observations=["First observation"]
             )
@@ -30,8 +30,8 @@ async def test_get_basic_entity(client):
 
     # Verify entity details
     assert entity.name == "TestEntity"
-    assert entity.entity_type == "test"
-    assert entity.path_id == "test/test_entity"
+    assert entity.entity_type == EntityType.KNOWLEDGE
+    assert entity.path_id == "test_entity"
     assert entity.description == "A test entity"
     
     # Check observations
@@ -47,8 +47,8 @@ async def test_get_entity_with_relations(client):
     # Create two entities that will have a relation
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="SourceEntity", entity_type="test"),
-            Entity(name="TargetEntity", entity_type="test")
+            Entity(name="SourceEntity", entity_type=EntityType.KNOWLEDGE),
+            Entity(name="TargetEntity", entity_type=EntityType.KNOWLEDGE)
         ]
     )
     await create_entities(entity_request)
@@ -61,8 +61,8 @@ async def test_get_entity_with_relations(client):
     relation_request = CreateRelationsRequest(
         relations=[
             Relation(
-                from_id="test/source_entity",
-                to_id="test/target_entity",
+                from_id="source_entity",
+                to_id="target_entity",
                 relation_type="depends_on"
             )
         ]
@@ -70,10 +70,10 @@ async def test_get_entity_with_relations(client):
     await create_relations(relation_request)
 
     # Get and verify source entity
-    source = await get_entity("test/source_entity")
+    source = await get_entity("source_entity")
     assert len(source.relations) == 1
     relation = source.relations[0]
-    assert relation.to_id == "test/target_entity"
+    assert relation.to_id == "target_entity"
     assert relation.relation_type == "depends_on"
 
 
@@ -85,7 +85,7 @@ async def test_get_entity_with_categorized_observations(client):
         entities=[
             Entity(
                 name="TestEntity",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 description="Test entity with categories"
             )
         ]

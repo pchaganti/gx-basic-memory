@@ -15,7 +15,8 @@ def test_entity():
     class Entity:
         id = 1
         name = "TestComponent"
-        entity_type = "component"
+        entity_type = "knowledge"
+        entity_metadata = { "test": "test"}
         path_id = "component/test_component"
         file_path = "entities/component/test_component.md"
         description = "A test component for search"
@@ -75,7 +76,7 @@ async def test_search_filtering(search_service, test_entity):
         SearchQuery(
             text="test",
             types=[SearchItemType.ENTITY],
-            entity_types=["component"]
+            entity_types=["knowledge"]
         )
     )
     assert len(results) == 1

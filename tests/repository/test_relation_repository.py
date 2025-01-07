@@ -6,6 +6,7 @@ import sqlalchemy
 
 from basic_memory import db
 from basic_memory.models import Entity, Relation
+from basic_memory.models.knowledge import EntityType
 from basic_memory.repository.relation_repository import RelationRepository
 
 
@@ -14,7 +15,7 @@ async def source_entity(session_maker):
     """Create a source entity for testing relations."""
     entity = Entity(
         name="test_source",
-        entity_type="source",
+        entity_type=EntityType.KNOWLEDGE,
         path_id="source/test_source",
         file_path="source/test_source.md",
         description="Source entity",
@@ -30,7 +31,7 @@ async def target_entity(session_maker):
     """Create a target entity for testing relations."""
     entity = Entity(
         name="test_target",
-        entity_type="target",
+        entity_type=EntityType.KNOWLEDGE,
         path_id="target/test_target",
         file_path="target/test_target.md",
         description="Target entity",
@@ -59,7 +60,7 @@ async def related_entity(entity_repository):
     """Create a second entity for testing relations"""
     entity_data = {
         "name": "Related Entity",
-        "entity_type": "test",
+        "entity_type": EntityType.KNOWLEDGE,
         "path_id": "test/related_entity",
         "file_path": "test/related_entity.md",
         "description": "A related test entity",

@@ -3,7 +3,7 @@
 import pytest
 
 from basic_memory.mcp.tools.knowledge import create_entities, create_relations
-from basic_memory.schemas.base import Relation, Entity
+from basic_memory.schemas.base import Relation, Entity, EntityType
 from basic_memory.schemas.request import CreateEntityRequest, CreateRelationsRequest
 from basic_memory.services.exceptions import EntityNotFoundError
 
@@ -14,8 +14,8 @@ async def test_create_basic_relation(client):
     # First create test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="SourceEntity", entity_type="test"),
-            Entity(name="TargetEntity", entity_type="test")
+            Entity(name="SourceEntity", entity_type=EntityType.KNOWLEDGE),
+            Entity(name="TargetEntity", entity_type=EntityType.KNOWLEDGE)
         ]
     )
     await create_entities(entity_request)
@@ -24,8 +24,8 @@ async def test_create_basic_relation(client):
     relation_request = CreateRelationsRequest(
         relations=[
             Relation(
-                from_id="test/source_entity",
-                to_id="test/target_entity",
+                from_id="source_entity",
+                to_id="target_entity",
                 relation_type="depends_on"
             )
         ]
@@ -35,8 +35,8 @@ async def test_create_basic_relation(client):
     assert len(result.entities) == 2
     
     # Find source and target entities
-    source = next(e for e in result.entities if e.path_id == "test/source_entity")
-    target = next(e for e in result.entities if e.path_id == "test/target_entity")
+    source = next(e for e in result.entities if e.path_id == "source_entity")
+    target = next(e for e in result.entities if e.path_id == "target_entity")
     
     # Both entities should have the relation for bi-directional navigation
     assert len(source.relations) == 1
@@ -44,14 +44,14 @@ async def test_create_basic_relation(client):
 
     # Source's relation shows it depends_on target
     source_relation = source.relations[0]
-    assert source_relation.from_id == "test/source_entity"
-    assert source_relation.to_id == "test/target_entity"
+    assert source_relation.from_id == "source_entity"
+    assert source_relation.to_id == "target_entity"
     assert source_relation.relation_type == "depends_on"
 
     # Target's relation is the same, allowing backwards traversal
     target_relation = target.relations[0]
-    assert target_relation.from_id == "test/source_entity"
-    assert target_relation.to_id == "test/target_entity"
+    assert target_relation.from_id == "source_entity"
+    assert target_relation.to_id == "target_entity"
     assert target_relation.relation_type == "depends_on"
 
 
@@ -61,8 +61,8 @@ async def test_create_relation_with_context(client):
     # Create test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="Source", entity_type="test"),
-            Entity(name="Target", entity_type="test")
+            Entity(name="Source", entity_type=EntityType.KNOWLEDGE),
+            Entity(name="Target", entity_type=EntityType.KNOWLEDGE)
         ]
     )
     await create_entities(entity_request)
@@ -70,8 +70,8 @@ async def test_create_relation_with_context(client):
     relation_request = CreateRelationsRequest(
         relations=[
             Relation(
-                from_id="test/source",
-                to_id="test/target",
+                from_id="source",
+                to_id="target",
                 relation_type="implements",
                 context="Implementation details"
             )
@@ -79,8 +79,8 @@ async def test_create_relation_with_context(client):
     )
     result = await create_relations(relation_request)
 
-    source = next(e for e in result.entities if e.path_id == "test/source")
-    target = next(e for e in result.entities if e.path_id == "test/target")
+    source = next(e for e in result.entities if e.path_id == "source")
+    target = next(e for e in result.entities if e.path_id == "target")
 
     # Both entities should have the relation with context
     assert len(source.relations) == 1
@@ -95,9 +95,9 @@ async def test_create_multiple_relations(client):
     # Create test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="Entity1", entity_type="test"),
-            Entity(name="Entity2", entity_type="test"),
-            Entity(name="Entity3", entity_type="test")
+            Entity(name="Entity1", entity_type=EntityType.KNOWLEDGE),
+            Entity(name="Entity2", entity_type=EntityType.KNOWLEDGE),
+            Entity(name="Entity3", entity_type=EntityType.KNOWLEDGE)
         ]
     )
     await create_entities(entity_request)
@@ -105,13 +105,13 @@ async def test_create_multiple_relations(client):
     relation_request = CreateRelationsRequest(
         relations=[
             Relation(
-                from_id="test/entity1",
-                to_id="test/entity2",
+                from_id="entity1",
+                to_id="entity2",
                 relation_type="connects_to"
             ),
             Relation(
-                from_id="test/entity2",
-                to_id="test/entity3",
+                from_id="entity2",
+                to_id="entity3",
                 relation_type="depends_on"
             )
         ]
@@ -122,9 +122,9 @@ async def test_create_multiple_relations(client):
     assert len(result.entities) == 3
     
     # Get entities
-    entity1 = next(e for e in result.entities if e.path_id == "test/entity1")
-    entity2 = next(e for e in result.entities if e.path_id == "test/entity2")
-    entity3 = next(e for e in result.entities if e.path_id == "test/entity3")
+    entity1 = next(e for e in result.entities if e.path_id == "entity1")
+    entity2 = next(e for e in result.entities if e.path_id == "entity2")
+    entity3 = next(e for e in result.entities if e.path_id == "entity3")
     
     # Entity1 and Entity2 should share the connects_to relation
     assert len(entity1.relations) == 1
@@ -144,8 +144,8 @@ async def test_create_bidirectional_relations(client):
     # Create test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="Service", entity_type="test"),
-            Entity(name="Database", entity_type="test")
+            Entity(name="Service", entity_type=EntityType.KNOWLEDGE),
+            Entity(name="Database", entity_type=EntityType.KNOWLEDGE)
         ]
     )
     await create_entities(entity_request)
@@ -154,21 +154,21 @@ async def test_create_bidirectional_relations(client):
     relation_request = CreateRelationsRequest(
         relations=[
             Relation(
-                from_id="test/service",
-                to_id="test/database",
+                from_id="service",
+                to_id="database",
                 relation_type="depends_on"
             ),
             Relation(
-                from_id="test/database",
-                to_id="test/service",
+                from_id="database",
+                to_id="service",
                 relation_type="supports"
             )
         ]
     )
     result = await create_relations(relation_request)
 
-    service = next(e for e in result.entities if e.path_id == "test/service")
-    database = next(e for e in result.entities if e.path_id == "test/database")
+    service = next(e for e in result.entities if e.path_id == "service")
+    database = next(e for e in result.entities if e.path_id == "database")
 
     # Each entity should have both relations for full navigation
     assert len(service.relations) == 2
@@ -189,7 +189,7 @@ async def test_create_relation_with_invalid_entity(client):
     # Create only one of the needed entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="RealEntity", entity_type="test")
+            Entity(name="RealEntity", entity_type=EntityType.KNOWLEDGE)
         ]
     )
     await create_entities(entity_request)
@@ -197,8 +197,8 @@ async def test_create_relation_with_invalid_entity(client):
     relation_request = CreateRelationsRequest(
         relations=[
             Relation(
-                from_id="test/real_entity",
-                to_id="test/non_existent_entity",
+                from_id="real_entity",
+                to_id="non_existent_entity",
                 relation_type="depends_on"
             )
         ]
@@ -215,16 +215,16 @@ async def test_create_duplicate_relation(client):
     # Create test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="Source", entity_type="test"),
-            Entity(name="Target", entity_type="test")
+            Entity(name="Source", entity_type=EntityType.KNOWLEDGE),
+            Entity(name="Target", entity_type=EntityType.KNOWLEDGE)
         ]
     )
     await create_entities(entity_request)
 
     # Create relation
     relation = Relation(
-        from_id="test/source",
-        to_id="test/target",
+        from_id="source",
+        to_id="target",
         relation_type="connects_to"
     )
     relation_request = CreateRelationsRequest(relations=[relation])

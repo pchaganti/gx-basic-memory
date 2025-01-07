@@ -37,7 +37,6 @@ from basic_memory.mcp.tools.documents import (
 )
 
 from basic_memory.mcp.tools.discovery import (
-    get_entity_types,
     get_observation_categories,
 )
 
@@ -68,7 +67,6 @@ __all__ = [
     "delete_document",
 
     # Discovery tools
-    "get_entity_types",
     "get_observation_categories",
     
     # Activity tools

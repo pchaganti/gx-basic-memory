@@ -14,6 +14,7 @@ from basic_memory.markdown.schemas import (
     Relation as MarkdownRelation,
 )
 from basic_memory.models import Entity as EntityModel
+from basic_memory.models.knowledge import EntityType
 from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
 
 
@@ -21,7 +22,7 @@ from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
 def test_frontmatter() -> EntityFrontmatter:
     """Create test frontmatter."""
     return EntityFrontmatter(
-        type="concept",
+        type="knowledge",
         id="concept/test_entity",
         created=datetime.now(),
         modified=datetime.now(),
@@ -64,7 +65,7 @@ async def test_create_entity_without_relations(
 
     # Check basic fields
     assert entity.name == "Test Entity"
-    assert entity.entity_type == "concept"
+    assert entity.entity_type == EntityType.KNOWLEDGE
     assert entity.path_id == "concept/test_entity"
     assert entity.description == "A test entity description"
 
@@ -119,13 +120,13 @@ async def test_update_entity_relations(
     # Create target entities that relations point to
     other_entity = EntityModel(
         name="Other Entity",
-        entity_type="concept",
+        entity_type=EntityType.KNOWLEDGE,
         path_id="concept/other_entity",
         file_path="concept/other_entity.md",
     )
     another_entity = EntityModel(
         name="Another Entity",
-        entity_type="concept",
+        entity_type=EntityType.KNOWLEDGE,
         path_id="concept/another_entity",
         file_path="concept/another_entity.md",
     )
@@ -162,13 +163,13 @@ async def test_two_pass_sync_flow(
     # Create target entities first
     other_entity = EntityModel(
         name="Other Entity",
-        entity_type="concept",
+        entity_type=EntityType.KNOWLEDGE,
         path_id="concept/other_entity",
         file_path="concept/other_entity.md",
     )
     another_entity = EntityModel(
         name="Another Entity",
-        entity_type="concept",
+        entity_type=EntityType.KNOWLEDGE,
         path_id="concept/another_entity",
         file_path="concept/another_entity.md",
     )

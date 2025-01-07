@@ -5,6 +5,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory.models import Entity, Relation
+from basic_memory.models.knowledge import EntityType
 from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.services.relation_service import RelationService
 
@@ -18,14 +19,14 @@ async def test_entities(
     async with session_maker() as session:
         entity1 = Entity(
             name="test_entity_1",
-            entity_type="test",
+            entity_type=EntityType.KNOWLEDGE,
             path_id="test/test_entity_1",
             file_path="test/test_entity_1.md",
             description="Test entity 1",
         )
         entity2 = Entity(
             name="test_entity_2",
-            entity_type="test",
+            entity_type=EntityType.KNOWLEDGE,
             path_id="test/test_entity_2",
             file_path="test/test_entity_2.md",
             description="Test entity 2",

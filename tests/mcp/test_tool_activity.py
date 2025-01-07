@@ -5,7 +5,7 @@ import pytest
 from basic_memory.mcp.tools.documents import create_document
 from basic_memory.mcp.tools.knowledge import create_entities
 from basic_memory.mcp.tools.activity import get_recent_activity
-from basic_memory.schemas.base import Entity
+from basic_memory.schemas.base import Entity, EntityType
 from basic_memory.schemas.request import CreateEntityRequest, DocumentRequest
 from basic_memory.schemas.activity import ActivityType
 
@@ -61,7 +61,7 @@ async def test_get_recent_activity_filtered(client):
     )
     
     entity_request = CreateEntityRequest(
-        entities=[Entity(name="TestEntity", entity_type="test")]
+        entities=[Entity(name="TestEntity", entity_type=EntityType.KNOWLEDGE)]
     )
     entity = await create_entities(entity_request)
 
@@ -94,7 +94,7 @@ async def test_get_recent_activity_content_handling(client):
     entity_request = CreateEntityRequest(
         entities=[Entity(
             name="ContentEntity", 
-            entity_type="test",
+            entity_type=EntityType.KNOWLEDGE,
             description="Entity description"
         )]
     )
@@ -130,8 +130,8 @@ async def test_get_recent_activity_multiple_types(client):
     
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="Entity1", entity_type="test"),
-            Entity(name="Entity2", entity_type="test")
+            Entity(name="Entity1", entity_type=EntityType.KNOWLEDGE),
+            Entity(name="Entity2", entity_type=EntityType.KNOWLEDGE)
         ]
     )
     entities = await create_entities(entity_request)

@@ -6,6 +6,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import text
 from basic_memory import db
+from basic_memory.schemas import EntityType
 from basic_memory.schemas.search import SearchQuery, SearchItemType, SearchResponse
 
 
@@ -15,7 +16,8 @@ def test_entity():
     class Entity:
         id = 1
         name = "TestComponent"
-        entity_type = "component"
+        entity_type = EntityType.KNOWLEDGE
+        entity_metadata = { "test": "test"}
         path_id = "component/test_component"
         file_path = "entities/component/test_component.md"
         description = "A test component for search testing"
@@ -108,7 +110,7 @@ async def test_search_with_entity_type_filter(client, indexed_entity):
         "/search/",
         json={
             "text": "test",
-            "entity_types": ["component"]
+            "entity_types": [EntityType.KNOWLEDGE]
         }
     )
     assert response.status_code == 200
@@ -120,7 +122,7 @@ async def test_search_with_entity_type_filter(client, indexed_entity):
         "/search/",
         json={
             "text": "test",
-            "entity_types": ["concept"]
+            "entity_types": [EntityType.NOTE]
         }
     )
     assert response.status_code == 200
@@ -251,7 +253,7 @@ async def test_multiple_filters(client, indexed_entity):
         json={
             "text": "test",
             "types": [SearchItemType.ENTITY.value],
-            "entity_types": ["component"],
+            "entity_types": [EntityType.KNOWLEDGE],
             "after_date": datetime(2020, 1, 1, tzinfo=timezone.utc).isoformat()
         }
     )
@@ -261,4 +263,4 @@ async def test_multiple_filters(client, indexed_entity):
     result = search_result.results[0]
     assert result.path_id == indexed_entity.path_id
     assert result.type == SearchItemType.ENTITY.value
-    assert result.metadata["entity_type"] == "component"
+    assert result.metadata["entity_type"] == EntityType.KNOWLEDGE

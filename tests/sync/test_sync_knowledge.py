@@ -6,6 +6,7 @@ import pytest
 
 from basic_memory.config import ProjectConfig
 from basic_memory.models import Entity
+from basic_memory.models.knowledge import EntityType
 from basic_memory.services import EntityService
 from basic_memory.sync.sync_service import SyncService
 
@@ -27,7 +28,7 @@ async def test_sync_knowledge(
     # New entity with relation
     new_content = """
 ---
-type: concept
+type: knowledge
 id: concept/test_concept
 created: 2023-01-01
 modified: 2023-01-01
@@ -48,7 +49,7 @@ A test concept.
     other = Entity(
         path_id="concept/other",
         name="Other",
-        entity_type="concept",
+        entity_type=EntityType.KNOWLEDGE,
         file_path="concept/other.md",
         checksum="12345678",
     )
@@ -63,7 +64,7 @@ A test concept.
 
     # Find new entity
     test_concept = next(e for e in entities if e.path_id == "concept/test_concept")
-    assert test_concept.entity_type == "concept"
+    assert test_concept.entity_type == EntityType.KNOWLEDGE
 
     # Verify relation was not created
     # because file for related entity was not found
@@ -82,7 +83,7 @@ async def test_sync_entity_with_nonexistent_relations(
     # Create entity that references entities we haven't created yet
     content = """
 ---
-type: concept
+type: knowledge
 id: concept/depends_on_future
 created: 2024-01-01
 modified: 2024-01-01
@@ -119,7 +120,7 @@ async def test_sync_entity_circular_relations(
     # Create entity A that depends on B
     content_a = """
 ---
-type: concept
+type: knowledge
 id: concept/entity_a
 created: 2024-01-01
 modified: 2024-01-01
@@ -137,7 +138,7 @@ modified: 2024-01-01
     # Create entity B that depends on A
     content_b = """
 ---
-type: concept
+type: knowledge
 id: concept/entity_b
 created: 2024-01-01
 modified: 2024-01-01
@@ -193,7 +194,7 @@ async def test_sync_entity_duplicate_relations(
     # Create target entity first
     target_content = """
 ---
-type: concept
+type: knowledge
 id: concept/target
 created: 2024-01-01
 modified: 2024-01-01
@@ -209,7 +210,7 @@ modified: 2024-01-01
     # Create entity with duplicate relations
     content = """
 ---
-type: concept
+type: knowledge
 id: concept/duplicate_relations
 created: 2024-01-01
 modified: 2024-01-01
@@ -254,7 +255,7 @@ async def test_sync_entity_with_invalid_category(
 
     content = """
 ---
-type: concept
+type: knowledge
 id: concept/invalid_category
 created: 2024-01-01
 modified: 2024-01-01
@@ -297,7 +298,7 @@ async def test_sync_entity_with_order_dependent_relations(
     entities = {
         "a": """
 ---
-type: concept
+type: knowledge
 id: concept/entity_a
 created: 2024-01-01
 modified: 2024-01-01
@@ -314,7 +315,7 @@ modified: 2024-01-01
 """,
         "b": """
 ---
-type: concept
+type: knowledge
 id: concept/entity_b
 created: 2024-01-01
 modified: 2024-01-01
@@ -329,7 +330,7 @@ modified: 2024-01-01
 """,
         "c": """
 ---
-type: concept
+type: knowledge
 id: concept/entity_c
 created: 2024-01-01
 modified: 2024-01-01

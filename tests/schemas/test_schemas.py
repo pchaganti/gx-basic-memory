@@ -16,10 +16,10 @@ from basic_memory.schemas.base import to_snake_case
 
 def test_entity_in_minimal():
     """Test creating EntityIn with minimal required fields."""
-    data = {"name": "test_entity", "entity_type": "test"}
+    data = {"name": "test_entity", "entity_type": "knowledge"}
     entity = Entity.model_validate(data)
     assert entity.name == "test_entity"
-    assert entity.entity_type == "test"
+    assert entity.entity_type == "knowledge"
     assert entity.description is None
     assert entity.observations == []
 
@@ -28,13 +28,13 @@ def test_entity_in_complete():
     """Test creating EntityIn with all fields."""
     data = {
         "name": "test_entity",
-        "entity_type": "test",
+        "entity_type": "knowledge",
         "description": "A test entity",
         "observations": ["Test observation"],
     }
     entity = Entity.model_validate(data)
     assert entity.name == "test_entity"
-    assert entity.entity_type == "test"
+    assert entity.entity_type == "knowledge"
     assert entity.description == "A test entity"
     assert len(entity.observations) == 1
     assert entity.observations[0] == "Test observation"
@@ -84,8 +84,8 @@ def test_create_entities_input():
     """Test CreateEntitiesInput validation."""
     data = {
         "entities": [
-            {"name": "entity1", "entity_type": "test"},
-            {"name": "entity2", "entity_type": "test", "description": "test description"},
+            {"name": "entity1", "entity_type": "knowledge"},
+            {"name": "entity2", "entity_type": "knowledge", "description": "test description"},
         ]
     }
     create_input = CreateEntityRequest.model_validate(data)
@@ -103,7 +103,7 @@ def test_entity_out_from_attributes():
     db_data = {
         "path_id": "test/test",
         "name": "test",
-        "entity_type": "test",
+        "entity_type": "knowledge",
         "description": "test description",
         "observations": [{"id": 1, "content": "test obs", "context": None}],
         "relations": [
@@ -120,7 +120,7 @@ def test_entity_out_from_attributes():
 def test_optional_fields():
     """Test handling of optional fields."""
     # Create with no optional fields
-    entity = Entity.model_validate({"name": "test", "entity_type": "test"})
+    entity = Entity.model_validate({"name": "test", "entity_type": "knowledge"})
     assert entity.description is None
     assert entity.observations == []
 
@@ -128,7 +128,7 @@ def test_optional_fields():
     entity = Entity.model_validate(
         {
             "name": "test",
-            "entity_type": "test",
+            "entity_type": "knowledge",
             "description": None,
             "observations": [],
         }
@@ -138,7 +138,7 @@ def test_optional_fields():
 
     # Create with some optional fields
     entity = Entity.model_validate(
-        {"name": "test", "entity_type": "test", "description": "test", "observations": []}
+        {"name": "test", "entity_type": "knowledge", "description": "test", "observations": []}
     )
     assert entity.description == "test"
     assert entity.observations == []
@@ -187,20 +187,20 @@ def test_path_id_generation():
     """Test path_id property generates correct paths."""
     test_cases = [
         (
-            {"name": "BasicMemory", "entity_type": "Project"},
-            "project/basic_memory"
+            {"name": "BasicMemory", "entity_type": "knowledge"},
+            "basic_memory"
         ),
         (
-            {"name": "Memory Service", "entity_type": "Component"},
-            "component/memory_service"
+            {"name": "Memory Service", "entity_type": "knowledge"},
+            "memory_service"
         ),
         (
-            {"name": "API Gateway", "entity_type": "Service"},
-            "service/api_gateway"
+            {"name": "API Gateway", "entity_type": "knowledge"},
+            "api_gateway"
         ),
         (
-            {"name": "TestCase1", "entity_type": "Test"},
-            "test/test_case1"
+            {"name": "TestCase1", "entity_type": "knowledge"},
+            "test_case1"
         ),
     ]
 
@@ -208,33 +208,3 @@ def test_path_id_generation():
         entity = Entity.model_validate(input_data)
         assert entity.path_id == expected_path, f"Failed for input: {input_data}"
 
-
-# def test_path_id_validation():
-#     """Test path ID format validation."""
-#     valid_paths = [
-#         "project/basic_memory",
-#         "test/test_case_1",
-#         "component/api_gateway",
-#     ]
-# 
-#     invalid_paths = [
-#         "no_separator",  # Missing /
-#         "/missing_type",  # Missing type
-#         "type/",  # Missing name
-#         "type//double",  # Double separator
-#         "../path/traversal",  # Path traversal attempt
-#         "type/name/extra",  # Too many parts
-#         "",  # Empty string
-#     ]
-# 
-#     # Test valid paths
-#     for path in valid_paths:
-#         try:
-#             Relation.model_validate({"from_id": path, "to_id": path, "relation_type": "test"})
-#         except ValidationError as e:
-#             assert False, f"Valid path {path} failed validation: {e}"
-# 
-#     # Test invalid paths
-#     for path in invalid_paths:
-#         with pytest.raises(ValidationError):
-#             Relation.model_validate({"from_id": path, "to_id": "test/valid", "relation_type": "test"})

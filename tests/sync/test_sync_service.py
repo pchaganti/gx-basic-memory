@@ -7,6 +7,7 @@ import pytest
 
 from basic_memory.config import ProjectConfig
 from basic_memory.models import Entity
+from basic_memory.models.knowledge import EntityType
 from basic_memory.services import EntityService
 from basic_memory.sync.sync_service import SyncService
 
@@ -60,7 +61,7 @@ async def test_sync_null_checksum_cleanup(
     entity = Entity(
         path_id="concept/incomplete",
         name="Incomplete",
-        entity_type="concept",
+        entity_type=EntityType.KNOWLEDGE,
         file_path="concept/incomplete.md",
         checksum=None,  # Null checksum
     )
@@ -69,7 +70,7 @@ async def test_sync_null_checksum_cleanup(
     # Create corresponding file
     content = """
 ---
-type: concept
+type: knowledge
 id: concept/incomplete
 created: 2024-01-01
 modified: 2024-01-01
@@ -99,7 +100,7 @@ async def test_sync_mixed_document_types(sync_service: SyncService, test_config:
     # Create a knowledge file
     knowledge_content = """
 ---
-type: concept
+type: knowledge
 id: concept/test
 created: 2024-01-01
 modified: 2024-01-01
@@ -134,7 +135,7 @@ async def test_sync_performance_large_files(sync_service: SyncService, test_conf
     observations = [f"- Observation {i}" for i in range(100)]
     knowledge_content = f"""
 ---
-type: concept
+type: knowledge
 id: concept/large
 created: 2024-01-01
 modified: 2024-01-01

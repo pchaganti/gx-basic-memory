@@ -3,7 +3,7 @@
 import pytest
 
 from basic_memory.mcp.tools.knowledge import create_entities
-from basic_memory.schemas.base import ObservationCategory, Entity
+from basic_memory.schemas.base import ObservationCategory, Entity, EntityType
 from basic_memory.schemas.request import CreateEntityRequest
 
 
@@ -14,7 +14,7 @@ async def test_create_basic_entity(client):
         entities=[
             Entity(
                 name="TestEntity",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 description="A test entity",
                 observations=["First observation"]
             )
@@ -29,8 +29,8 @@ async def test_create_basic_entity(client):
     # Check the created entity
     entity = result.entities[0]
     assert entity.name == "TestEntity"
-    assert entity.entity_type == "test"
-    assert entity.path_id == "test/test_entity"
+    assert entity.entity_type == EntityType.KNOWLEDGE
+    assert entity.path_id == "test_entity"
     assert entity.description == "A test entity"
 
     # Check observations
@@ -50,7 +50,7 @@ async def test_create_entity_with_multiple_observations(client):
         entities=[
             Entity(
                 name="TestEntity",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 description="A test entity",
                 observations=[
                     "First observation",
@@ -85,12 +85,12 @@ async def test_create_multiple_entities(client):
         entities=[
             Entity(
                 name="Entity1",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 observations=["Observation 1"]
             ),
             Entity(
                 name="Entity2", 
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 observations=["Observation 2"]
             )
         ]
@@ -115,7 +115,7 @@ async def test_create_entity_without_observations(client):
         entities=[
             Entity(
                 name="TestEntity",
-                entity_type="test",
+                entity_type=EntityType.KNOWLEDGE,
                 description="A test entity without observations"
             )
         ]
@@ -135,7 +135,7 @@ async def test_create_minimal_entity(client):
         entities=[
             Entity(
                 name="MinimalEntity",
-                entity_type="test"
+                entity_type=EntityType.KNOWLEDGE
             )
         ]
     )
@@ -144,8 +144,8 @@ async def test_create_minimal_entity(client):
 
     entity = result.entities[0]
     assert entity.name == "MinimalEntity"
-    assert entity.entity_type == "test"
-    assert entity.path_id == "test/minimal_entity"
+    assert entity.entity_type == EntityType.KNOWLEDGE
+    assert entity.path_id == "minimal_entity"
     assert entity.description is None
     assert len(entity.observations) == 0
     assert len(entity.relations) == 0
