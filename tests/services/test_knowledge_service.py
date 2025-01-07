@@ -6,8 +6,9 @@ import pytest
 import yaml
 
 from basic_memory.models import Entity as EntityModel
-from basic_memory.models.knowledge import EntityType
+from basic_memory.models.knowledge import EntityType, ObservationCategory
 from basic_memory.schemas import Entity as EntitySchema, Relation as RelationSchema
+from basic_memory.schemas.request import ObservationCreate
 from basic_memory.services import EntityService
 from basic_memory.services.knowledge import KnowledgeService
 
@@ -208,21 +209,29 @@ async def test_update_entity_name(knowledge_service: KnowledgeService):
 
 
 @pytest.mark.asyncio
-async def test_update_entity_type(knowledge_service: KnowledgeService):
-    """Should update entity type and reflect change in frontmatter."""
+async def test_update_entity_type_note_to_knowledge(knowledge_service: KnowledgeService):
+    """Should update entity from note to knowledge type."""
     # Create test entity as note
+    initial_content = "# Test Note\n\nThis is a test note."
     entity = await knowledge_service.create_entity(
         EntitySchema(
             name="test",
             entity_type=EntityType.NOTE,
             description="Test note",
-            entity_metadata={"status": "draft"},
+            entity_metadata={"status": "draft"}
         )
     )
 
-    # Update to knowledge type
+    # First update with some content as a note
+    await knowledge_service.update_entity(
+        entity.path_id,
+        content=initial_content
+    )
+
+    # Then update to knowledge type
     updated = await knowledge_service.update_entity(
-        entity.path_id, entity_type=EntityType.KNOWLEDGE
+        entity.path_id,
+        entity_type=EntityType.KNOWLEDGE
     )
 
     # Verify type was updated in DB
@@ -238,4 +247,51 @@ async def test_update_entity_type(knowledge_service: KnowledgeService):
 
     # Verify content format changed to knowledge style (structured)
     assert "# test" in content
-    assert "Test note" in content  # Description included
+    assert "Test note" in content  # Description preserved
+
+
+@pytest.mark.asyncio
+async def test_update_entity_type_knowledge_to_note(knowledge_service: KnowledgeService):
+    """Should update entity from knowledge to note type."""
+    # Create test entity as knowledge
+    entity = await knowledge_service.create_entity(
+        EntitySchema(
+            name="test",
+            entity_type=EntityType.KNOWLEDGE,
+            description="Test knowledge entity",
+            entity_metadata={"status": "draft"}
+        )
+    )
+
+    # Add some observations to test conversion
+    observations = [
+        ObservationCreate(content="Test observation", category=ObservationCategory.TECH)
+    ]
+    entity = await knowledge_service.add_observations(entity.path_id, observations)
+
+    # Update to note type with new content
+    new_content = "# Test Note\n\nConverted to note format."
+    updated = await knowledge_service.update_entity(
+        entity.path_id,
+        entity_type=EntityType.NOTE,
+        content=new_content
+    )
+
+    # Verify type was updated in DB
+    assert updated.entity_type == EntityType.NOTE
+
+    # Verify frontmatter was updated
+    file_path = knowledge_service.get_entity_path(updated)
+    content, _ = await knowledge_service.read_file(file_path)
+
+    _, frontmatter, _ = content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["type"] == EntityType.NOTE
+
+    # Verify content changed to note style (direct content)
+    assert "# Test Note" in content
+    assert "Converted to note format" in content
+    assert "Test observation" not in content  # Observations not included in note format
+
+    # Verify metadata was preserved
+    assert metadata["status"] == "draft"

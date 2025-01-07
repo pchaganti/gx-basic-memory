@@ -542,3 +542,156 @@ async def test_relation_indexing(client: AsyncClient):
     assert len(search_result.results) == 2 # Both source and target entities
     path_ids = {r.path_id for r in search_result.results}
     assert path_ids == {"source_test", "target_test"}
+
+
+@pytest.mark.asyncio
+async def test_update_entity_basic(client: AsyncClient):
+    """Test basic entity field updates."""
+    # Create initial entity
+    data = {
+        "name": "test",
+        "entity_type": EntityType.KNOWLEDGE,
+        "description": "Initial description",
+        "entity_metadata": {"status": "draft"}
+    }
+    response = await client.post("/knowledge/entities", json={"entities": [data]})
+    entity = response.json()["entities"][0]
+
+    # Update basic fields
+    update_data = {
+        "name": "updated-test",
+        "description": "Updated description",
+    }
+    response = await client.put(f"/knowledge/entities/{entity['path_id']}", json=update_data)
+    assert response.status_code == 200
+    updated = response.json()
+
+    # Verify updates
+    assert updated["name"] == "updated-test"
+    assert updated["description"] == "Updated description"
+    assert updated["entity_metadata"]["status"] == "draft"  # Preserved
+
+
+@pytest.mark.asyncio
+async def test_update_entity_content(client: AsyncClient):
+    """Test updating content for different entity types."""
+    # Create a note entity
+    note_data = {
+        "name": "test-note",
+        "entity_type": EntityType.NOTE,
+        "description": "Test note"
+    }
+    response = await client.post("/knowledge/entities", json={"entities": [note_data]})
+    note = response.json()["entities"][0]
+
+    # Update note content
+    new_content = "# Updated Note\n\nNew content."
+    response = await client.put(
+        f"/knowledge/entities/{note['path_id']}",
+        json={"content": new_content}
+    )
+    assert response.status_code == 200
+    updated = response.json()
+
+    # Verify through get request to check file
+    response = await client.get(f"/knowledge/entities/{updated['path_id']}")
+    fetched = response.json()
+    assert "# Updated Note" in fetched["content"]
+    assert "New content" in fetched["content"]
+
+
+@pytest.mark.asyncio
+async def test_update_entity_type_conversion(client: AsyncClient):
+    """Test converting between note and knowledge types."""
+    # Create a note
+    note_data = {
+        "name": "test-note",
+        "entity_type": EntityType.NOTE,
+        "description": "Test note",
+        "content": "# Test Note\n\nInitial content."
+    }
+    response = await client.post("/knowledge/entities", json={"entities": [note_data]})
+    note = response.json()["entities"][0]
+
+    # Convert to knowledge type
+    response = await client.put(
+        f"/knowledge/entities/{note['path_id']}",
+        json={"entity_type": EntityType.KNOWLEDGE}
+    )
+    assert response.status_code == 200
+    updated = response.json()
+
+    # Verify conversion
+    assert updated["entity_type"] == EntityType.KNOWLEDGE
+
+    # Get latest to verify file format
+    response = await client.get(f"/knowledge/entities/{updated['path_id']}")
+    knowledge = response.json()
+    assert "# test-note" in knowledge["content"]  # Knowledge format
+
+
+@pytest.mark.asyncio
+async def test_update_entity_metadata(client: AsyncClient):
+    """Test updating entity metadata."""
+    # Create entity
+    data = {
+        "name": "test",
+        "entity_type": EntityType.KNOWLEDGE,
+        "entity_metadata": {"status": "draft"}
+    }
+    response = await client.post("/knowledge/entities", json={"entities": [data]})
+    entity = response.json()["entities"][0]
+
+    # Update metadata
+    update_data = {
+        "entity_metadata": {
+            "status": "final",
+            "reviewed": True
+        }
+    }
+    response = await client.put(f"/knowledge/entities/{entity['path_id']}", json=update_data)
+    assert response.status_code == 200
+    updated = response.json()
+
+    # Verify metadata was merged, not replaced
+    assert updated["entity_metadata"]["status"] == "final"
+    assert updated["entity_metadata"]["reviewed"] is True
+
+
+@pytest.mark.asyncio
+async def test_update_entity_not_found(client: AsyncClient):
+    """Test updating non-existent entity."""
+    response = await client.put(
+        "/knowledge/entities/nonexistent",
+        json={"name": "new-name"}
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_entity_search_index(client: AsyncClient):
+    """Test search index is updated after entity changes."""
+    # Create entity
+    data = {
+        "name": "test",
+        "entity_type": EntityType.KNOWLEDGE,
+        "description": "Initial searchable content"
+    }
+    response = await client.post("/knowledge/entities", json={"entities": [data]})
+    entity = response.json()["entities"][0]
+
+    # Update with new searchable content
+    update_data = {
+        "description": "Updated with unique sphinx marker"
+    }
+    response = await client.put(f"/knowledge/entities/{entity['path_id']}", json=update_data)
+    assert response.status_code == 200
+
+    # Search should find new content
+    search_response = await client.post(
+        "/search/",
+        json={"text": "sphinx marker", "types": [SearchItemType.ENTITY.value]}
+    )
+    results = search_response.json()["results"]
+    assert len(results) == 1
+    assert results[0]["path_id"] == entity["path_id"]
