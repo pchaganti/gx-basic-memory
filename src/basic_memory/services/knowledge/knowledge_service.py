@@ -1,11 +1,11 @@
 """Main knowledge service implementation."""
 
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import List, Sequence, Tuple, Dict, Any, Optional
 
-from loguru import logger
 
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
+from basic_memory.markdown.note_writer import NoteWriter
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.schemas import Relation as RelationSchema
@@ -19,7 +19,6 @@ from .file_operations import FileOperations
 from .entity_operations import EntityOperations
 from .relation_operations import RelationOperations
 from .observation_operations import ObservationOperations
-from ...markdown.note_writer import NoteWriter
 
 
 class KnowledgeService:
@@ -31,7 +30,7 @@ class KnowledgeService:
     - Entity CRUD operations
     - Relations between entities
     - Observations about entities
-    
+
     Acts as the main coordinator for all knowledge operations, ensuring
     consistency between database and filesystem.
     """
@@ -46,39 +45,37 @@ class KnowledgeService:
         note_writer: NoteWriter,
         base_path: Path,
     ):
-        
         self.base_path = base_path
-        
+
         # Initialize operations in dependency order
         self.file_ops = FileOperations(
             entity_service=entity_service,
             file_service=file_service,
             knowledge_writer=knowledge_writer,
             note_writer=note_writer,
-            base_path=base_path
+            base_path=base_path,
         )
 
         self.entity_ops = EntityOperations(
-            entity_service=entity_service,
-            file_operations=self.file_ops
+            entity_service=entity_service, file_operations=self.file_ops
         )
 
         self.relation_ops = RelationOperations(
             relation_service=relation_service,
             entity_service=entity_service,
-            file_operations=self.file_ops
+            file_operations=self.file_ops,
         )
 
         self.observation_ops = ObservationOperations(
             observation_service=observation_service,
             entity_service=entity_service,
-            file_operations=self.file_ops
+            file_operations=self.file_ops,
         )
 
     # Entity operations
     async def get_entity_by_path_id(self, path_id: str) -> EntityModel:
         return await self.entity_ops.get_by_path_id(path_id)
-    
+
     async def create_entity(self, entity: EntitySchema) -> EntityModel:
         """Create a new entity."""
         return await self.entity_ops.create_entity(entity)
@@ -86,6 +83,28 @@ class KnowledgeService:
     async def create_entities(self, entities: List[EntitySchema]) -> Sequence[EntityModel]:
         """Create multiple entities."""
         return await self.entity_ops.create_entities(entities)
+
+    async def update_entity(
+        self,
+        path_id: str,
+        content: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        **update_fields: Any,
+    ) -> EntityModel:
+        """Update an entity's content and metadata.
+
+        Args:
+            path_id: Entity's path ID
+            content: Optional new content
+            metadata: Optional metadata updates
+            **update_fields: Additional entity fields to update
+
+        Returns:
+            Updated entity
+        """
+        return await self.entity_ops.update_entity(
+            path_id=path_id, content=content, metadata=metadata, **update_fields
+        )
 
     async def delete_entity(self, path_id: str) -> bool:
         """Delete an entity and its file."""
@@ -114,19 +133,12 @@ class KnowledgeService:
 
     # Observation operations
     async def add_observations(
-        self, 
-        path_id: str, 
-        observations: List[ObservationCreate], 
-        context: str | None = None
+        self, path_id: str, observations: List[ObservationCreate], context: str | None = None
     ) -> EntityModel:
         """Add observations to an entity."""
         return await self.observation_ops.add_observations(path_id, observations, context)
 
-    async def delete_observations(
-        self,
-        path_id: str, 
-        observations: List[str]
-    ) -> EntityModel:
+    async def delete_observations(self, path_id: str, observations: List[str]) -> EntityModel:
         """Delete observations from an entity."""
         return await self.observation_ops.delete_observations(path_id, observations)
 

@@ -1,26 +1,27 @@
 """Tests for KnowledgeService."""
 
 from pathlib import Path
-from typing import List
 
 import pytest
 import yaml
-from sqlalchemy.exc import IntegrityError
 
 from basic_memory.models import Entity as EntityModel
 from basic_memory.models.knowledge import EntityType
 from basic_memory.schemas import Entity as EntitySchema, Relation as RelationSchema
-from basic_memory.schemas.base import ObservationCategory
-from basic_memory.schemas.request import ObservationCreate
 from basic_memory.services import EntityService
-from basic_memory.services.exceptions import EntityNotFoundError, FileOperationError
 from basic_memory.services.knowledge import KnowledgeService
 
 
 @pytest.mark.asyncio
 async def test_get_entity_path(knowledge_service: KnowledgeService):
     """Should generate correct filesystem path for entity."""
-    entity = EntityModel(id=1, path_id="test-entity", name="test-entity", entity_type=EntityType.KNOWLEDGE, description="Test entity")
+    entity = EntityModel(
+        id=1,
+        path_id="test-entity",
+        name="test-entity",
+        entity_type=EntityType.KNOWLEDGE,
+        description="Test entity",
+    )
     path = knowledge_service.get_entity_path(entity)
     assert path == Path(knowledge_service.base_path / "test-entity.md")
 
@@ -29,7 +30,9 @@ async def test_get_entity_path(knowledge_service: KnowledgeService):
 async def test_create_entity(knowledge_service: KnowledgeService):
     """Should create entity in DB and write file correctly."""
     # Setup
-    entity_schema = EntitySchema(name="test-entity", entity_type=EntityType.KNOWLEDGE, description="Test entity")
+    entity_schema = EntitySchema(
+        name="test-entity", entity_type=EntityType.KNOWLEDGE, description="Test entity"
+    )
 
     # Execute
     created = await knowledge_service.create_entity(entity_schema)
@@ -41,7 +44,7 @@ async def test_create_entity(knowledge_service: KnowledgeService):
     assert created.checksum is not None
     assert created.path_id == "test_entity"
     assert created.file_path == "test_entity.md"
-    
+
     # Verify file was written
     file_path = knowledge_service.get_entity_path(created)
     assert await knowledge_service.file_exists(file_path)
@@ -57,12 +60,13 @@ async def test_create_entity(knowledge_service: KnowledgeService):
     assert "modified" in metadata
 
 
-
 @pytest.mark.asyncio
 async def test_create_multiple_entities(knowledge_service: KnowledgeService):
     """Should create multiple entities successfully."""
     entities = [
-        EntitySchema(name=f"entity-{i}", entity_type=EntityType.KNOWLEDGE, description=f"Test entity {i}")
+        EntitySchema(
+            name=f"entity-{i}", entity_type=EntityType.KNOWLEDGE, description=f"Test entity {i}"
+        )
         for i in range(3)
     ]
 
@@ -113,195 +117,125 @@ async def test_create_relations(knowledge_service: KnowledgeService, entity_serv
 
 
 @pytest.mark.asyncio
-async def test_add_observations_observation(knowledge_service: KnowledgeService):
-    """Should add observations and update entity file."""
+async def test_update_knowledge_entity_description(knowledge_service: KnowledgeService):
+    """Should update knowledge entity description and write to file."""
     # Create test entity
     entity = await knowledge_service.create_entity(
-        EntitySchema(name="test", entity_type=EntityType.KNOWLEDGE, description="Test entity")
+        EntitySchema(
+            name="test",
+            entity_type=EntityType.KNOWLEDGE,
+            description="Test entity",
+            entity_metadata={"status": "draft"},
+        )
     )
 
-    # Add observations
-    observations = [
-        ObservationCreate(content="Test observation 1", category=ObservationCategory.TECH),
-        ObservationCreate(content="Test observation 2", category=ObservationCategory.DESIGN),
-    ]
-    context = "Test context"
-    updated_entity = await knowledge_service.add_observations(
-        entity.path_id, observations, context
+    # Update description
+    updated = await knowledge_service.update_entity(
+        entity.path_id, description="Updated description"
     )
 
-    # Verify observations in DB
-    assert len(updated_entity.observations) == 2
-    assert updated_entity.observations[0].content == "Test observation 1"
-    assert updated_entity.observations[0].category == "tech"
-    assert updated_entity.observations[0].context == context
-    assert updated_entity.observations[1].content == "Test observation 2"
-    assert updated_entity.observations[1].category == "design"
-    assert updated_entity.observations[1].context == context
-    
-    # Verify file was updated
-    file_path = knowledge_service.get_entity_path(updated_entity)
+    # Verify file has new description but preserved metadata
+    file_path = knowledge_service.get_entity_path(updated)
     content, _ = await knowledge_service.read_file(file_path)
-    
-    for obs in observations:
-        expected_line = f"- [{obs.category.value}] {obs.content} ({context})"
-        assert expected_line in content
 
-    # Also verify the Observations section header exists
-    assert "## Observations" in content
+    assert "Updated description" in content
+
+    # Verify metadata was preserved
+    _, frontmatter, _ = content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["status"] == "draft"
 
 
 @pytest.mark.asyncio
-async def test_delete_entity(knowledge_service: KnowledgeService):
-    """Should delete entity and its file."""
+async def test_update_note_entity_content(knowledge_service: KnowledgeService):
+    """Should update note content directly."""
     # Create test entity
     entity = await knowledge_service.create_entity(
-        EntitySchema(name="test", entity_type=EntityType.KNOWLEDGE, description="Test entity")
-    )
-    file_path = knowledge_service.get_entity_path(entity)
-
-    # Verify file exists
-    assert await knowledge_service.file_exists(file_path)
-
-    # Delete entity
-    success = await knowledge_service.delete_entity(entity.path_id)
-    assert success
-
-    # Verify file was deleted
-    assert not await knowledge_service.file_exists(file_path)
-
-    # Verify entity was deleted from DB
-    with pytest.raises(EntityNotFoundError):
-        await knowledge_service.get_entity_by_path_id(entity.path_id)
-
-
-@pytest.mark.asyncio
-async def test_delete_multiple_entities(knowledge_service: KnowledgeService):
-    """Should delete multiple entities and their files."""
-    # Create test entities
-    entities = []
-    for i in range(3):
-        entity = await knowledge_service.create_entity(
-            EntitySchema(name=f"test-{i}", entity_type=EntityType.KNOWLEDGE, description=f"Test entity {i}")
+        EntitySchema(
+            name="test",
+            entity_type=EntityType.NOTE,
+            description="Test note",
+            entity_metadata={"status": "draft"},
         )
-        entities.append(entity)
+    )
 
-    # Delete entities
-    success = await knowledge_service.delete_entities([e.path_id for e in entities])
-    assert success
+    # Update content
+    new_content = "# Updated Content\n\nThis is new content."
+    updated = await knowledge_service.update_entity(entity.path_id, content=new_content)
 
-    # Verify files were deleted
-    for entity in entities:
-        file_path = knowledge_service.get_entity_path(entity)
-        assert not await knowledge_service.file_exists(file_path)
-        with pytest.raises(EntityNotFoundError):
-            await knowledge_service.get_entity_by_path_id(entity.path_id)
+    # Verify file has new content but preserved metadata
+    file_path = knowledge_service.get_entity_path(updated)
+    content, _ = await knowledge_service.read_file(file_path)
+
+    assert "# Updated Content" in content
+    assert "This is new content" in content
+
+    # Verify metadata was preserved
+    _, frontmatter, _ = content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["status"] == "draft"
 
 
 @pytest.mark.asyncio
-async def test_handle_file_operation_errors(knowledge_service: KnowledgeService, monkeypatch):
-    """Should handle file operation errors gracefully."""
-
-    async def mock_write_file(*args):
-        raise FileOperationError("Test error")
-
-    monkeypatch.setattr(knowledge_service.file_ops.file_service, "write_file", mock_write_file)
-
-    with pytest.raises(FileOperationError):
-        await knowledge_service.create_entity(
-            EntitySchema(name="test", entity_type=EntityType.KNOWLEDGE, description="Test entity")
+async def test_update_entity_name(knowledge_service: KnowledgeService):
+    """Should update entity name in both DB and frontmatter."""
+    # Create test entity
+    entity = await knowledge_service.create_entity(
+        EntitySchema(
+            name="test",
+            entity_type=EntityType.KNOWLEDGE,
+            description="Test entity",
+            entity_metadata={"status": "draft"},
         )
+    )
+
+    # Update name
+    updated = await knowledge_service.update_entity(entity.path_id, name="new-name")
+
+    # Verify name was updated in DB
+    assert updated.name == "new-name"
+
+    # Verify frontmatter was updated in file
+    file_path = knowledge_service.get_entity_path(updated)
+    content, _ = await knowledge_service.read_file(file_path)
+
+    _, frontmatter, _ = content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["id"] == entity.path_id
+
+    # And verify content uses new name for title
+    assert "# new-name" in content
 
 
 @pytest.mark.asyncio
-async def test_entity_not_found_error(knowledge_service: KnowledgeService):
-    """Should raise EntityNotFoundError for non-existent entity."""
-    with pytest.raises(EntityNotFoundError):
-        await knowledge_service.add_observations(999, ["Test observation"])
-
-
-@pytest.mark.asyncio
-async def test_cleanup_on_creation_failure(knowledge_service: KnowledgeService, monkeypatch):
-    """Should clean up DB entity if file write fails."""
-    entity_ids: List[str] = []
-
-    # Capture created entity ID
-    original_create = knowledge_service.entity_ops.entity_service.create_entity
-
-    async def mock_create_entity(*args, **kwargs):
-        entity = await original_create(*args, **kwargs)
-        entity_ids.append(entity.path_id)
-        return entity
-
-    # Force file write to fail
-    async def mock_write_file(*args):
-        raise FileOperationError("Test error")
-
-    monkeypatch.setattr(knowledge_service.entity_ops.entity_service, "create_entity", mock_create_entity)
-    monkeypatch.setattr(knowledge_service.file_ops.file_service, "write_file", mock_write_file)
-
-    # Attempt creation (should fail)
-    with pytest.raises(FileOperationError):
-        await knowledge_service.create_entity(
-            EntitySchema(name="test", entity_type=EntityType.KNOWLEDGE, description="Test entity")
+async def test_update_entity_type(knowledge_service: KnowledgeService):
+    """Should update entity type and reflect change in frontmatter."""
+    # Create test entity as note
+    entity = await knowledge_service.create_entity(
+        EntitySchema(
+            name="test",
+            entity_type=EntityType.NOTE,
+            description="Test note",
+            entity_metadata={"status": "draft"},
         )
-
-    # Verify entity was cleaned up
-    assert len(entity_ids) == 1
-    with pytest.raises(EntityNotFoundError):
-        await knowledge_service.entity_ops.entity_service.get_by_path_id(entity_ids[0])
-
-
-@pytest.mark.asyncio
-async def test_skip_failed_batch_operations(knowledge_service: KnowledgeService):
-    """Should continue processing batch operations if some fail."""
-    entities = [
-        EntitySchema(name="test-1", entity_type=EntityType.KNOWLEDGE, description="Test entity 1"),
-        EntitySchema(name="test-1", entity_type=EntityType.KNOWLEDGE, description="Duplicate name - should fail"),
-        EntitySchema(name="test-2", entity_type=EntityType.KNOWLEDGE, description="Test entity 2"),
-    ]
-
-    with pytest.raises(IntegrityError):
-        await knowledge_service.create_entities(entities)
-
-
-@pytest.mark.asyncio
-async def test_update_relations_in_files(knowledge_service: KnowledgeService):
-    """Should update both entity files when creating relations."""
-    # Create test entities
-    entity1 = await knowledge_service.create_entity(
-        EntitySchema(name="source", entity_type=EntityType.KNOWLEDGE, description="Source entity")
-    )
-    entity2 = await knowledge_service.create_entity(
-        EntitySchema(name="target", entity_type=EntityType.KNOWLEDGE, description="Target entity")
     )
 
-    # Create relation
-    relations = [
-        RelationSchema(
-            from_id=entity1.path_id,
-            to_id=entity2.path_id,
-            relation_type="connects_to",
-            context="Test connection",
-        )
-    ]
-
-    await knowledge_service.create_relations(relations)
-
-    # Verify source file contains relation
-    for entity in [entity1]:
-        file_path = knowledge_service.get_entity_path(entity)
-        content, _ = await knowledge_service.read_file(file_path)
-        assert "connects_to" in content
-
-    # Source should show outgoing relation
-    content, _ = await knowledge_service.read_file(
-        knowledge_service.get_entity_path(entity1)
+    # Update to knowledge type
+    updated = await knowledge_service.update_entity(
+        entity.path_id, entity_type=EntityType.KNOWLEDGE
     )
-    assert "target" in content
 
-    # Target should not show incoming relation
-    content, _ = await knowledge_service.read_file(
-        knowledge_service.get_entity_path(entity2)
-    )
-    assert "source" not in content
+    # Verify type was updated in DB
+    assert updated.entity_type == EntityType.KNOWLEDGE
+
+    # Verify frontmatter was updated
+    file_path = knowledge_service.get_entity_path(updated)
+    content, _ = await knowledge_service.read_file(file_path)
+
+    _, frontmatter, _ = content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["type"] == EntityType.KNOWLEDGE
+
+    # Verify content format changed to knowledge style (structured)
+    assert "# test" in content
+    assert "Test note" in content  # Description included

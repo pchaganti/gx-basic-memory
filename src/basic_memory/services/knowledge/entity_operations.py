@@ -1,6 +1,7 @@
 """Entity operations for knowledge service."""
 
-from typing import Sequence, List
+from datetime import datetime, UTC
+from typing import Sequence, List, Dict, Any, Optional
 
 from loguru import logger
 
@@ -62,6 +63,72 @@ class EntityOperations:
             created.append(created_entity)
             
         return created
+
+    async def update_entity(
+            self,
+            path_id: str,
+            content: Optional[str] = None,
+            metadata: Optional[Dict[str, Any]] = None,
+            **update_fields: Any
+    ) -> EntityModel:
+        """Update an entity's content and metadata.
+
+        Args:
+            path_id: Entity's path ID
+            content: Optional new content
+            metadata: Optional metadata updates
+            **update_fields: Additional entity fields to update
+
+        Returns:
+            Updated entity
+
+        Raises:
+            EntityNotFoundError: If entity doesn't exist
+        """
+        logger.debug(f"Updating entity with path_id: {path_id}")
+
+        # Get existing entity
+        entity = await self.entity_service.get_by_path_id(path_id)
+        if not entity:
+            raise EntityNotFoundError(f"Entity not found: {path_id}")
+
+        try:
+            # Build update data
+            update_data = {}
+
+            # Add any direct field updates
+            if update_fields:
+                update_data.update(update_fields)
+
+            # Handle metadata update
+            if metadata is not None:
+                # Update existing metadata
+                new_metadata = dict(entity.entity_metadata or {})
+                new_metadata.update(metadata)
+                update_data["entity_metadata"] = new_metadata
+
+            # Update entity in database if we have changes
+            if update_data:
+                entity = await self.entity_service.update_entity(
+                    entity.path_id, update_data
+                )
+
+            # Always write file if we have any updates
+            if update_data or content is not None:
+                _, checksum = await self.file_operations.write_entity_file(
+                    entity=entity,
+                    content=content
+                )
+                # Update checksum in DB
+                entity = await self.entity_service.update_entity(
+                    entity.path_id, {"checksum": checksum}
+                )
+
+            return entity
+
+        except Exception as e:
+            logger.error(f"Failed to update entity: {e}")
+            raise
 
     async def delete_entity(self, path_id: str) -> bool:
         """Delete entity and its file."""

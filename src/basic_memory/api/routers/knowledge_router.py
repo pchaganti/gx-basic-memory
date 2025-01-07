@@ -21,6 +21,7 @@ from basic_memory.schemas import (
     DeleteObservationsRequest,
     DeleteRelationsRequest,
     DeleteEntitiesRequest,
+    UpdateEntityRequest,
 )
 from basic_memory.schemas.base import PathId
 from basic_memory.services.exceptions import EntityNotFoundError
@@ -47,6 +48,31 @@ async def create_entities(
     return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )
+
+
+@router.put("/entities/{path_id:path}", response_model=EntityResponse)
+async def update_entity(
+    path_id: PathId,
+    data: UpdateEntityRequest,
+    background_tasks: BackgroundTasks,
+    knowledge_service: KnowledgeServiceDep,
+    search_service = Depends(get_search_service)
+) -> EntityResponse:
+    """Update an existing entity and reindex it."""
+    try:
+        # Convert request to dict, excluding None values
+        update_data = data.model_dump(exclude_none=True)
+        
+        # Update the entity
+        updated_entity = await knowledge_service.update_entity(path_id, update_data)
+        
+        # Reindex since content changed
+        await search_service.index_entity(updated_entity, background_tasks=background_tasks)
+        
+        return EntityResponse.model_validate(updated_entity)
+        
+    except EntityNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Entity with {path_id} not found")
 
 
 @router.post("/relations", response_model=EntityListResponse)
@@ -98,7 +124,6 @@ async def get_entity(path_id: PathId, entity_service: EntityServiceDep) -> Entit
         return EntityResponse.model_validate(entity)
     except EntityNotFoundError:
         raise HTTPException(status_code=404, detail=f"Entity with {path_id} not found")
-
 
 
 @router.post("/nodes", response_model=EntityListResponse)

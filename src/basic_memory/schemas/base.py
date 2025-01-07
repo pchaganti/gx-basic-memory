@@ -251,6 +251,7 @@ class Entity(BaseModel):
     name: str
     entity_type: EntityType
     entity_metadata: Optional[Dict] = Field(default=None, description="Optional metadata")
+    content: Optional[str] = None
     description: Optional[str] = None
     observations: List[Observation] = []
 

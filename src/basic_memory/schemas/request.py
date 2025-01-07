@@ -5,7 +5,7 @@ from annotated_types import MaxLen, MinLen
 
 from pydantic import BaseModel, StringConstraints
 
-from basic_memory.schemas.base import Observation, Entity, Relation, PathId, ObservationCategory
+from basic_memory.schemas.base import Observation, Entity, Relation, PathId, ObservationCategory, EntityType
 
 
 class ObservationCreate(BaseModel):
@@ -88,7 +88,15 @@ class CreateRelationsRequest(BaseModel):
     relations: List[Relation]
 
 
-## document
+## update
+
+class UpdateEntityRequest(BaseModel):
+    """Request to update an existing entity."""
+    name: Optional[str] = None
+    entity_type: Optional[EntityType] = None
+    description: Optional[str] = None
+    content: Optional[str] = None
+    entity_metadata: Optional[Dict[str, Any]] = None
 
 
 DocumentPathId = Annotated[
