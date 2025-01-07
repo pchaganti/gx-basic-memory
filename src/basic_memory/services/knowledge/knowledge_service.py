@@ -76,6 +76,9 @@ class KnowledgeService:
     async def get_entity_by_path_id(self, path_id: str) -> EntityModel:
         return await self.entity_ops.get_by_path_id(path_id)
 
+    async def read_entity_content(self, entity: EntityModel) -> str:
+        return await self.entity_ops.read_entity_content(entity)
+
     async def create_entity(self, entity: EntitySchema) -> EntityModel:
         """Create a new entity."""
         return await self.entity_ops.create_entity(entity)

@@ -23,7 +23,7 @@ from basic_memory.schemas import (
     DeleteEntitiesRequest,
     UpdateEntityRequest,
 )
-from basic_memory.schemas.base import PathId
+from basic_memory.schemas.base import PathId, EntityType
 from basic_memory.services.exceptions import EntityNotFoundError
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -117,14 +117,20 @@ async def add_observations(
 
 
 @router.get("/entities/{path_id:path}", response_model=EntityResponse)
-async def get_entity(path_id: PathId, entity_service: EntityServiceDep) -> EntityResponse:
+async def get_entity(path_id: PathId, knowledge_service: KnowledgeServiceDep) -> EntityResponse:
     """Get a specific entity by ID."""
     try:
-        entity = await entity_service.get_by_path_id(path_id)
-        return EntityResponse.model_validate(entity)
+        entity = await knowledge_service.get_entity_by_path_id(path_id)
+        entity_response = EntityResponse.model_validate(entity)
+        
+        # if the entity is a note, we add the content via reading from the file
+        if entity_response.entity_type == EntityType.NOTE:
+            content = await knowledge_service.read_entity_content(entity)
+            entity_response.content = content
+
+        return entity_response
     except EntityNotFoundError:
         raise HTTPException(status_code=404, detail=f"Entity with {path_id} not found")
-
 
 @router.post("/nodes", response_model=EntityListResponse)
 async def open_nodes(data: OpenNodesRequest, entity_service: EntityServiceDep) -> EntityListResponse:

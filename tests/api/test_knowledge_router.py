@@ -373,6 +373,8 @@ async def test_full_knowledge_flow(client: AsyncClient):
         },
     )
     assert relations_response.status_code == 200
+    relations_entities = relations_response.json()
+    assert len(relations_entities["entities"]) == 3 
 
     # 4. Add observations to main entity
     await client.post(
@@ -627,7 +629,7 @@ async def test_update_entity_type_conversion(client: AsyncClient):
     # Get latest to verify file format
     response = await client.get(f"/knowledge/entities/{updated['path_id']}")
     knowledge = response.json()
-    assert "# test-note" in knowledge["content"]  # Knowledge format
+    assert knowledge.get("content") is None 
 
 
 @pytest.mark.asyncio
@@ -695,3 +697,36 @@ async def test_update_entity_search_index(client: AsyncClient):
     results = search_response.json()["results"]
     assert len(results) == 1
     assert results[0]["path_id"] == entity["path_id"]
+    
+    
+
+@pytest.mark.asyncio
+async def test_get_entity_with_relations(client: AsyncClient):
+    """Test get response includes relations for both types."""
+    # Create a note and knowledge entity
+    note = await client.post("/knowledge/entities", json={"entities": [{
+        "name": "test-note",
+        "entity_type": EntityType.NOTE,
+        "description": "Test note"
+    }]})
+    knowledge = await client.post("/knowledge/entities", json={"entities": [{
+        "name": "test-knowledge",
+        "entity_type": EntityType.KNOWLEDGE,
+        "description": "Test knowledge"
+    }]})
+
+    # Add some relations between them
+    await client.post("/knowledge/relations", json={
+        "relations": [{
+            "from_id": note.json()["entities"][0]["path_id"],
+            "to_id": knowledge.json()["entities"][0]["path_id"],
+            "relation_type": "references"
+        }]
+    })
+
+    # Verify GET returns relations for both types
+    note_response = await client.get(f"/knowledge/entities/{note.json()['entities'][0]['path_id']}")
+    knowledge_response = await client.get(f"/knowledge/entities/{knowledge.json()['entities'][0]['path_id']}")
+
+    assert len(note_response.json()["relations"]) == 1
+    assert len(knowledge_response.json()["relations"]) == 1

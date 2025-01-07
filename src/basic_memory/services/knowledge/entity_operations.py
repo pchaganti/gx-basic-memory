@@ -1,7 +1,7 @@
 """Entity operations for knowledge service."""
 
 from datetime import datetime, UTC
-from typing import Sequence, List, Dict, Any, Optional
+from typing import Sequence, List, Dict, Any, Optional, Tuple
 
 from loguru import logger
 
@@ -10,6 +10,7 @@ from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.services.entity_service import EntityService
 from basic_memory.services.exceptions import EntityNotFoundError
 from .file_operations import FileOperations
+from ...models.knowledge import EntityType
 
 
 class EntityOperations:
@@ -24,7 +25,32 @@ class EntityOperations:
 
     async def get_by_path_id(self, path_id: str) -> EntityModel:
         """Get entity by path ID."""
-        return await self.entity_service.get_by_path_id(path_id)    
+        return await self.entity_service.get_by_path_id(path_id)
+
+    async def read_entity_content(self, entity: EntityModel) -> str:
+        """Get entity's content if it's a note.
+
+        Args:
+            path_id: Entity's path ID
+
+        Returns:
+            content without frontmatter
+
+        Raises:
+            FileOperationError: If entity file doesn't exist
+        """
+        logger.debug(f"Reading entity with path_id: {entity.path_id}")
+
+
+        if entity.entity_type != EntityType.NOTE:
+            raise ValueError(f"Entity type {entity.entity_type} not supported")
+            
+        # For notes, read the actual file content
+        file_path = self.file_operations.get_entity_path(entity)
+        content, _ = await self.file_operations.read_file(file_path)
+        # Strip frontmatter from content
+        _, _, content = content.split("---", 2)
+        return content.strip()
 
     async def create_entity(self, entity: EntitySchema) -> EntityModel:
         """Create a new entity and write to filesystem."""
