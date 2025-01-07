@@ -34,10 +34,10 @@ Common Relation Types:
 
 import re
 from enum import Enum
-from typing import List, Optional, Annotated
+from typing import List, Optional, Annotated, Dict
 
 from annotated_types import MinLen, MaxLen
-from pydantic import BaseModel, BeforeValidator
+from pydantic import BaseModel, BeforeValidator, Field
 
 
 def to_snake_case(name: str) -> str:
@@ -122,17 +122,15 @@ Examples:
 - "Depends on SQLAlchemy for database operations"
 """
 
-EntityType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
-"""Classification of entity (e.g., 'person', 'project', 'concept'). 
 
-The type serves multiple purposes:
-1. Organizes entities in the filesystem
-2. Enables filtering and querying
-3. Provides context for relations
-4. Helps generate meaningful IDs
+class EntityType(str, Enum):
+    """Type of entity. 
 
-Common types are listed in the module docstring.
-"""
+    - knowledge: Contain information used in the semantic graph
+    - note: Free form information 
+    """
+    KNOWLEDGE = "knowledge"
+    NOTE = "note"
 
 RelationType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
 """Type of relationship between entities. Always use active voice present tense.
@@ -252,6 +250,7 @@ class Entity(BaseModel):
 
     name: str
     entity_type: EntityType
+    entity_metadata: Optional[Dict] = Field(default=None, description="Optional metadata")
     description: Optional[str] = None
     observations: List[Observation] = []
 

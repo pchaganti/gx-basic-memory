@@ -40,10 +40,5 @@ class Document(Base):
         DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
     )
 
-    # Relationships
-    entities: Mapped[List["Entity"]] = relationship(  # pyright: ignore [reportUndefinedVariable]  # noqa: F821
-        "Entity", back_populates="document", cascade="all, delete-orphan"
-    )
-
     def __repr__(self) -> str:
         return f"Document(id={self.id}, path_id='{self.path_id}',  checksum='{self.checksum}', created_at='{self.created_at}', updated_at='{self.updated_at}')"

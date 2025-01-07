@@ -121,6 +121,7 @@ class EntityResponse(SQLAlchemyModel):
     path_id: PathId
     name: str
     entity_type: EntityType
+    entity_metadata: Optional[Dict] = None
     description: Optional[str] = None
     observations: List[ObservationResponse] = []
     relations: List[RelationResponse] = []

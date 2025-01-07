@@ -26,7 +26,6 @@ class EntityRepository(Repository[Entity]):
     async def list_entities(
             self,
             entity_type: Optional[str] = None,
-            doc_id: Optional[int] = None,
             sort_by: Optional[str] = "updated_at",
             include_related: bool = False,
     ) -> Sequence[Entity]:
@@ -52,9 +51,6 @@ class EntityRepository(Repository[Entity]):
             else:
                 query = query.where(Entity.entity_type == entity_type)
 
-        if doc_id:
-            query = query.where(Entity.doc_id == doc_id)
-
         # Apply sorting
         if sort_by:
             sort_field = getattr(Entity, sort_by, Entity.updated_at)
@@ -63,42 +59,6 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query)
         return list(result.scalars().all())
 
-    async def get_entity_types(self) -> List[str]:
-        """Get list of distinct entity types."""
-        query = select(Entity.entity_type).distinct()
-
-        result = await self.execute_query(query, use_query_options=False)
-        return list(result.scalars().all())
-
-    async def search(self, query_str: str) -> List[Entity]:
-        """
-        Search for entities.
-
-        Searches across:
-        - Entity names
-        - Entity types
-        - Entity descriptions
-        - Associated Observations content
-        """
-        search_term = f"%{query_str}%"
-        query = (
-            self.select()
-            .where(
-                or_(
-                    Entity.name.ilike(search_term),
-                    Entity.entity_type.ilike(search_term),
-                    Entity.description.ilike(search_term),
-                    Entity.observations.any(Observation.content.ilike(search_term)),
-                )
-            )
-            .options(*self.get_load_options())
-        )
-        result = await self.execute_query(query)
-        return list(result.scalars().all())
-
-    async def delete_entities_by_doc_id(self, doc_id: int) -> bool:
-        """Delete all entities associated with a document."""
-        return await self.delete_by_fields(doc_id=doc_id)
 
     async def delete_by_file_path(self, file_path: str) -> bool:
         """Delete entity with the provided file_path."""

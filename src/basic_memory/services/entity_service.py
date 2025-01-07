@@ -15,6 +15,7 @@ def entity_model(entity: EntitySchema):
     model = EntityModel(
         name=entity.name,
         entity_type=entity.entity_type,
+        entity_metadata=entity.entity_metadata,
         path_id=entity.path_id,
         file_path=entity.file_path,
         description=entity.description,
@@ -28,11 +29,6 @@ class EntityService(BaseService[EntityModel]):
 
     def __init__(self, entity_repository: EntityRepository):
         super().__init__(entity_repository)
-
-    async def search(self, query: str) -> Sequence[EntityModel]:
-        """Search entities using LIKE pattern matching."""
-        logger.debug(f"Searching entities with query: {query}")
-        return await self.repository.search(query)
 
     async def create_entity(self, entity: EntitySchema) -> EntityModel:
         """Create a new entity in the database."""

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory.models import Entity as EntityModel
 from basic_memory.repository.entity_repository import EntityRepository
-from basic_memory.schemas import Entity
+from basic_memory.schemas import Entity as EntitySchema, EntityType
 from basic_memory.services.entity_service import EntityService
 from basic_memory.services.exceptions import EntityNotFoundError
 
@@ -27,9 +27,9 @@ async def entity_service(entity_repository: EntityRepository) -> EntityService:
 
 async def test_create_entity(entity_service: EntityService):
     """Test successful entity creation."""
-    entity_data = Entity(
+    entity_data = EntitySchema(
         name="TestEntity",
-        entity_type="test",
+        entity_type=EntityType.KNOWLEDGE,
         description="A test entity description",
         observations=["this is a test observation"],
     )
@@ -42,7 +42,7 @@ async def test_create_entity(entity_service: EntityService):
     assert entity.name == "TestEntity"
     assert entity.path_id == entity_data.path_id
     assert entity.file_path == entity_data.file_path
-    assert entity.entity_type == "test"
+    assert entity.entity_type == EntityType.KNOWLEDGE
     assert entity.description == "A test entity description"
     assert entity.created_at is not None
     assert entity.observations[0].content == "this is a test observation"
@@ -52,7 +52,7 @@ async def test_create_entity(entity_service: EntityService):
     retrieved = await entity_service.get_by_path_id(entity_data.path_id)
     assert retrieved.description == "A test entity description"
     assert retrieved.name == "TestEntity"
-    assert retrieved.entity_type == "test"
+    assert retrieved.entity_type == EntityType.KNOWLEDGE
     assert retrieved.description == "A test entity description"
     assert retrieved.created_at is not None
     assert retrieved.observations[0].content == "this is a test observation"
@@ -61,15 +61,15 @@ async def test_create_entity(entity_service: EntityService):
 async def test_create_entities(entity_service: EntityService):
     """Test successful entity creation."""
     entity_data = [
-        Entity(
+        EntitySchema(
             name="TestEntity1",
-            entity_type="test",
+            entity_type=EntityType.KNOWLEDGE,
             description="A test entity description",
             observations=["this is a test observation"],
         ),
-        Entity(
+        EntitySchema(
             name="TestEntity2",
-            entity_type="test",
+            entity_type=EntityType.KNOWLEDGE,
             description="A test entity description",
             observations=["this is a test observation"],
         ),
@@ -83,7 +83,7 @@ async def test_create_entities(entity_service: EntityService):
     entity1 = entities[0]
     assert isinstance(entity1, EntityModel)
     assert entity1.name == "TestEntity1"
-    assert entity1.entity_type == "test"
+    assert entity1.entity_type == EntityType.KNOWLEDGE
     assert entity1.description == "A test entity description"
     assert entity1.created_at is not None
     assert entity1.observations[0].content == "this is a test observation"
@@ -92,7 +92,7 @@ async def test_create_entities(entity_service: EntityService):
     entity2 = entities[1]
     assert isinstance(entity1, EntityModel)
     assert entity2.name == "TestEntity2"
-    assert entity2.entity_type == "test"
+    assert entity2.entity_type == EntityType.KNOWLEDGE
     assert entity2.description == "A test entity description"
     assert entity2.created_at is not None
     assert entity2.observations[0].content == "this is a test observation"
@@ -107,18 +107,17 @@ async def test_create_entities(entity_service: EntityService):
 
 async def test_get_by_path_id(entity_service: EntityService):
     """Test finding entity by type and name combination."""
-    # Create two entities with same name but different types
-    entity1_data = Entity(
-        name="TestEntity",
-        entity_type="type1",
+    entity1_data = EntitySchema(
+        name="TestEntity1",
+        entity_type=EntityType.KNOWLEDGE,
         description="First test entity",
         observations=[],
     )
     entity1 = await entity_service.create_entity(entity1_data)
 
-    entity2_data = Entity(
-        name="TestEntity",  # Same name
-        entity_type="type2",  # Different type
+    entity2_data = EntitySchema(
+        name="TestEntity2", 
+        entity_type=EntityType.KNOWLEDGE,
         description="Second test entity",
         observations=[],
     )
@@ -128,14 +127,14 @@ async def test_get_by_path_id(entity_service: EntityService):
     found = await entity_service.get_by_path_id(entity1_data.path_id)
     assert found is not None
     assert found.id == entity1.id
-    assert found.entity_type == "type1"
+    assert found.entity_type == entity1.entity_type
     assert found.description == "First test entity"
 
     # Find by type2 and name
     found = await entity_service.get_by_path_id(entity2_data.path_id)
     assert found is not None
     assert found.id == entity2.id
-    assert found.entity_type == "type2"
+    assert found.entity_type == entity2.entity_type
     assert found.description == "Second test entity"
 
     # Test not found case
@@ -145,7 +144,7 @@ async def test_get_by_path_id(entity_service: EntityService):
 
 async def test_create_entity_no_description(entity_service: EntityService):
     """Test creating entity without description (should be None)."""
-    entity_data = Entity(name="TestEntity", entity_type="test", observations=[])
+    entity_data = EntitySchema(name="TestEntity", entity_type=EntityType.KNOWLEDGE, observations=[])
 
     entity = await entity_service.create_entity(entity_data)
     assert entity.description is None
@@ -157,9 +156,9 @@ async def test_create_entity_no_description(entity_service: EntityService):
 
 async def test_get_entity_success(entity_service: EntityService):
     """Test successful entity retrieval."""
-    entity_data = Entity(
+    entity_data = EntitySchema(
         name="TestEntity",
-        entity_type="test",
+        entity_type=EntityType.KNOWLEDGE,
         description="Test description",
         observations=[],
     )
@@ -170,15 +169,15 @@ async def test_get_entity_success(entity_service: EntityService):
 
     assert isinstance(retrieved, EntityModel)
     assert retrieved.name == "TestEntity"
-    assert retrieved.entity_type == "test"
+    assert retrieved.entity_type == EntityType.KNOWLEDGE
     assert retrieved.description == "Test description"
 
 
 async def test_update_entity_description(entity_service: EntityService):
     """Test updating an entity's description."""
-    entity_data = Entity(
+    entity_data = EntitySchema(
         name="TestEntity",
-        entity_type="test",
+        entity_type=EntityType.KNOWLEDGE,
         description="Initial description",
         observations=[],
     )
@@ -197,9 +196,9 @@ async def test_update_entity_description(entity_service: EntityService):
 
 async def test_update_entity_description_to_none(entity_service: EntityService):
     """Test updating an entity's description to None."""
-    entity_data = Entity(
+    entity_data = EntitySchema(
         name="TestEntity",
-        entity_type="test",
+        entity_type=EntityType.KNOWLEDGE,
         description="Initial description",
         observations=[],
     )
@@ -216,9 +215,9 @@ async def test_update_entity_description_to_none(entity_service: EntityService):
 
 async def test_delete_entity_success(entity_service: EntityService):
     """Test successful entity deletion."""
-    entity_data = Entity(
+    entity_data = EntitySchema(
         name="TestEntity",
-        entity_type="test",
+        entity_type=EntityType.KNOWLEDGE,
         observations=[],
     )
     await entity_service.create_entity(entity_data)
@@ -248,9 +247,9 @@ async def test_create_entity_with_special_chars(entity_service: EntityService):
     """Test entity creation with special characters in name and description."""
     name = "TestEntity_Special"  # Note: Using valid path characters
     description = "Description with $pecial chars & symbols!"
-    entity_data = Entity(
+    entity_data = EntitySchema(
         name=name,
-        entity_type="test",
+        entity_type=EntityType.KNOWLEDGE,
         description=description,
     )
     entity = await entity_service.create_entity(entity_data)
@@ -266,9 +265,9 @@ async def test_create_entity_with_special_chars(entity_service: EntityService):
 async def test_create_entity_long_description(entity_service: EntityService):
     """Test creating entity with a long description."""
     long_description = "A" * 1000  # 1000 character description
-    entity_data = Entity(
+    entity_data = EntitySchema(
         name="TestEntity",
-        entity_type="test",
+        entity_type=EntityType.KNOWLEDGE,
         description=long_description,
         observations=[],
     )
@@ -284,15 +283,15 @@ async def test_create_entity_long_description(entity_service: EntityService):
 async def test_open_nodes_by_path_ids(entity_service: EntityService):
     """Test opening multiple nodes by path IDs."""
     # Create test entities
-    entity1_data = Entity(
+    entity1_data = EntitySchema(
         name="Entity1",
-        entity_type="type1",
+        entity_type=EntityType.KNOWLEDGE,
         description="First entity",
         observations=[],
     )
-    entity2_data = Entity(
+    entity2_data = EntitySchema(
         name="Entity2",
-        entity_type="type2",
+        entity_type=EntityType.KNOWLEDGE,
         description="Second entity",
         observations=[],
     )
@@ -317,9 +316,9 @@ async def test_open_nodes_empty_input(entity_service: EntityService):
 async def test_open_nodes_some_not_found(entity_service: EntityService):
     """Test opening nodes with mix of existing and non-existent path IDs."""
     # Create one test entity
-    entity_data = Entity(
+    entity_data = EntitySchema(
         name="Entity1",
-        entity_type="type1",
+        entity_type=EntityType.KNOWLEDGE,
         description="Test entity",
         observations=[],
     )
@@ -336,15 +335,15 @@ async def test_open_nodes_some_not_found(entity_service: EntityService):
 async def test_delete_entities_by_path_ids(entity_service: EntityService):
     """Test deleting multiple entities by path IDs."""
     # Create test entities
-    entity1_data = Entity(
+    entity1_data = EntitySchema(
         name="Entity1",
-        entity_type="type1",
+        entity_type=EntityType.KNOWLEDGE,
         description="First entity",
         observations=[],
     )
-    entity2_data = Entity(
+    entity2_data = EntitySchema(
         name="Entity2",
-        entity_type="type2",
+        entity_type=EntityType.KNOWLEDGE,
         description="Second entity",
         observations=[],
     )

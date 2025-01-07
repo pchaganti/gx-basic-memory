@@ -100,19 +100,6 @@ async def get_entity(path_id: PathId, entity_service: EntityServiceDep) -> Entit
         raise HTTPException(status_code=404, detail=f"Entity with {path_id} not found")
 
 
-@router.post("/search", response_model=SearchNodesResponse)
-async def search_nodes(
-    data: SearchNodesRequest, entity_service: EntityServiceDep
-) -> SearchNodesResponse:
-    """Search for entities in the knowledge graph."""
-    logger.debug(f"Searching nodes with query: {data.query}")
-    matches = await entity_service.search(data.query)
-    logger.debug(f"Found {len(matches)} matches for '{data.query}'")
-
-    return SearchNodesResponse(
-        matches=[EntityResponse.model_validate(entity) for entity in matches], query=data.query
-    )
-
 
 @router.post("/nodes", response_model=EntityListResponse)
 async def open_nodes(data: OpenNodesRequest, entity_service: EntityServiceDep) -> EntityListResponse:

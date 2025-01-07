@@ -13,7 +13,7 @@ from basic_memory.db import DatabaseType
 from basic_memory.markdown.knowledge_parser import KnowledgeParser
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.models import Base
-from basic_memory.models.knowledge import Entity
+from basic_memory.models.knowledge import Entity, EntityType
 from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
@@ -243,7 +243,7 @@ async def sample_entity(entity_repository: EntityRepository) -> Entity:
     """Create a sample entity for testing."""
     entity_data = {
         "name": "Test Entity",
-        "entity_type": "test",
+        "entity_type": EntityType.KNOWLEDGE,
         "description": "A test entity",
         "path_id": "test/test_entity",
         "file_path": "test/test_entity.md",
