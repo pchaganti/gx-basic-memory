@@ -7,7 +7,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DATABASE_NAME = "memory.db"
 KNOWLEDGE_DIR_NAME = "knowledge"
-DOCUMENTS_DIR_NAME = "documents"
 DATA_DIR_NAME = "data"
 
 
@@ -31,11 +30,6 @@ class ProjectConfig(BaseSettings):
     def knowledge_dir(self) -> Path:
         """Get knowledge directory path."""
         return self.home / KNOWLEDGE_DIR_NAME
-
-    @property
-    def documents_dir(self) -> Path:
-        """Get documents directory path."""
-        return self.home / DOCUMENTS_DIR_NAME
 
     @property
     def database_path(self) -> Path:

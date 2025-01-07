@@ -15,7 +15,6 @@ from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.markdown.note_writer import NoteWriter
 from basic_memory.models import Base
 from basic_memory.models.knowledge import Entity, EntityType
-from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
@@ -24,7 +23,6 @@ from basic_memory.services import (
     EntityService,
     ObservationService,
     RelationService,
-    DocumentService,
 )
 from basic_memory.services import KnowledgeService
 from basic_memory.services.activity_service import ActivityService
@@ -76,23 +74,6 @@ async def session_maker(engine_factory) -> async_sessionmaker[AsyncSession]:
     _, session_maker = engine_factory
     return session_maker
 
-
-@pytest_asyncio.fixture(scope="function")
-async def document_repository(
-    session_maker: async_sessionmaker[AsyncSession],
-) -> DocumentRepository:
-    """Create a DocumentRepository instance."""
-    return DocumentRepository(session_maker)
-
-
-@pytest_asyncio.fixture(scope="function")
-async def document_service(
-    document_repository: DocumentRepository,
-    test_config: ProjectConfig,
-    file_service: FileService,
-) -> DocumentService:
-    """Create a DocumentService instance."""
-    return DocumentService(document_repository, test_config.documents_dir, file_service)
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -162,9 +143,9 @@ def knowledge_parser():
 
 
 @pytest_asyncio.fixture
-def file_change_scanner(document_repository, entity_repository) -> FileChangeScanner:
+def file_change_scanner(entity_repository) -> FileChangeScanner:
     """Create FileChangeScanner instance."""
-    return FileChangeScanner(document_repository, entity_repository)
+    return FileChangeScanner(entity_repository)
 
 
 @pytest_asyncio.fixture
@@ -207,7 +188,6 @@ async def knowledge_sync_service(
 
 @pytest_asyncio.fixture
 async def sync_service(
-    document_service: DocumentService,
     knowledge_sync_service: KnowledgeSyncService,
     file_change_scanner: FileChangeScanner,
     knowledge_parser: KnowledgeParser,
@@ -216,7 +196,6 @@ async def sync_service(
     """Create sync service for testing."""
     return SyncService(
         scanner=file_change_scanner,
-        document_service=document_service,
         knowledge_sync_service=knowledge_sync_service,
         knowledge_parser=knowledge_parser,
         search_service=search_service,
@@ -238,10 +217,9 @@ async def init_search_index(search_service):
 async def search_service(
     search_repository: SearchRepository,
     entity_service: EntityService,
-    document_service: DocumentService,
 ) -> SearchService:
     """Create and initialize search service"""
-    service = SearchService(search_repository, document_service, entity_service)
+    service = SearchService(search_repository, entity_service)
     await service.init_search_index()
     return service
 

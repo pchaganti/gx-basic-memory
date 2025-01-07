@@ -13,7 +13,7 @@ from basic_memory import db
 from basic_memory.cli.app import app
 from basic_memory.config import config
 from basic_memory.db import DatabaseType
-from basic_memory.repository import DocumentRepository, EntityRepository
+from basic_memory.repository import EntityRepository
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.utils import SyncReport
 
@@ -27,9 +27,8 @@ async def get_file_change_scanner(db_type=DatabaseType.FILESYSTEM) -> FileChange
         engine,
         session_maker,
     ):
-        document_repository = DocumentRepository(session_maker)
         entity_repository = EntityRepository(session_maker)
-        file_change_scanner = FileChangeScanner(document_repository, entity_repository)
+        file_change_scanner = FileChangeScanner(entity_repository)
         return file_change_scanner
 
 
@@ -120,10 +119,6 @@ async def run_status(sync_service: FileChangeScanner, verbose: bool = False):
     # Check knowledge/ directory
     knowledge_changes = await sync_service.find_knowledge_changes(config.knowledge_dir)
     display_changes("Knowledge Files", knowledge_changes, verbose)
-
-    # Check documents/ directory
-    document_changes = await sync_service.find_document_changes(config.documents_dir)
-    display_changes("Documents", document_changes, verbose)
 
 
 @app.command()

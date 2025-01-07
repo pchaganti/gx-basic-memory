@@ -6,7 +6,6 @@ from loguru import logger
 
 from basic_memory.config import ProjectConfig
 from basic_memory.markdown import KnowledgeParser
-from basic_memory.services import DocumentService
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
@@ -24,41 +23,15 @@ class SyncService:
     def __init__(
         self,
         scanner: FileChangeScanner,
-        document_service: DocumentService,
         knowledge_sync_service: KnowledgeSyncService,
         knowledge_parser: KnowledgeParser,
         search_service: SearchService,
     ):
         self.scanner = scanner
-        self.document_service = document_service
         self.knowledge_sync_service = knowledge_sync_service
         self.knowledge_parser = knowledge_parser
         self.search_service = search_service
 
-    async def sync_documents(self, directory: Path) -> SyncReport:
-        """Sync document files with database."""
-        changes = await self.scanner.find_document_changes(directory)
-        logger.info(f"Found {changes.total_changes} document changes")
-
-        # Handle deletions first
-        for path in changes.deleted:
-            logger.debug(f"Deleting document: {path}")
-            await self.document_service.delete_document_by_path_id(path)
-
-        # Process new and modified files
-        for path in [*changes.new, *changes.modified]:
-            content = (directory / path).read_text()
-            if path in changes.new:
-                logger.debug(f"Creating new document: {path}")
-                document = await self.document_service.create_document(path_id=path, content=content)
-            else:
-                logger.debug(f"Updating document: {path}")
-                document = await self.document_service.update_document_by_path_id(
-                    path_id=path, content=content
-                )
-            # add to search index                
-            await self.search_service.index_document(document, content)
-        return changes
 
     async def sync_knowledge(self, directory: Path) -> SyncReport:
         """Sync knowledge files with database."""
@@ -102,13 +75,7 @@ class SyncService:
 
         return changes
 
-    async def sync(self, config: ProjectConfig) -> (SyncReport, SyncReport):
+    async def sync(self, config: ProjectConfig) -> SyncReport:
         """Sync all files with database."""
-
-        # Sync documents first (simpler, no relations)
-        doc_changes = await self.sync_documents(config.documents_dir)
-
-        # Then sync knowledge files
         knowledge_changes = await self.sync_knowledge(config.knowledge_dir)
-
-        return doc_changes, knowledge_changes
+        return knowledge_changes

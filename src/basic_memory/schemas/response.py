@@ -213,14 +213,3 @@ class DeleteEntitiesResponse(SQLAlchemyModel):
 
     deleted: bool
 
-
-class DocumentCreateResponse(SQLAlchemyModel):
-    path_id: str
-    checksum: str
-    doc_metadata: Optional[Dict[str, Any]] = None
-    created_at: datetime.datetime
-    updated_at: datetime.datetime
-
-
-class DocumentResponse(DocumentCreateResponse):
-    content: str

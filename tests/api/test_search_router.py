@@ -28,21 +28,6 @@ def test_entity():
     return Entity()
 
 
-@pytest.fixture
-def test_document():
-    """Create a test document."""
-    class Document:
-        id = 1
-        path_id = "docs/test_doc.md"
-        file_path = "docs/test_doc.md"
-        doc_metadata = {
-            "title": "Test Document",
-            "type": "technical"
-        }
-        created_at = datetime.now(timezone.utc)
-        updated_at = datetime.now(timezone.utc)
-    return Document()
-
 
 @pytest_asyncio.fixture
 async def indexed_entity(init_search_index, test_entity, search_service):
@@ -50,13 +35,6 @@ async def indexed_entity(init_search_index, test_entity, search_service):
     await search_service.index_entity(test_entity)
     return test_entity
 
-
-@pytest.fixture
-async def indexed_document(test_document, search_service):
-    """Create a document and index it."""
-    content = "Test document content for search"
-    await search_service.index_document(test_document, content)
-    return test_document, content
 
 
 @pytest.mark.asyncio
@@ -204,19 +182,12 @@ async def test_reindex(
     client,
     search_service,
     entity_service,
-    document_service,
     test_entity,
-    test_document,
     session_maker
 ):
     """Test reindex endpoint."""
     # Create test entity and document
     await entity_service.create_entity(test_entity)
-    await document_service.create_document(
-        test_document.path_id,
-        "Test content",
-        test_document.doc_metadata
-    )
 
     # Clear search index
     async with db.scoped_session(session_maker) as session:
@@ -242,7 +213,7 @@ async def test_reindex(
         json={"text": "test"}
     )
     search_results = SearchResponse.model_validate(search_response.json())
-    assert len(search_results.results) == 2  # Both entity and document should be found
+    assert len(search_results.results) == 1  
 
 
 @pytest.mark.asyncio

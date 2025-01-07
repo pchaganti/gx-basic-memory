@@ -160,9 +160,7 @@ async def test_update_document_index(search_service, test_document):
 async def test_reindex_all(
     search_service,
     entity_service,
-    document_service,
     test_entity,
-    test_document,
     session_maker
 ):
     """Test reindexing all content."""
@@ -171,13 +169,6 @@ async def test_reindex_all(
         test_entity
     )
     
-    document_content = "Test document content"
-    document = await document_service.create_document(
-        test_document.path_id,
-        document_content,
-        test_document.doc_metadata
-    )
-
     # Clear the search index
     async with db.scoped_session(session_maker) as session:
         await session.execute(text("DELETE FROM search_index"))
@@ -198,22 +189,12 @@ async def test_reindex_all(
     assert entity_results[0].path_id == test_entity.path_id
     assert entity_results[0].type == SearchItemType.ENTITY
 
-    # Verify document is searchable
-    doc_results = await search_service.search(
-        SearchQuery(text="document content", types=[SearchItemType.DOCUMENT])
-    )
-    assert len(doc_results) == 1
-    assert doc_results[0].path_id == test_document.path_id
-    assert doc_results[0].type == SearchItemType.DOCUMENT
-
 
 @pytest.mark.asyncio
 async def test_reindex_with_background_tasks(
     search_service,
     entity_service,
-    document_service,
     test_entity,
-    test_document,
     session_maker
 ):
     """Test reindexing with background tasks."""
@@ -221,11 +202,6 @@ async def test_reindex_with_background_tasks(
 
     # Create test data
     entity = await entity_service.create_entity(test_entity)
-    document = await document_service.create_document(
-        test_document.path_id,
-        "Test content",
-        test_document.doc_metadata
-    )
 
     # Clear index
     async with db.scoped_session(session_maker) as session:
@@ -243,4 +219,4 @@ async def test_reindex_with_background_tasks(
 
     # Verify everything was indexed
     all_results = await search_service.search(SearchQuery(text="test"))
-    assert len(all_results) == 2  # Both entity and document should be found
+    assert len(all_results) == 1 

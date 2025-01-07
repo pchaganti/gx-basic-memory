@@ -36,7 +36,7 @@ class Entity(Base):
     - Has a unique numeric ID (database-generated)
     - Maps to a file on disk 
     - Maintains a checksum for change detection
-    - Tracks both source document and semantic properties
+    - Tracks both source file and semantic properties
     """
 
     __tablename__ = "entity"

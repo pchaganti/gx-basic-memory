@@ -98,13 +98,3 @@ class UpdateEntityRequest(BaseModel):
     content: Optional[str] = None
     entity_metadata: Optional[Dict[str, Any]] = None
 
-
-DocumentPathId = Annotated[
-    str, StringConstraints(pattern=r"^[a-zA-Z0-9_/.-]+\.md$"), MinLen(1), MaxLen(255)
-]
-
-
-class DocumentRequest(BaseModel):
-    path_id: DocumentPathId
-    content: str
-    doc_metadata: Optional[Dict[str, Any]] = None

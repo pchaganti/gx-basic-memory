@@ -7,7 +7,6 @@ from loguru import logger
 
 from basic_memory.models import Document, Entity
 from basic_memory.repository.search_repository import SearchRepository
-from basic_memory.services.document_service import DocumentService
 from basic_memory.services.entity_service import EntityService
 from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
 
@@ -18,11 +17,9 @@ class SearchService:
     def __init__(
         self,
         search_repository: SearchRepository,
-        document_service: DocumentService,
         entity_service: EntityService,
     ):
         self.repository = search_repository
-        self.document_service = document_service
         self.entity_service = entity_service
 
     async def init_search_index(self):
@@ -44,15 +41,7 @@ class SearchService:
         entities = await self.entity_service.get_all()
         for entity in entities:
             await self.index_entity(entity, background_tasks)
-            
-        # Reindex all documents
-        logger.debug("Indexing documents")
-        documents = await self.document_service.list_documents()
-        for doc in documents:
-            # Read content for each document
-            doc_with_content = await self.document_service.read_document_by_path_id(doc.path_id)
-            await self.index_document(doc, doc_with_content[1], background_tasks)
-            
+                        
         logger.info("Reindex complete")
 
     async def search(
@@ -106,38 +95,6 @@ class SearchService:
                 path_id=entity.path_id,
                 file_path=entity.file_path,
                 type=SearchItemType.ENTITY,
-                metadata=metadata,
-            )
-
-    async def index_document(
-        self,
-        document: Document, 
-        content: str,
-        background_tasks: Optional[BackgroundTasks] = None
-    ) -> None:
-        """Index a document and its content."""
-        metadata = {
-            **(document.doc_metadata or {}),
-            "created_at": document.created_at.isoformat(),
-            "updated_at": document.updated_at.isoformat(),
-        }
-
-        # Queue indexing if background_tasks provided
-        if background_tasks:
-            background_tasks.add_task(
-                self._do_index,
-                content=content,
-                path_id=document.path_id,
-                file_path=document.file_path,
-                type=SearchItemType.DOCUMENT,
-                metadata=metadata,
-            )
-        else:
-            await self._do_index(
-                content=content,
-                path_id=document.path_id,
-                file_path=document.file_path,
-                type=SearchItemType.DOCUMENT,
                 metadata=metadata,
             )
 

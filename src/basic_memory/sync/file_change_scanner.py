@@ -6,7 +6,6 @@ from typing import Dict, Sequence
 from loguru import logger
 
 from basic_memory.models import Document, Entity
-from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.sync.utils import DbState, SyncReport, ScanResult
 from basic_memory.utils.file_utils import compute_checksum
@@ -19,9 +18,8 @@ class FileChangeScanner:
     """
 
     def __init__(
-        self, document_repository: DocumentRepository, entity_repository: EntityRepository
+        self, entity_repository: EntityRepository
     ):
-        self.document_repository = document_repository
         self.entity_repository = entity_repository
 
     async def scan_directory(self, directory: Path) -> ScanResult:
@@ -141,11 +139,6 @@ class FileChangeScanner:
             :param db_records: the data from the db
         """
         return {r.file_path: DbState(path=r.path_id, checksum=r.checksum) for r in db_records}
-
-    async def find_document_changes(self, directory: Path) -> SyncReport:
-        """Find changes in document directory."""
-        db_records = await self.get_db_file_paths(await self.document_repository.find_all())
-        return await self.find_changes(directory=directory, db_records=db_records)
 
     async def find_knowledge_changes(self, directory: Path) -> SyncReport:
         """Find changes in knowledge directory."""
