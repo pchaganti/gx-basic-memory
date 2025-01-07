@@ -123,6 +123,7 @@ class EntityResponse(SQLAlchemyModel):
     entity_type: EntityType
     entity_metadata: Optional[Dict] = None
     description: Optional[str] = None
+    content: Optional[str] = None
     observations: List[ObservationResponse] = []
     relations: List[RelationResponse] = []
 

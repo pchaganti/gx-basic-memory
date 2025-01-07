@@ -64,7 +64,7 @@ async def update_entity(
         update_data = data.model_dump(exclude_none=True)
         
         # Update the entity
-        updated_entity = await knowledge_service.update_entity(path_id, update_data)
+        updated_entity = await knowledge_service.update_entity(path_id, **update_data)
         
         # Reindex since content changed
         await search_service.index_entity(updated_entity, background_tasks=background_tasks)
