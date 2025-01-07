@@ -8,6 +8,7 @@ import yaml
 from sqlalchemy.exc import IntegrityError
 
 from basic_memory.models import Entity as EntityModel
+from basic_memory.models.knowledge import EntityType
 from basic_memory.schemas import Entity as EntitySchema, Relation as RelationSchema
 from basic_memory.schemas.base import ObservationCategory
 from basic_memory.schemas.request import ObservationCreate
@@ -19,26 +20,28 @@ from basic_memory.services.knowledge import KnowledgeService
 @pytest.mark.asyncio
 async def test_get_entity_path(knowledge_service: KnowledgeService):
     """Should generate correct filesystem path for entity."""
-    entity = EntityModel(id=1, name="test-entity", entity_type="concept", description="Test entity")
+    entity = EntityModel(id=1, path_id="test-entity", name="test-entity", entity_type=EntityType.KNOWLEDGE, description="Test entity")
     path = knowledge_service.get_entity_path(entity)
-    assert path == Path(knowledge_service.base_path / "concept/test-entity.md")
+    assert path == Path(knowledge_service.base_path / "test-entity.md")
 
 
 @pytest.mark.asyncio
 async def test_create_entity(knowledge_service: KnowledgeService):
     """Should create entity in DB and write file correctly."""
     # Setup
-    entity = EntitySchema(name="test-entity", entity_type="concept", description="Test entity")
+    entity_schema = EntitySchema(name="test-entity", entity_type=EntityType.KNOWLEDGE, description="Test entity")
 
     # Execute
-    created = await knowledge_service.create_entity(entity)
+    created = await knowledge_service.create_entity(entity_schema)
 
     # Verify DB entity
-    assert created.name == entity.name
-    assert created.entity_type == entity.entity_type
-    assert created.description == entity.description
+    assert created.name == entity_schema.name
+    assert created.entity_type == entity_schema.entity_type
+    assert created.description == entity_schema.description
     assert created.checksum is not None
-
+    assert created.path_id == "test_entity"
+    assert created.file_path == "test_entity.md"
+    
     # Verify file was written
     file_path = knowledge_service.get_entity_path(created)
     assert await knowledge_service.file_exists(file_path)
@@ -48,8 +51,8 @@ async def test_create_entity(knowledge_service: KnowledgeService):
     metadata = yaml.safe_load(frontmatter)
 
     # Verify frontmatter contents
-    assert metadata["id"] == entity.path_id
-    assert metadata["type"] == entity.entity_type
+    assert metadata["id"] == entity_schema.path_id
+    assert metadata["type"] == entity_schema.entity_type
     assert "created" in metadata
     assert "modified" in metadata
 
@@ -59,7 +62,7 @@ async def test_create_entity(knowledge_service: KnowledgeService):
 async def test_create_multiple_entities(knowledge_service: KnowledgeService):
     """Should create multiple entities successfully."""
     entities = [
-        EntitySchema(name=f"entity-{i}", entity_type="test", description=f"Test entity {i}")
+        EntitySchema(name=f"entity-{i}", entity_type=EntityType.KNOWLEDGE, description=f"Test entity {i}")
         for i in range(3)
     ]
 
@@ -77,10 +80,10 @@ async def test_create_relations(knowledge_service: KnowledgeService, entity_serv
     """Should create relations and update related entity files."""
     # Create test entities
     entity1 = await knowledge_service.create_entity(
-        EntitySchema(name="entity1", entity_type="test", description="Test entity 1")
+        EntitySchema(name="entity1", entity_type=EntityType.KNOWLEDGE, description="Test entity 1")
     )
     entity2 = await knowledge_service.create_entity(
-        EntitySchema(name="entity2", entity_type="test", description="Test entity 2")
+        EntitySchema(name="entity2", entity_type=EntityType.KNOWLEDGE, description="Test entity 2")
     )
 
     # Create relation
@@ -114,7 +117,7 @@ async def test_add_observations_observation(knowledge_service: KnowledgeService)
     """Should add observations and update entity file."""
     # Create test entity
     entity = await knowledge_service.create_entity(
-        EntitySchema(name="test", entity_type="test", description="Test entity")
+        EntitySchema(name="test", entity_type=EntityType.KNOWLEDGE, description="Test entity")
     )
 
     # Add observations
@@ -153,7 +156,7 @@ async def test_delete_entity(knowledge_service: KnowledgeService):
     """Should delete entity and its file."""
     # Create test entity
     entity = await knowledge_service.create_entity(
-        EntitySchema(name="test", entity_type="test", description="Test entity")
+        EntitySchema(name="test", entity_type=EntityType.KNOWLEDGE, description="Test entity")
     )
     file_path = knowledge_service.get_entity_path(entity)
 
@@ -179,7 +182,7 @@ async def test_delete_multiple_entities(knowledge_service: KnowledgeService):
     entities = []
     for i in range(3):
         entity = await knowledge_service.create_entity(
-            EntitySchema(name=f"test-{i}", entity_type="test", description=f"Test entity {i}")
+            EntitySchema(name=f"test-{i}", entity_type=EntityType.KNOWLEDGE, description=f"Test entity {i}")
         )
         entities.append(entity)
 
@@ -206,7 +209,7 @@ async def test_handle_file_operation_errors(knowledge_service: KnowledgeService,
 
     with pytest.raises(FileOperationError):
         await knowledge_service.create_entity(
-            EntitySchema(name="test", entity_type="test", description="Test entity")
+            EntitySchema(name="test", entity_type=EntityType.KNOWLEDGE, description="Test entity")
         )
 
 
@@ -240,7 +243,7 @@ async def test_cleanup_on_creation_failure(knowledge_service: KnowledgeService, 
     # Attempt creation (should fail)
     with pytest.raises(FileOperationError):
         await knowledge_service.create_entity(
-            EntitySchema(name="test", entity_type="test", description="Test entity")
+            EntitySchema(name="test", entity_type=EntityType.KNOWLEDGE, description="Test entity")
         )
 
     # Verify entity was cleaned up
@@ -253,9 +256,9 @@ async def test_cleanup_on_creation_failure(knowledge_service: KnowledgeService, 
 async def test_skip_failed_batch_operations(knowledge_service: KnowledgeService):
     """Should continue processing batch operations if some fail."""
     entities = [
-        EntitySchema(name="test-1", entity_type="test", description="Test entity 1"),
-        EntitySchema(name="test-1", entity_type="test", description="Duplicate name - should fail"),
-        EntitySchema(name="test-2", entity_type="test", description="Test entity 2"),
+        EntitySchema(name="test-1", entity_type=EntityType.KNOWLEDGE, description="Test entity 1"),
+        EntitySchema(name="test-1", entity_type=EntityType.KNOWLEDGE, description="Duplicate name - should fail"),
+        EntitySchema(name="test-2", entity_type=EntityType.KNOWLEDGE, description="Test entity 2"),
     ]
 
     with pytest.raises(IntegrityError):
@@ -267,10 +270,10 @@ async def test_update_relations_in_files(knowledge_service: KnowledgeService):
     """Should update both entity files when creating relations."""
     # Create test entities
     entity1 = await knowledge_service.create_entity(
-        EntitySchema(name="source", entity_type="test", description="Source entity")
+        EntitySchema(name="source", entity_type=EntityType.KNOWLEDGE, description="Source entity")
     )
     entity2 = await knowledge_service.create_entity(
-        EntitySchema(name="target", entity_type="test", description="Target entity")
+        EntitySchema(name="target", entity_type=EntityType.KNOWLEDGE, description="Target entity")
     )
 
     # Create relation

@@ -1,10 +1,5 @@
 """Writer for knowledge entity markdown files."""
 
-from typing import Optional, Dict, Any
-
-import yaml
-from loguru import logger
-
 from basic_memory.models import Entity as EntityModel
 
 
@@ -13,34 +8,17 @@ class KnowledgeWriter:
 
     async def format_frontmatter(self, entity: EntityModel) -> dict:
         """Generate frontmatter metadata for entity."""
-        return {
+        frontmatter = {
             "id": entity.path_id,
             "type": entity.entity_type,
             "created": entity.created_at.isoformat(),
             "modified": entity.updated_at.isoformat(),
         }
+        if entity.entity_metadata:
+            frontmatter.update(entity.entity_metadata)
+        return frontmatter
 
-    async def format_metadata(self, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """Format metadata section as YAML block."""
-        if not metadata:
-            return ""
-
-        try:
-            yaml_block = yaml.dump(metadata, sort_keys=False)
-            return (
-                "# Metadata\n"
-                "<!-- anything below this line is for AI -->\n\n"
-                "```yml\n"
-                f"{yaml_block}"
-                "```\n"
-            )
-        except Exception as e:
-            logger.warning(f"Failed to format metadata YAML: {e}")
-            return ""  # Skip metadata on error
-
-    async def format_content(
-        self, entity: EntityModel, metadata: Optional[Dict[str, Any]] = None
-    ) -> str:
+    async def format_content(self, entity: EntityModel, content: str) -> str:
         """Format entity content as markdown."""
         sections = [
             f"# {entity.name}\n",
@@ -78,9 +56,5 @@ class KnowledgeWriter:
             # Outgoing relations (entity is "from")
             for rel in entity.outgoing_relations:
                 sections.append(f"- {rel.relation_type} [[{rel.to_entity.name}]] ")
-                
-        if metadata:
-            sections.append("\n")
-            sections.append(await self.format_metadata(metadata))
 
         return "\n".join(sections)

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
 from basic_memory import db
 from basic_memory.config import ProjectConfig, config
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
+from basic_memory.markdown.note_writer import NoteWriter
 from basic_memory.repository.document_repository import DocumentRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
@@ -195,6 +196,12 @@ async def get_knowledge_writer() -> KnowledgeWriter:
 
 
 KnowledgeWriterDep = Annotated[KnowledgeWriter, Depends(get_knowledge_writer)]
+
+async def get_note_writer() -> NoteWriter:
+    return NoteWriter()
+
+
+NoteWriterDep = Annotated[NoteWriter, Depends(get_note_writer)]
 
 
 async def get_knowledge_service(

@@ -256,9 +256,9 @@ class Entity(BaseModel):
 
     @property
     def path_id(self) -> PathId:
-        """Get the path ID in format {type}/{snake_case_name}."""
+        """Get the path ID in format {snake_case_name}."""
         normalized_name = to_snake_case(self.name)
-        return f"{self.entity_type}/{normalized_name}"
+        return normalized_name
 
     @property
     def file_path(self):

@@ -19,6 +19,7 @@ from .file_operations import FileOperations
 from .entity_operations import EntityOperations
 from .relation_operations import RelationOperations
 from .observation_operations import ObservationOperations
+from ...markdown.note_writer import NoteWriter
 
 
 class KnowledgeService:
@@ -42,6 +43,7 @@ class KnowledgeService:
         relation_service: RelationService,
         file_service: FileService,
         knowledge_writer: KnowledgeWriter,
+        note_writer: NoteWriter,
         base_path: Path,
     ):
         
@@ -52,6 +54,7 @@ class KnowledgeService:
             entity_service=entity_service,
             file_service=file_service,
             knowledge_writer=knowledge_writer,
+            note_writer=note_writer,
             base_path=base_path
         )
 
