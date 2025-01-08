@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 from basic_memory.models import Entity as EntityModel
-from basic_memory.models.knowledge import EntityType, ObservationCategory
+from basic_memory.models.knowledge import ObservationCategory
 from basic_memory.schemas import Entity as EntitySchema, Relation as RelationSchema
 from basic_memory.schemas.request import ObservationCreate
 from basic_memory.services import EntityService
@@ -20,8 +20,8 @@ async def test_get_entity_path(knowledge_service: KnowledgeService):
         id=1,
         path_id="test-entity",
         name="test-entity",
-        entity_type=EntityType.KNOWLEDGE,
-        description="Test entity",
+        entity_type="test",
+        summary="Test entity",
     )
     path = knowledge_service.get_entity_path(entity)
     assert path == Path(knowledge_service.base_path / "test-entity.md")
@@ -31,9 +31,7 @@ async def test_get_entity_path(knowledge_service: KnowledgeService):
 async def test_create_entity(knowledge_service: KnowledgeService):
     """Should create entity in DB and write file correctly."""
     # Setup
-    entity_schema = EntitySchema(
-        name="test-entity", entity_type=EntityType.KNOWLEDGE, description="Test entity"
-    )
+    entity_schema = EntitySchema(name="test-entity", entity_type="test", summary="Test entity")
 
     # Execute
     created = await knowledge_service.create_entity(entity_schema)
@@ -41,7 +39,7 @@ async def test_create_entity(knowledge_service: KnowledgeService):
     # Verify DB entity
     assert created.name == entity_schema.name
     assert created.entity_type == entity_schema.entity_type
-    assert created.summary == entity_schema.description
+    assert created.summary == entity_schema.summary
     assert created.checksum is not None
     assert created.path_id == "test_entity"
     assert created.file_path == "test_entity.md"
@@ -65,9 +63,7 @@ async def test_create_entity(knowledge_service: KnowledgeService):
 async def test_create_multiple_entities(knowledge_service: KnowledgeService):
     """Should create multiple entities successfully."""
     entities = [
-        EntitySchema(
-            name=f"entity-{i}", entity_type=EntityType.KNOWLEDGE, description=f"Test entity {i}"
-        )
+        EntitySchema(name=f"entity-{i}", entity_type="test", summary=f"Test entity {i}")
         for i in range(3)
     ]
 
@@ -85,10 +81,10 @@ async def test_create_relations(knowledge_service: KnowledgeService, entity_serv
     """Should create relations and update related entity files."""
     # Create test entities
     entity1 = await knowledge_service.create_entity(
-        EntitySchema(name="entity1", entity_type=EntityType.KNOWLEDGE, description="Test entity 1")
+        EntitySchema(name="entity1", entity_type="test", summary="Test entity 1")
     )
     entity2 = await knowledge_service.create_entity(
-        EntitySchema(name="entity2", entity_type=EntityType.KNOWLEDGE, description="Test entity 2")
+        EntitySchema(name="entity2", entity_type="test", summary="Test entity 2")
     )
 
     # Create relation
@@ -124,15 +120,15 @@ async def test_update_knowledge_entity_description(knowledge_service: KnowledgeS
     entity = await knowledge_service.create_entity(
         EntitySchema(
             name="test",
-            entity_type=EntityType.KNOWLEDGE,
-            description="Test entity",
+            entity_type="test",
+            summary="Test entity",
             entity_metadata={"status": "draft"},
         )
     )
 
     # Update description
     updated = await knowledge_service.update_entity(
-        entity.path_id, description="Updated description"
+        entity.path_id, summary="Updated description"
     )
 
     # Verify file has new description but preserved metadata
@@ -154,8 +150,8 @@ async def test_update_note_entity_content(knowledge_service: KnowledgeService):
     entity = await knowledge_service.create_entity(
         EntitySchema(
             name="test",
-            entity_type=EntityType.NOTE,
-            description="Test note",
+            entity_type="note",
+            summary="Test note",
             entity_metadata={"status": "draft"},
         )
     )
@@ -184,8 +180,8 @@ async def test_update_entity_name(knowledge_service: KnowledgeService):
     entity = await knowledge_service.create_entity(
         EntitySchema(
             name="test",
-            entity_type=EntityType.KNOWLEDGE,
-            description="Test entity",
+            entity_type="test",
+            summary="Test entity",
             entity_metadata={"status": "draft"},
         )
     )
@@ -216,26 +212,20 @@ async def test_update_entity_type_note_to_knowledge(knowledge_service: Knowledge
     entity = await knowledge_service.create_entity(
         EntitySchema(
             name="test",
-            entity_type=EntityType.NOTE,
-            description="Test note",
-            entity_metadata={"status": "draft"}
+            entity_type="note",
+            summary="Test note",
+            entity_metadata={"status": "draft"},
         )
     )
 
     # First update with some content as a note
-    await knowledge_service.update_entity(
-        entity.path_id,
-        content=initial_content
-    )
+    await knowledge_service.update_entity(entity.path_id, content=initial_content)
 
     # Then update to knowledge type
-    updated = await knowledge_service.update_entity(
-        entity.path_id,
-        entity_type=EntityType.KNOWLEDGE
-    )
+    updated = await knowledge_service.update_entity(entity.path_id, entity_type="test")
 
     # Verify type was updated in DB
-    assert updated.entity_type == EntityType.KNOWLEDGE
+    assert updated.entity_type == "test"
 
     # Verify frontmatter was updated
     file_path = knowledge_service.get_entity_path(updated)
@@ -243,7 +233,7 @@ async def test_update_entity_type_note_to_knowledge(knowledge_service: Knowledge
 
     _, frontmatter, _ = content.split("---", 2)
     metadata = yaml.safe_load(frontmatter)
-    assert metadata["type"] == EntityType.KNOWLEDGE
+    assert metadata["type"] == "test"
 
     # Verify content format changed to knowledge style (structured)
     assert "# test" in content
@@ -257,9 +247,9 @@ async def test_update_entity_type_knowledge_to_note(knowledge_service: Knowledge
     entity = await knowledge_service.create_entity(
         EntitySchema(
             name="test",
-            entity_type=EntityType.KNOWLEDGE,
-            description="Test knowledge entity",
-            entity_metadata={"status": "draft"}
+            entity_type="test",
+            summary="Test knowledge entity",
+            entity_metadata={"status": "draft"},
         )
     )
 
@@ -272,13 +262,11 @@ async def test_update_entity_type_knowledge_to_note(knowledge_service: Knowledge
     # Update to note type with new content
     new_content = "# Test Note\n\nConverted to note format."
     updated = await knowledge_service.update_entity(
-        entity.path_id,
-        entity_type=EntityType.NOTE,
-        content=new_content
+        entity.path_id, entity_type="note", content=new_content
     )
 
     # Verify type was updated in DB
-    assert updated.entity_type == EntityType.NOTE
+    assert updated.entity_type == "note"
 
     # Verify frontmatter was updated
     file_path = knowledge_service.get_entity_path(updated)
@@ -286,7 +274,7 @@ async def test_update_entity_type_knowledge_to_note(knowledge_service: Knowledge
 
     _, frontmatter, _ = content.split("---", 2)
     metadata = yaml.safe_load(frontmatter)
-    assert metadata["type"] == EntityType.NOTE
+    assert metadata["type"] == "note"
 
     # Verify content changed to note style (direct content)
     assert "# Test Note" in content

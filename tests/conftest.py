@@ -14,7 +14,7 @@ from basic_memory.markdown.knowledge_parser import KnowledgeParser
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.markdown.note_writer import NoteWriter
 from basic_memory.models import Base
-from basic_memory.models.knowledge import Entity, EntityType
+from basic_memory.models.knowledge import Entity
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
@@ -74,7 +74,6 @@ async def session_maker(engine_factory) -> async_sessionmaker[AsyncSession]:
     return session_maker
 
 
-
 @pytest_asyncio.fixture(scope="function")
 async def entity_repository(session_maker: async_sessionmaker[AsyncSession]) -> EntityRepository:
     """Create an EntityRepository instance."""
@@ -128,6 +127,7 @@ def file_service():
 def knowledge_writer():
     """Create writer instance."""
     return KnowledgeWriter()
+
 
 @pytest.fixture
 def note_writer():
@@ -190,7 +190,7 @@ async def sync_service(
     knowledge_sync_service: KnowledgeSyncService,
     file_change_scanner: FileChangeScanner,
     knowledge_parser: KnowledgeParser,
-    search_service: SearchService
+    search_service: SearchService,
 ) -> SyncService:
     """Create sync service for testing."""
     return SyncService(
@@ -206,10 +206,10 @@ async def search_repository(session_maker):
     """Create SearchRepository instance"""
     return SearchRepository(session_maker)
 
+
 @pytest_asyncio.fixture(autouse=True)
 async def init_search_index(search_service):
     await search_service.init_search_index()
-
 
 
 @pytest_asyncio.fixture
@@ -228,9 +228,10 @@ async def sample_entity(entity_repository: EntityRepository) -> Entity:
     """Create a sample entity for testing."""
     entity_data = {
         "name": "Test Entity",
-        "entity_type": EntityType.KNOWLEDGE,
-        "description": "A test entity",
+        "entity_type": "test",
+        "summary": "A test entity",
         "path_id": "test/test_entity",
         "file_path": "test/test_entity.md",
+        "content_type": "text/markdown",
     }
     return await entity_repository.create(entity_data)

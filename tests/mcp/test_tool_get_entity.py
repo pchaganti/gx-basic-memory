@@ -3,7 +3,7 @@
 import pytest
 
 from basic_memory.mcp.tools.knowledge import get_entity, create_entities
-from basic_memory.schemas.base import Entity, ObservationCategory, EntityType
+from basic_memory.schemas.base import Entity, ObservationCategory
 from basic_memory.schemas.request import CreateEntityRequest
 from basic_memory.services.exceptions import EntityNotFoundError
 
@@ -16,9 +16,9 @@ async def test_get_basic_entity(client):
         entities=[
             Entity(
                 name="TestEntity",
-                entity_type=EntityType.KNOWLEDGE,
-                description="A test entity",
-                observations=["First observation"]
+                entity_type="test",
+                summary="A test entity",
+                observations=["First observation"],
             )
         ]
     )
@@ -30,10 +30,10 @@ async def test_get_basic_entity(client):
 
     # Verify entity details
     assert entity.name == "TestEntity"
-    assert entity.entity_type == EntityType.KNOWLEDGE
+    assert entity.entity_type == "test"
     assert entity.path_id == "test_entity"
-    assert entity.description == "A test entity"
-    
+    assert entity.summary == "A test entity"
+
     # Check observations
     assert len(entity.observations) == 1
     obs = entity.observations[0]
@@ -47,8 +47,8 @@ async def test_get_entity_with_relations(client):
     # Create two entities that will have a relation
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="SourceEntity", entity_type=EntityType.KNOWLEDGE),
-            Entity(name="TargetEntity", entity_type=EntityType.KNOWLEDGE)
+            Entity(name="SourceEntity", entity_type="test"),
+            Entity(name="TargetEntity", entity_type="test"),
         ]
     )
     await create_entities(entity_request)
@@ -57,14 +57,10 @@ async def test_get_entity_with_relations(client):
     from basic_memory.mcp.tools.knowledge import create_relations
     from basic_memory.schemas.request import CreateRelationsRequest
     from basic_memory.schemas.base import Relation
-    
+
     relation_request = CreateRelationsRequest(
         relations=[
-            Relation(
-                from_id="source_entity",
-                to_id="target_entity",
-                relation_type="depends_on"
-            )
+            Relation(from_id="source_entity", to_id="target_entity", relation_type="depends_on")
         ]
     )
     await create_relations(relation_request)
@@ -83,11 +79,7 @@ async def test_get_entity_with_categorized_observations(client):
     # Create entity with categorized observations
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(
-                name="TestEntity",
-                entity_type=EntityType.KNOWLEDGE,
-                description="Test entity with categories"
-            )
+            Entity(name="TestEntity", entity_type="test", summary="Test entity with categories")
         ]
     )
     result = await create_entities(entity_request)
@@ -100,19 +92,10 @@ async def test_get_entity_with_categorized_observations(client):
     obs_request = AddObservationsRequest(
         path_id=path_id,
         observations=[
-            ObservationCreate(
-                content="Technical detail",
-                category=ObservationCategory.TECH
-            ),
-            ObservationCreate(
-                content="Design decision",
-                category=ObservationCategory.DESIGN
-            ),
-            ObservationCreate(
-                content="Feature note",
-                category=ObservationCategory.FEATURE
-            )
-        ]
+            ObservationCreate(content="Technical detail", category=ObservationCategory.TECH),
+            ObservationCreate(content="Design decision", category=ObservationCategory.DESIGN),
+            ObservationCreate(content="Feature note", category=ObservationCategory.FEATURE),
+        ],
     )
     await add_observations(obs_request)
 

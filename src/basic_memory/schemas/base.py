@@ -31,13 +31,13 @@ Common Relation Types:
 - 'extends': Inheritance/extension
 - 'tested_by': Test coverage
 """
-
+import mimetypes
 import re
 from enum import Enum
 from typing import List, Optional, Annotated, Dict
 
 from annotated_types import MinLen, MaxLen
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import BaseModel, BeforeValidator, Field, model_validator, ValidationError
 
 
 def to_snake_case(name: str) -> str:
@@ -122,15 +122,33 @@ Examples:
 - "Depends on SQLAlchemy for database operations"
 """
 
+EntityType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
+"""Classification of entity (e.g., 'person', 'project', 'concept'). 
 
-class EntityType(str, Enum):
-    """Type of entity. 
+The type serves multiple purposes:
+1. Enables filtering and querying
+3. Provides context for relations
 
-    - knowledge: Contain information used in the semantic graph
-    - note: Free form information 
+Common types are listed in the module docstring.
     """
-    KNOWLEDGE = "knowledge"
-    NOTE = "note"
+
+ALLOWED_CONTENT_TYPES = {
+    'text/markdown',
+    'text/plain',
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/svg+xml',
+}
+
+ContentType = Annotated[
+    str, 
+    BeforeValidator(str.lower),
+    Field(pattern=r'^[\w\-\+\.]+/[\w\-\+\.]+$'),
+    Field(json_schema_extra={"examples": list(ALLOWED_CONTENT_TYPES)})
+]
+
+
 
 RelationType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
 """Type of relationship between entities. Always use active voice present tense.
@@ -252,7 +270,11 @@ class Entity(BaseModel):
     entity_type: EntityType
     entity_metadata: Optional[Dict] = Field(default=None, description="Optional metadata")
     content: Optional[str] = None
-    description: Optional[str] = None
+    summary: Optional[str] = None
+    content_type: ContentType = Field(
+        description="MIME type of the content (e.g. text/markdown, image/jpeg)",
+        examples=["text/markdown", "image/jpeg"]
+    ) 
     observations: List[Observation] = []
 
     @property
@@ -265,3 +287,18 @@ class Entity(BaseModel):
     def file_path(self):
         """Get the file path for this entity based on its path_id."""
         return f"{self.path_id}.md"
+
+    @model_validator(mode='before')
+    @classmethod
+    def infer_content_type(cls, data: Dict) -> Dict:
+        """Infer content_type from file_path if not provided."""
+        if 'content_type' not in data:
+            # Get path from either file_path or construct from path_id
+            file_path = data.get('file_path') or f"{data.get('name')}.md"
+            
+            if not file_path:
+                raise ValidationError("Either file_path or name must be provided")
+            mime_type, _ = mimetypes.guess_type(file_path)
+            data['content_type'] = mime_type or 'text/plain'
+
+        return data

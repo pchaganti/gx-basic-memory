@@ -8,7 +8,6 @@ from loguru import logger
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.markdown.note_writer import NoteWriter
 from basic_memory.models import Entity as EntityModel
-from basic_memory.models.knowledge import EntityType
 from basic_memory.services.entity_service import EntityService
 from basic_memory.services.exceptions import FileOperationError
 from basic_memory.services.file_service import FileService
@@ -54,7 +53,7 @@ class FileOperations:
             entity = await self.entity_service.get_by_path_id(entity.path_id)
             
             # Select writer based on entity type
-            writer = self.note_writer if entity.entity_type == EntityType.NOTE else self.knowledge_writer
+            writer = self.note_writer if entity.entity_type == "note" else self.knowledge_writer
             
             # Get frontmatter and content
             frontmatter = await writer.format_frontmatter(entity)

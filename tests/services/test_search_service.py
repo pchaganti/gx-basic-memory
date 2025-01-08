@@ -19,7 +19,8 @@ def test_entity():
         entity_metadata = { "test": "test"}
         path_id = "component/test_component"
         file_path = "entities/component/test_component.md"
-        description = "A test component for search"
+        summary = "A test component for search"
+        content_type = "text/markdown"
         created_at = datetime.now(timezone.utc)
         updated_at = datetime.now(timezone.utc)
         observations = []
@@ -97,7 +98,7 @@ async def test_update_index(search_service, test_entity):
     await search_service.index_entity(test_entity)
 
     # Update entity
-    test_entity.description = "Updated description with new terms"
+    test_entity.summary = "Updated description with new terms"
     await search_service.index_entity(test_entity)
 
     # Search for new terms

@@ -29,7 +29,8 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
         entity_type=markdown.frontmatter.type,
         path_id=markdown.frontmatter.id,
         file_path=file_path,
-        description=markdown.content.description,
+        content_type="text/markdown",
+        summary=markdown.content.summary,
         observations=[
             Observation(
                 content=obs.content,
@@ -83,7 +84,7 @@ class KnowledgeSyncService:
         # Update fields from markdown
         db_entity.name = markdown.content.title
         db_entity.entity_type = markdown.frontmatter.type
-        db_entity.summary = markdown.content.description
+        db_entity.summary = markdown.content.summary
 
         # Clear and update observations
         await self.observation_service.delete_by_entity(db_entity.id)
@@ -102,7 +103,7 @@ class KnowledgeSyncService:
             {
                 "name": db_entity.name,
                 "entity_type": db_entity.entity_type,
-                "description": db_entity.summary,
+                "summary": db_entity.summary,
                 # Mark as incomplete
                 "checksum": None,
             },

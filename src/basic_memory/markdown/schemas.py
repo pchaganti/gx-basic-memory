@@ -37,7 +37,7 @@ class EntityContent(BaseModel):
     """Content sections of an entity markdown file."""
 
     title: str
-    description: Optional[str] = None
+    summary: Optional[str] = None
     observations: List[Observation] = []
     relations: List[Relation] = []
     context: Optional[str] = None

@@ -85,7 +85,7 @@ class Entity(Base):
         return self.incoming_relations + self.outgoing_relations
 
     def __repr__(self) -> str:
-        return f"Entity(id={self.id}, name='{self.name}', type='{self.entity_type}')"
+        return f"Entity(id={self.id}, name='{self.name}', type='{self.entity_type}', summary='{self.summary}')"
 
 
 class ObservationCategory(str, Enum):

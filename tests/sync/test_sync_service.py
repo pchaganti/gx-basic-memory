@@ -7,7 +7,6 @@ import pytest
 
 from basic_memory.config import ProjectConfig
 from basic_memory.models import Entity
-from basic_memory.models.knowledge import EntityType
 from basic_memory.services import EntityService
 from basic_memory.sync.sync_service import SyncService
 
@@ -34,7 +33,9 @@ async def test_sync_file_modified_during_sync(
     """Test handling of files that change during sync process."""
     # Create initial files
     doc_path = test_config.knowledge_dir / "changing.md"
-    await create_test_file(doc_path, """
+    await create_test_file(
+        doc_path,
+        """
 ---
 type: knowledge
 id: changing
@@ -45,7 +46,8 @@ modified: 2024-01-01
 
 ## Observations
 - This is a test
-""")
+""",
+    )
 
     # Setup async modification during sync
     async def modify_file():
@@ -71,9 +73,10 @@ async def test_sync_null_checksum_cleanup(
     entity = Entity(
         path_id="concept/incomplete",
         name="Incomplete",
-        entity_type=EntityType.KNOWLEDGE,
+        entity_type="test",
         file_path="concept/incomplete.md",
         checksum=None,  # Null checksum
+        content_type="text/markdown",
     )
     await entity_service.repository.add(entity)
 
@@ -98,6 +101,3 @@ modified: 2024-01-01
     # Verify entity was properly synced
     updated = await entity_service.get_by_path_id("concept/incomplete")
     assert updated.checksum is not None
-
-
-

@@ -6,7 +6,6 @@ import sqlalchemy
 
 from basic_memory import db
 from basic_memory.models import Entity, Relation
-from basic_memory.models.knowledge import EntityType
 from basic_memory.repository.relation_repository import RelationRepository
 
 
@@ -15,10 +14,11 @@ async def source_entity(session_maker):
     """Create a source entity for testing relations."""
     entity = Entity(
         name="test_source",
-        entity_type=EntityType.KNOWLEDGE,
+        entity_type="test",
         path_id="source/test_source",
         file_path="source/test_source.md",
-        description="Source entity",
+        summary="Source entity",
+        content_type="text/markdown",
     )
     async with db.scoped_session(session_maker) as session:
         session.add(entity)
@@ -31,10 +31,11 @@ async def target_entity(session_maker):
     """Create a target entity for testing relations."""
     entity = Entity(
         name="test_target",
-        entity_type=EntityType.KNOWLEDGE,
+        entity_type="test",
         path_id="target/test_target",
         file_path="target/test_target.md",
-        description="Target entity",
+        summary="Target entity",
+        content_type="text/markdown",
     )
     async with db.scoped_session(session_maker) as session:
         session.add(entity)
@@ -60,10 +61,11 @@ async def related_entity(entity_repository):
     """Create a second entity for testing relations"""
     entity_data = {
         "name": "Related Entity",
-        "entity_type": EntityType.KNOWLEDGE,
+        "entity_type": "test",
         "path_id": "test/related_entity",
         "file_path": "test/related_entity.md",
-        "description": "A related test entity",
+        "summary": "A related test entity",
+        "content_type": "text/markdown",
         "references": "",
     }
     return await entity_repository.create(entity_data)
@@ -158,12 +160,15 @@ async def test_find_by_entities(
     assert relations[0].id == sample_relation.id
     assert relations[0].relation_type == sample_relation.relation_type
 
+
 @pytest.mark.asyncio
 async def test_find_relation(relation_repository: RelationRepository, sample_relation: Relation):
     """Test finding relations by type"""
-    relation = await relation_repository.find_relation(from_path_id=sample_relation.from_entity.path_id, 
-                                                        to_path_id=sample_relation.to_entity.path_id, 
-                                                        relation_type=sample_relation.relation_type)
+    relation = await relation_repository.find_relation(
+        from_path_id=sample_relation.from_entity.path_id,
+        to_path_id=sample_relation.to_entity.path_id,
+        relation_type=sample_relation.relation_type,
+    )
     assert relation.id == sample_relation.id
 
 

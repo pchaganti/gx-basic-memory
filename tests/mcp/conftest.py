@@ -33,7 +33,7 @@ def test_entity_data():
             {
                 "name": "Test Entity",
                 "entity_type": "test",
-                "description": "",  # Empty string instead of None
+                "summary": "",  # Empty string instead of None
                 "observations": ["This is a test observation"],
             }
         ]
@@ -48,7 +48,7 @@ def test_directory_entity_data():
             {
                 "name": "Directory Organization",
                 "entity_type": "memory",
-                "description": "Implemented filesystem organization by entity type",
+                "summary": "Implemented filesystem organization by entity type",
                 "observations": [
                     "Files are now organized by type using directories like entities/project/basic_memory",
                     "Entity IDs match filesystem paths for better mental model",

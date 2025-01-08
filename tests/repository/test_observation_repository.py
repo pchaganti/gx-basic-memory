@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from basic_memory import db
 from basic_memory.models import Entity, Observation
-from basic_memory.models.knowledge import EntityType
 from basic_memory.repository.observation_repository import ObservationRepository
 
 
@@ -90,10 +89,11 @@ async def test_delete_observations(session_maker: async_sessionmaker, repo):
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
             name="test_entity",
-            entity_type=EntityType.KNOWLEDGE,
-            description="Test entity",
+            entity_type="test",
+            summary="Test entity",
             path_id="test/test_entity",
             file_path="test/test_entity.md",
+            content_type="text/markdown",
         )
         session.add(entity)
         await session.flush()
@@ -119,10 +119,11 @@ async def test_delete_observation_by_id(session_maker: async_sessionmaker, repo)
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
             name="test_entity",
-            entity_type=EntityType.KNOWLEDGE,
-            description="Test entity",
+            entity_type="test",
+            summary="Test entity",
             path_id="test/test_entity",
             file_path="test/test_entity.md",
+            content_type="text/markdown",
         )
         session.add(entity)
         await session.flush()
@@ -147,10 +148,11 @@ async def test_delete_observation_by_content(session_maker: async_sessionmaker, 
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
             name="test_entity",
-            entity_type=EntityType.KNOWLEDGE,
-            description="Test entity",
+            entity_type="test",
+            summary="Test entity",
             path_id="test/test_entity",
             file_path="test/test_entity.md",
+            content_type="text/markdown",
         )
         session.add(entity)
         await session.flush()
@@ -177,10 +179,11 @@ async def test_find_by_category(session_maker: async_sessionmaker, repo):
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
             name="test_entity",
-            entity_type=EntityType.KNOWLEDGE,
-            description="Test entity",
+            entity_type="test",
+            summary="Test entity",
             path_id="test/test_entity",
             file_path="test/test_entity.md",
+            content_type="text/markdown",
         )
         session.add(entity)
         await session.flush()
@@ -218,10 +221,11 @@ async def test_observation_categories(session_maker: async_sessionmaker, repo):
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
             name="test_entity",
-            entity_type=EntityType.KNOWLEDGE,
-            description="Test entity",
+            entity_type="test",
+            summary="Test entity",
             path_id="test/test_entity",
             file_path="test/test_entity.md",
+            content_type="text/markdown",
         )
         session.add(entity)
         await session.flush()
@@ -265,10 +269,11 @@ async def test_find_by_category_case_sensitivity(session_maker: async_sessionmak
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
             name="test_entity",
-            entity_type=EntityType.KNOWLEDGE,
-            description="Test entity",
+            entity_type="test",
+            summary="Test entity",
             path_id="test/test_entity",
             file_path="test/test_entity.md",
+            content_type="text/markdown",
         )
         session.add(entity)
         await session.flush()

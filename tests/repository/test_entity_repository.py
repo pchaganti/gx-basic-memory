@@ -1,15 +1,13 @@
 """Tests for the EntityRepository."""
 
-from datetime import datetime, UTC
+from datetime import datetime
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 
 from basic_memory import db
 from basic_memory.models import Entity, Observation, Relation
-from basic_memory.models.knowledge import EntityType
 from basic_memory.repository.entity_repository import EntityRepository
 
 
@@ -31,17 +29,19 @@ async def related_entities(session_maker):
     async with db.scoped_session(session_maker) as session:
         source = Entity(
             name="source",
-            entity_type=EntityType.KNOWLEDGE,
+            entity_type="test",
             path_id="source/source",
             file_path="source/source.md",
-            description="Source entity",
+            summary="Source entity",
+            content_type="text/markdown",
         )
         target = Entity(
             name="target",
-            entity_type=EntityType.KNOWLEDGE,
+            entity_type="test",
             path_id="target/target",
             file_path="target/target.md",
-            description="Target entity",
+            summary="Target entity",
+            content_type="text/markdown",
         )
         session.add(source)
         session.add(target)
@@ -58,10 +58,11 @@ async def test_create_entity(entity_repository: EntityRepository):
     """Test creating a new entity"""
     entity_data = {
         "name": "Test",
-        "entity_type": EntityType.KNOWLEDGE,
+        "entity_type": "test",
         "path_id": "test/test",
         "file_path": "test/test.md",
-        "description": "Test description",
+        "summary": "Test description",
+        "content_type": "text/markdown",
     }
     entity = await entity_repository.create(entity_data)
 
@@ -91,17 +92,19 @@ async def test_create_all(entity_repository: EntityRepository):
     entity_data = [
         {
             "name": "Test_1",
-            "entity_type": EntityType.KNOWLEDGE,
+            "entity_type": "test",
             "path_id": "test/test_1",
             "file_path": "test/test_1.md",
-            "description": "Test description",
+            "summary": "Test description",
+            "content_type": "text/markdown",
         },
         {
             "name": "Test-2",
-            "entity_type": EntityType.KNOWLEDGE,
+            "entity_type": "test",
             "path_id": "test/test_2",
             "file_path": "test/test_2.md",
-            "description": "Test description",
+            "summary": "Test description",
+            "content_type": "text/markdown",
         },
     ]
     entities = await entity_repository.create_all(entity_data)
@@ -127,10 +130,11 @@ async def test_create_entity_null_description(session_maker, entity_repository: 
     """Test creating an entity with null description"""
     entity_data = {
         "name": "Test",
-        "entity_type": EntityType.KNOWLEDGE,
+        "entity_type": "test",
         "path_id": "test/test",
         "file_path": "test/test.md",
-        "description": None,
+        "content_type": "text/markdown",
+        "summary": None,
     }
     entity = await entity_repository.create(entity_data)
 
@@ -164,7 +168,7 @@ async def test_find_by_id(entity_repository: EntityRepository, sample_entity: En
 async def test_update_entity(entity_repository: EntityRepository, sample_entity: Entity):
     """Test updating an entity"""
     updated = await entity_repository.update(
-        sample_entity.id, {"description": "Updated description"}
+        sample_entity.id, {"summary": "Updated description"}
     )
     assert updated is not None
     assert updated.summary == "Updated description"
@@ -182,7 +186,7 @@ async def test_update_entity(entity_repository: EntityRepository, sample_entity:
 @pytest.mark.asyncio
 async def test_update_entity_to_null(entity_repository: EntityRepository, sample_entity: Entity):
     """Test updating an entity's description to null"""
-    updated = await entity_repository.update(sample_entity.id, {"description": None})
+    updated = await entity_repository.update(sample_entity.id, {"summary": None})
     assert updated is not None
     assert updated.summary is None
 
@@ -269,8 +273,6 @@ async def test_delete_nonexistent_entity(entity_repository: EntityRepository):
     assert result is False
 
 
-
-
 @pytest_asyncio.fixture
 async def test_entities(session_maker):
     """Create multiple test entities."""
@@ -278,24 +280,27 @@ async def test_entities(session_maker):
         entities = [
             Entity(
                 name="entity1",
-                entity_type=EntityType.KNOWLEDGE,
-                description="First test entity",
+                entity_type="test",
+                summary="First test entity",
                 path_id="type1/entity1",
                 file_path="type1/entity1.md",
+                content_type= "text/markdown",
             ),
             Entity(
                 name="entity2",
-                entity_type=EntityType.KNOWLEDGE,
-                description="Second test entity",
+                entity_type="test",
+                summary="Second test entity",
                 path_id="type1/entity2",
                 file_path="type1/entity2.md",
+                content_type="text/markdown",
             ),
             Entity(
                 name="entity3",
-                entity_type=EntityType.KNOWLEDGE,
-                description="Third test entity",
+                entity_type="test",
+                summary="Third test entity",
                 path_id="type2/entity3",
                 file_path="type2/entity3.md",
+                content_type="text/markdown",
             ),
         ]
         session.add_all(entities)
@@ -384,31 +389,34 @@ async def test_delete_by_path_ids_with_observations(
 @pytest.mark.asyncio
 async def test_list_entities_with_related(entity_repository: EntityRepository, session_maker):
     """Test listing entities with related entities included."""
-    
+
     # Create test entities
     async with db.scoped_session(session_maker) as session:
         # Core entities
         core = Entity(
             name="core_service",
-            entity_type=EntityType.NOTE,
+            entity_type="note",
             path_id="service/core",
             file_path="service/core.md",
-            description="Core service"
+            summary="Core service",
+            content_type="text/markdown",
         )
         dbe = Entity(
             name="db_service",
-            entity_type=EntityType.KNOWLEDGE,
+            entity_type="test",
             path_id="service/db",
             file_path="service/db.md",
-            description="Database service"
+            summary="Database service",
+            content_type="text/markdown",
         )
         # Related entity of different type
         config = Entity(
             name="service_config",
-            entity_type=EntityType.KNOWLEDGE,
+            entity_type="test",
             path_id="config/service",
             file_path="config/service.md",
-            description="Service configuration"
+            summary="Service configuration",
+            content_type="text/markdown",
         )
         session.add_all([core, dbe, config])
         await session.flush()
@@ -418,23 +426,19 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
             # core -> db (depends_on)
             Relation(from_id=core.id, to_id=dbe.id, relation_type="depends_on"),
             # config -> core (configures)
-            Relation(from_id=config.id, to_id=core.id, relation_type="configures")
+            Relation(from_id=config.id, to_id=core.id, relation_type="configures"),
         ]
         session.add_all(relations)
 
     # Test 1: List without related entities
-    services = await entity_repository.list_entities(
-        entity_type=EntityType.KNOWLEDGE,
-        include_related=False
-    )
+    services = await entity_repository.list_entities(entity_type="test", include_related=False)
     assert len(services) == 2
     service_names = {s.name for s in services}
     assert service_names == {"service_config", "db_service"}
 
     # Test 2: List services with related entities
     services_and_related = await entity_repository.list_entities(
-        entity_type=EntityType.KNOWLEDGE,
-        include_related=True
+        entity_type="test", include_related=True
     )
     assert len(services_and_related) == 3
     # Should include both services and the config
@@ -444,4 +448,4 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
     # Test 3: Verify relations are loaded
     core_service = next(e for e in services_and_related if e.name == "core_service")
     assert len(core_service.outgoing_relations) > 0  # Has incoming relation from config
-    assert len(core_service.incoming_relations) > 0    # Has outgoing relation to db
+    assert len(core_service.incoming_relations) > 0  # Has outgoing relation to db

@@ -3,26 +3,25 @@
 import pytest
 
 from basic_memory.mcp.tools.knowledge import create_entities, add_observations
-from basic_memory.schemas.base import ObservationCategory, Entity, EntityType
-from basic_memory.schemas.request import CreateEntityRequest, AddObservationsRequest, ObservationCreate
+from basic_memory.schemas.base import ObservationCategory, Entity
+from basic_memory.schemas.request import (
+    CreateEntityRequest,
+    AddObservationsRequest,
+    ObservationCreate,
+)
 
 
 @pytest.mark.asyncio
 async def test_add_basic_observation(client):
     """Test adding a single observation with default category."""
     # First create an entity to add observations to
-    entity_request = CreateEntityRequest(
-        entities=[Entity(name="TestEntity", entity_type=EntityType.KNOWLEDGE)]
-    )
+    entity_request = CreateEntityRequest(entities=[Entity(name="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
     entity_id = result.entities[0].path_id
 
     # Add an observation
     request = AddObservationsRequest(
-        path_id=entity_id,
-        observations=[
-            ObservationCreate(content="Test observation")
-        ]
+        path_id=entity_id, observations=[ObservationCreate(content="Test observation")]
     )
     updated = await add_observations(request)
 
@@ -37,9 +36,7 @@ async def test_add_basic_observation(client):
 async def test_add_categorized_observations(client):
     """Test adding observations with different categories."""
     # Create test entity
-    entity_request = CreateEntityRequest(
-        entities=[Entity(name="TestEntity", entity_type=EntityType.KNOWLEDGE)]
-    )
+    entity_request = CreateEntityRequest(entities=[Entity(name="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
     entity_id = result.entities[0].path_id
 
@@ -48,23 +45,20 @@ async def test_add_categorized_observations(client):
         path_id=entity_id,
         observations=[
             ObservationCreate(
-                content="Implementation uses SQLite",
-                category=ObservationCategory.TECH
+                content="Implementation uses SQLite", category=ObservationCategory.TECH
             ),
             ObservationCreate(
-                content="Chose SQLite for simplicity",
-                category=ObservationCategory.DESIGN
+                content="Chose SQLite for simplicity", category=ObservationCategory.DESIGN
             ),
             ObservationCreate(
-                content="Supports atomic operations",
-                category=ObservationCategory.FEATURE
-            )
-        ]
+                content="Supports atomic operations", category=ObservationCategory.FEATURE
+            ),
+        ],
     )
     updated = await add_observations(request)
 
     assert len(updated.observations) == 3
-    
+
     # Find and verify each observation by category
     tech_obs = next(o for o in updated.observations if o.category == ObservationCategory.TECH)
     design_obs = next(o for o in updated.observations if o.category == ObservationCategory.DESIGN)
@@ -79,9 +73,7 @@ async def test_add_categorized_observations(client):
 async def test_add_observations_with_context(client):
     """Test adding observations with shared context."""
     # Create test entity
-    entity_request = CreateEntityRequest(
-        entities=[Entity(name="TestEntity", entity_type=EntityType.KNOWLEDGE)]
-    )
+    entity_request = CreateEntityRequest(entities=[Entity(name="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
     entity_id = result.entities[0].path_id
 
@@ -92,21 +84,17 @@ async def test_add_observations_with_context(client):
         context=shared_context,
         observations=[
             ObservationCreate(
-                content="Decided on file format",
-                category=ObservationCategory.DESIGN
+                content="Decided on file format", category=ObservationCategory.DESIGN
             ),
-            ObservationCreate(
-                content="Will use markdown",
-                category=ObservationCategory.TECH
-            )
-        ]
+            ObservationCreate(content="Will use markdown", category=ObservationCategory.TECH),
+        ],
     )
     updated = await add_observations(request)
 
     assert len(updated.observations) == 2
     for obs in updated.observations:
         # Note: context handling depends on our schema - might need adjustment
-        if hasattr(obs, 'context'):
+        if hasattr(obs, "context"):
             assert obs.context == shared_context
 
 
@@ -116,11 +104,7 @@ async def test_add_observations_preserves_existing(client):
     # Create entity with initial observation
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(
-                name="TestEntity", 
-                entity_type=EntityType.KNOWLEDGE,
-                observations=["Initial observation"]
-            )
+            Entity(name="TestEntity", entity_type="test", observations=["Initial observation"])
         ]
     )
     result = await create_entities(entity_request)
@@ -130,11 +114,8 @@ async def test_add_observations_preserves_existing(client):
     request = AddObservationsRequest(
         path_id=entity_id,
         observations=[
-            ObservationCreate(
-                content="New observation",
-                category=ObservationCategory.TECH
-            )
-        ]
+            ObservationCreate(content="New observation", category=ObservationCategory.TECH)
+        ],
     )
     updated = await add_observations(request)
 
@@ -149,28 +130,19 @@ async def test_add_observations_preserves_existing(client):
 async def test_add_multiple_observations_same_category(client):
     """Test adding multiple observations in the same category."""
     # Create test entity
-    entity_request = CreateEntityRequest(
-        entities=[Entity(name="TestEntity", entity_type=EntityType.KNOWLEDGE)]
-    )
+    entity_request = CreateEntityRequest(entities=[Entity(name="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
     entity_id = result.entities[0].path_id
 
     # Add multiple tech observations
-    tech_observations = [
-        "Uses async/await",
-        "Implements SQLite backend",
-        "Handles UTF-8 encoding"
-    ]
-    
+    tech_observations = ["Uses async/await", "Implements SQLite backend", "Handles UTF-8 encoding"]
+
     request = AddObservationsRequest(
         path_id=entity_id,
         observations=[
-            ObservationCreate(
-                content=obs,
-                category=ObservationCategory.TECH
-            ) 
+            ObservationCreate(content=obs, category=ObservationCategory.TECH)
             for obs in tech_observations
-        ]
+        ],
     )
     updated = await add_observations(request)
 
@@ -188,11 +160,8 @@ async def test_add_observation_to_nonexistent_entity(client):
     request = AddObservationsRequest(
         path_id="test/nonexistent",
         observations=[
-            ObservationCreate(
-                content="This should fail",
-                category=ObservationCategory.NOTE
-            )
-        ]
+            ObservationCreate(content="This should fail", category=ObservationCategory.NOTE)
+        ],
     )
 
     # Should fail because entity doesn't exist

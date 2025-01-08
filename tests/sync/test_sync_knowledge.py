@@ -6,7 +6,6 @@ import pytest
 
 from basic_memory.config import ProjectConfig
 from basic_memory.models import Entity
-from basic_memory.models.knowledge import EntityType
 from basic_memory.services import EntityService
 from basic_memory.sync.sync_service import SyncService
 
@@ -49,9 +48,10 @@ A test concept.
     other = Entity(
         path_id="concept/other",
         name="Other",
-        entity_type=EntityType.KNOWLEDGE,
+        entity_type="test",
         file_path="concept/other.md",
         checksum="12345678",
+        content_type="text/markdown",
     )
     await entity_service.repository.add(other)
 
@@ -64,7 +64,7 @@ A test concept.
 
     # Find new entity
     test_concept = next(e for e in entities if e.path_id == "concept/test_concept")
-    assert test_concept.entity_type == EntityType.KNOWLEDGE
+    assert test_concept.entity_type == "knowledge"
 
     # Verify relation was not created
     # because file for related entity was not found

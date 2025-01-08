@@ -14,7 +14,6 @@ from basic_memory.markdown.schemas import (
     Relation as MarkdownRelation,
 )
 from basic_memory.models import Entity as EntityModel
-from basic_memory.models.knowledge import EntityType
 from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
 
 
@@ -35,7 +34,7 @@ def test_content() -> EntityContent:
     """Create test content with observations and relations."""
     return EntityContent(
         title="Test Entity",
-        description="A test entity description",
+        summary="A test entity description",
         observations=[
             MarkdownObservation(content="First observation"),
             MarkdownObservation(content="Second observation"),
@@ -65,7 +64,7 @@ async def test_create_entity_without_relations(
 
     # Check basic fields
     assert entity.name == "Test Entity"
-    assert entity.entity_type == EntityType.KNOWLEDGE
+    assert entity.entity_type == "knowledge"
     assert entity.path_id == "concept/test_entity"
     assert entity.summary == "A test entity description"
 
@@ -91,7 +90,7 @@ async def test_update_entity_without_relations(
 
     # Modify markdown content
     test_markdown.content.title = "Updated Title"
-    test_markdown.content.description = "Updated description"
+    test_markdown.content.summary = "Updated description"
     test_markdown.content.observations = [MarkdownObservation(content="Updated observation")]
 
     # Update entity
@@ -120,15 +119,17 @@ async def test_update_entity_relations(
     # Create target entities that relations point to
     other_entity = EntityModel(
         name="Other Entity",
-        entity_type=EntityType.KNOWLEDGE,
+        entity_type="test",
         path_id="concept/other_entity",
         file_path="concept/other_entity.md",
+        content_type="text/markdown",
     )
     another_entity = EntityModel(
         name="Another Entity",
-        entity_type=EntityType.KNOWLEDGE,
+        entity_type="test",
         path_id="concept/another_entity",
         file_path="concept/another_entity.md",
+        content_type="text/markdown",
     )
     await knowledge_sync_service.entity_service.add(other_entity)
     await knowledge_sync_service.entity_service.add(another_entity)
@@ -163,15 +164,17 @@ async def test_two_pass_sync_flow(
     # Create target entities first
     other_entity = EntityModel(
         name="Other Entity",
-        entity_type=EntityType.KNOWLEDGE,
+        entity_type="test",
         path_id="concept/other_entity",
         file_path="concept/other_entity.md",
+        content_type="text/markdown",
     )
     another_entity = EntityModel(
         name="Another Entity",
-        entity_type=EntityType.KNOWLEDGE,
+        entity_type="test",
         path_id="concept/another_entity",
         file_path="concept/another_entity.md",
+        content_type="text/markdown",
     )
     await knowledge_sync_service.entity_service.add(other_entity)
     await knowledge_sync_service.entity_service.add(another_entity)

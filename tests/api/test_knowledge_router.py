@@ -10,7 +10,7 @@ from basic_memory.schemas import (
     EntityResponse,
     EntityListResponse,
     ObservationResponse,
-    RelationResponse, EntityType,
+    RelationResponse,
 )
 from basic_memory.schemas.search import SearchItemType, SearchResponse
 
@@ -18,7 +18,7 @@ from basic_memory.schemas.search import SearchItemType, SearchResponse
 async def create_entity(client) -> EntityResponse:
     data = {
         "name": "TestEntity",
-        "entity_type": EntityType.KNOWLEDGE,
+        "entity_type": "test",
         "observations": ["First observation", "Second observation"],
     }
     # Create an entity
@@ -63,8 +63,8 @@ async def add_observations(client, path_id: str) -> List[ObservationResponse]:
 async def create_related_entities(client) -> List[RelationResponse]:  # pyright: ignore [reportReturnType]
     # Create two entities to relate
     entities = [
-        {"name": "SourceEntity", "entity_type": EntityType.KNOWLEDGE},
-        {"name": "TargetEntity", "entity_type": EntityType.KNOWLEDGE},
+        {"name": "SourceEntity", "entity_type": "test"},
+        {"name": "TargetEntity", "entity_type": "test"},
     ]
     create_response = await client.post("/knowledge/entities", json={"entities": entities})
     created = create_response.json()["entities"]
@@ -114,7 +114,7 @@ async def test_create_entities(client: AsyncClient):
 async def test_get_entity(client: AsyncClient):
     """Should retrieve an entity by path ID."""
     # First create an entity
-    data = {"name": "TestEntity", "entity_type": EntityType.KNOWLEDGE}
+    data = {"name": "TestEntity", "entity_type": "test"}
     response = await client.post("/knowledge/entities", json={"entities": [data]})
     assert response.status_code == 200
     data = response.json()
@@ -127,7 +127,7 @@ async def test_get_entity(client: AsyncClient):
     assert response.status_code == 200
     entity = response.json()
     assert entity["name"] == "TestEntity"
-    assert entity["entity_type"] == EntityType.KNOWLEDGE
+    assert entity["entity_type"] == "test"
     assert entity["path_id"] == "test_entity"
 
 
@@ -141,7 +141,7 @@ async def test_create_relations(client: AsyncClient):
 async def test_add_observations(client: AsyncClient):
     """Should add observations to an entity."""
     # Create an entity first
-    data = {"name": "TestEntity", "entity_type": EntityType.KNOWLEDGE}
+    data = {"name": "TestEntity", "entity_type": "test"}
     response = await client.post("/knowledge/entities", json={"entities": [data]})
 
     path_id = "test_entity"
@@ -154,14 +154,13 @@ async def test_add_observations(client: AsyncClient):
     assert len(entity["observations"]) == 2
 
 
-
 @pytest.mark.asyncio
 async def test_open_nodes(client: AsyncClient):
     """Should open multiple nodes by path IDs."""
     # Create a few entities with different names
     entities = [
-        {"name": "AlphaTest", "entity_type": EntityType.KNOWLEDGE},
-        {"name": "BetaTest", "entity_type": EntityType.KNOWLEDGE},
+        {"name": "AlphaTest", "entity_type": "test"},
+        {"name": "BetaTest", "entity_type": "test"},
     ]
     await client.post("/knowledge/entities", json={"entities": entities})
 
@@ -177,7 +176,7 @@ async def test_open_nodes(client: AsyncClient):
     assert len(data["entities"]) == 1
     entity = data["entities"][0]
     assert entity["name"] == "AlphaTest"
-    assert entity["entity_type"] == EntityType.KNOWLEDGE
+    assert entity["entity_type"] == "test"
     assert entity["path_id"] == "alpha_test"
 
 
@@ -185,7 +184,7 @@ async def test_open_nodes(client: AsyncClient):
 async def test_delete_entity(client: AsyncClient):
     """Test DELETE /knowledge/entities with path ID."""
     # Create test entity
-    entity_data = {"name": "TestEntity", "entity_type": EntityType.KNOWLEDGE}
+    entity_data = {"name": "TestEntity", "entity_type": "test"}
     await client.post("/knowledge/entities", json={"entities": [entity_data]})
 
     # Test deletion
@@ -206,8 +205,8 @@ async def test_delete_entity_bulk(client: AsyncClient):
     """Test bulk entity deletion using path IDs."""
     # Create test entities
     entities = [
-        {"name": "Entity1", "entity_type": EntityType.KNOWLEDGE},
-        {"name": "Entity2", "entity_type": EntityType.KNOWLEDGE},
+        {"name": "Entity1", "entity_type": "test"},
+        {"name": "Entity2", "entity_type": "test"},
     ]
     await client.post("/knowledge/entities", json={"entities": entities})
 
@@ -229,14 +228,12 @@ async def test_delete_entity_bulk(client: AsyncClient):
 async def test_delete_entity_with_observations(client, observation_repository):
     """Test cascading delete with observations."""
     # Create test entity and add observations
-    entity_data = {"name": "TestEntity", "entity_type": EntityType.KNOWLEDGE}
+    entity_data = {"name": "TestEntity", "entity_type": "test"}
     await client.post("/knowledge/entities", json={"entities": [entity_data]})
     await add_observations(client, "TestEntity")
 
     # Delete entity
-    response = await client.post(
-        "/knowledge/entities/delete", json={"path_ids": ["TestEntity"]}
-    )
+    response = await client.post("/knowledge/entities/delete", json={"path_ids": ["TestEntity"]})
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
 
@@ -249,7 +246,7 @@ async def test_delete_entity_with_observations(client, observation_repository):
 async def test_delete_observations(client, observation_repository):
     """Test deleting specific observations."""
     # Create entity and add observations
-    entity_data = {"name": "TestEntity", "entity_type": EntityType.KNOWLEDGE}
+    entity_data = {"name": "TestEntity", "entity_type": "test"}
     await client.post("/knowledge/entities", json={"entities": [entity_data]})
     observations = await add_observations(client, "TestEntity")  # adds 2
 
@@ -293,9 +290,7 @@ async def test_delete_relations(client, relation_repository):
 @pytest.mark.asyncio
 async def test_delete_nonexistent_entity(client: AsyncClient):
     """Test deleting a nonexistent entity by path ID."""
-    response = await client.post(
-        "/knowledge/entities/delete", json={"path_ids": ["non_existent"]}
-    )
+    response = await client.post("/knowledge/entities/delete", json={"path_ids": ["non_existent"]})
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
 
@@ -304,7 +299,7 @@ async def test_delete_nonexistent_entity(client: AsyncClient):
 async def test_delete_nonexistent_observations(client: AsyncClient):
     """Test deleting nonexistent observations."""
     # Create test entity
-    entity_data = {"name": "TestEntity", "entity_type": EntityType.KNOWLEDGE}
+    entity_data = {"name": "TestEntity", "entity_type": "test"}
     await client.post("/knowledge/entities", json={"entities": [entity_data]})
 
     request_data = {"path_id": "TestEntity", "observations": ["Nonexistent observation"]}
@@ -336,21 +331,20 @@ async def test_delete_nonexistent_relations(client: AsyncClient):
     assert del_response.entities == []
 
 
-
 @pytest.mark.asyncio
 async def test_full_knowledge_flow(client: AsyncClient):
     """Test complete knowledge graph flow with path IDs."""
     # 1. Create main entities
     main_entities = [
-        {"name": "MainEntity", "entity_type": EntityType.KNOWLEDGE},
-        {"name": "NonEntity", "entity_type": EntityType.KNOWLEDGE},
+        {"name": "MainEntity", "entity_type": "test"},
+        {"name": "NonEntity", "entity_type": "test"},
     ]
     await client.post("/knowledge/entities", json={"entities": main_entities})
 
     # 2. Create related entities
     related_entities = [
-        {"name": "RelatedOne", "entity_type": EntityType.KNOWLEDGE},
-        {"name": "RelatedTwo", "entity_type": EntityType.KNOWLEDGE},
+        {"name": "RelatedOne", "entity_type": "test"},
+        {"name": "RelatedTwo", "entity_type": "test"},
     ]
     await client.post("/knowledge/entities", json={"entities": related_entities})
 
@@ -374,7 +368,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     )
     assert relations_response.status_code == 200
     relations_entities = relations_response.json()
-    assert len(relations_entities["entities"]) == 3 
+    assert len(relations_entities["entities"]) == 3
 
     # 4. Add observations to main entity
     await client.post(
@@ -402,9 +396,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     # 6. Search should find all related entities
     search = await client.post("/search/", json={"text": "Related"})
     matches = search.json()["results"]
-    assert (
-        len(matches) == 1
-    )  
+    assert len(matches) == 1
 
     # 7. Delete main entity
     response = await client.post(
@@ -424,7 +416,7 @@ async def test_entity_indexing(client: AsyncClient):
     """Test entity creation includes search indexing."""
     data = {
         "name": "SearchTest",
-        "entity_type": EntityType.KNOWLEDGE,
+        "entity_type": "test",
         "observations": ["Unique searchable observation"],
     }
 
@@ -449,7 +441,7 @@ async def test_observation_update_indexing(client: AsyncClient):
     # Create entity
     data = {
         "name": "TestEntity",
-        "entity_type": EntityType.KNOWLEDGE,
+        "entity_type": "test",
         "observations": ["Initial observation"],
     }
     response = await client.post("/knowledge/entities", json={"entities": [data]})
@@ -479,7 +471,7 @@ async def test_entity_delete_indexing(client: AsyncClient):
     """Test deleted entities are removed from search index."""
     data = {
         "name": "DeleteTest",
-        "entity_type": EntityType.KNOWLEDGE,
+        "entity_type": "test",
         "observations": ["Searchable observation that should be removed"],
     }
 
@@ -514,8 +506,8 @@ async def test_relation_indexing(client: AsyncClient):
     """Test relations are included in search index."""
     # Create entities
     entities = [
-        {"name": "SourceTest", "entity_type": EntityType.KNOWLEDGE},
-        {"name": "TargetTest", "entity_type": EntityType.KNOWLEDGE},
+        {"name": "SourceTest", "entity_type": "test"},
+        {"name": "TargetTest", "entity_type": "test"},
     ]
     create_response = await client.post("/knowledge/entities", json={"entities": entities})
     assert create_response.status_code == 200
@@ -541,7 +533,7 @@ async def test_relation_indexing(client: AsyncClient):
         "/search/", json={"text": "sphinx relation", "types": [SearchItemType.ENTITY.value]}
     )
     search_result = SearchResponse.model_validate(search_response.json())
-    assert len(search_result.results) == 2 # Both source and target entities
+    assert len(search_result.results) == 2  # Both source and target entities
     path_ids = {r.path_id for r in search_result.results}
     assert path_ids == {"source_test", "target_test"}
 
@@ -552,9 +544,9 @@ async def test_update_entity_basic(client: AsyncClient):
     # Create initial entity
     data = {
         "name": "test",
-        "entity_type": EntityType.KNOWLEDGE,
-        "description": "Initial description",
-        "entity_metadata": {"status": "draft"}
+        "entity_type": "test",
+        "summary": "Initial description",
+        "entity_metadata": {"status": "draft"},
     }
     response = await client.post("/knowledge/entities", json={"entities": [data]})
     entity = response.json()["entities"][0]
@@ -562,7 +554,7 @@ async def test_update_entity_basic(client: AsyncClient):
     # Update basic fields
     update_data = {
         "name": "updated-test",
-        "description": "Updated description",
+        "summary": "Updated description",
     }
     response = await client.put(f"/knowledge/entities/{entity['path_id']}", json=update_data)
     assert response.status_code == 200
@@ -570,7 +562,7 @@ async def test_update_entity_basic(client: AsyncClient):
 
     # Verify updates
     assert updated["name"] == "updated-test"
-    assert updated["description"] == "Updated description"
+    assert updated["summary"] == "Updated description"
     assert updated["entity_metadata"]["status"] == "draft"  # Preserved
 
 
@@ -578,19 +570,14 @@ async def test_update_entity_basic(client: AsyncClient):
 async def test_update_entity_content(client: AsyncClient):
     """Test updating content for different entity types."""
     # Create a note entity
-    note_data = {
-        "name": "test-note",
-        "entity_type": EntityType.NOTE,
-        "description": "Test note"
-    }
+    note_data = {"name": "test-note", "entity_type": "note", "summary": "Test note"}
     response = await client.post("/knowledge/entities", json={"entities": [note_data]})
     note = response.json()["entities"][0]
 
     # Update note content
     new_content = "# Updated Note\n\nNew content."
     response = await client.put(
-        f"/knowledge/entities/{note['path_id']}",
-        json={"content": new_content}
+        f"/knowledge/entities/{note['path_id']}", json={"content": new_content}
     )
     assert response.status_code == 200
     updated = response.json()
@@ -608,49 +595,39 @@ async def test_update_entity_type_conversion(client: AsyncClient):
     # Create a note
     note_data = {
         "name": "test-note",
-        "entity_type": EntityType.NOTE,
-        "description": "Test note",
-        "content": "# Test Note\n\nInitial content."
+        "entity_type": "note",
+        "summary": "Test note",
+        "content": "# Test Note\n\nInitial content.",
     }
     response = await client.post("/knowledge/entities", json={"entities": [note_data]})
     note = response.json()["entities"][0]
 
     # Convert to knowledge type
     response = await client.put(
-        f"/knowledge/entities/{note['path_id']}",
-        json={"entity_type": EntityType.KNOWLEDGE}
+        f"/knowledge/entities/{note['path_id']}", json={"entity_type": "test"}
     )
     assert response.status_code == 200
     updated = response.json()
 
     # Verify conversion
-    assert updated["entity_type"] == EntityType.KNOWLEDGE
+    assert updated["entity_type"] == "test"
 
     # Get latest to verify file format
     response = await client.get(f"/knowledge/entities/{updated['path_id']}")
     knowledge = response.json()
-    assert knowledge.get("content") is None 
+    assert knowledge.get("content") is None
 
 
 @pytest.mark.asyncio
 async def test_update_entity_metadata(client: AsyncClient):
     """Test updating entity metadata."""
     # Create entity
-    data = {
-        "name": "test",
-        "entity_type": EntityType.KNOWLEDGE,
-        "entity_metadata": {"status": "draft"}
-    }
+    data = {"name": "test", "entity_type": "test", "entity_metadata": {"status": "draft"}}
     response = await client.post("/knowledge/entities", json={"entities": [data]})
     entity = response.json()["entities"][0]
 
     # Update metadata
-    update_data = {
-        "entity_metadata": {
-            "status": "final",
-            "reviewed": True
-        }
-    }
+    update_data = {"entity_metadata": {"status": "final", "reviewed": True}}
     response = await client.put(f"/knowledge/entities/{entity['path_id']}", json=update_data)
     assert response.status_code == 200
     updated = response.json()
@@ -663,10 +640,7 @@ async def test_update_entity_metadata(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_entity_not_found(client: AsyncClient):
     """Test updating non-existent entity."""
-    response = await client.put(
-        "/knowledge/entities/nonexistent",
-        json={"name": "new-name"}
-    )
+    response = await client.put("/knowledge/entities/nonexistent", json={"name": "new-name"})
     assert response.status_code == 404
 
 
@@ -674,59 +648,62 @@ async def test_update_entity_not_found(client: AsyncClient):
 async def test_update_entity_search_index(client: AsyncClient):
     """Test search index is updated after entity changes."""
     # Create entity
-    data = {
-        "name": "test",
-        "entity_type": EntityType.KNOWLEDGE,
-        "description": "Initial searchable content"
-    }
+    data = {"name": "test", "entity_type": "test", "summary": "Initial searchable content"}
     response = await client.post("/knowledge/entities", json={"entities": [data]})
     entity = response.json()["entities"][0]
 
     # Update with new searchable content
-    update_data = {
-        "description": "Updated with unique sphinx marker"
-    }
+    update_data = {"summary": "Updated with unique sphinx marker"}
     response = await client.put(f"/knowledge/entities/{entity['path_id']}", json=update_data)
     assert response.status_code == 200
 
     # Search should find new content
     search_response = await client.post(
-        "/search/",
-        json={"text": "sphinx marker", "types": [SearchItemType.ENTITY.value]}
+        "/search/", json={"text": "sphinx marker", "types": [SearchItemType.ENTITY.value]}
     )
     results = search_response.json()["results"]
     assert len(results) == 1
     assert results[0]["path_id"] == entity["path_id"]
-    
-    
+
 
 @pytest.mark.asyncio
 async def test_get_entity_with_relations(client: AsyncClient):
     """Test get response includes relations for both types."""
     # Create a note and knowledge entity
-    note = await client.post("/knowledge/entities", json={"entities": [{
-        "name": "test-note",
-        "entity_type": EntityType.NOTE,
-        "description": "Test note"
-    }]})
-    knowledge = await client.post("/knowledge/entities", json={"entities": [{
-        "name": "test-knowledge",
-        "entity_type": EntityType.KNOWLEDGE,
-        "description": "Test knowledge"
-    }]})
+    note = await client.post(
+        "/knowledge/entities",
+        json={
+            "entities": [{"name": "test-note", "entity_type": "note", "summary": "Test note"}]
+        },
+    )
+    knowledge = await client.post(
+        "/knowledge/entities",
+        json={
+            "entities": [
+                {"name": "test-knowledge", "entity_type": "test", "summary": "Test knowledge"}
+            ]
+        },
+    )
 
     # Add some relations between them
-    await client.post("/knowledge/relations", json={
-        "relations": [{
-            "from_id": note.json()["entities"][0]["path_id"],
-            "to_id": knowledge.json()["entities"][0]["path_id"],
-            "relation_type": "references"
-        }]
-    })
+    await client.post(
+        "/knowledge/relations",
+        json={
+            "relations": [
+                {
+                    "from_id": note.json()["entities"][0]["path_id"],
+                    "to_id": knowledge.json()["entities"][0]["path_id"],
+                    "relation_type": "references",
+                }
+            ]
+        },
+    )
 
     # Verify GET returns relations for both types
     note_response = await client.get(f"/knowledge/entities/{note.json()['entities'][0]['path_id']}")
-    knowledge_response = await client.get(f"/knowledge/entities/{knowledge.json()['entities'][0]['path_id']}")
+    knowledge_response = await client.get(
+        f"/knowledge/entities/{knowledge.json()['entities'][0]['path_id']}"
+    )
 
     assert len(note_response.json()["relations"]) == 1
     assert len(knowledge_response.json()["relations"]) == 1

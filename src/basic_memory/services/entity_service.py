@@ -18,7 +18,8 @@ def entity_model(entity: EntitySchema):
         entity_metadata=entity.entity_metadata,
         path_id=entity.path_id,
         file_path=entity.file_path,
-        description=entity.description,
+        summary=entity.summary,
+        content_type=entity.content_type,
         observations=[Observation(content=observation) for observation in entity.observations],
     )
     return model

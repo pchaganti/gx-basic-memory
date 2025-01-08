@@ -5,8 +5,8 @@ import pytest
 from basic_memory.mcp.tools.discovery import (
     get_observation_categories,
 )
-from basic_memory.schemas import Entity, CreateEntityRequest, ObservationCategoryList, EntityType
 from basic_memory.mcp.tools.knowledge import create_entities, add_observations
+from basic_memory.schemas import Entity, CreateEntityRequest, ObservationCategoryList
 from basic_memory.schemas.request import ObservationCreate, AddObservationsRequest
 
 
@@ -18,8 +18,8 @@ async def test_get_observation_categories(client):
         entities=[
             Entity(
                 name="Test Entity",
-                entity_type=EntityType.KNOWLEDGE,
-                description="Test entity",
+                entity_type="test",
+                summary="Test entity",
                 observations=[],
             )
         ]

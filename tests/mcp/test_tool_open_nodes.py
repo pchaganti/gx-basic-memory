@@ -2,10 +2,10 @@
 
 import pytest
 
-from basic_memory.mcp.tools.search import open_nodes
 from basic_memory.mcp.tools.knowledge import create_entities
+from basic_memory.mcp.tools.search import open_nodes
 from basic_memory.schemas import EntityListResponse
-from basic_memory.schemas.base import Entity, EntityType
+from basic_memory.schemas.base import Entity
 from basic_memory.schemas.request import CreateEntityRequest, OpenNodesRequest
 
 
@@ -15,16 +15,8 @@ async def test_open_multiple_entities(client):
     # Create some test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(
-                name="Entity1",
-                entity_type=EntityType.KNOWLEDGE,
-                description="First test entity"
-            ),
-            Entity(
-                name="Entity2",
-                entity_type=EntityType.KNOWLEDGE,
-                description="Second test entity"
-            )
+            Entity(name="Entity1", entity_type="test", summary="First test entity"),
+            Entity(name="Entity2", entity_type="test", summary="Second test entity"),
         ]
     )
     create_result = await create_entities(entity_request)
@@ -35,14 +27,14 @@ async def test_open_multiple_entities(client):
     result = await open_nodes(request)
     assert isinstance(result, EntityListResponse)
     response = EntityListResponse.model_validate(result)
-    
+
     # Verify we got a dictionary with both entities
     assert len(response.entities) == 2
-    
+
     for response_entity in response.entities:
         assert response_entity.path_id in path_ids
         assert response_entity.name in ["Entity1", "Entity2"]
-        
+
 
 @pytest.mark.asyncio
 async def test_open_nodes_with_details(client):
@@ -52,9 +44,9 @@ async def test_open_nodes_with_details(client):
         entities=[
             Entity(
                 name="DetailedEntity",
-                entity_type=EntityType.KNOWLEDGE,
-                description="Test entity with details",
-                observations=["First observation", "Second observation"]
+                entity_type="test",
+                summary="Test entity with details",
+                observations=["First observation", "Second observation"],
             )
         ]
     )
@@ -69,8 +61,8 @@ async def test_open_nodes_with_details(client):
     # Verify all details are present
     entity = response.entities[0]
     assert entity.name == "DetailedEntity"
-    assert entity.entity_type == EntityType.KNOWLEDGE
-    assert entity.description == "Test entity with details"
+    assert entity.entity_type == "test"
+    assert entity.summary == "Test entity with details"
     assert len(entity.observations) == 2
 
 
@@ -80,16 +72,8 @@ async def test_open_nodes_with_relations(client):
     # Create related entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(
-                name="Service",
-                entity_type=EntityType.KNOWLEDGE,
-                description="A service"
-            ),
-            Entity(
-                name="Database",
-                entity_type=EntityType.KNOWLEDGE,
-                description="A database"
-            )
+            Entity(name="Service", entity_type="test", summary="A service"),
+            Entity(name="Database", entity_type="test", summary="A database"),
         ]
     )
     create_result = await create_entities(entity_request)
@@ -101,13 +85,7 @@ async def test_open_nodes_with_relations(client):
     from basic_memory.schemas.base import Relation
 
     relation_request = CreateRelationsRequest(
-        relations=[
-            Relation(
-                from_id=path_ids[0],
-                to_id=path_ids[1],
-                relation_type="depends_on"
-            )
-        ]
+        relations=[Relation(from_id=path_ids[0], to_id=path_ids[1], relation_type="depends_on")]
     )
     await create_relations(relation_request)
 
@@ -125,21 +103,12 @@ async def test_open_nodes_with_relations(client):
 async def test_open_nonexistent_nodes(client):
     """Test behavior when some requested nodes don't exist."""
     # First create one real entity
-    entity_request = CreateEntityRequest(
-        entities=[
-            Entity(
-                name="RealEntity",
-                entity_type=EntityType.KNOWLEDGE
-            )
-        ]
-    )
+    entity_request = CreateEntityRequest(entities=[Entity(name="RealEntity", entity_type="test")])
     create_result = await create_entities(entity_request)
     real_path_id = create_result.entities[0].path_id
 
     # Try to open both real and non-existent
-    request = OpenNodesRequest(
-        path_ids=[real_path_id, "nonexistent"]
-    )
+    request = OpenNodesRequest(path_ids=[real_path_id, "nonexistent"])
     result = await open_nodes(request)
     response = EntityListResponse.model_validate(result)
 
@@ -152,14 +121,7 @@ async def test_open_nonexistent_nodes(client):
 async def test_open_single_node(client):
     """Test behavior with single path_id."""
     # Create an entity
-    entity_request = CreateEntityRequest(
-        entities=[
-            Entity(
-                name="SingleEntity",
-                entity_type=EntityType.KNOWLEDGE
-            )
-        ]
-    )
+    entity_request = CreateEntityRequest(entities=[Entity(name="SingleEntity", entity_type="test")])
     create_result = await create_entities(entity_request)
     path_id = create_result.entities[0].path_id
 

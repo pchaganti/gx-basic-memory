@@ -11,8 +11,6 @@ from basic_memory.deps import (
 from basic_memory.schemas import (
     CreateEntityRequest,
     EntityListResponse,
-    SearchNodesRequest,
-    SearchNodesResponse,
     CreateRelationsRequest,
     EntityResponse,
     AddObservationsRequest,
@@ -23,7 +21,7 @@ from basic_memory.schemas import (
     DeleteEntitiesRequest,
     UpdateEntityRequest,
 )
-from basic_memory.schemas.base import PathId, EntityType
+from basic_memory.schemas.base import PathId
 from basic_memory.services.exceptions import EntityNotFoundError
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -36,15 +34,15 @@ async def create_entities(
     data: CreateEntityRequest,
     background_tasks: BackgroundTasks,
     knowledge_service: KnowledgeServiceDep,
-    search_service = Depends(get_search_service)
+    search_service=Depends(get_search_service),
 ) -> EntityListResponse:
     """Create new entities in the knowledge graph and index them."""
     entities = await knowledge_service.create_entities(data.entities)
-    
+
     # Index each entity
     for entity in entities:
         await search_service.index_entity(entity, background_tasks=background_tasks)
-        
+
     return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )
@@ -56,21 +54,21 @@ async def update_entity(
     data: UpdateEntityRequest,
     background_tasks: BackgroundTasks,
     knowledge_service: KnowledgeServiceDep,
-    search_service = Depends(get_search_service)
+    search_service=Depends(get_search_service),
 ) -> EntityResponse:
     """Update an existing entity and reindex it."""
     try:
         # Convert request to dict, excluding None values
         update_data = data.model_dump(exclude_none=True)
-        
+
         # Update the entity
         updated_entity = await knowledge_service.update_entity(path_id, **update_data)
-        
+
         # Reindex since content changed
         await search_service.index_entity(updated_entity, background_tasks=background_tasks)
-        
+
         return EntityResponse.model_validate(updated_entity)
-        
+
     except EntityNotFoundError:
         raise HTTPException(status_code=404, detail=f"Entity with {path_id} not found")
 
@@ -80,15 +78,15 @@ async def create_relations(
     data: CreateRelationsRequest,
     background_tasks: BackgroundTasks,
     knowledge_service: KnowledgeServiceDep,
-    search_service = Depends(get_search_service),
+    search_service=Depends(get_search_service),
 ) -> EntityListResponse:
     """Create relations between entities and update search index."""
     updated_entities = await knowledge_service.create_relations(data.relations)
-    
+
     # Reindex updated entities since relations have changed
     for entity in updated_entities:
         await search_service.index_entity(entity, background_tasks=background_tasks)
-        
+
     return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in updated_entities]
     )
@@ -99,17 +97,17 @@ async def add_observations(
     data: AddObservationsRequest,
     background_tasks: BackgroundTasks,
     knowledge_service: KnowledgeServiceDep,
-    search_service = Depends(get_search_service)
+    search_service=Depends(get_search_service),
 ) -> EntityResponse:
     """Add observations to an entity and update search index."""
     logger.debug(f"Adding observations to entity: {data.path_id}")
     updated_entity = await knowledge_service.add_observations(
         data.path_id, data.observations, data.context
     )
-    
+
     # Reindex the entity with new observations
     await search_service.index_entity(updated_entity, background_tasks=background_tasks)
-    
+
     return EntityResponse.model_validate(updated_entity)
 
 
@@ -122,9 +120,9 @@ async def get_entity(path_id: PathId, knowledge_service: KnowledgeServiceDep) ->
     try:
         entity = await knowledge_service.get_entity_by_path_id(path_id)
         entity_response = EntityResponse.model_validate(entity)
-        
+
         # if the entity is a note, we add the content via reading from the file
-        if entity_response.entity_type == EntityType.NOTE:
+        if entity_response.entity_type == "note":
             content = await knowledge_service.read_entity_content(entity)
             entity_response.content = content
 
@@ -132,8 +130,11 @@ async def get_entity(path_id: PathId, knowledge_service: KnowledgeServiceDep) ->
     except EntityNotFoundError:
         raise HTTPException(status_code=404, detail=f"Entity with {path_id} not found")
 
+
 @router.post("/nodes", response_model=EntityListResponse)
-async def open_nodes(data: OpenNodesRequest, entity_service: EntityServiceDep) -> EntityListResponse:
+async def open_nodes(
+    data: OpenNodesRequest, entity_service: EntityServiceDep
+) -> EntityListResponse:
     """Open specific nodes by their names."""
     entities = await entity_service.open_nodes(data.path_ids)
     return EntityListResponse(
@@ -149,15 +150,15 @@ async def delete_entities(
     data: DeleteEntitiesRequest,
     background_tasks: BackgroundTasks,
     knowledge_service: KnowledgeServiceDep,
-    search_service = Depends(get_search_service)
+    search_service=Depends(get_search_service),
 ) -> DeleteEntitiesResponse:
     """Delete entities and remove from search index."""
     deleted = await knowledge_service.delete_entities(data.path_ids)
-    
+
     # Remove each deleted entity from search index
     for path_id in data.path_ids:
         background_tasks.add_task(search_service.delete_by_path_id, path_id)
-        
+
     return DeleteEntitiesResponse(deleted=deleted)
 
 
@@ -166,15 +167,15 @@ async def delete_observations(
     data: DeleteObservationsRequest,
     background_tasks: BackgroundTasks,
     knowledge_service: KnowledgeServiceDep,
-    search_service = Depends(get_search_service)
+    search_service=Depends(get_search_service),
 ) -> EntityResponse:
     """Delete observations and update search index."""
     path_id = data.path_id
     updated_entity = await knowledge_service.delete_observations(path_id, data.observations)
-    
+
     # Reindex the entity since observations changed
     await search_service.index_entity(updated_entity, background_tasks=background_tasks)
-    
+
     return EntityResponse.model_validate(updated_entity)
 
 
@@ -183,15 +184,15 @@ async def delete_relations(
     data: DeleteRelationsRequest,
     background_tasks: BackgroundTasks,
     knowledge_service: KnowledgeServiceDep,
-    search_service = Depends(get_search_service)
+    search_service=Depends(get_search_service),
 ) -> EntityListResponse:
     """Delete relations and update search index."""
     updated_entities = await knowledge_service.delete_relations(data.relations)
-    
+
     # Reindex entities since relations changed
     for entity in updated_entities:
         await search_service.index_entity(entity, background_tasks=background_tasks)
-        
+
     return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in updated_entities]
     )

@@ -152,7 +152,7 @@ class KnowledgeParser(MarkdownParser[EntityMarkdown]):
                             relations.append(relation)
 
             return EntityContent(
-                title=title, description=description, observations=observations, relations=relations
+                title=title, summary=description, observations=observations, relations=relations
             )
 
         except ParseError:

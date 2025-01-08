@@ -94,7 +94,7 @@ class UpdateEntityRequest(BaseModel):
     """Request to update an existing entity."""
     name: Optional[str] = None
     entity_type: Optional[EntityType] = None
-    description: Optional[str] = None
+    summary: Optional[str] = None
     content: Optional[str] = None
     entity_metadata: Optional[Dict[str, Any]] = None
 

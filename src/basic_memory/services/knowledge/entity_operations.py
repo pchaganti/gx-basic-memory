@@ -10,7 +10,6 @@ from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.services.entity_service import EntityService
 from basic_memory.services.exceptions import EntityNotFoundError
 from .file_operations import FileOperations
-from ...models.knowledge import EntityType
 
 
 class EntityOperations:
@@ -41,9 +40,6 @@ class EntityOperations:
         """
         logger.debug(f"Reading entity with path_id: {entity.path_id}")
 
-
-        if entity.entity_type != EntityType.NOTE:
-            raise ValueError(f"Entity type {entity.entity_type} not supported")
             
         # For notes, read the actual file content
         file_path = self.file_operations.get_entity_path(entity)

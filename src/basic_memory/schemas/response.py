@@ -16,7 +16,7 @@ from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, ConfigDict, Field, AliasPath, AliasChoices
 
-from basic_memory.schemas.base import Observation, Relation, PathId, Entity, EntityType
+from basic_memory.schemas.base import Observation, Relation, PathId, Entity, EntityType, ContentType
 from basic_memory.schemas.request import ObservationCreate
 
 
@@ -122,7 +122,8 @@ class EntityResponse(SQLAlchemyModel):
     name: str
     entity_type: EntityType
     entity_metadata: Optional[Dict] = None
-    description: Optional[str] = None
+    content_type: ContentType
+    summary: Optional[str] = None
     content: Optional[str] = None
     observations: List[ObservationResponse] = []
     relations: List[RelationResponse] = []

@@ -68,7 +68,7 @@ async def test_parse_complete_file(tmp_path, valid_entity_content):
     # Check content
     assert entity.content.title == "Auth Service"
     assert (
-        entity.content.description
+        entity.content.summary
         == "Core authentication service that handles user authentication."
     )
 
