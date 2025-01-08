@@ -5,20 +5,6 @@ from typing import Set, Dict, Optional
 
 
 @dataclass
-class DbState:
-    """State of a file including path and checksum info."""
-    path: str
-    checksum: str
-
-
-@dataclass 
-class ScanResult:
-    """Result of scanning a directory."""
-    files: Dict[str, DbState] = field(default_factory=dict)
-    errors: Dict[str, str] = field(default_factory=dict)  # path -> error message
-
-
-@dataclass
 class SyncReport:
     """Report of file changes found compared to database state.
     

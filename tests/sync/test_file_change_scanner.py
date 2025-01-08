@@ -6,7 +6,7 @@ import pytest
 
 from basic_memory.models import Entity
 from basic_memory.sync import FileChangeScanner
-from basic_memory.sync.utils import DbState
+from basic_memory.sync.utils import FileState
 from basic_memory.utils.file_utils import compute_checksum
 
 
@@ -45,8 +45,8 @@ async def test_scan_with_mixed_files(file_change_scanner: FileChangeScanner, tem
     assert len(result.errors) == 0
 
     # Verify FileState objects
-    assert isinstance(result.files["doc.md"], DbState)
-    assert result.files["doc.md"].path == "doc.md"
+    assert isinstance(result.files["doc.md"], FileState)
+    assert result.files["doc.md"].path_id == "doc.md"
     assert result.files["doc.md"].checksum is not None
 
 
@@ -73,9 +73,9 @@ async def test_detect_new_files(
     await create_test_file(temp_dir / "new.md")
 
     # Empty DB state
-    db_records = await file_change_scanner.get_db_file_paths([])
+    db_records = await file_change_scanner.get_db_file_state([])
 
-    changes = await file_change_scanner.find_changes(directory=temp_dir, db_records=db_records)
+    changes = await file_change_scanner.find_changes(directory=temp_dir, db_file_state=db_records)
 
     assert len(changes.new) == 1
     assert "new.md" in changes.new
@@ -90,12 +90,12 @@ async def test_detect_modified_file(file_change_scanner: FileChangeScanner, temp
 
     # Create DB state with original checksum
     original_checksum = await compute_checksum(content)
-    db_records = {path: DbState(path=path, checksum=original_checksum)}
+    db_records = {path: FileState(path_id=path, checksum=original_checksum)}
 
     # Modify file
     await create_test_file(temp_dir / path, "modified")
 
-    changes = await file_change_scanner.find_changes(directory=temp_dir, db_records=db_records)
+    changes = await file_change_scanner.find_changes(directory=temp_dir, db_file_state=db_records)
 
     assert len(changes.modified) == 1
     assert path in changes.modified
@@ -107,9 +107,9 @@ async def test_detect_deleted_files(file_change_scanner: FileChangeScanner, temp
     path = "deleted.md"
 
     # Create DB state with file that doesn't exist
-    db_records = {path: DbState(path=path, checksum="any-checksum")}
+    db_records = {path: FileState(path_id=path, checksum="any-checksum")}
 
-    changes = await file_change_scanner.find_changes(directory=temp_dir, db_records=db_records)
+    changes = await file_change_scanner.find_changes(directory=temp_dir, db_file_state=db_records)
 
     assert len(changes.deleted) == 1
     assert path in changes.deleted
@@ -121,7 +121,7 @@ async def test_get_db_state_entities(file_change_scanner: FileChangeScanner):
     """Test converting entity records to file states."""
     entity = Entity(path_id="concept/test", file_path="concept/test.md", checksum="test-checksum")
 
-    db_records = await file_change_scanner.get_db_file_paths([entity])
+    db_records = await file_change_scanner.get_db_file_state([entity])
 
     assert len(db_records) == 1
     assert "concept/test.md" in db_records
@@ -134,7 +134,7 @@ async def test_empty_directory(file_change_scanner: FileChangeScanner, temp_dir:
     """Test handling empty/nonexistent directory."""
     nonexistent = temp_dir / "nonexistent"
 
-    changes = await file_change_scanner.find_changes(directory=nonexistent, db_records={})
+    changes = await file_change_scanner.find_changes(directory=nonexistent, db_file_state={})
 
     assert changes.total_changes == 0
     assert not changes.new

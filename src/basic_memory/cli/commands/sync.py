@@ -20,18 +20,15 @@ from basic_memory.config import config
 from basic_memory.db import DatabaseType
 from basic_memory.markdown import KnowledgeParser
 from basic_memory.repository import (
-    DocumentRepository,
     EntityRepository,
     ObservationRepository,
     RelationRepository,
 )
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services import (
-    DocumentService,
     EntityService,
     ObservationService,
     RelationService,
-    FileService,
 )
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import SyncService, FileChangeScanner, KnowledgeSyncService
@@ -54,17 +51,15 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         session_maker,
     ):
         # Initialize repositories
-        document_repository = DocumentRepository(session_maker)
         entity_repository = EntityRepository(session_maker)
         observation_repository = ObservationRepository(session_maker)
         relation_repository = RelationRepository(session_maker)
         search_repository = SearchRepository(session_maker)
 
         # Initialize scanner
-        file_change_scanner = FileChangeScanner(document_repository, entity_repository)
+        file_change_scanner = FileChangeScanner(entity_repository)
 
         # Initialize services
-        document_service = DocumentService(document_repository, config.documents_dir, FileService())
         entity_service = EntityService(entity_repository)
         observation_service = ObservationService(observation_repository)
         relation_service = RelationService(relation_repository)
@@ -73,19 +68,19 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
             entity_service, observation_service, relation_service
         )
         knowledge_parser = KnowledgeParser()
-        
-        search_service = SearchService(search_repository, document_service, entity_service)
+
+        search_service = SearchService(search_repository, entity_service)
 
         # Create sync service
         sync_service = SyncService(
             scanner=file_change_scanner,
-            document_service=document_service,
             knowledge_sync_service=knowledge_sync_service,
             knowledge_parser=knowledge_parser,
             search_service=search_service,
         )
 
         return sync_service
+
 
 def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[ValidationIssue]]:
     """Group validation issues by directory."""
@@ -143,18 +138,18 @@ def display_validation_errors(issues: List[ValidationIssue]):
     console.print()
 
 
-def display_sync_summary(docs: SyncReport, knowledge: SyncReport):
+def display_sync_summary(knowledge: SyncReport):
     """Display a one-line summary of sync changes."""
-    total_changes = docs.total_changes + knowledge.total_changes
+    total_changes = knowledge.total_changes
     if total_changes == 0:
         console.print("[green]Everything up to date[/green]")
         return
 
     # Format as: "Synced X files (A new, B modified, C deleted)"
     changes = []
-    new_count = len(docs.new) + len(knowledge.new)
-    mod_count = len(docs.modified) + len(knowledge.modified)
-    del_count = len(docs.deleted) + len(knowledge.deleted)
+    new_count =  len(knowledge.new)
+    mod_count =  len(knowledge.modified)
+    del_count =  len(knowledge.deleted)
 
     if new_count:
         changes.append(f"[green]{new_count} new[/green]")
@@ -166,31 +161,13 @@ def display_sync_summary(docs: SyncReport, knowledge: SyncReport):
     console.print(f"Synced {total_changes} files ({', '.join(changes)})")
 
 
-def display_detailed_sync_results(docs: SyncReport, knowledge: SyncReport):
+def display_detailed_sync_results(knowledge: SyncReport):
     """Display detailed sync results with trees."""
-    if docs.total_changes == 0 and knowledge.total_changes == 0:
+    if knowledge.total_changes == 0:
         console.print("\n[green]Everything up to date[/green]")
         return
 
     console.print("\n[bold]Sync Results[/bold]")
-
-    if docs.total_changes > 0:
-        doc_tree = Tree("[bold]Documents[/bold]")
-        if docs.new:
-            created = doc_tree.add("[green]Created[/green]")
-            for path in sorted(docs.new):
-                checksum = docs.checksums.get(path, "")
-                created.add(f"[green]{path}[/green] ({checksum[:8]})")
-        if docs.modified:
-            modified = doc_tree.add("[yellow]Modified[/yellow]")
-            for path in sorted(docs.modified):
-                checksum = docs.checksums.get(path, "")
-                modified.add(f"[yellow]{path}[/yellow] ({checksum[:8]})")
-        if docs.deleted:
-            deleted = doc_tree.add("[red]Deleted[/red]")
-            for path in sorted(docs.deleted):
-                deleted.add(f"[red]{path}[/red]")
-        console.print(doc_tree)
 
     if knowledge.total_changes > 0:
         knowledge_tree = Tree("[bold]Knowledge Files[/bold]")
@@ -239,13 +216,13 @@ async def run_sync(verbose: bool = False):
         raise typer.Exit(1)
 
     # Sync
-    doc_changes, knowledge_changes = await sync_service.sync(config)
+    knowledge_changes = await sync_service.sync(config)
 
     # Display results
     if verbose:
-        display_detailed_sync_results(doc_changes, knowledge_changes)
+        display_detailed_sync_results(knowledge_changes)
     else:
-        display_sync_summary(doc_changes, knowledge_changes)
+        display_sync_summary(knowledge_changes)
 
 
 @app.command()

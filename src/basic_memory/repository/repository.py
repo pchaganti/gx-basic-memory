@@ -107,12 +107,15 @@ class Repository[T: Base]:
             await session.refresh(instance, relationships or [])
             logger.debug(f"Refreshed relationships: {relationships}")
 
-    async def find_all(self, skip: int = 0, limit: int = 100) -> Sequence[T]:
+    async def find_all(self, skip: int = 0, limit: Optional[int] = 0 ) -> Sequence[T]:
         """Fetch records from the database with pagination."""
         logger.debug(f"Finding all {self.Model.__name__} (skip={skip}, limit={limit})")
 
         async with db.scoped_session(self.session_maker) as session:
-            query = select(self.Model).offset(skip).limit(limit).options(*self.get_load_options())
+            
+            query = select(self.Model).offset(skip).options(*self.get_load_options())
+            if limit:
+                query = query.limit(limit)
 
             result = await session.execute(query)
 
