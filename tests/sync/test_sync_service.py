@@ -24,7 +24,6 @@ async def test_sync_empty_directories(sync_service: SyncService, test_config: Pr
     await sync_service.sync(test_config)
 
     # Should not raise exceptions for empty dirs
-    assert (test_config.documents_dir).exists()
     assert (test_config.knowledge_dir).exists()
 
 
@@ -34,8 +33,19 @@ async def test_sync_file_modified_during_sync(
 ):
     """Test handling of files that change during sync process."""
     # Create initial files
-    doc_path = test_config.documents_dir / "changing.md"
-    await create_test_file(doc_path, "Initial content")
+    doc_path = test_config.knowledge_dir / "changing.md"
+    await create_test_file(doc_path, """
+---
+type: knowledge
+id: changing
+created: 2024-01-01
+modified: 2024-01-01
+---
+# Knowledge File
+
+## Observations
+- This is a test
+""")
 
     # Setup async modification during sync
     async def modify_file():
@@ -46,7 +56,7 @@ async def test_sync_file_modified_during_sync(
     await asyncio.gather(sync_service.sync(test_config), modify_file())
 
     # Verify final state
-    doc = await sync_service.document_service.repository.find_by_path_id("changing.md")
+    doc = await sync_service.knowledge_sync_service.entity_service.get_by_path_id("changing")
     assert doc is not None
     # File should have a checksum, even if it's from either version
     assert doc.checksum is not None
@@ -90,120 +100,4 @@ modified: 2024-01-01
     assert updated.checksum is not None
 
 
-@pytest.mark.asyncio
-async def test_sync_mixed_document_types(sync_service: SyncService, test_config: ProjectConfig):
-    """Test handling documents and knowledge files with similar paths."""
-    # Create a document
-    doc_content = "# Regular Document"
-    await create_test_file(test_config.documents_dir / "test.md", doc_content)
 
-    # Create a knowledge file
-    knowledge_content = """
----
-type: knowledge
-id: concept/test
-created: 2024-01-01
-modified: 2024-01-01
----
-# Knowledge File
-
-## Observations
-- This is a test
-"""
-    await create_test_file(test_config.knowledge_dir / "concept/test.md", knowledge_content)
-
-    # Run sync
-    await sync_service.sync(test_config)
-
-    # Verify both types exist correctly
-    doc = await sync_service.document_service.repository.find_by_path_id("test.md")
-    assert doc is not None
-
-    entity = await sync_service.knowledge_sync_service.entity_service.get_by_path_id("concept/test")
-    assert entity is not None
-    assert len(entity.observations) == 1
-
-
-@pytest.mark.asyncio
-async def test_sync_performance_large_files(sync_service: SyncService, test_config: ProjectConfig):
-    """Test sync performance with larger files."""
-    # Create a large document with many lines
-    large_doc = ["Line " + str(i) for i in range(1000)]
-    await create_test_file(test_config.documents_dir / "large.md", "\n".join(large_doc))
-
-    # Create a knowledge file with many observations
-    observations = [f"- Observation {i}" for i in range(100)]
-    knowledge_content = f"""
----
-type: knowledge
-id: concept/large
-created: 2024-01-01
-modified: 2024-01-01
----
-# Large Entity
-
-## Observations
-{chr(10).join(observations)}
-"""
-    await create_test_file(test_config.knowledge_dir / "concept/large.md", knowledge_content)
-
-    # Time the sync
-    start_time = asyncio.get_event_loop().time()
-    await sync_service.sync(test_config)
-    duration = asyncio.get_event_loop().time() - start_time
-
-    # Verify everything synced
-    doc = await sync_service.document_service.repository.find_by_path_id("large.md")
-    assert doc is not None
-
-    entity = await sync_service.knowledge_sync_service.entity_service.get_by_path_id(
-        "concept/large"
-    )
-    assert entity is not None
-    assert len(entity.observations) == 100
-
-    # Basic performance check - should sync in reasonable time
-    assert duration < 5  # Should complete in under 5 seconds
-
-
-# skip for now - until we handle concurrency with db
-
-# @pytest.mark.asyncio
-# async def test_sync_concurrent_updates(
-#         sync_service: SyncService,
-#         test_config: ProjectConfig
-# ):
-#     """Test concurrent syncs maintain database consistency."""
-#     doc1_path = test_config.documents_dir / "doc1.md"
-#     doc2_path = test_config.documents_dir / "doc2.md"
-#
-#     await create_test_file(doc1_path, "Doc 1 content")
-#     await create_test_file(doc2_path, "Doc 2 content")
-#
-#     # Run concurrent syncs
-#     results = await asyncio.gather(
-#         sync_service.sync(test_config),
-#         sync_service.sync(test_config),
-#         return_exceptions=True
-#     )
-#
-#     # Check no exceptions were raised
-#     for r in results:
-#         if isinstance(r, Exception):
-#             print(r)
-#         assert not isinstance(r, Exception)
-#
-#     # Verify database consistency
-#     docs = await sync_service.document_service.repository.find_all()
-#     assert len(docs) == 2  # No duplicates
-#     assert {d.path_id for d in docs} == {"doc1.md", "doc2.md"}
-#
-#     # Both files should have valid checksums
-#     for doc in docs:
-#         assert doc.checksum is not None
-#
-#     # Running another sync should not change anything
-#     await sync_service.sync(test_config)
-#     docs_after = await sync_service.document_service.repository.find_all()
-#     assert len(docs_after) == 2
-#     assert {d.path_id for d in docs_after} == {"doc1.md", "doc2.md"}

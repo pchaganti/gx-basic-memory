@@ -4,8 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from basic_memory.models import Document, Entity
-from basic_memory.repository import DocumentRepository
+from basic_memory.models import Entity
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.utils import DbState
 from basic_memory.utils.file_utils import compute_checksum
@@ -67,7 +66,7 @@ async def test_scan_with_unreadable_file(file_change_scanner: FileChangeScanner,
 
 @pytest.mark.asyncio
 async def test_detect_new_files(
-    file_change_scanner: FileChangeScanner, temp_dir: Path, document_repository: DocumentRepository
+    file_change_scanner: FileChangeScanner, temp_dir: Path,
 ):
     """Test detection of new files."""
     # Create new file
@@ -116,17 +115,6 @@ async def test_detect_deleted_files(file_change_scanner: FileChangeScanner, temp
     assert path in changes.deleted
 
 
-@pytest.mark.asyncio
-async def test_get_db_state_documents(file_change_scanner: FileChangeScanner):
-    """Test converting document records to file states."""
-    doc = Document(path_id="test.md", file_path="test.md", checksum="test-checksum")
-
-    db_records = await file_change_scanner.get_db_file_paths([doc])
-
-    assert len(db_records) == 1
-    assert "test.md" in db_records
-    assert db_records["test.md"].checksum == "test-checksum"
-
 
 @pytest.mark.asyncio
 async def test_get_db_state_entities(file_change_scanner: FileChangeScanner):
@@ -139,15 +127,6 @@ async def test_get_db_state_entities(file_change_scanner: FileChangeScanner):
     assert "concept/test.md" in db_records
     assert db_records["concept/test.md"].checksum == "test-checksum"
 
-
-@pytest.mark.asyncio
-async def test_get_db_state_does_not_skip_missing_checksum(file_change_scanner: FileChangeScanner):
-    """Test that get_db_state skips records with missing checksums."""
-    doc = Document(path_id="test.md", file_path="test.md", checksum=None)
-
-    db_records = await file_change_scanner.get_db_file_paths([doc])
-
-    assert len(db_records) == 1
 
 
 @pytest.mark.asyncio

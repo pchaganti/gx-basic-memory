@@ -121,40 +121,6 @@ async def test_search_date_filter(search_service, test_entity):
     assert len(results) == 0
 
 
-@pytest.mark.asyncio
-async def test_index_document(search_service, test_document):
-    """Test indexing a document"""
-    content = """# Test Document
-    
-This is a test document with some searchable content.
-It contains technical information about implementation."""
-
-    await search_service.index_document(test_document, content)
-
-    # Search for document content
-    results = await search_service.search(SearchQuery(text="searchable content"))
-    assert len(results) == 1
-    assert results[0].path_id == test_document.path_id
-    assert results[0].type == SearchItemType.DOCUMENT
-    
-    # Verify metadata
-    assert results[0].metadata["title"] == "Test Document"
-    assert results[0].metadata["type"] == "technical"
-
-
-@pytest.mark.asyncio
-async def test_update_document_index(search_service, test_document):
-    """Test updating an indexed document"""
-    # Initial indexing
-    await search_service.index_document(test_document, "Initial content")
-
-    # Update with new content
-    await search_service.index_document(test_document, "Updated content with new terms")
-
-    # Search for new terms
-    results = await search_service.search(SearchQuery(text="new terms"))
-    assert len(results) == 1
-
 
 @pytest.mark.asyncio
 async def test_reindex_all(

@@ -3,8 +3,7 @@
 from datetime import datetime, timezone
 from typing import List, Optional, Sequence
 
-from . import EntityService, DocumentService, RelationService
-from ..models import Document
+from . import EntityService, RelationService
 from ..schemas.activity import (
     ActivityChange,
     ActivitySummary,
@@ -21,12 +20,10 @@ class ActivityService:
     def __init__(
         self,
         entity_service: EntityService,
-        document_service: DocumentService,
         relation_service: RelationService,
     ):
         """Initialize with required services."""
         self.entity_service = entity_service
-        self.document_service = document_service
         self.relation_service = relation_service
 
     async def get_recent_activity(
@@ -58,8 +55,6 @@ class ActivityService:
         for activity_type in types_to_fetch:
             if activity_type == ActivityType.ENTITY:
                 changes.extend(await self._get_entity_changes(since))
-            elif activity_type == ActivityType.DOCUMENT:
-                changes.extend(await self._get_document_changes(since))
             elif activity_type == ActivityType.RELATION:
                 changes.extend(await self._get_relation_changes(since))
 
@@ -71,7 +66,6 @@ class ActivityService:
 
         # Generate summary
         summary = ActivitySummary(
-            document_changes=len([c for c in changes if c.activity_type == ActivityType.DOCUMENT]),
             entity_changes=len([c for c in changes if c.activity_type == ActivityType.ENTITY]),
             relation_changes=len([c for c in changes if c.activity_type == ActivityType.RELATION]),
             most_active_paths=self._get_most_active_paths(changes)
@@ -109,31 +103,6 @@ class ActivityService:
             
         return changes
 
-    async def _get_document_changes(self, since: datetime) -> List[ActivityChange]:
-        """Get recent document changes."""
-        # Query documents updated since the cutoff
-        documents: Sequence[Document] = await self.document_service.get_modified_since(since)
-        
-        changes = []
-        for doc in documents:
-            # Ensure timestamps are timezone-aware
-            created_at = doc.created_at.replace(tzinfo=timezone.utc) if doc.created_at.tzinfo is None else doc.created_at
-            updated_at = doc.updated_at.replace(tzinfo=timezone.utc) if doc.updated_at.tzinfo is None else doc.updated_at
-            
-            change_type = ChangeType.CREATED if created_at >= since else ChangeType.UPDATED
-            
-            changes.append(
-                ActivityChange(
-                    activity_type=ActivityType.DOCUMENT,
-                    change_type=change_type,
-                    timestamp=updated_at,
-                    path_id=doc.path_id,
-                    summary=f"{change_type.value.title()} document: {doc.path_id}",
-                    content=None  # Document content lives in the filesystem
-                )
-            )
-            
-        return changes
 
     async def _get_relation_changes(self, since: datetime) -> List[ActivityChange]:
         """Get recent relation changes."""

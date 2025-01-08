@@ -5,7 +5,7 @@ from typing import List, Optional, Any
 from fastapi import BackgroundTasks
 from loguru import logger
 
-from basic_memory.models import Document, Entity
+from basic_memory.models import Entity
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services.entity_service import EntityService
 from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType

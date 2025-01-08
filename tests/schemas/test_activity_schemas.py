@@ -47,7 +47,7 @@ def test_activity_change_model():
     """Test ActivityChange model."""
     now = datetime.utcnow()
     change = ActivityChange(
-        activity_type=ActivityType.DOCUMENT,
+        activity_type=ActivityType.ENTITY,
         change_type=ChangeType.CREATED,
         timestamp=now,
         path_id="test/path",
@@ -55,7 +55,7 @@ def test_activity_change_model():
         content="Test content"
     )
     
-    assert change.activity_type == ActivityType.DOCUMENT
+    assert change.activity_type == ActivityType.ENTITY
     assert change.change_type == ChangeType.CREATED
     assert change.timestamp == now
     assert change.path_id == "test/path"
@@ -66,13 +66,11 @@ def test_activity_change_model():
 def test_activity_summary_model():
     """Test ActivitySummary model."""
     summary = ActivitySummary(
-        document_changes=5,
         entity_changes=3,
         relation_changes=2,
         most_active_paths=["path1", "path2"]
     )
     
-    assert summary.document_changes == 5
     assert summary.entity_changes == 3
     assert summary.relation_changes == 2
     assert summary.most_active_paths == ["path1", "path2"]
@@ -82,7 +80,7 @@ def test_recent_activity_model():
     """Test RecentActivity model."""
     now = datetime.utcnow()
     change = ActivityChange(
-        activity_type=ActivityType.DOCUMENT,
+        activity_type=ActivityType.ENTITY,
         change_type=ChangeType.CREATED,
         timestamp=now,
         path_id="test/path",
@@ -90,7 +88,7 @@ def test_recent_activity_model():
     )
     
     summary = ActivitySummary(
-        document_changes=1
+        entity_changes=1
     )
     
     activity = RecentActivity(
@@ -102,4 +100,4 @@ def test_recent_activity_model():
     assert activity.timeframe == "1d"
     assert len(activity.changes) == 1
     assert activity.changes[0].path_id == "test/path"
-    assert activity.summary.document_changes == 1
+    assert activity.summary.entity_changes == 1

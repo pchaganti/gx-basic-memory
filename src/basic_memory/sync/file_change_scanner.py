@@ -5,7 +5,7 @@ from typing import Dict, Sequence
 
 from loguru import logger
 
-from basic_memory.models import Document, Entity
+from basic_memory.models import Entity
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.sync.utils import DbState, SyncReport, ScanResult
 from basic_memory.utils.file_utils import compute_checksum
@@ -129,7 +129,7 @@ class FileChangeScanner:
         return report
 
     async def get_db_file_paths(
-        self, db_records: Sequence[Document | Entity]
+        self, db_records: Sequence[Entity]
     ) -> Dict[str, DbState]:
         """Get file_path and checksums from database.
         Args:

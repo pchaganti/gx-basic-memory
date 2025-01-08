@@ -43,7 +43,6 @@ class TimeFrame:
 
 class ActivityType(str, Enum):
     """Types of activities that can be tracked."""
-    DOCUMENT = "document"
     ENTITY = "entity"
     RELATION = "relation"
 
@@ -67,7 +66,6 @@ class ActivityChange(BaseModel):
 
 class ActivitySummary(BaseModel):
     """Summary statistics about recent activity."""
-    document_changes: int = Field(default=0, description="Number of document changes")
     entity_changes: int = Field(default=0, description="Number of entity changes")
     relation_changes: int = Field(default=0, description="Number of relation changes")
     most_active_paths: List[str] = Field(

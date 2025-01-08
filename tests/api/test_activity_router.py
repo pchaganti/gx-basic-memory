@@ -29,7 +29,7 @@ async def test_get_recent_activity_with_filters(client: AsyncClient):
         "/activity/recent",
         params={
             "timeframe": "1h",
-            "activity_types": [ActivityType.DOCUMENT.value],
+            "activity_types": [ActivityType.ENTITY.value],
             "include_content": False
         }
     )
@@ -41,5 +41,5 @@ async def test_get_recent_activity_with_filters(client: AsyncClient):
     
     # Verify all changes are document type
     for change in data["changes"]:
-        assert change["activity_type"] == ActivityType.DOCUMENT.value
+        assert change["activity_type"] == ActivityType.ENTITY.value
         assert change["content"] is None  # Content excluded

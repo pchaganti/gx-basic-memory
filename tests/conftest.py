@@ -46,7 +46,6 @@ def test_config(tmp_path) -> ProjectConfig:
     )
     config.home = tmp_path
 
-    (tmp_path / config.documents_dir.name).mkdir(parents=True, exist_ok=True)
     (tmp_path / config.knowledge_dir.name).mkdir(parents=True, exist_ok=True)
     return config
 
