@@ -51,15 +51,12 @@ class FileOperations:
         try:
             # Ensure we have a fresh entity with all relations
             entity = await self.entity_service.get_by_path_id(entity.path_id)
-            
-            # Select writer based on entity type
-            writer = self.note_writer if entity.entity_type == "note" else self.knowledge_writer
-            
+                        
             # Get frontmatter and content
-            frontmatter = await writer.format_frontmatter(entity)
-            file_content = await writer.format_content(
+            frontmatter = await self.knowledge_writer.format_frontmatter(entity)
+            file_content = await self.knowledge_writer.format_content(
                 entity=entity,
-                content=content or entity.summary or "",
+                content=content
             )
             
             # Add frontmatter and write

@@ -40,7 +40,7 @@ class EntityOperations:
         """
         logger.debug(f"Reading entity with path_id: {entity.path_id}")
 
-            
+
         # For notes, read the actual file content
         file_path = self.file_operations.get_entity_path(entity)
         content, _ = await self.file_operations.read_file(file_path)
@@ -58,7 +58,7 @@ class EntityOperations:
             db_entity = await self.entity_service.create_entity(entity)
 
             # 2. Write file and get checksum
-            _, checksum = await self.file_operations.write_entity_file(db_entity)
+            _, checksum = await self.file_operations.write_entity_file(db_entity, content=entity.content)
 
             # 3. Update DB with checksum
             updated = await self.entity_service.update_entity(
