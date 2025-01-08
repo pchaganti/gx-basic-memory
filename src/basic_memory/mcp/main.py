@@ -11,8 +11,8 @@ from basic_memory.config import config
 from basic_memory.mcp.server import mcp
 
 # Import tools to register them
-from basic_memory.mcp.tools import knowledge, search, documents, discovery, help
-__all__ = ["mcp", "knowledge", "search", "documents", "discovery", "help"]
+from basic_memory.mcp.tools import knowledge, search, discovery, help
+__all__ = ["mcp", "knowledge", "search", "discovery", "help"]
 
 
 def setup_logging(home_dir: str = config.home, log_file: str = "basic-memory.log"):

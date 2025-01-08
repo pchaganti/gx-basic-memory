@@ -62,7 +62,7 @@ class SearchService:
         content = "\n".join(
             [
                 entity.name,
-                entity.description or "",
+                entity.summary or "",
                 # Add observations
                 *[f"{obs.category}: {obs.content}" for obs in entity.observations],
                 # Add relations

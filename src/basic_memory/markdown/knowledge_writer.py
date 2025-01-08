@@ -25,8 +25,8 @@ class KnowledgeWriter:
             "",  # Empty line after name
         ]
 
-        if entity.description:
-            sections.extend([entity.description, ""])
+        if entity.summary:
+            sections.extend([entity.summary, ""])
 
         if entity.observations:
             sections.extend(

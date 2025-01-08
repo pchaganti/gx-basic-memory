@@ -67,7 +67,7 @@ async def test_create_entity_without_relations(
     assert entity.name == "Test Entity"
     assert entity.entity_type == EntityType.KNOWLEDGE
     assert entity.path_id == "concept/test_entity"
-    assert entity.description == "A test entity description"
+    assert entity.summary == "A test entity description"
 
     # Check observations
     assert len(entity.observations) == 2
@@ -101,7 +101,7 @@ async def test_update_entity_without_relations(
 
     # Check fields updated
     assert updated.name == "Updated Title"
-    assert updated.description == "Updated description"
+    assert updated.summary == "Updated description"
     assert len(updated.observations) == 1
     assert updated.observations[0].content == "Updated observation"
 

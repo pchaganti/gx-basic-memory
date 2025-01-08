@@ -83,7 +83,7 @@ class KnowledgeSyncService:
         # Update fields from markdown
         db_entity.name = markdown.content.title
         db_entity.entity_type = markdown.frontmatter.type
-        db_entity.description = markdown.content.description
+        db_entity.summary = markdown.content.description
 
         # Clear and update observations
         await self.observation_service.delete_by_entity(db_entity.id)
@@ -102,7 +102,7 @@ class KnowledgeSyncService:
             {
                 "name": db_entity.name,
                 "entity_type": db_entity.entity_type,
-                "description": db_entity.description,
+                "description": db_entity.summary,
                 # Mark as incomplete
                 "checksum": None,
             },

@@ -60,7 +60,7 @@ class FileOperations:
             frontmatter = await writer.format_frontmatter(entity)
             file_content = await writer.format_content(
                 entity=entity,
-                content=content or entity.description or "",
+                content=content or entity.summary or "",
             )
             
             # Add frontmatter and write

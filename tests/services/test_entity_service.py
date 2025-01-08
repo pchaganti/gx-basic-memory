@@ -43,17 +43,17 @@ async def test_create_entity(entity_service: EntityService):
     assert entity.path_id == entity_data.path_id
     assert entity.file_path == entity_data.file_path
     assert entity.entity_type == EntityType.KNOWLEDGE
-    assert entity.description == "A test entity description"
+    assert entity.summary == "A test entity description"
     assert entity.created_at is not None
     assert entity.observations[0].content == "this is a test observation"
     assert len(entity.relations) == 0
 
     # Verify we can retrieve it using path_id
     retrieved = await entity_service.get_by_path_id(entity_data.path_id)
-    assert retrieved.description == "A test entity description"
+    assert retrieved.summary == "A test entity description"
     assert retrieved.name == "TestEntity"
     assert retrieved.entity_type == EntityType.KNOWLEDGE
-    assert retrieved.description == "A test entity description"
+    assert retrieved.summary == "A test entity description"
     assert retrieved.created_at is not None
     assert retrieved.observations[0].content == "this is a test observation"
 
@@ -84,7 +84,7 @@ async def test_create_entities(entity_service: EntityService):
     assert isinstance(entity1, EntityModel)
     assert entity1.name == "TestEntity1"
     assert entity1.entity_type == EntityType.KNOWLEDGE
-    assert entity1.description == "A test entity description"
+    assert entity1.summary == "A test entity description"
     assert entity1.created_at is not None
     assert entity1.observations[0].content == "this is a test observation"
     assert len(entity1.relations) == 0
@@ -93,16 +93,16 @@ async def test_create_entities(entity_service: EntityService):
     assert isinstance(entity1, EntityModel)
     assert entity2.name == "TestEntity2"
     assert entity2.entity_type == EntityType.KNOWLEDGE
-    assert entity2.description == "A test entity description"
+    assert entity2.summary == "A test entity description"
     assert entity2.created_at is not None
     assert entity2.observations[0].content == "this is a test observation"
 
     # Verify we can retrieve them using path_ids
     retrieved1 = await entity_service.get_by_path_id(entity_data[0].path_id)
-    assert retrieved1.description == "A test entity description"
+    assert retrieved1.summary == "A test entity description"
 
     retrieved2 = await entity_service.get_by_path_id(entity_data[1].path_id)
-    assert retrieved2.description == "A test entity description"
+    assert retrieved2.summary == "A test entity description"
 
 
 async def test_get_by_path_id(entity_service: EntityService):
@@ -128,14 +128,14 @@ async def test_get_by_path_id(entity_service: EntityService):
     assert found is not None
     assert found.id == entity1.id
     assert found.entity_type == entity1.entity_type
-    assert found.description == "First test entity"
+    assert found.summary == "First test entity"
 
     # Find by type2 and name
     found = await entity_service.get_by_path_id(entity2_data.path_id)
     assert found is not None
     assert found.id == entity2.id
     assert found.entity_type == entity2.entity_type
-    assert found.description == "Second test entity"
+    assert found.summary == "Second test entity"
 
     # Test not found case
     with pytest.raises(EntityNotFoundError):
@@ -147,11 +147,11 @@ async def test_create_entity_no_description(entity_service: EntityService):
     entity_data = EntitySchema(name="TestEntity", entity_type=EntityType.KNOWLEDGE, observations=[])
 
     entity = await entity_service.create_entity(entity_data)
-    assert entity.description is None
+    assert entity.summary is None
 
     # Verify after retrieval
     retrieved = await entity_service.get_by_path_id(entity_data.path_id)
-    assert retrieved.description is None
+    assert retrieved.summary is None
 
 
 async def test_get_entity_success(entity_service: EntityService):
@@ -170,7 +170,7 @@ async def test_get_entity_success(entity_service: EntityService):
     assert isinstance(retrieved, EntityModel)
     assert retrieved.name == "TestEntity"
     assert retrieved.entity_type == EntityType.KNOWLEDGE
-    assert retrieved.description == "Test description"
+    assert retrieved.summary == "Test description"
 
 
 async def test_update_entity_description(entity_service: EntityService):
@@ -187,11 +187,11 @@ async def test_update_entity_description(entity_service: EntityService):
     updated = await entity_service.update_entity(
         entity_data.path_id, {"description": "Updated description"}
     )
-    assert updated.description == "Updated description"
+    assert updated.summary == "Updated description"
 
     # Verify after retrieval
     retrieved = await entity_service.get_by_path_id(entity_data.path_id)
-    assert retrieved.description == "Updated description"
+    assert retrieved.summary == "Updated description"
 
 
 async def test_update_entity_description_to_none(entity_service: EntityService):
@@ -206,11 +206,11 @@ async def test_update_entity_description_to_none(entity_service: EntityService):
 
     # Update description to None using path_id
     updated = await entity_service.update_entity(entity_data.path_id, {"description": None})
-    assert updated.description is None
+    assert updated.summary is None
 
     # Verify after retrieval
     retrieved = await entity_service.get_by_path_id(entity_data.path_id)
-    assert retrieved.description is None
+    assert retrieved.summary is None
 
 
 async def test_delete_entity_success(entity_service: EntityService):
@@ -255,11 +255,11 @@ async def test_create_entity_with_special_chars(entity_service: EntityService):
     entity = await entity_service.create_entity(entity_data)
 
     assert entity.name == name
-    assert entity.description == description
+    assert entity.summary == description
 
     # Verify after retrieval using path_id
     retrieved = await entity_service.get_by_path_id(entity_data.path_id)
-    assert retrieved.description == description
+    assert retrieved.summary == description
 
 
 async def test_create_entity_long_description(entity_service: EntityService):
@@ -273,11 +273,11 @@ async def test_create_entity_long_description(entity_service: EntityService):
     )
 
     entity = await entity_service.create_entity(entity_data)
-    assert entity.description == long_description
+    assert entity.summary == long_description
 
     # Verify after retrieval using path_id
     retrieved = await entity_service.get_by_path_id(entity_data.path_id)
-    assert retrieved.description == long_description
+    assert retrieved.summary == long_description
 
 
 async def test_open_nodes_by_path_ids(entity_service: EntityService):

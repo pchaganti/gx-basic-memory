@@ -41,7 +41,7 @@ async def test_create_entity(knowledge_service: KnowledgeService):
     # Verify DB entity
     assert created.name == entity_schema.name
     assert created.entity_type == entity_schema.entity_type
-    assert created.description == entity_schema.description
+    assert created.summary == entity_schema.description
     assert created.checksum is not None
     assert created.path_id == "test_entity"
     assert created.file_path == "test_entity.md"

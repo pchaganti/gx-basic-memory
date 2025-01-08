@@ -21,13 +21,6 @@ from basic_memory.models.base import Base
 from enum import Enum
 
 
-class EntityType(str, Enum):
-    """Types of knowledge nodes."""
-
-    KNOWLEDGE = "knowledge"
-    NOTE = "note"
-
-
 class Entity(Base):
     """
     Core entity in the knowledge graph.
@@ -45,17 +38,14 @@ class Entity(Base):
         Index("ix_entity_type", "entity_type"),
         Index("ix_entity_created_at", "created_at"),  # For timeline queries
         Index("ix_entity_updated_at", "updated_at"),  # For timeline queries
-        CheckConstraint(
-            f"entity_type IN {tuple(t.value for t in EntityType)}", name="check_entity_type"
-        ),
     )
 
     # Core identity
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String)
-    entity_type: Mapped[EntityType] = mapped_column(String, default=EntityType.KNOWLEDGE)
+    entity_type: Mapped[str] = mapped_column(String)
     entity_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    
+    content_type: Mapped[str] = mapped_column(String)
 
     # Normalized path for URIs
     path_id: Mapped[str] = mapped_column(String, unique=True, index=True)
@@ -64,8 +54,8 @@ class Entity(Base):
     # checksum of file
     checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     
-    # Content for knowledge entity_type
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Content summary
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Metadata and tracking
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))

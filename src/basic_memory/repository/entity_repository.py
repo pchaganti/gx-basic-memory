@@ -83,7 +83,7 @@ class EntityRepository(Repository[Entity]):
                 or_(
                     Entity.name.ilike(search_term),
                     Entity.entity_type.ilike(search_term),
-                    Entity.description.ilike(search_term),
+                    Entity.summary.ilike(search_term),
                     Entity.observations.any(Observation.content.ilike(search_term)),
                 )
             )

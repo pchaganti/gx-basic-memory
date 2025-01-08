@@ -68,7 +68,7 @@ async def test_create_entity(entity_repository: EntityRepository):
     # Verify returned object
     assert entity.id is not None
     assert entity.name == "Test"
-    assert entity.description == "Test description"
+    assert entity.summary == "Test description"
     assert isinstance(entity.created_at, datetime)
     assert isinstance(entity.updated_at, datetime)
 
@@ -78,7 +78,7 @@ async def test_create_entity(entity_repository: EntityRepository):
     assert found.id is not None
     assert found.id == entity.id
     assert found.name == entity.name
-    assert found.description == entity.description
+    assert found.summary == entity.summary
 
     # assert relations are eagerly loaded
     assert len(entity.observations) == 0
@@ -115,7 +115,7 @@ async def test_create_all(entity_repository: EntityRepository):
     assert found.id is not None
     assert found.id == entity.id
     assert found.name == entity.name
-    assert found.description == entity.description
+    assert found.summary == entity.summary
 
     # assert relations are eagerly loaded
     assert len(entity.observations) == 0
@@ -139,7 +139,7 @@ async def test_create_entity_null_description(session_maker, entity_repository: 
         stmt = select(Entity).where(Entity.id == entity.id)
         result = await session.execute(stmt)
         db_entity = result.scalar_one()
-        assert db_entity.description is None
+        assert db_entity.summary is None
 
 
 @pytest.mark.asyncio
@@ -157,7 +157,7 @@ async def test_find_by_id(entity_repository: EntityRepository, sample_entity: En
         db_entity = result.scalar_one()
         assert db_entity.id == found.id
         assert db_entity.name == found.name
-        assert db_entity.description == found.description
+        assert db_entity.summary == found.summary
 
 
 @pytest.mark.asyncio
@@ -167,7 +167,7 @@ async def test_update_entity(entity_repository: EntityRepository, sample_entity:
         sample_entity.id, {"description": "Updated description"}
     )
     assert updated is not None
-    assert updated.description == "Updated description"
+    assert updated.summary == "Updated description"
     assert updated.name == sample_entity.name  # Other fields unchanged
 
     # Verify in database
@@ -175,7 +175,7 @@ async def test_update_entity(entity_repository: EntityRepository, sample_entity:
         stmt = select(Entity).where(Entity.id == sample_entity.id)
         result = await session.execute(stmt)
         db_entity = result.scalar_one()
-        assert db_entity.description == "Updated description"
+        assert db_entity.summary == "Updated description"
         assert db_entity.name == sample_entity.name
 
 
@@ -184,14 +184,14 @@ async def test_update_entity_to_null(entity_repository: EntityRepository, sample
     """Test updating an entity's description to null"""
     updated = await entity_repository.update(sample_entity.id, {"description": None})
     assert updated is not None
-    assert updated.description is None
+    assert updated.summary is None
 
     # Verify in database
     async with db.scoped_session(entity_repository.session_maker) as session:
         stmt = select(Entity).where(Entity.id == sample_entity.id)
         result = await session.execute(stmt)
         db_entity = result.scalar_one()
-        assert db_entity.description is None
+        assert db_entity.summary is None
 
 
 @pytest.mark.asyncio
