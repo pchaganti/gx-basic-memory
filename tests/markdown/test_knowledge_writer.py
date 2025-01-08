@@ -78,26 +78,36 @@ async def test_format_frontmatter_with_metadata(
 
 
 @pytest.mark.asyncio
+async def test_format_content_raw(knowledge_writer: KnowledgeWriter, sample_entity: Entity):
+    """Test raw content is preserved."""
+    raw_content = "# Test Content\n\nThis is some test content."
+    result = await knowledge_writer.format_content(sample_entity, raw_content)
+
+    assert result == raw_content
+    assert "# test_entity" not in result  # Shouldn't add title
+
+
+@pytest.mark.asyncio
 async def test_format_content_basic(knowledge_writer: KnowledgeWriter, sample_entity: Entity):
-    """Test basic content formatting."""
-    content = ""
-    result = await knowledge_writer.format_content(sample_entity, content)
+    """Test basic content formatting without raw content."""
+    result = await knowledge_writer.format_content(sample_entity)
 
     assert "# test_entity" in result
     assert "Test description" in result
 
 
 @pytest.mark.asyncio
-async def test_format_content_with_observations(
+async def test_format_content_structured(
     knowledge_writer: KnowledgeWriter, entity_with_observations: Entity
 ):
-    """Test content formatting with observations."""
-    content = ""
-    result = await knowledge_writer.format_content(entity_with_observations, content)
+    """Test structured content generation."""
+    result = await knowledge_writer.format_content(entity_with_observations)
 
+    # Should only have observation sections, not duplicate title
     assert "## Observations" in result
     assert "- [tech] First observation" in result
     assert "- [design] Second observation (Some context)" in result
+    assert "# test_entity" not in result  # No title needed
 
 
 @pytest.mark.asyncio
@@ -105,29 +115,76 @@ async def test_format_content_with_relations(
     knowledge_writer: KnowledgeWriter, entity_with_relations: Entity
 ):
     """Test content formatting with relations."""
-    content = ""
-    result = await knowledge_writer.format_content(entity_with_relations, content)
+    result = await knowledge_writer.format_content(entity_with_relations)
 
     assert "## Relations" in result
     assert "- connects_to [[target_entity]]" in result
 
 
 @pytest.mark.asyncio
-async def test_format_content_full_entity(
+async def test_format_content_empty_returns_title(
+    knowledge_writer: KnowledgeWriter, sample_entity: Entity
+):
+    """Test that empty content falls back to title."""
+    sample_entity.summary = None  # Remove summary
+    result = await knowledge_writer.format_content(sample_entity)
+
+    assert result == "# test_entity"
+
+
+@pytest.mark.asyncio
+async def test_format_content_preserves_spacing(
+    knowledge_writer: KnowledgeWriter, entity_with_observations: Entity
+):
+    """Test proper markdown spacing is maintained."""
+    result = await knowledge_writer.format_content(entity_with_observations)
+    lines = result.split("\n")
+
+    # Find sections and verify their format structure
+    for i, line in enumerate(lines):
+        if line == "## Observations":
+            # Observations section should have format:
+            # ## Observations
+            # <!-- Format comment -->
+            # <empty line>
+            # - observation entries...
+            assert "<!--" in lines[i+1], "Missing format comment after Observations"
+            assert lines[i+2] == "", "Missing empty line after format comment"
+            assert lines[i+3].startswith("- "), "Should start observations after empty line"
+
+        elif line == "## Relations":
+            # Relations section should have format:
+            # ## Relations
+            # <!-- Format comment -->
+            # <empty line>
+            # - relation entries...
+            assert "<!--" in lines[i+1], "Missing format comment after Relations"
+            assert lines[i+2] == "", "Missing empty line after format comment"
+            if i+3 < len(lines):  # If there are relations
+                assert lines[i+3].startswith("- "), "Should start relations after empty line"
+
+@pytest.mark.asyncio
+async def test_format_content_mixed(
     knowledge_writer: KnowledgeWriter,
     entity_with_relations: Entity,
     entity_with_observations: Entity,
 ):
-    """Test content formatting with all entity features."""
-    # Combine observations and relations
+    """Test content with both raw content and structured data."""
+    # Add observations to entity with relations
     entity_with_relations.observations = entity_with_observations.observations
-    content = ""
-    result = await knowledge_writer.format_content(entity_with_relations, content)
-
-    # Verify all sections present
-    assert "# test_entity" in result
-    assert "Test description" in result
+    
+    # Test with raw content
+    raw_content = "# Custom Title\n\nSome content."
+    result = await knowledge_writer.format_content(entity_with_relations, raw_content)
+    
+    # Should preserve raw content
+    assert result == raw_content
+    assert "# test_entity" not in result
+    
+    # Test without raw content - should generate structured
+    result = await knowledge_writer.format_content(entity_with_relations)
+    
     assert "## Observations" in result
-    assert "- [tech] First observation" in result
     assert "## Relations" in result
+    assert "- [tech] First observation" in result
     assert "- connects_to [[target_entity]]" in result

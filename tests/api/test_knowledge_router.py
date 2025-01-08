@@ -567,6 +567,32 @@ async def test_update_entity_basic(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_get_entity_content_parameter(client: AsyncClient):
+    """Test content parameter controls content loading."""
+    # Create test entity
+    data = {
+        "name": "TestContent",
+        "entity_type": "test",
+        "content": "# Test Content\n\nSome test content."
+    }
+    response = await client.post("/knowledge/entities", json={"entities": [data]})
+    assert response.status_code == 200
+    path_id = response.json()["entities"][0]["path_id"]
+
+    # Get without content
+    response = await client.get(f"/knowledge/entities/{path_id}")
+    assert response.status_code == 200
+    entity = response.json()
+    assert entity["content"] is None
+
+    # Get with content
+    response = await client.get(f"/knowledge/entities/{path_id}?content=true")
+    assert response.status_code == 200
+    entity = response.json()
+    assert "# Test Content" in entity["content"]
+    assert "Some test content" in entity["content"]
+
+@pytest.mark.asyncio
 async def test_update_entity_content(client: AsyncClient):
     """Test updating content for different entity types."""
     # Create a note entity
@@ -583,7 +609,7 @@ async def test_update_entity_content(client: AsyncClient):
     updated = response.json()
 
     # Verify through get request to check file
-    response = await client.get(f"/knowledge/entities/{updated['path_id']}")
+    response = await client.get(f"/knowledge/entities/{updated['path_id']}?content=true")
     fetched = response.json()
     assert "# Updated Note" in fetched["content"]
     assert "New content" in fetched["content"]

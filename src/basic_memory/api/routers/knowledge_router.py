@@ -115,21 +115,28 @@ async def add_observations(
 
 
 @router.get("/entities/{path_id:path}", response_model=EntityResponse)
-async def get_entity(path_id: PathId, knowledge_service: KnowledgeServiceDep) -> EntityResponse:
-    """Get a specific entity by ID."""
+async def get_entity(
+        knowledge_service: KnowledgeServiceDep,
+        path_id: PathId,
+        content: bool = False,  # New parameter
+) -> EntityResponse:
+    """Get a specific entity by ID.
+
+    Args:
+        path_id: Entity path ID
+        content: If True, include full file content
+    """
     try:
         entity = await knowledge_service.get_entity_by_path_id(path_id)
         entity_response = EntityResponse.model_validate(entity)
 
-        # if the entity is a note, we add the content via reading from the file
-        if entity_response.entity_type == "note":
+        if content:  # Load content if requested
             content = await knowledge_service.read_entity_content(entity)
             entity_response.content = content
 
         return entity_response
     except EntityNotFoundError:
         raise HTTPException(status_code=404, detail=f"Entity with {path_id} not found")
-
 
 @router.post("/nodes", response_model=EntityListResponse)
 async def open_nodes(
