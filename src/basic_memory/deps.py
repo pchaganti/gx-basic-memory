@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import (
 from basic_memory import db
 from basic_memory.config import ProjectConfig, config
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
-from basic_memory.markdown.note_writer import NoteWriter
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
@@ -172,11 +171,6 @@ async def get_knowledge_writer() -> KnowledgeWriter:
 KnowledgeWriterDep = Annotated[KnowledgeWriter, Depends(get_knowledge_writer)]
 
 
-async def get_note_writer() -> NoteWriter:
-    return NoteWriter()
-
-
-NoteWriterDep = Annotated[NoteWriter, Depends(get_note_writer)]
 
 
 async def get_knowledge_service(
@@ -185,7 +179,6 @@ async def get_knowledge_service(
     relation_service: RelationServiceDep,
     file_service: FileServiceDep,
     knowledge_writer: KnowledgeWriterDep,
-    note_writer: NoteWriterDep,
     project_config: ProjectConfigDep,
 ) -> KnowledgeService:
     """Create KnowledgeService with dependencies."""
@@ -195,7 +188,6 @@ async def get_knowledge_service(
         relation_service=relation_service,
         file_service=file_service,
         knowledge_writer=knowledge_writer,
-        note_writer=note_writer,
         base_path=project_config.knowledge_dir,
     )
 

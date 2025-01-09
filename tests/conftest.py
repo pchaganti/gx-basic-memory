@@ -12,7 +12,6 @@ from basic_memory.config import ProjectConfig
 from basic_memory.db import DatabaseType
 from basic_memory.markdown.knowledge_parser import KnowledgeParser
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
-from basic_memory.markdown.note_writer import NoteWriter
 from basic_memory.models import Base
 from basic_memory.models.knowledge import Entity
 from basic_memory.repository.entity_repository import EntityRepository
@@ -129,11 +128,6 @@ def knowledge_writer():
     return KnowledgeWriter()
 
 
-@pytest.fixture
-def note_writer():
-    """Create writer instance."""
-    return NoteWriter()
-
 
 @pytest.fixture
 def knowledge_parser():
@@ -154,7 +148,6 @@ async def knowledge_service(
     relation_service: RelationService,
     file_service: FileService,
     knowledge_writer: KnowledgeWriter,
-    note_writer: NoteWriter,
     test_config: ProjectConfig,
 ) -> KnowledgeService:
     """Create KnowledgeService with dependencies."""
@@ -164,7 +157,6 @@ async def knowledge_service(
         relation_service=relation_service,
         file_service=file_service,
         knowledge_writer=knowledge_writer,
-        note_writer=note_writer,
         base_path=test_config.knowledge_dir,
     )
 

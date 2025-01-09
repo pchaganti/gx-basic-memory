@@ -6,7 +6,6 @@ from typing import Tuple, Optional
 from loguru import logger
 
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
-from basic_memory.markdown.note_writer import NoteWriter
 from basic_memory.models import Entity as EntityModel
 from basic_memory.services.entity_service import EntityService
 from basic_memory.services.exceptions import FileOperationError
@@ -21,13 +20,11 @@ class FileOperations:
         entity_service: EntityService,
         file_service: FileService,
         knowledge_writer: KnowledgeWriter,
-        note_writer: NoteWriter,
         base_path: Path,
     ):
         self.entity_service = entity_service
         self.file_service = file_service
         self.knowledge_writer = knowledge_writer
-        self.note_writer = note_writer
         self.base_path = base_path
 
     async def file_exists(self, path: Path) -> bool:

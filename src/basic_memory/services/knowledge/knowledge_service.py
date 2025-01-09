@@ -5,7 +5,6 @@ from typing import List, Sequence, Tuple, Dict, Any, Optional
 
 
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
-from basic_memory.markdown.note_writer import NoteWriter
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.schemas import Relation as RelationSchema
@@ -42,7 +41,6 @@ class KnowledgeService:
         relation_service: RelationService,
         file_service: FileService,
         knowledge_writer: KnowledgeWriter,
-        note_writer: NoteWriter,
         base_path: Path,
     ):
         self.base_path = base_path
@@ -52,7 +50,6 @@ class KnowledgeService:
             entity_service=entity_service,
             file_service=file_service,
             knowledge_writer=knowledge_writer,
-            note_writer=note_writer,
             base_path=base_path,
         )
 
