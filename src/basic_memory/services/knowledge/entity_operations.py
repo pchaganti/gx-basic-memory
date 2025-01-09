@@ -57,8 +57,11 @@ class EntityOperations:
             # 1. Create entity in DB
             db_entity = await self.entity_service.create_entity(entity)
 
+            # if content is provided use that, otherwise write the entity info
+            content = entity.content or None 
+            
             # 2. Write file and get checksum
-            _, checksum = await self.file_operations.write_entity_file(db_entity, content=entity.content)
+            _, checksum = await self.file_operations.write_entity_file(db_entity, content=content)
 
             # 3. Update DB with checksum
             updated = await self.entity_service.update_entity(

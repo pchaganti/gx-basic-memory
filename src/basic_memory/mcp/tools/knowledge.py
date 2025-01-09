@@ -146,11 +146,17 @@ for dep in deps:
     ],
     output_model=EntityResponse
 )
-async def get_entity(path_id: PathId) -> EntityResponse:
-    """Get a specific entity by its path_id."""
+async def get_entity(path_id: PathId, content: bool = False) -> EntityResponse:
+    """Get a specific entity by its path_id.
+    
+    Args:
+        path_id: Path identifier for the entity
+        content: If True, includes the full markdown content of the entity
+    """
     try:
         url = f"/knowledge/entities/{path_id}"
-        response = await client.get(url)
+        params = {"content": "true"} if content else {}
+        response = await client.get(url, params=params)
         if response.status_code == 404:
             raise EntityNotFoundError(f"Entity not found: {path_id}")
         response.raise_for_status()

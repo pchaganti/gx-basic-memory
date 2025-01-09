@@ -25,7 +25,7 @@ async def test_get_basic_entity(client):
     create_result = await create_entities(entity_request)
     path_id = create_result.entities[0].path_id
 
-    # Get the entity
+    # Get the entity without content
     entity = await get_entity(path_id)
 
     # Verify entity details
@@ -33,6 +33,36 @@ async def test_get_basic_entity(client):
     assert entity.entity_type == "test"
     assert entity.path_id == "test_entity"
     assert entity.summary == "A test entity"
+
+    # Check observations
+    assert len(entity.observations) == 1
+    obs = entity.observations[0]
+    assert obs.content == "First observation"
+    assert obs.category == ObservationCategory.NOTE
+
+@pytest.mark.asyncio
+async def test_get_entity_with_content(client):
+    """Test retrieving a basic entity."""
+    # First create an entity
+    entity_request = CreateEntityRequest(
+        entities=[
+            Entity(
+                name="TestEntity",
+                entity_type="test",
+                content="A test entity",
+                observations=["First observation"],
+            )
+        ]
+    )
+    create_result = await create_entities(entity_request)
+    path_id = create_result.entities[0].path_id
+
+    # Get entity with content
+    entity = await get_entity(path_id, content=True)
+    assert entity.content is not None
+
+    # if we passed in content, it should just be the
+    assert "A test entity" in entity.content
 
     # Check observations
     assert len(entity.observations) == 1
@@ -65,7 +95,7 @@ async def test_get_entity_with_relations(client):
     )
     await create_relations(relation_request)
 
-    # Get and verify source entity
+    # Get and verify source entity without content
     source = await get_entity("source_entity")
     assert len(source.relations) == 1
     relation = source.relations[0]
@@ -99,7 +129,7 @@ async def test_get_entity_with_categorized_observations(client):
     )
     await add_observations(obs_request)
 
-    # Get and verify entity
+    # Get and verify entity without content
     entity = await get_entity(path_id)
     assert len(entity.observations) == 3
     categories = {obs.category for obs in entity.observations}
