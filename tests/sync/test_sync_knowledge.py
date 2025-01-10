@@ -265,7 +265,7 @@ modified: 2024-01-01
 ## Observations
 - [invalid_category] This is fine
 - [not_a_real_category] Should default to note
-- This one has no category
+- This one is not an observation, should be ignored
 - [design] This is valid 
 """
     await create_test_file(knowledge_dir / "concept/invalid_category.md", content)
@@ -278,7 +278,7 @@ modified: 2024-01-01
         "concept/invalid_category"
     )
 
-    assert len(entity.observations) == 4
+    assert len(entity.observations) == 3
     categories = [obs.category for obs in entity.observations]
 
     # Invalid categories should be converted to default

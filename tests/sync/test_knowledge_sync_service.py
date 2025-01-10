@@ -9,7 +9,6 @@ from basic_memory.markdown.schemas import (
     EntityMarkdown,
     EntityContent,
     EntityFrontmatter,
-    EntityMetadata,
     Observation as MarkdownObservation,
     Relation as MarkdownRelation,
 )
@@ -21,6 +20,7 @@ from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
 def test_frontmatter() -> EntityFrontmatter:
     """Create test frontmatter."""
     return EntityFrontmatter(
+        title="Test Entity",
         type="knowledge",
         id="concept/test_entity",
         created=datetime.now(),
@@ -33,8 +33,7 @@ def test_frontmatter() -> EntityFrontmatter:
 def test_content() -> EntityContent:
     """Create test content with observations and relations."""
     return EntityContent(
-        title="Test Entity",
-        summary="A test entity description",
+        content="A test entity description",
         observations=[
             MarkdownObservation(content="First observation"),
             MarkdownObservation(content="Second observation"),
@@ -50,7 +49,7 @@ def test_content() -> EntityContent:
 def test_markdown(test_frontmatter, test_content) -> EntityMarkdown:
     """Create complete test markdown entity."""
     return EntityMarkdown(
-        frontmatter=test_frontmatter, content=test_content, entity_metadata=EntityMetadata()
+        frontmatter=test_frontmatter, content=test_content
     )
 
 
@@ -89,8 +88,8 @@ async def test_update_entity_without_relations(
     entity = await knowledge_sync_service.create_entity_and_observations("test.md", test_markdown)
 
     # Modify markdown content
-    test_markdown.content.title = "Updated Title"
-    test_markdown.content.summary = "Updated description"
+    test_markdown.frontmatter.title = "Updated Title"
+    test_markdown.content.content = "Updated description"
     test_markdown.content.observations = [MarkdownObservation(content="Updated observation")]
 
     # Update entity

@@ -12,8 +12,16 @@ def is_observation(token: Token) -> bool:
         return False
         
     content = token.content.strip()
-    return ((content.startswith('[') and ']' in content) or  # Has category
-            '#' in content)  # Has tags
+    if not content:
+        return False
+    
+    # if it's a markdown_task, return false
+    if content.startswith('[ ]') or content.startswith('[x]') or content.startswith('[-]'):
+        return False
+    
+    has_category = content.startswith('[') and ']' in content
+    has_tags = '#' in content
+    return has_category or has_tags
 
 
 def parse_observation(token: Token) -> Dict[str, Any]:
@@ -30,7 +38,7 @@ def parse_observation(token: Token) -> Dict[str, Any]:
     if content.startswith('['):
         end = content.find(']')
         if end != -1:
-            category = content[1:end].strip()
+            category = content[1:end].strip() or None  # Convert empty to None
             content = content[end + 1:].strip()
     
     # Parse (context)
@@ -73,9 +81,7 @@ def is_explicit_relation(token: Token) -> bool:
         return False
     
     content = token.content.strip()
-    return ('[[' in content and 
-            ']]' in content and 
-            content.index('[[') < content.index(']]'))
+    return '[[' in content and ']]' in content
 
 
 def parse_relation(token: Token) -> Dict[str, Any]:
@@ -107,7 +113,7 @@ def parse_relation(token: Token) -> Dict[str, Any]:
         # Look for context after
         after = content[end + 2:].strip()
         if after.startswith('(') and after.endswith(')'):
-            context = after[1:-1].strip()
+            context = after[1:-1].strip() or None
     
     if not target:
         return None
@@ -169,7 +175,7 @@ def observation_plugin(md: MarkdownIt) -> None:
             token.meta = token.meta or {}
             
             # Parse observations in list items
-            if token.type == 'inline' and in_list_item and is_observation(token):
+            if token.type == 'inline' and is_observation(token):
                 obs = parse_observation(token)
                 if obs['content']:  # Only store if we have content
                     token.meta['observation'] = obs

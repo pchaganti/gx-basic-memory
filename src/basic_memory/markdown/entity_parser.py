@@ -5,7 +5,7 @@ Uses markdown-it with plugins to parse structured data from markdown content.
 
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 from markdown_it import MarkdownIt
 import frontmatter
@@ -14,7 +14,9 @@ from basic_memory.markdown.plugins import observation_plugin, relation_plugin
 from basic_memory.markdown.schemas import (
     EntityMarkdown,
     EntityFrontmatter,
-    EntityContent, Observation, Relation,
+    EntityContent,
+    Observation,
+    Relation,
 )
 
 
@@ -25,8 +27,8 @@ class EntityParser:
         """Initialize parser with base path for relative path_id generation."""
         self.base_path = base_path.resolve()
         self.md = (MarkdownIt()
-                  .use(observation_plugin)
-                  .use(relation_plugin))
+                   .use(observation_plugin)
+                   .use(relation_plugin))
 
     def get_path_id(self, file_path: Path) -> str:
         """Get path_id from file path relative to base_path.
@@ -38,8 +40,8 @@ class EntityParser:
         """
         # Get relative path and remove .md extension
         rel_path = file_path.resolve().relative_to(self.base_path)
-        if rel_path.suffix.lower() == '.md':
-            return str(rel_path.with_suffix(''))
+        if rel_path.suffix.lower() == ".md":
+            return str(rel_path.with_suffix(""))
         return str(rel_path)
 
     def parse_date(self, value: Any) -> Optional[datetime]:
@@ -75,21 +77,7 @@ class EntityParser:
         )
 
         # Parse content for observations and relations using markdown-it
-        tokens = self.md.parse(post.content)
-
-        # Extract observations and relations from token meta
-        observations = []
-        relations = []
-
-        for token in tokens:
-            if token.meta:  # Token might not have meta
-                if 'observation' in token.meta:
-                    obs = token.meta['observation']
-                    observation = Observation.model_validate(obs)
-                    observations.append(observation)
-                if 'relations' in token.meta:
-                    rels = token.meta['relations']
-                    relations.extend([Relation.model_validate(r) for r in rels])
+        observations, relations = await self.parse_observations_and_relations(post.content)
 
         # Create EntityContent
         entity_content = EntityContent(
@@ -102,6 +90,24 @@ class EntityParser:
             frontmatter=entity_frontmatter,
             content=entity_content,
         )
+
+    async def parse_observations_and_relations(
+        self, content: str
+    ) -> tuple[list[Observation], list[Relation]]:
+        tokens = self.md.parse(content)
+        # Extract observations and relations from token meta
+        observations = []
+        relations = []
+        for token in tokens:
+            if token.meta:  # Token might not have meta
+                if "observation" in token.meta:
+                    obs = token.meta["observation"]
+                    observation = Observation.model_validate(obs)
+                    observations.append(observation)
+                if "relations" in token.meta:
+                    rels = token.meta["relations"]
+                    relations.extend([Relation.model_validate(r) for r in rels])
+        return observations, relations
 
     def parse_tags(self, tags: Any) -> list[str]:
         """Parse tags into list of strings."""

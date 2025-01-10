@@ -188,7 +188,7 @@ async def sync_service(
     return SyncService(
         scanner=file_change_scanner,
         knowledge_sync_service=knowledge_sync_service,
-        knowledge_parser=entity_parser,
+        entity_parser=entity_parser,
         search_service=search_service,
     )
 

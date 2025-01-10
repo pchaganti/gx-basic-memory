@@ -1,4 +1,5 @@
 """Writer for knowledge entity markdown files."""
+from typing import Optional
 
 from basic_memory.models import Entity as EntityModel
 
@@ -24,7 +25,7 @@ class KnowledgeWriter:
             frontmatter.update(entity.entity_metadata)
         return frontmatter
 
-    async def format_content(self, entity: EntityModel, content: str = None) -> str:
+    async def format_content(self, entity: EntityModel, content: Optional[str] = None) -> str:
         """Format entity content as markdown.
         
         Args:

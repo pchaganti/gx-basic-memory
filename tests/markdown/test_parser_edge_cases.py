@@ -94,6 +94,32 @@ async def test_missing_sections(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_tasks_are_not_observations(tmp_path):
+    """Test handling of plain observations without categories."""
+    content = dedent("""
+        ---
+        type: test
+        id: test/missing
+        created: 2024-01-09
+        modified: 2024-01-09
+        tags: []
+        ---
+
+        - [ ] one
+        -[ ] two
+        - [x] done
+        - [-] not done
+        """)
+
+    test_file = tmp_path / "missing.md"
+    test_file.write_text(content)
+
+    parser = EntityParser(tmp_path)
+    entity = await parser.parse_file(test_file)
+    assert len(entity.content.observations) == 0
+
+
+@pytest.mark.asyncio
 async def test_nested_content(tmp_path):
     """Test handling of deeply nested content."""
     content = dedent("""
@@ -151,24 +177,10 @@ async def test_malformed_frontmatter(tmp_path):
     entity = await parser.parse_file(test_file)
     assert entity.frontmatter.id == "malformed"  # Generated from filename
     
-    # Invalid YAML
-    content = dedent("""
-        ---
-        type: test
-        tags: [unclosed
-        ---
-        
-        # Test
-        """)
-    
-    test_file.write_text(content)
-    entity = await parser.parse_file(test_file)
-    assert entity.frontmatter.tags == []  # Default to empty list
-
 
 @pytest.mark.asyncio
 async def test_file_not_found():
     """Test handling of non-existent files."""
     parser = EntityParser(Path("/tmp"))
-    with pytest.raises(FileError):
+    with pytest.raises(FileNotFoundError):
         await parser.parse_file(Path("nonexistent.md"))

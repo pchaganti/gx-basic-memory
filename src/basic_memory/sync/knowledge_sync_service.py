@@ -25,12 +25,12 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
         return obs.category
     
     model = EntityModel(
-        name=markdown.content.title,
+        name=markdown.frontmatter.title,
         entity_type=markdown.frontmatter.type,
         path_id=markdown.frontmatter.id,
         file_path=file_path,
         content_type="text/markdown",
-        summary=markdown.content.summary,
+        summary=markdown.content.content,
         observations=[
             Observation(
                 content=obs.content,
@@ -82,9 +82,9 @@ class KnowledgeSyncService:
         db_entity = await self.entity_service.get_by_path_id(path_id)
 
         # Update fields from markdown
-        db_entity.name = markdown.content.title
+        db_entity.name = markdown.frontmatter.title
         db_entity.entity_type = markdown.frontmatter.type
-        db_entity.summary = markdown.content.summary
+        db_entity.summary = markdown.content.content
 
         # Clear and update observations
         await self.observation_service.delete_by_entity(db_entity.id)
