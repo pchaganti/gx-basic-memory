@@ -4,9 +4,10 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+from markdown_it import MarkdownIt
 
-from basic_memory.markdown.knowledge_parser import KnowledgeParser
-from basic_memory.utils.file_utils import FileError, ParseError
+from basic_memory.markdown.entity_parser import EntityParser
+from basic_memory.utils.file_utils import FileError
 
 
 @pytest.mark.asyncio
@@ -20,164 +21,154 @@ async def test_unicode_content(tmp_path):
         modified: 2024-12-21T14:00:00Z
         tags: [unicode, 测试]
         ---
-
+        
         # Unicode Test 🧪
-
+        
         ## Observations
         - [test] Emoji test 👍 #emoji #test (Testing emoji)
         - [中文] Chinese text 测试 #language (Script test)
         - [русский] Russian привет #language (More scripts)
         - [note] Emoji in text 😀 #meta (Category test)
-
+        
         ## Relations
         - tested_by [[测试组件]] (Unicode test)
         - depends_on [[компонент]] (Another test)
-
-        ## Metadata
-        ```yml
-        category: test
-        status: active
-        ```
         """)
-
+    
     test_file = tmp_path / "unicode.md"
     test_file.write_text(content, encoding="utf-8")
-
-    parser = KnowledgeParser()
+    
+    parser = EntityParser(tmp_path)
     entity = await parser.parse_file(test_file)
-
+    
     assert "测试" in entity.frontmatter.tags
-    assert "китайский" not in entity.frontmatter.tags
-    assert entity.content.title == "Unicode Test 🧪"
+    assert "chinese" not in entity.frontmatter.tags
+    assert "🧪" in entity.content.content
+    
+    # Verify Unicode in observations
+    assert any(o.content == "Emoji test 👍" for o in entity.content.observations)
+    assert any(o.category == "中文" for o in entity.content.observations)
+    assert any(o.category == "русский" for o in entity.content.observations)
+    
+    # Verify Unicode in relations
+    assert any(r.target == "测试组件" for r in entity.content.relations)
+    assert any(r.target == "компонент" for r in entity.content.relations)
 
 
 @pytest.mark.asyncio
-async def test_fallback_encoding(tmp_path):
-    """Test UTF-16 fallback when UTF-8 fails."""
+async def test_empty_file(tmp_path):
+    """Test handling of empty files."""
+    empty_file = tmp_path / "empty.md"
+    empty_file.write_text("")
+    
+    parser = EntityParser(tmp_path)
+    entity = await parser.parse_file(empty_file)
+    assert entity.content.observations == []
+    assert entity.content.relations == []
+
+
+@pytest.mark.asyncio
+async def test_missing_sections(tmp_path):
+    """Test handling of files with missing sections."""
     content = dedent("""
-        Hello 世界
-        No proper sections here
+        ---
+        type: test
+        id: test/missing
+        created: 2024-01-09
+        modified: 2024-01-09
+        tags: []
+        ---
+        
+        Just some content
+        with [[links]] but no sections
         """)
-    test_file = tmp_path / "unicode_file.md"
-    test_file.write_text(content, encoding="utf-16")
-
-    parser = KnowledgeParser()
-    with pytest.raises(ParseError):
-        await parser.parse_file(test_file)
+    
+    test_file = tmp_path / "missing.md"
+    test_file.write_text(content)
+    
+    parser = EntityParser(tmp_path)
+    entity = await parser.parse_file(test_file)
+    assert len(entity.content.relations) == 1
+    assert entity.content.relations[0].target == "links"
+    assert entity.content.relations[0].type == "mentions"
 
 
 @pytest.mark.asyncio
-async def test_encoding_errors(tmp_path):
-    """Test handling of encoding errors."""
-    # Create a file with invalid UTF-8 bytes
-    test_file = tmp_path / "invalid.md"
-    with open(test_file, "wb") as f:
-        f.write(b"\xff\xfe\x00\x00")  # Invalid UTF-8
+async def test_nested_content(tmp_path):
+    """Test handling of deeply nested content."""
+    content = dedent("""
+        ---
+        type: test
+        id: test/nested
+        created: 2024-01-09
+        modified: 2024-01-09
+        tags: []
+        ---
+        
+        # Test
+        
+        ## Level 1
+        - [test] Level 1 #test (First level)
+        - implements [[One]]
+            
+            ### Level 2
+            - [test] Level 2 #test (Second level)
+            - uses [[Two]]
+                
+                #### Level 3
+                - [test] Level 3 #test (Third level)
+                - needs [[Three]]
+        """)
+    
+    test_file = tmp_path / "nested.md"
+    test_file.write_text(content)
+    
+    parser = EntityParser(tmp_path)
+    entity = await parser.parse_file(test_file)
+    
+    # Should find all observations and relations regardless of nesting
+    assert len(entity.content.observations) == 3
+    assert len(entity.content.relations) == 3
+    assert {r.target for r in entity.content.relations} == {"One", "Two", "Three"}
 
-    parser = KnowledgeParser()
-    with pytest.raises(ParseError):
-        await parser.parse_file(test_file, encoding="ascii")
+
+@pytest.mark.asyncio
+async def test_malformed_frontmatter(tmp_path):
+    """Test handling of malformed frontmatter."""
+    # Missing fields
+    content = dedent("""
+        ---
+        type: test
+        ---
+        
+        # Test
+        """)
+    
+    test_file = tmp_path / "malformed.md"
+    test_file.write_text(content)
+    
+    parser = EntityParser(tmp_path)
+    entity = await parser.parse_file(test_file)
+    assert entity.frontmatter.id == "malformed"  # Generated from filename
+    
+    # Invalid YAML
+    content = dedent("""
+        ---
+        type: test
+        tags: [unclosed
+        ---
+        
+        # Test
+        """)
+    
+    test_file.write_text(content)
+    entity = await parser.parse_file(test_file)
+    assert entity.frontmatter.tags == []  # Default to empty list
 
 
 @pytest.mark.asyncio
 async def test_file_not_found():
     """Test handling of non-existent files."""
-    parser = KnowledgeParser()
+    parser = EntityParser(Path("/tmp"))
     with pytest.raises(FileError):
         await parser.parse_file(Path("nonexistent.md"))
-
-
-@pytest.mark.asyncio
-async def test_nested_structures(tmp_path):
-    """Test handling of nested markdown structures."""
-    content = dedent("""
-        ---
-        type: test
-        id: test/nested
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: [test]
-        ---
-
-        # Nested Test
-
-        ## Observations
-        - [test] Main point #main (Top level)
-            - [test] Subpoint #sub (Should be ignored)
-                - [test] Sub-subpoint #detail (Also ignored)
-
-        ## Relations
-        - depends_on [[Sub Entity]] (Top level)
-            - uses [[Another Entity]] (Should be ignored)
-                - implements [[Third Entity]] (Also ignored)
-        """)
-
-    test_file = tmp_path / "nested.md"
-    test_file.write_text(content)
-
-    parser = KnowledgeParser()
-    entity = await parser.parse_file(test_file)
-
-    assert len(entity.content.observations) == 3
-    assert len(entity.content.relations) == 3
-    assert entity.content.observations[0].tags == ["main"]
-    assert entity.content.observations[0].context == "Top level"
-    assert entity.content.relations[0].target == "Sub Entity"
-    assert entity.content.relations[0].type == "depends_on"
-
-
-@pytest.mark.asyncio
-async def test_malformed_sections(tmp_path):
-    """Test various malformed section contents."""
-    content = dedent("""
-        ---
-        type: test
-        id: test/malformed
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: [test]
-        ---
-
-        # Malformed Test
-
-        ## Observations
-        - not a valid observation
-        - [unclosed category content
-        - no content]
-        - [] empty category
-
-        ## Relations
-        - not a valid relation
-        - missing_brackets Entity
-        - implements incomplete [[
-        - implements ]] backwards
-        """)
-
-    test_file = tmp_path / "malformed.md"
-    test_file.write_text(content)
-
-    parser = KnowledgeParser()
-    with pytest.raises(ParseError):
-        entity = await parser.parse_file(test_file)
-
-
-@pytest.mark.asyncio
-async def test_missing_required_sections(tmp_path):
-    """Test handling of missing required sections."""
-    # Test file with only frontmatter
-    content = dedent("""
-        ---
-        type: test
-        id: test/incomplete
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: [test]
-        ---
-        """)
-
-    test_file = tmp_path / "incomplete.md"
-    test_file.write_text(content)
-
-    parser = KnowledgeParser()
-    with pytest.raises(ParseError):
-        await parser.parse_file(test_file)

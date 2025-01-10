@@ -5,7 +5,7 @@ from pathlib import Path
 from loguru import logger
 
 from basic_memory.config import ProjectConfig
-from basic_memory.markdown import KnowledgeParser
+from basic_memory.markdown import EntityParser
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
@@ -24,12 +24,12 @@ class SyncService:
         self,
         scanner: FileChangeScanner,
         knowledge_sync_service: KnowledgeSyncService,
-        knowledge_parser: KnowledgeParser,
+        entity_parser: EntityParser,
         search_service: SearchService,
     ):
         self.scanner = scanner
         self.knowledge_sync_service = knowledge_sync_service
-        self.knowledge_parser = knowledge_parser
+        self.knowledge_parser = entity_parser
         self.search_service = search_service
 
 

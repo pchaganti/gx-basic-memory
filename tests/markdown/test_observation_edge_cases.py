@@ -1,95 +1,142 @@
 """Tests for edge cases in observation parsing."""
 
 import pytest
+from markdown_it import MarkdownIt
 
-from basic_memory.markdown import ParseError, KnowledgeParser
+from basic_memory.markdown.plugins import (
+    observation_plugin,
+    is_observation,
+    parse_observation
+)
+from basic_memory.markdown.schemas import Observation
 
 
-@pytest.mark.asyncio
-async def test_observation_empty_input():
+def test_empty_input():
     """Test handling of empty input."""
-    parser = KnowledgeParser()
-    assert await parser.parse_observation("") is None
-    assert await parser.parse_observation("   ") is None
-    assert await parser.parse_observation("\n") is None
+    md = MarkdownIt().use(observation_plugin)
+    
+    tokens = md.parse("")
+    assert not any(t.meta and 'observation' in t.meta for t in tokens)
+    
+    tokens = md.parse("   ")
+    assert not any(t.meta and 'observation' in t.meta for t in tokens)
+    
+    tokens = md.parse("\n")
+    assert not any(t.meta and 'observation' in t.meta for t in tokens)
 
 
-@pytest.mark.asyncio
-async def test_observation_invalid_context():
+def test_invalid_context():
     """Test handling of invalid context format."""
-    parser = KnowledgeParser()
-    obs = await parser.parse_observation("- [test] Content (unclosed")
-    assert obs is not None
-    assert obs.content == "Content (unclosed"
-    assert obs.context is None
+    md = MarkdownIt().use(observation_plugin)
+    
+    # Unclosed context
+    tokens = md.parse("- [test] Content (unclosed")
+    token = next(t for t in tokens if t.type == 'inline')
+    obs = parse_observation(token)
+    assert obs['content'] == "Content (unclosed"
+    assert obs['context'] is None
+    
+    # Multiple parens
+    tokens = md.parse("- [test] Content (with) extra) parens)")
+    token = next(t for t in tokens if t.type == 'inline')
+    obs = parse_observation(token)
+    assert obs['content'] == "Content"
+    assert obs['context'] == "with) extra) parens"
 
-    obs = await parser.parse_observation("- [test] Content (with) extra) parens)")
-    assert obs is not None
-    assert obs.content == "Content"
-    assert obs.context == "with) extra) parens"
 
-
-@pytest.mark.asyncio
-async def test_observation_complex_format():
+def test_complex_format():
     """Test parsing complex observation formats."""
-    # Test multiple nested tags and spaces
-    parser = KnowledgeParser()
-    obs = await parser.parse_observation("- [complex test] This is #tag1#tag2 with #tag3 content")
-    assert obs is not None
-    assert obs.category == "complex test"
-    assert set(obs.tags) == {"tag1", "tag2", "tag3"}  # pyright: ignore [reportArgumentType]
-    assert obs.content == "This is with content"
+    md = MarkdownIt().use(observation_plugin)
+    
+    # Multiple hashtags together
+    tokens = md.parse("- [complex test] This is #tag1#tag2 with #tag3 content")
+    token = next(t for t in tokens if t.type == 'inline')
+    
+    obs = parse_observation(token)
+    assert obs['category'] == "complex test"
+    assert set(obs['tags']) == {"tag1", "tag2", "tag3"}
+    assert obs['content'] == "This is with content"
+    
+    # Pydantic model validation
+    observation = Observation.model_validate(obs)
+    assert observation.category == "complex test"
+    assert set(observation.tags) == {"tag1", "tag2", "tag3"}
+    assert observation.content == "This is with content"
 
 
-@pytest.mark.asyncio
-async def test_observation_exception_handling():
-    """Test general error handling in observation parsing."""
-    # Test with a problematic regex pattern that could cause catastrophic backtracking
-    long_input = "[test] " + "a" * 1000000  # Very long input
-    parser = KnowledgeParser()
-
-    assert await parser.parse_observation(long_input) is None
-
-    # Test with invalid types
-    assert await parser.parse_observation(None) is None  # type: ignore
-
-
-@pytest.mark.asyncio
-async def test_observation_malformed_category():
+def test_malformed_category():
     """Test handling of malformed category brackets."""
-    parser = KnowledgeParser()
-    with pytest.raises(ParseError, match="unclosed category"):
-        await parser.parse_observation("- [test Content")
+    md = MarkdownIt().use(observation_plugin)
+    
+    # Empty category
+    tokens = md.parse("- [] Empty category")
+    token = next(t for t in tokens if t.type == 'inline')
+    obs = parse_observation(token)
+    assert obs['category'] is None
+    assert obs['content'] == "Empty category"
+
+    # Missing close bracket
+    tokens = md.parse("- [test Content")
+    token = next(t for t in tokens if t.type == 'inline')
+    obs = parse_observation(token)
+    # Should treat whole thing as content
+    assert obs['category'] is None
+    assert "test Content" in obs['content']
 
 
-@pytest.mark.asyncio
-async def test_observation_empty_category():
-    parser = KnowledgeParser()
-    obs = await parser.parse_observation("- [] Empty category")
-
-    assert obs is not None
-    assert obs.category is None
-
-
-@pytest.mark.asyncio
-async def test_observation_whitespace():
-    """Test handling of whitespace."""
-    # Valid whitespace cases
-    parser = KnowledgeParser()
-    obs = await parser.parse_observation("- [test] Content")
-    assert obs is not None
-    assert obs.content == "Content"
-
-    # Test individual whitespace chars
-    test_chars = {
-        " ": "space",
-        "\t": "tab",
-        #'\n': 'newline', # newline should be end of content
-        "\r": "return",
-    }
-
+def test_whitespace_handling():
+    """Test handling of various whitespace."""
+    md = MarkdownIt().use(observation_plugin)
+    
+    # Various whitespace in content
+    test_chars = {" ": "space", "\t": "tab", "\r": "return"}
     for char, name in test_chars.items():
         content = f"- [test] Content{char}with{char}{name}"
-        obs = await parser.parse_observation(content)
-        assert obs is not None
-        assert obs.content == f"Content with {name}"
+        tokens = md.parse(content)
+        token = next(t for t in tokens if t.type == 'inline')
+        obs = parse_observation(token)
+        assert obs['content'] == f"Content with {name}"
+
+    # Indented observation
+    tokens = md.parse("    - [test] Indented")
+    assert any(t.meta and 'observation' in t.meta for t in tokens)
+
+    # Multiple blank lines
+    text = """
+    
+    - [test] After blanks
+    
+    """
+    tokens = md.parse(text)
+    assert any(t.meta and 'observation' in t.meta for t in tokens)
+
+
+def test_unicode_content():
+    """Test handling of Unicode content."""
+    md = MarkdownIt().use(observation_plugin)
+    
+    # Emoji
+    tokens = md.parse("- [test] Emoji test 👍 #emoji #test (Testing emoji)")
+    token = next(t for t in tokens if t.type == 'inline')
+    obs = parse_observation(token)
+    assert "👍" in obs['content']
+    assert "emoji" in obs['tags']
+    
+    # Non-Latin scripts
+    tokens = md.parse("- [中文] Chinese text 测试 #language (Script test)")
+    token = next(t for t in tokens if t.type == 'inline')
+    obs = parse_observation(token)
+    assert obs['category'] == "中文"
+    assert "测试" in obs['content']
+    
+    # Mixed scripts and emoji
+    tokens = md.parse("- [test] Mixed 中文 and 👍 #mixed")
+    token = next(t for t in tokens if t.type == 'inline')
+    obs = parse_observation(token)
+    assert "中文" in obs['content']
+    assert "👍" in obs['content']
+    
+    # Model validation with Unicode
+    observation = Observation.model_validate(obs)
+    assert "中文" in observation.content
+    assert "👍" in observation.content

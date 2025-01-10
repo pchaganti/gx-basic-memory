@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, async_sessionmaker
 from basic_memory import db
 from basic_memory.config import ProjectConfig
 from basic_memory.db import DatabaseType
-from basic_memory.markdown.knowledge_parser import KnowledgeParser
+from basic_memory.markdown import EntityParser
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.models import Base
 from basic_memory.models.knowledge import Entity
@@ -130,9 +130,9 @@ def knowledge_writer():
 
 
 @pytest.fixture
-def knowledge_parser():
+def entity_parser(test_config):
     """Create parser instance."""
-    return KnowledgeParser()
+    return EntityParser(test_config.home)
 
 
 @pytest_asyncio.fixture
@@ -181,14 +181,14 @@ async def knowledge_sync_service(
 async def sync_service(
     knowledge_sync_service: KnowledgeSyncService,
     file_change_scanner: FileChangeScanner,
-    knowledge_parser: KnowledgeParser,
+    entity_parser: EntityParser,
     search_service: SearchService,
 ) -> SyncService:
     """Create sync service for testing."""
     return SyncService(
         scanner=file_change_scanner,
         knowledge_sync_service=knowledge_sync_service,
-        knowledge_parser=knowledge_parser,
+        knowledge_parser=entity_parser,
         search_service=search_service,
     )
 

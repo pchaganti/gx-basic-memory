@@ -5,7 +5,7 @@ from textwrap import dedent
 
 import pytest
 
-from basic_memory.markdown.knowledge_parser import KnowledgeParser
+from basic_memory.markdown.entity_parser import EntityParser
 from basic_memory.markdown.schemas import EntityMarkdown, EntityFrontmatter, EntityContent
 from basic_memory.utils.file_utils import ParseError, FileError
 
@@ -15,14 +15,13 @@ def valid_entity_content():
     """A complete, valid entity file with all features."""
     return dedent("""
         ---
+        title: Auth Service
         type: component
         id: auth_service
         created: 2024-12-21T14:00:00Z
         modified: 2024-12-21T14:00:00Z
         tags: authentication, security, core
         ---
-
-        # Auth Service
 
         Core authentication service that handles user authentication.
 
@@ -35,24 +34,16 @@ def valid_entity_content():
         - implements [[OAuth Implementation]] (Core auth flows)
         - uses [[Redis Cache]] (Token caching)
         - specified_by [[Auth API Spec]] (OpenAPI spec)
-
-        # Metadata
-        <!-- anything below this line is for AI -->
-
-        ```yml
-        owner: team-auth
-        priority: high
-        ```
         """)
 
 
 @pytest.mark.asyncio
-async def test_parse_complete_file(tmp_path, valid_entity_content):
+async def test_parse_complete_file(test_config, valid_entity_content):
     """Test parsing a complete entity file with all features."""
-    test_file = tmp_path / "test_entity.md"
+    test_file = test_config.home / "test_entity.md"
     test_file.write_text(valid_entity_content)
 
-    parser = KnowledgeParser()
+    parser = EntityParser(test_config.home)
     entity = await parser.parse_file(test_file)
 
     # Verify entity structure
@@ -61,16 +52,13 @@ async def test_parse_complete_file(tmp_path, valid_entity_content):
     assert isinstance(entity.content, EntityContent)
 
     # Check frontmatter
+    assert entity.frontmatter.title == "Auth Service"
     assert entity.frontmatter.type == "component"
     assert entity.frontmatter.id == "auth_service"
     assert set(entity.frontmatter.tags) == {"authentication", "security", "core"}
 
     # Check content
-    assert entity.content.title == "Auth Service"
-    assert (
-        entity.content.summary
-        == "Core authentication service that handles user authentication."
-    )
+    assert "Core authentication service that handles user authentication." in entity.content.content
 
     # Check observations
     assert len(entity.content.observations) == 3
@@ -86,9 +74,6 @@ async def test_parse_complete_file(tmp_path, valid_entity_content):
     assert rel.type == "implements"
     assert rel.target == "OAuth Implementation"
     assert rel.context == "Core auth flows"
-
-    # Check metadata
-    assert entity.entity_metadata.data["owner"] == "team-auth"
 
 
 @pytest.mark.asyncio
@@ -115,106 +100,29 @@ async def test_parse_minimal_file(tmp_path):
     test_file = tmp_path / "minimal.md"
     test_file.write_text(content)
 
-    parser = KnowledgeParser()
+    parser = EntityParser(tmp_path)
     entity = await parser.parse_file(test_file)
 
     assert entity.frontmatter.type == "component"
     assert entity.frontmatter.id == "minimal"
     assert len(entity.content.observations) == 1
     assert len(entity.content.relations) == 1
-    assert not entity.entity_metadata.data  # Empty metadata
 
 
-@pytest.mark.asyncio
-async def test_parse_content_str(valid_entity_content):
-    """Test parsing content string directly."""
-    parser = KnowledgeParser()
-    entity = await parser.parse_content_str(valid_entity_content)
-
-    assert isinstance(entity, EntityMarkdown)
-    assert entity.frontmatter.type == "component"
-    assert entity.content.title == "Auth Service"
-    assert len(entity.content.observations) == 3
-    assert len(entity.content.relations) == 3
-
-
-@pytest.mark.asyncio
-async def test_metadata_handling(tmp_path):
-    """Test metadata section parsing."""
-    parser = KnowledgeParser()
-
-    # Multiple metadata fields
-    content = dedent("""
-        ---
-        type: component
-        id: test
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: []
-        ---
-        # Test Entity
-        ## Observations
-        - [test] Test
-
-        # Metadata
-        <!-- anything below this line is for AI -->
-
-        ```yml
-        owner: test-team
-        priority: high
-        nested:
-          key: value
-          list: [1, 2, 3]
-        ```
-        """)
-    test_file = tmp_path / "metadata.md"
-    test_file.write_text(content)
-
-    entity = await parser.parse_file(test_file)
-    assert entity.entity_metadata.data["owner"] == "test-team"
-    assert entity.entity_metadata.data["priority"] == "high"
-    assert entity.entity_metadata.data["nested"]["key"] == "value"
-    assert entity.entity_metadata.data["nested"]["list"] == [1, 2, 3]
-
-    # No metadata section
-    content = dedent("""
-        ---
-        type: component
-        id: test
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
-        tags: []
-        ---
-        # Test Entity
-        ## Observations
-        - [test] Test
-        """)
-    test_file = tmp_path / "no_metadata.md"
-    test_file.write_text(content)
-
-    entity = await parser.parse_file(test_file)
-    assert entity.entity_metadata.data == {}
 
 
 @pytest.mark.asyncio
 async def test_error_handling(tmp_path):
     """Test error handling."""
-    parser = KnowledgeParser()
+    parser = EntityParser(tmp_path)
 
     # Missing file
-    with pytest.raises(FileError):
+    with pytest.raises(FileNotFoundError):
         await parser.parse_file(Path("nonexistent.md"))
 
     # Invalid file encoding
     test_file = tmp_path / "binary.md"
     with open(test_file, "wb") as f:
         f.write(b"\x80\x81")  # Invalid UTF-8
-    with pytest.raises(ParseError):
-        await parser.parse_file(test_file)
-
-    # No frontmatter section
-    content = "# Just a title\nNo frontmatter"
-    test_file = tmp_path / "no_frontmatter.md"
-    test_file.write_text(content)
-    with pytest.raises(ParseError):
+    with pytest.raises(UnicodeDecodeError):
         await parser.parse_file(test_file)

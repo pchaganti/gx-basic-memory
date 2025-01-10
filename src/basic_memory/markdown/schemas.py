@@ -26,6 +26,7 @@ class Relation(BaseModel):
 class EntityFrontmatter(BaseModel):
     """Required frontmatter fields for an entity."""
 
+    title: str
     type: str
     id: str
     created: datetime
@@ -36,18 +37,9 @@ class EntityFrontmatter(BaseModel):
 class EntityContent(BaseModel):
     """Content sections of an entity markdown file."""
 
-    title: str
-    summary: Optional[str] = None
+    content: Optional[str] = None
     observations: List[Observation] = []
     relations: List[Relation] = []
-    context: Optional[str] = None
-
-
-class EntityMetadata(BaseModel):
-    """Optional metadata for an entity."""
-
-    # Changed from 'metadata' to 'data' to avoid pydantic special field name
-    data: Dict[str, Any] = {}
 
 
 class EntityMarkdown(BaseModel):
@@ -55,4 +47,3 @@ class EntityMarkdown(BaseModel):
 
     frontmatter: EntityFrontmatter
     content: EntityContent
-    entity_metadata: EntityMetadata = EntityMetadata()

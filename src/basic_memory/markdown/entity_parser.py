@@ -1,317 +1,112 @@
-"""Universal parser for markdown files with optional frontmatter, observations, and relations.
+"""Parser for markdown files into Entity objects.
 
-The id field in frontmatter is derived from the filename, converted to snake_case with .md extension removed.
-For example:
-    'My Project Notes.md' -> 'my_project_notes'
-    'API-Design.md' -> 'api_design'
+Uses markdown-it with plugins to parse structured data from markdown content.
 """
 
-import re
-from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from datetime import datetime
+from typing import Dict, Any, Optional
 
-from loguru import logger
+from markdown_it import MarkdownIt
+import frontmatter
 
-from basic_memory.markdown.base_parser import MarkdownParser, ParseError
+from basic_memory.markdown.plugins import observation_plugin, relation_plugin
 from basic_memory.markdown.schemas import (
     EntityMarkdown,
     EntityFrontmatter,
-    EntityContent,
-    EntityMetadata,
-    Observation,
-    Relation,
+    EntityContent, Observation, Relation,
 )
-from basic_memory.schemas.base import to_snake_case
 
 
-class EntityParser(MarkdownParser[EntityMarkdown]):
-    """A forgiving parser that extracts as much structure as it can find.
-    
-    Generates entity IDs from filenames by:
-    1. Removing .md extension
-    2. Converting to snake_case
-    3. Removing any invalid characters
-    """
+class EntityParser:
+    """Parser for markdown files into Entity objects."""
 
-    def convert_to_id(self, filename: str) -> str:
-        """Convert a filename to a valid entity ID.
-        
-        Args:
-            filename: Name of the file (with or without .md extension)
-            
-        Returns:
-            Snake case version of filename without extension
-            
-        Examples:
-            'My Project Notes.md' -> 'my_project_notes'
-            'API-Design.md' -> 'api_design'
+    def __init__(self, base_path: Path):
+        """Initialize parser with base path for relative path_id generation."""
+        self.base_path = base_path.resolve()
+        self.md = (MarkdownIt()
+                  .use(observation_plugin)
+                  .use(relation_plugin))
+
+    def get_path_id(self, file_path: Path) -> str:
+        """Get path_id from file path relative to base_path.
+
+        Example:
+            base_path: /project/root
+            file_path: /project/root/design/models/data.md
+            returns: "design/models/data"
         """
-        # Remove .md extension if present
-        if filename.lower().endswith('.md'):
-            filename = filename[:-3]
-            
-        return to_snake_case(filename)
-
-    def parse_dates(self, frontmatter: Dict[str, Any], file_path: Path) -> Tuple[datetime, datetime]:
-        """Parse created and updated dates from frontmatter or file system.
-        
-        Args:
-            frontmatter: Dictionary containing frontmatter fields
-            file_path: Path to the source file for fallback dates
-            
-        Returns:
-            Tuple of (created_date, updated_date)
-            
-        Priority:
-        1. Valid frontmatter dates
-        2. File system dates (created/modified)
-        """
-        created = None
-        updated = None
-        
-        # Try frontmatter first
-        try:
-            if 'created' in frontmatter:
-                created = self.parse_date(frontmatter['created'])
-            if 'updated' in frontmatter or 'modified' in frontmatter:
-                updated = self.parse_date(frontmatter.get('updated') or frontmatter.get('modified'))
-        except Exception as e:
-            logger.warning(f"Error parsing frontmatter dates: {e}")
-
-        # Fall back to file system dates if needed
-        try:
-            stats = file_path.stat()
-            if not created:
-                created = datetime.fromtimestamp(stats.st_ctime)
-            if not updated:
-                updated = datetime.fromtimestamp(stats.st_mtime)
-        except Exception as e:
-            logger.warning(f"Error getting file stats: {e}")
-            # Last resort - use current time
-            now = datetime.now()
-            created = created or now
-            updated = updated or now
-
-        return created, updated
+        # Get relative path and remove .md extension
+        rel_path = file_path.resolve().relative_to(self.base_path)
+        if rel_path.suffix.lower() == '.md':
+            return str(rel_path.with_suffix(''))
+        return str(rel_path)
 
     def parse_date(self, value: Any) -> Optional[datetime]:
-        """Convert various date formats to datetime."""
+        """Parse various date formats into datetime."""
         if isinstance(value, datetime):
             return value
-        try:
-            if isinstance(value, str):
+        if isinstance(value, str):
+            try:
                 return datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except (ValueError, TypeError):
-            pass
+            except (ValueError, TypeError):
+                pass
         return None
 
-    def parse_tags(self, tags: Any) -> List[str]:
-        """Convert various tag formats to list of strings."""
+    async def parse_file(self, file_path: Path) -> EntityMarkdown:
+        """Parse markdown file into EntityMarkdown."""
+        # Parse frontmatter and content using python-frontmatter
+        post = frontmatter.load(str(file_path))
+
+        # Extract or generate required fields
+        path_id = post.metadata.get("id") or self.get_path_id(file_path)
+        stats = file_path.stat()
+
+        # Parse frontmatter
+        entity_frontmatter = EntityFrontmatter(
+            type=str(post.metadata.get("type", "note")),
+            id=path_id,
+            title=str(post.metadata.get("title", file_path.name)),
+            created=self.parse_date(post.metadata.get("created"))
+            or datetime.fromtimestamp(stats.st_ctime),
+            modified=self.parse_date(post.metadata.get("modified"))
+            or datetime.fromtimestamp(stats.st_mtime),
+            tags=self.parse_tags(post.metadata.get("tags", [])),
+        )
+
+        # Parse content for observations and relations using markdown-it
+        tokens = self.md.parse(post.content)
+
+        # Extract observations and relations from token meta
+        observations = []
+        relations = []
+
+        for token in tokens:
+            if token.meta:  # Token might not have meta
+                if 'observation' in token.meta:
+                    obs = token.meta['observation']
+                    observation = Observation.model_validate(obs)
+                    observations.append(observation)
+                if 'relations' in token.meta:
+                    rels = token.meta['relations']
+                    relations.extend([Relation.model_validate(r) for r in rels])
+
+        # Create EntityContent
+        entity_content = EntityContent(
+            content=post.content,
+            observations=observations,
+            relations=relations,
+        )
+
+        return EntityMarkdown(
+            frontmatter=entity_frontmatter,
+            content=entity_content,
+        )
+
+    def parse_tags(self, tags: Any) -> list[str]:
+        """Parse tags into list of strings."""
         if isinstance(tags, str):
             return [t.strip() for t in tags.split(",") if t.strip()]
         if isinstance(tags, (list, tuple)):
             return [str(t).strip() for t in tags if str(t).strip()]
         return []
-
-    async def parse_frontmatter(self, frontmatter: Dict[str, Any], file_path: Optional[Path] = None) -> EntityFrontmatter:
-        """Parse frontmatter with sensible defaults for missing fields.
-        
-        Args:
-            frontmatter: Dictionary of frontmatter fields
-            file_path: Optional path to source file, used for id and dates
-        """
-        try:
-            # Get or generate ID from filename
-            entity_name = None
-            if file_path:
-                entity_name = self.convert_to_id(file_path.name)
-            
-            # Get dates from frontmatter or file
-            created, updated = self.parse_dates(frontmatter, file_path) if file_path else (datetime.now(), datetime.now())
-            
-            # Ensure we have minimum required fields
-            processed = {
-                "type": str(frontmatter.get("type", "document")).strip(),
-                "id": str(frontmatter.get("id", entity_name or "document")).strip(),
-                "created": created,
-                "modified": updated,
-                "tags": self.parse_tags(frontmatter.get("tags", []))
-            }
-
-            return EntityFrontmatter(**processed)
-
-        except Exception as e:
-            logger.warning(f"Error parsing frontmatter, using defaults: {e}")
-            return EntityFrontmatter(
-                type="document",
-                id=entity_name or "document",
-                created=created,
-                modified=updated,
-                tags=[]
-            )
-
-    async def parse_content(self, title: str, sections: Dict[str, str]) -> EntityContent:
-        """Parse content sections without requiring any particular structure."""
-        try:
-            # Get content from content section if it exists
-            content = sections.get("content", "").strip() or None
-
-            # Try to parse observations if they exist
-            observations = []
-            if "observations" in sections:
-                for line in sections["observations"].splitlines():
-                    try:
-                        obs = await self.parse_observation(line)
-                        if obs:
-                            observations.append(obs)
-                    except ParseError as e:
-                        logger.warning(f"Skipping invalid observation: {e}")
-
-            # Try to parse relations if they exist
-            relations = []
-            if "relations" in sections:
-                for line in sections["relations"].splitlines():
-                    try:
-                        rel = await self.parse_relation(line)
-                        if rel:
-                            relations.append(rel)
-                    except ParseError as e:
-                        logger.warning(f"Skipping invalid relation: {e}")
-
-            # Also look for wiki-links in content as implicit relations
-            try:
-                content_relations = await self.parse_content_relations(sections.get("content", ""))
-                relations.extend(content_relations)
-            except Exception as e:
-                logger.warning(f"Error parsing content relations: {e}")
-
-            return EntityContent(
-                title=title or "Untitled", 
-                summary=content,
-                observations=observations,
-                relations=relations
-            )
-
-        except Exception as e:
-            logger.error(f"Error parsing content, using minimal structure: {e}")
-            return EntityContent(
-                title=title or "Untitled",
-                summary=None,
-                observations=[],
-                relations=[]
-            )
-
-    async def parse_observation(self, line: str) -> Optional[Observation]:
-        """Parse a single observation line."""
-        if not line or not line.strip().startswith("-"):
-            return None
-
-        line = line.strip()[1:].strip()  # Remove leading "-" and whitespace
-        
-        # Extract category if present
-        category = None
-        if line.startswith("["):
-            end = line.find("]")
-            if end != -1:
-                category = line[1:end].strip()
-                line = line[end + 1:].strip()
-
-        # Extract context if present
-        context = None
-        if line.endswith(")"):
-            start = line.rfind("(")
-            if start != -1:
-                context = line[start + 1:-1].strip()
-                line = line[:start].strip()
-
-        # Extract tags and content
-        parts = line.split()
-        content_parts = []
-        tags = []
-        
-        for part in parts:
-            if part.startswith("#"):
-                tags.append(part[1:])
-            else:
-                content_parts.append(part)
-
-        content = " ".join(content_parts).strip()
-        if not content:
-            return None
-
-        return Observation(
-            category=category,
-            content=content,
-            tags=tags if tags else None,
-            context=context
-        )
-
-    async def parse_relation(self, line: str) -> Optional[Relation]:
-        """Parse a single relation line."""
-        if not line or not line.strip().startswith("-"):
-            return None
-
-        line = line.strip()[1:].strip()
-
-        # Look for [[target]]
-        start = line.find("[[")
-        end = line.find("]]")
-        if start == -1 or end == -1:
-            return None
-
-        # Extract parts
-        rel_type = line[:start].strip() or "relates_to"  # Default type if none specified
-        target = line[start + 2:end].strip()
-        
-        # Extract context if present
-        context = None
-        remaining = line[end + 2:].strip()
-        if remaining.startswith("(") and remaining.endswith(")"):
-            context = remaining[1:-1].strip()
-
-        if not target:
-            return None
-
-        return Relation(
-            type=rel_type,
-            target=target,
-            context=context
-        )
-
-    async def parse_content_relations(self, content: str) -> List[Relation]:
-        """Extract wiki-style links from content as relations."""
-        relations = []
-        if not content:
-            return relations
-
-        import re
-        pattern = r'\[\[([^\]]+)\]\]'
-        
-        for match in re.finditer(pattern, content):
-            target = match.group(1).strip()
-            if target:
-                relations.append(Relation(
-                    type="mentions",
-                    target=target,
-                    context=None
-                ))
-
-        return relations
-
-    async def parse_metadata(self, metadata_section: Optional[str]) -> EntityMetadata:
-        """Metadata section is no longer used."""
-        return EntityMetadata()
-
-    async def create_document(
-        self,
-        frontmatter: EntityFrontmatter,
-        content: EntityContent,
-        metadata: EntityMetadata
-    ) -> EntityMarkdown:
-        """Create the final EntityMarkdown document."""
-        return EntityMarkdown(
-            frontmatter=frontmatter,
-            content=content,
-            entity_metadata=metadata
-        )
