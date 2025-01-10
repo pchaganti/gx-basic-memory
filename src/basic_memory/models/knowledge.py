@@ -121,6 +121,13 @@ class Observation(Base):
         server_default=ObservationCategory.NOTE.value,
     )
     context: Mapped[str] = mapped_column(Text, nullable=True)
+    tags: Mapped[Optional[list[str]]] = mapped_column(
+        JSON,
+        nullable=True,
+        default=list,
+        server_default='[]'
+    )
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")

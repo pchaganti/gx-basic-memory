@@ -148,9 +148,9 @@ async def test_format_content_preserves_spacing(
             # <!-- Format comment -->
             # <empty line>
             # - observation entries...
-            assert "<!--" in lines[i+1], "Missing format comment after Observations"
-            assert lines[i+2] == "", "Missing empty line after format comment"
-            assert lines[i+3].startswith("- "), "Should start observations after empty line"
+            assert "<!--" in lines[i + 1], "Missing format comment after Observations"
+            assert lines[i + 2] == "", "Missing empty line after format comment"
+            assert lines[i + 3].startswith("- "), "Should start observations after empty line"
 
         elif line == "## Relations":
             # Relations section should have format:
@@ -158,10 +158,11 @@ async def test_format_content_preserves_spacing(
             # <!-- Format comment -->
             # <empty line>
             # - relation entries...
-            assert "<!--" in lines[i+1], "Missing format comment after Relations"
-            assert lines[i+2] == "", "Missing empty line after format comment"
-            if i+3 < len(lines):  # If there are relations
-                assert lines[i+3].startswith("- "), "Should start relations after empty line"
+            assert "<!--" in lines[i + 1], "Missing format comment after Relations"
+            assert lines[i + 2] == "", "Missing empty line after format comment"
+            if i + 3 < len(lines):  # If there are relations
+                assert lines[i + 3].startswith("- "), "Should start relations after empty line"
+
 
 @pytest.mark.asyncio
 async def test_format_content_mixed(
@@ -172,19 +173,64 @@ async def test_format_content_mixed(
     """Test content with both raw content and structured data."""
     # Add observations to entity with relations
     entity_with_relations.observations = entity_with_observations.observations
-    
+
     # Test with raw content
     raw_content = "# Custom Title\n\nSome content."
     result = await knowledge_writer.format_content(entity_with_relations, raw_content)
-    
+
     # Should preserve raw content
     assert result == raw_content
     assert "# test_entity" not in result
-    
+
     # Test without raw content - should generate structured
     result = await knowledge_writer.format_content(entity_with_relations)
-    
+
     assert "## Observations" in result
     assert "## Relations" in result
     assert "- [tech] First observation" in result
     assert "- connects_to [[target_entity]]" in result
+
+
+@pytest.mark.asyncio
+async def test_format_content_preserves_tags(
+    knowledge_writer: KnowledgeWriter, sample_entity: Entity
+):
+    """Test that observation tags are preserved in formatting."""
+    sample_entity.observations = [
+        Observation(
+            entity_id=1, category="tech", content="First observation", tags=["important", "bug"]
+        ),
+        Observation(
+            entity_id=1,
+            category="design",
+            content="Second observation",
+            tags=["feature"],
+            context="Some context",
+        ),
+        Observation(entity_id=1, category="note", content="Third observation without tags"),
+    ]
+
+    result = await knowledge_writer.format_content(sample_entity)
+
+    # Check that tags are formatted correctly
+    assert (
+        "- [tech] First observation #important #bug" in result
+        or "- [tech] First observation #bug #important" in result
+    )
+    assert "- [design] Second observation #feature (Some context)" in result
+    assert "- [note] Third observation without tags" in result
+
+    # Verify formatting with multiple elements
+    lines = result.split("\n")
+    obs_section = False
+    for line in lines:
+        if line == "## Observations":
+            obs_section = True
+            continue
+        if obs_section and line.startswith("- "):
+            if "First observation" in line:
+                # Tags should be space-separated and sorted
+                assert " #bug #important" in line
+            if "Second observation" in line:
+                # Tags should appear before context
+                assert "#feature (Some context)" in line

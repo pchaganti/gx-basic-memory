@@ -1,7 +1,7 @@
 """Writer for knowledge entity markdown files."""
 from typing import Optional
 
-from basic_memory.models import Entity as EntityModel
+from basic_memory.models import Entity as EntityModel, Observation
 
 
 class KnowledgeWriter:
@@ -25,6 +25,20 @@ class KnowledgeWriter:
             frontmatter.update(entity.entity_metadata)
         return frontmatter
 
+    async def format_observation(self, obs: Observation) -> str:
+        """Format a single observation with category, content, tags and context."""
+        line = f"- [{obs.category}] {obs.content}"
+
+        # Add tags if present
+        if obs.tags:
+            line += " " + " ".join(f"#{tag}" for tag in sorted(obs.tags))
+
+        # Add context if present    
+        if obs.context:
+            line += f" ({obs.context})"
+
+        return line
+    
     async def format_content(self, entity: EntityModel, content: Optional[str] = None) -> str:
         """Format entity content as markdown.
         
@@ -58,15 +72,12 @@ class KnowledgeWriter:
             sections.extend([
                 "## Observations",
                 "<!-- Format: - [category] Content text #tag1 #tag2 (optional context) -->",
-                "",  # Empty line after format comment
+                "",
             ])
-            
+
             for obs in entity.observations:
-                line = f"- [{obs.category}] {obs.content}"
-                if obs.context:
-                    line += f" ({obs.context})"
-                sections.append(line)
-            sections.append("")  # Empty line after observations
+                sections.append(await self.format_observation(obs))
+            sections.append("")
 
         # Add relations if present
         if entity.outgoing_relations:
