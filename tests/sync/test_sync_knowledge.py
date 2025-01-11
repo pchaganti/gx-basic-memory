@@ -56,7 +56,7 @@ A test concept.
     await entity_service.repository.add(other)
 
     # Run sync
-    await sync_service.sync(test_config)
+    await sync_service.sync(test_config.knowledge_dir)
 
     # Verify results
     entities = await entity_service.repository.find_all()
@@ -100,7 +100,7 @@ modified: 2024-01-01
     await create_test_file(knowledge_dir / "concept/depends_on_future.md", content)
 
     # Sync
-    await sync_service.sync(test_config)
+    await sync_service.sync(test_config.knowledge_dir)
 
     # Verify entity created but no relations
     entity = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id(
@@ -154,7 +154,7 @@ modified: 2024-01-01
     await create_test_file(knowledge_dir / "concept/entity_b.md", content_b)
 
     # Sync
-    await sync_service.sync(test_config)
+    await sync_service.sync(test_config.knowledge_dir)
 
     # Verify both entities and their relations
     entity_a = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id(
@@ -229,7 +229,7 @@ modified: 2024-01-01
     await create_test_file(knowledge_dir / "concept/duplicate_relations.md", content)
 
     # Sync
-    await sync_service.sync(test_config)
+    await sync_service.sync(test_config.knowledge_dir)
 
     # Verify duplicates are handled
     entity = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id(
@@ -271,7 +271,7 @@ modified: 2024-01-01
     await create_test_file(knowledge_dir / "concept/invalid_category.md", content)
 
     # Sync
-    await sync_service.sync(test_config)
+    await sync_service.sync(test_config.knowledge_dir)
 
     # Verify observations
     entity = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id(
@@ -350,7 +350,7 @@ modified: 2024-01-01
         await create_test_file(knowledge_dir / f"concept/entity_{name}.md", content)
 
     # Sync
-    await sync_service.sync(test_config)
+    await sync_service.sync(test_config.knowledge_dir)
 
     # Verify all relations are created correctly regardless of order
     entity_a = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id(

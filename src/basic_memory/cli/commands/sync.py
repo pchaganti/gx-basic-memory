@@ -58,8 +58,6 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         file_change_scanner = FileChangeScanner(entity_repository)
 
         # Initialize services
-        entity_service = EntityService(entity_repository)
-
         knowledge_sync_service = EntitySyncService(
             entity_repository, observation_repository, relation_repository
         )
