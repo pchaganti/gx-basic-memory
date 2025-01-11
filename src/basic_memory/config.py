@@ -6,16 +6,15 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DATABASE_NAME = "memory.db"
-KNOWLEDGE_DIR_NAME = "knowledge"
-DATA_DIR_NAME = "data"
+DATA_DIR_NAME = ".basic-memory"
 
 
 class ProjectConfig(BaseSettings):
     """Configuration for a specific basic-memory project."""
 
-    # Default to ~/.basic-memory but allow override with env var
+    # Default to ~/basic-memory but allow override with env var: BASIC_MEMORY_HOME
     home: Path = Field(
-        default_factory=lambda: Path.home() / ".basic-memory",
+        default_factory=lambda: Path.home() / "basic-memory",
         description="Base path for basic-memory files",
     )
 
@@ -26,10 +25,6 @@ class ProjectConfig(BaseSettings):
         env_file_encoding="utf-8",
     )
 
-    @property
-    def knowledge_dir(self) -> Path:
-        """Get knowledge directory path."""
-        return self.home / KNOWLEDGE_DIR_NAME
 
     @property
     def database_path(self) -> Path:

@@ -22,7 +22,6 @@ from basic_memory.services import (
     EntityService,
     ObservationService,
     RelationService,
-    FileService,
 )
 from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
@@ -45,7 +44,7 @@ def test_config(tmp_path) -> ProjectConfig:
     )
     config.home = tmp_path
 
-    (tmp_path / config.knowledge_dir.name).mkdir(parents=True, exist_ok=True)
+    (tmp_path / config.home.name).mkdir(parents=True, exist_ok=True)
     return config
 
 

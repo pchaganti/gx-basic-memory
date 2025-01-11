@@ -22,7 +22,7 @@ async def test_sync_knowledge(
 ):
     """Test basic knowledge sync functionality."""
     # Create test files
-    knowledge_dir = test_config.knowledge_dir
+    project_dir = test_config.home
 
     # New entity with relation
     new_content = """
@@ -42,7 +42,7 @@ A test concept.
 ## Relations
 - depends_on [[concept/other]]
 """
-    await create_test_file(knowledge_dir / "concept/test_concept.md", new_content)
+    await create_test_file(project_dir / "concept/test_concept.md", new_content)
 
     # Create related entity in DB that will be deleted
     other = Entity(
@@ -56,7 +56,7 @@ A test concept.
     await entity_service.repository.add(other)
 
     # Run sync
-    await sync_service.sync(test_config.knowledge_dir)
+    await sync_service.sync(test_config.home)
 
     # Verify results
     entities = await entity_service.repository.find_all()
@@ -78,7 +78,7 @@ async def test_sync_entity_with_nonexistent_relations(
     sync_service: SyncService, test_config: ProjectConfig
 ):
     """Test syncing an entity that references nonexistent entities."""
-    knowledge_dir = test_config.knowledge_dir
+    project_dir = test_config.home
 
     # Create entity that references entities we haven't created yet
     content = """
@@ -97,10 +97,10 @@ modified: 2024-01-01
 - depends_on [[concept/not_created_yet]]
 - uses [[concept/also_future]]
 """
-    await create_test_file(knowledge_dir / "concept/depends_on_future.md", content)
+    await create_test_file(project_dir / "concept/depends_on_future.md", content)
 
     # Sync
-    await sync_service.sync(test_config.knowledge_dir)
+    await sync_service.sync(test_config.home)
 
     # Verify entity created but no relations
     entity = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id(
@@ -115,7 +115,7 @@ async def test_sync_entity_circular_relations(
     sync_service: SyncService, test_config: ProjectConfig
 ):
     """Test syncing entities with circular dependencies."""
-    knowledge_dir = test_config.knowledge_dir
+    project_dir = test_config.home
 
     # Create entity A that depends on B
     content_a = """
@@ -133,7 +133,7 @@ modified: 2024-01-01
 ## Relations
 - depends_on [[concept/entity_b]]
 """
-    await create_test_file(knowledge_dir / "concept/entity_a.md", content_a)
+    await create_test_file(project_dir / "concept/entity_a.md", content_a)
 
     # Create entity B that depends on A
     content_b = """
@@ -151,10 +151,10 @@ modified: 2024-01-01
 ## Relations
 - depends_on [[concept/entity_a]]
 """
-    await create_test_file(knowledge_dir / "concept/entity_b.md", content_b)
+    await create_test_file(project_dir / "concept/entity_b.md", content_b)
 
     # Sync
-    await sync_service.sync(test_config.knowledge_dir)
+    await sync_service.sync(test_config.home)
 
     # Verify both entities and their relations
     entity_a = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id(
@@ -189,7 +189,7 @@ async def test_sync_entity_duplicate_relations(
     sync_service: SyncService, test_config: ProjectConfig
 ):
     """Test handling of duplicate relations in an entity."""
-    knowledge_dir = test_config.knowledge_dir
+    project_dir = test_config.home
 
     # Create target entity first
     target_content = """
@@ -205,7 +205,7 @@ modified: 2024-01-01
 - something to observe
 
 """
-    await create_test_file(knowledge_dir / "concept/target.md", target_content)
+    await create_test_file(project_dir / "concept/target.md", target_content)
 
     # Create entity with duplicate relations
     content = """
@@ -226,10 +226,10 @@ modified: 2024-01-01
 - uses [[concept/target]]  # Different relation type
 - uses [[concept/target]]  # Duplicate of different type
 """
-    await create_test_file(knowledge_dir / "concept/duplicate_relations.md", content)
+    await create_test_file(project_dir / "concept/duplicate_relations.md", content)
 
     # Sync
-    await sync_service.sync(test_config.knowledge_dir)
+    await sync_service.sync(test_config.home)
 
     # Verify duplicates are handled
     entity = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id(
@@ -251,7 +251,7 @@ async def test_sync_entity_with_invalid_category(
     sync_service: SyncService, test_config: ProjectConfig
 ):
     """Test handling of invalid observation categories."""
-    knowledge_dir = test_config.knowledge_dir
+    project_dir = test_config.home
 
     content = """
 ---
@@ -268,10 +268,10 @@ modified: 2024-01-01
 - This one is not an observation, should be ignored
 - [design] This is valid 
 """
-    await create_test_file(knowledge_dir / "concept/invalid_category.md", content)
+    await create_test_file(project_dir / "concept/invalid_category.md", content)
 
     # Sync
-    await sync_service.sync(test_config.knowledge_dir)
+    await sync_service.sync(test_config.home)
 
     # Verify observations
     entity = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id(
@@ -292,7 +292,7 @@ async def test_sync_entity_with_order_dependent_relations(
     sync_service: SyncService, test_config: ProjectConfig
 ):
     """Test that order of entity syncing doesn't affect relation creation."""
-    knowledge_dir = test_config.knowledge_dir
+    project_dir = test_config.home
 
     # Create several interrelated entities
     entities = {
@@ -347,10 +347,10 @@ modified: 2024-01-01
 
     # Create files in different orders and verify results are the same
     for name, content in entities.items():
-        await create_test_file(knowledge_dir / f"concept/entity_{name}.md", content)
+        await create_test_file(project_dir / f"concept/entity_{name}.md", content)
 
     # Sync
-    await sync_service.sync(test_config.knowledge_dir)
+    await sync_service.sync(test_config.home)
 
     # Verify all relations are created correctly regardless of order
     entity_a = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id(

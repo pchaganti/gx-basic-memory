@@ -25,9 +25,6 @@ from basic_memory.repository import (
     RelationRepository,
 )
 from basic_memory.repository.search_repository import SearchRepository
-from basic_memory.services import (
-    EntityService,
-)
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import SyncService, FileChangeScanner, EntitySyncService
 from basic_memory.sync.utils import SyncReport
@@ -61,7 +58,7 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         knowledge_sync_service = EntitySyncService(
             entity_repository, observation_repository, relation_repository
         )
-        entity_parser = EntityParser(config.knowledge_dir)
+        entity_parser = EntityParser(config.home)
         search_service = SearchService(search_repository, entity_repository)
 
         # Create sync service
@@ -203,13 +200,13 @@ async def run_sync(verbose: bool = False):
     sync_service = await get_sync_service()
 
     # Validate knowledge files before attempting sync
-    issues = await validate_knowledge_files(sync_service, config.knowledge_dir)
+    issues = await validate_knowledge_files(sync_service, config.home)
     if issues:
         display_validation_errors(issues)
         raise typer.Exit(1)
 
     # Sync
-    knowledge_changes = await sync_service.sync(config.knowledge_dir)
+    knowledge_changes = await sync_service.sync(config.home)
 
     # Display results
     if verbose:
@@ -227,11 +224,7 @@ def sync(
         help="Show detailed sync information.",
     ),
 ) -> None:
-    """Sync knowledge files with the database.
-
-    This command syncs both documents and knowledge files with the database.
-    Knowledge files must have required frontmatter fields: type, id, created, modified.
-    """
+    """Sync knowledge files with the database."""
     try:
         # Run sync
         asyncio.run(run_sync(verbose))

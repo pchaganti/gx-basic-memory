@@ -117,7 +117,7 @@ def display_changes(title: str, changes: SyncReport, verbose: bool = False):
 async def run_status(sync_service: FileChangeScanner, verbose: bool = False):
     """Check sync status of files vs database."""
     # Check knowledge/ directory
-    knowledge_changes = await sync_service.find_knowledge_changes(config.knowledge_dir)
+    knowledge_changes = await sync_service.find_knowledge_changes(config.home)
     display_changes("Knowledge Files", knowledge_changes, verbose)
 
 

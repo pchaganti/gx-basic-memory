@@ -20,10 +20,10 @@ async def create_test_file(path: Path, content: str = "test content") -> None:
 @pytest.mark.asyncio
 async def test_sync_empty_directories(sync_service: SyncService, test_config: ProjectConfig):
     """Test syncing empty directories."""
-    await sync_service.sync(test_config.knowledge_dir)
+    await sync_service.sync(test_config.home)
 
     # Should not raise exceptions for empty dirs
-    assert (test_config.knowledge_dir).exists()
+    assert (test_config.home).exists()
 
 
 @pytest.mark.asyncio
@@ -32,7 +32,7 @@ async def test_sync_file_modified_during_sync(
 ):
     """Test handling of files that change during sync process."""
     # Create initial files
-    doc_path = test_config.knowledge_dir / "changing.md"
+    doc_path = test_config.home / "changing.md"
     await create_test_file(
         doc_path,
         """
@@ -55,7 +55,7 @@ modified: 2024-01-01
         doc_path.write_text("Modified during sync")
 
     # Run sync and modification concurrently
-    await asyncio.gather(sync_service.sync(test_config.knowledge_dir), modify_file())
+    await asyncio.gather(sync_service.sync(test_config.home), modify_file())
 
     # Verify final state
     doc = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id("changing")
@@ -93,10 +93,10 @@ modified: 2024-01-01
 ## Observations
 - Testing cleanup
 """
-    await create_test_file(test_config.knowledge_dir / "concept/incomplete.md", content)
+    await create_test_file(test_config.home / "concept/incomplete.md", content)
 
     # Run sync
-    await sync_service.sync(test_config.knowledge_dir)
+    await sync_service.sync(test_config.home)
 
     # Verify entity was properly synced
     updated = await entity_service.get_by_path_id("concept/incomplete")
