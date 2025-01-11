@@ -144,12 +144,12 @@ async def test_update_entity_relations(
     relations = sorted(updated.relations, key=lambda r: r.relation_type)
 
     assert relations[0].relation_type == "depends_on"
-    assert relations[0].from_id == entity.id
-    assert relations[0].to_id == other_entity.id
+    assert relations[0].from_path_id == entity.id
+    assert relations[0].to_path_id == other_entity.id
 
     assert relations[1].relation_type == "related_to"
-    assert relations[1].from_id == entity.id
-    assert relations[1].to_id == another_entity.id
+    assert relations[1].from_path_id == entity.id
+    assert relations[1].to_path_id == another_entity.id
 
     # Check checksum set
     assert updated.checksum == test_checksum
@@ -192,5 +192,5 @@ async def test_two_pass_sync_flow(
     assert updated.checksum == checksum
 
     relations = sorted(updated.relations, key=lambda r: r.relation_type)
-    assert relations[0].to_id == other_entity.id
-    assert relations[1].to_id == another_entity.id
+    assert relations[0].to_path_id == other_entity.id
+    assert relations[1].to_path_id == another_entity.id

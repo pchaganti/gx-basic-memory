@@ -22,8 +22,8 @@ from basic_memory.services import (
     EntityService,
     ObservationService,
     RelationService,
+    FileService,
 )
-from basic_memory.services import KnowledgeService
 from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services.search_service import SearchService
@@ -96,37 +96,47 @@ async def relation_repository(
 
 
 @pytest_asyncio.fixture
-async def entity_service(entity_repository: EntityRepository) -> EntityService:
+async def entity_service(
+    entity_repository: EntityRepository, file_service: FileService
+) -> EntityService:
     """Create EntityService with repository."""
-    return EntityService(entity_repository=entity_repository)
+    return EntityService(entity_repository=entity_repository, file_service=file_service)
 
 
 @pytest_asyncio.fixture
-async def relation_service(relation_repository: RelationRepository) -> RelationService:
+async def relation_service(
+    relation_repository: RelationRepository,
+    entity_repository: EntityRepository,
+    file_service: FileService,
+) -> RelationService:
     """Create RelationService with repository."""
-    return RelationService(relation_repository=relation_repository)
+    return RelationService(
+        relation_repository=relation_repository,
+        entity_repository=entity_repository,
+        file_service=file_service,
+    )
 
 
 @pytest_asyncio.fixture
 async def observation_service(
     observation_repository: ObservationRepository,
-    entity_service: EntityService,
+    entity_repository: EntityRepository,
+    file_service: FileService,
 ) -> ObservationService:
     """Create ObservationService with repository."""
-    return ObservationService(observation_repository)
+    return ObservationService(observation_repository, entity_repository, file_service)
 
 
 @pytest.fixture
-def file_service():
+def file_service(test_config: ProjectConfig, knowledge_writer: KnowledgeWriter) -> FileService:
     """Create FileService instance."""
-    return FileService()
+    return FileService(test_config.home, knowledge_writer)
 
 
 @pytest.fixture
 def knowledge_writer():
     """Create writer instance."""
     return KnowledgeWriter()
-
 
 
 @pytest.fixture
@@ -139,26 +149,6 @@ def entity_parser(test_config):
 def file_change_scanner(entity_repository) -> FileChangeScanner:
     """Create FileChangeScanner instance."""
     return FileChangeScanner(entity_repository)
-
-
-@pytest_asyncio.fixture
-async def knowledge_service(
-    entity_service: EntityService,
-    observation_service: ObservationService,
-    relation_service: RelationService,
-    file_service: FileService,
-    knowledge_writer: KnowledgeWriter,
-    test_config: ProjectConfig,
-) -> KnowledgeService:
-    """Create KnowledgeService with dependencies."""
-    return KnowledgeService(
-        entity_service=entity_service,
-        observation_service=observation_service,
-        relation_service=relation_service,
-        file_service=file_service,
-        knowledge_writer=knowledge_writer,
-        base_path=test_config.knowledge_dir,
-    )
 
 
 @pytest_asyncio.fixture

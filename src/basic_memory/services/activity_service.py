@@ -122,10 +122,10 @@ class ActivityService:
                     activity_type=ActivityType.RELATION,
                     change_type=change_type,
                     timestamp=updated_at,
-                    path_id=f"{relation.from_id}->{relation.to_id}",
+                    path_id=f"{relation.from_path_id}->{relation.to_path_id}",
                     summary=(
                         f"{change_type.value.title()} relation: "
-                        f"{relation.from_id} {relation.relation_type} {relation.to_id}"
+                        f"{relation.from_path_id} {relation.relation_type} {relation.to_path_id}"
                     ),
                     content=relation.context
                 )

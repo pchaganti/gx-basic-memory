@@ -67,7 +67,7 @@ class SearchService:
                 *[f"{obs.category}: {obs.content}" for obs in entity.observations],
                 # Add relations
                 *[
-                    f"{rel.relation_type} {rel.to_id}: {rel.context or ''}"
+                    f"{rel.relation_type} {rel.to_path_id}: {rel.context or ''}"
                     for rel in entity.relations
                 ],
             ]

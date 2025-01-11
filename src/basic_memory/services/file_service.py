@@ -6,8 +6,10 @@ from typing import Optional, Dict, Any, Tuple
 
 from loguru import logger
 
+from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.services.exceptions import FileOperationError
 from basic_memory.utils import file_utils
+from basic_memory.models import Entity as EntityModel
 
 
 class FileService:
@@ -20,6 +22,78 @@ class FileService:
     - Atomic operations
     - Error handling
     """
+
+    def __init__(
+        self,
+        base_path: Path,
+        knowledge_writer: KnowledgeWriter,
+    ):
+        self.base_path = base_path
+        self.knowledge_writer = knowledge_writer
+
+
+    def get_entity_path(self, entity: EntityModel) -> Path:
+        """Generate filesystem path for entity."""
+        if entity.file_path:
+            return self.base_path / entity.file_path
+        return self.base_path / f"{entity.path_id}.md"
+
+    async def write_entity_file(
+        self,
+        entity: EntityModel,
+        content: Optional[str] = None,
+    ) -> Tuple[Path, str]:
+        """Write entity to filesystem and return path and checksum."""
+        try:
+            # Get frontmatter and content
+            frontmatter = await self.knowledge_writer.format_frontmatter(entity)
+            file_content = await self.knowledge_writer.format_content(
+                entity=entity, content=content
+            )
+
+            # Add frontmatter and write
+            content_with_frontmatter = await self.add_frontmatter(
+                frontmatter=frontmatter, content=file_content
+            )
+            path = self.get_entity_path(entity)
+            return path, await self.write_file(path, content_with_frontmatter)
+
+        except Exception as e:
+            logger.error(f"Failed to write entity file: {e}")
+            raise FileOperationError(f"Failed to write entity file: {e}")
+
+
+    async def read_entity_content(self, entity: EntityModel) -> str:
+        """Get entity's content if it's a note.
+
+        Args:
+            path_id: Entity's path ID
+
+        Returns:
+            content without frontmatter
+
+        Raises:
+            FileOperationError: If entity file doesn't exist
+        """
+        logger.debug(f"Reading entity with path_id: {entity.path_id}")
+
+        # For notes, read the actual file content
+        file_path = self.get_entity_path(entity)
+        content, _ = await self.read_file(file_path)
+        # Strip frontmatter from content
+        _, _, content = content.split("---", 2)
+        return content.strip()
+
+
+    async def delete_entity_file(self, entity: EntityModel) -> None:
+        """Delete entity file from filesystem."""
+        try:
+            path = self.get_entity_path(entity)
+            await self.delete_file(path)
+        except Exception as e:
+            logger.error(f"Failed to delete entity file: {e}")
+            raise FileOperationError(f"Failed to delete entity file: {e}")
+
 
     async def exists(self, path: Path) -> bool:
         """
@@ -67,7 +141,8 @@ class FileService:
             logger.error(f"Failed to write file {path}: {e}")
             raise FileOperationError(f"Failed to write file: {e}")
 
-    async def read_file(self, path: Path) -> Tuple[str, str]:
+    @staticmethod
+    async def read_file(path: Path) -> Tuple[str, str]:
         """
         Read file and compute checksum.
 
@@ -90,7 +165,8 @@ class FileService:
             logger.error(f"Failed to read file {path}: {e}")
             raise FileOperationError(f"Failed to read file: {e}")
 
-    async def delete_file(self, path: Path) -> None:
+    @staticmethod
+    async def delete_file(path: Path) -> None:
         """
         Delete file if it exists.
 
@@ -106,7 +182,8 @@ class FileService:
             logger.error(f"Failed to delete file {path}: {e}")
             raise FileOperationError(f"Failed to delete file: {e}")
 
-    async def has_frontmatter(self, content: str) -> bool:
+    @staticmethod
+    async def has_frontmatter(content: str) -> bool:
         """
         Check if content has frontmatter markers.
 
@@ -122,7 +199,8 @@ class FileService:
             logger.error(f"Failed to check frontmatter: {e}")
             return False
 
-    async def parse_frontmatter(self, content: str) -> Dict[str, Any]:
+    @staticmethod
+    async def parse_frontmatter(content: str) -> Dict[str, Any]:
         """
         Parse frontmatter from content.
 
@@ -141,7 +219,8 @@ class FileService:
             logger.error(f"Failed to parse frontmatter: {e}")
             raise FileOperationError(f"Failed to parse frontmatter: {e}")
 
-    async def remove_frontmatter(self, content: str) -> str:
+    @staticmethod
+    async def remove_frontmatter(content: str) -> str:
         """
         Remove frontmatter from content.
 

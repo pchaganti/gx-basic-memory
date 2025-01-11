@@ -1,31 +1,23 @@
 """Tests for EntityService."""
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
+import yaml
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory.models import Entity as EntityModel
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas import Entity as EntitySchema
+from basic_memory.services import FileService
 from basic_memory.services.entity_service import EntityService
 from basic_memory.services.exceptions import EntityNotFoundError
 
 pytestmark = pytest.mark.asyncio
 
 
-@pytest_asyncio.fixture
-async def entity_repository(session_maker: async_sessionmaker[AsyncSession]) -> EntityRepository:
-    """Create an EntityRepository instance."""
-    return EntityRepository(session_maker)
 
-
-@pytest_asyncio.fixture
-async def entity_service(entity_repository: EntityRepository) -> EntityService:
-    """Create EntityService with repository."""
-    return EntityService(entity_repository)
-
-
-async def test_create_entity(entity_service: EntityService):
+async def test_create_entity(entity_service: EntityService, file_service: FileService):
     """Test successful entity creation."""
     entity_data = EntitySchema(
         name="TestEntity",
@@ -57,8 +49,22 @@ async def test_create_entity(entity_service: EntityService):
     assert retrieved.created_at is not None
     assert retrieved.observations[0].content == "this is a test observation"
 
+    # Verify file was written
+    file_path = file_service.get_entity_path(entity)
+    assert await file_service.exists(file_path)
 
-async def test_create_entities(entity_service: EntityService):
+    file_content, _ = await file_service.read_file(file_path)
+    _, frontmatter, doc_content = file_content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+
+    # Verify frontmatter contents
+    assert metadata["id"] == entity.path_id
+    assert metadata["type"] == entity.entity_type
+    assert "created" in metadata
+    assert "modified" in metadata
+
+
+async def test_create_entities(entity_service: EntityService, file_service: FileService):
     """Test successful entity creation."""
     entity_data = [
         EntitySchema(
@@ -103,6 +109,12 @@ async def test_create_entities(entity_service: EntityService):
 
     retrieved2 = await entity_service.get_by_path_id(entity_data[1].path_id)
     assert retrieved2.summary == "A test entity description"
+
+    # verify files are written
+    for i, entity in enumerate(entities):
+        file_path = file_service.get_entity_path(entity)
+        assert await file_service.exists(file_path)
+
 
 
 async def test_get_by_path_id(entity_service: EntityService):
@@ -173,45 +185,6 @@ async def test_get_entity_success(entity_service: EntityService):
     assert retrieved.summary == "Test description"
 
 
-async def test_update_entity_description(entity_service: EntityService):
-    """Test updating an entity's description."""
-    entity_data = EntitySchema(
-        name="TestEntity",
-        entity_type="test",
-        summary="Initial description",
-        observations=[],
-    )
-    await entity_service.create_entity(entity_data)
-
-    # Update description using path_id
-    updated = await entity_service.update_entity(
-        entity_data.path_id, {"summary": "Updated description"}
-    )
-    assert updated.summary == "Updated description"
-
-    # Verify after retrieval
-    retrieved = await entity_service.get_by_path_id(entity_data.path_id)
-    assert retrieved.summary == "Updated description"
-
-
-async def test_update_entity_description_to_none(entity_service: EntityService):
-    """Test updating an entity's description to None."""
-    entity_data = EntitySchema(
-        name="TestEntity",
-        entity_type="test",
-        summary="Initial description",
-        observations=[],
-    )
-    await entity_service.create_entity(entity_data)
-
-    # Update description to None using path_id
-    updated = await entity_service.update_entity(entity_data.path_id, {"summary": None})
-    assert updated.summary is None
-
-    # Verify after retrieval
-    retrieved = await entity_service.get_by_path_id(entity_data.path_id)
-    assert retrieved.summary is None
-
 
 async def test_delete_entity_success(entity_service: EntityService):
     """Test successful entity deletion."""
@@ -239,8 +212,7 @@ async def test_get_entity_by_path_id_not_found(entity_service: EntityService):
 
 async def test_delete_nonexistent_entity(entity_service: EntityService):
     """Test deleting an entity that doesn't exist."""
-    with pytest.raises(EntityNotFoundError):
-        await entity_service.delete_entity("test/non_existent")
+    assert await entity_service.delete_entity("test/non_existent") is True
 
 
 async def test_create_entity_with_special_chars(entity_service: EntityService):
@@ -364,11 +336,118 @@ async def test_delete_entities_by_path_ids(entity_service: EntityService):
 async def test_delete_entities_empty_input(entity_service: EntityService):
     """Test deleting entities with empty path ID list."""
     result = await entity_service.delete_entities([])
-    assert result is False
+    assert result is True
 
 
 async def test_delete_entities_none_found(entity_service: EntityService):
     """Test deleting non-existent entities by path IDs."""
     path_ids = ["type1/NonExistent1", "type2/NonExistent2"]
     result = await entity_service.delete_entities(path_ids)
-    assert result is False
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_get_entity_path(entity_service: EntityService):
+    """Should generate correct filesystem path for entity."""
+    entity = EntityModel(
+        id=1,
+        path_id="test-entity",
+        name="test-entity",
+        entity_type="test",
+        summary="Test entity",
+    )
+    path = entity_service.file_service.get_entity_path(entity)
+    assert path == Path(entity_service.file_service.base_path / "test-entity.md")
+
+
+
+@pytest.mark.asyncio
+async def test_update_knowledge_entity_summary(entity_service: EntityService, file_service: FileService):
+    """Should update knowledge entity description and write to file."""
+    # Create test entity
+    entity = await entity_service.create_entity(
+        EntitySchema(
+            name="test",
+            entity_type="test",
+            summary="Test entity",
+            entity_metadata={"status": "draft"},
+        )
+    )
+
+    # Update description
+    updated = await entity_service.update_entity(
+        entity.path_id, summary="Updated description"
+    )
+
+    # Verify file has new description but preserved metadata
+    file_path = file_service.get_entity_path(updated)
+    content, _ = await file_service.read_file(file_path)
+
+    assert "Updated description" in content
+
+    # Verify metadata was preserved
+    _, frontmatter, _ = content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["status"] == "draft"
+
+
+
+@pytest.mark.asyncio
+async def test_update_note_entity_content(entity_service: EntityService, file_service: FileService):
+    """Should update note content directly."""
+    # Create test entity
+    entity = await entity_service.create_entity(
+        EntitySchema(
+            name="test",
+            entity_type="note",
+            summary="Test note",
+            entity_metadata={"status": "draft"},
+        )
+    )
+
+    # Update content
+    new_content = "# Updated Content\n\nThis is new content."
+    updated = await entity_service.update_entity(entity.path_id, content=new_content)
+
+    # Verify file has new content but preserved metadata
+    file_path = file_service.get_entity_path(updated)
+    content, _ = await file_service.read_file(file_path)
+
+    assert "# Updated Content" in content
+    assert "This is new content" in content
+
+    # Verify metadata was preserved
+    _, frontmatter, _ = content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["status"] == "draft"
+
+
+@pytest.mark.asyncio
+async def test_update_entity_name(entity_service: EntityService, file_service: FileService):
+    """Should update entity name in both DB and frontmatter."""
+    # Create test entity
+    entity = await entity_service.create_entity(
+        EntitySchema(
+            name="test",
+            entity_type="test",
+            summary="Test entity",
+            entity_metadata={"status": "draft"},
+        )
+    )
+
+    # Update name
+    updated = await entity_service.update_entity(entity.path_id, name="new-name")
+
+    # Verify name was updated in DB
+    assert updated.name == "new-name"
+
+    # Verify frontmatter was updated in file
+    file_path = file_service.get_entity_path(updated)
+    content, _ = await file_service.read_file(file_path)
+
+    _, frontmatter, _ = content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+    assert metadata["id"] == entity.path_id
+
+    # And verify content uses new name for title
+    assert "# new-name" in content

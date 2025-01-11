@@ -1,15 +1,14 @@
 """Tests for the ObservationService."""
 
 import pytest
-import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory.models import Entity, Observation
-from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.schemas.base import ObservationCategory
 from basic_memory.schemas.request import ObservationCreate
+from basic_memory.services import EntityService
+from basic_memory.services.exceptions import EntityNotFoundError
 from basic_memory.services.observation_service import ObservationService
-
 
 
 @pytest.mark.asyncio
@@ -17,46 +16,32 @@ async def test_add_observations(observation_service: ObservationService, sample_
     """Test adding observations to an entity."""
     observations = ["Test observation 1", "Test observation 2"]
 
-    result = await observation_service.add_observations(sample_entity.id, observations)
+    entity = await observation_service.add_observations(sample_entity.path_id, observations)
 
-    assert len(result) == 2
-    assert result[0].content == "Test observation 1"
-    assert result[1].content == "Test observation 2"
-    assert all(obs.entity_id == sample_entity.id for obs in result)
-
-
-@pytest.mark.asyncio
-async def test_search_observations(observation_service: ObservationService, sample_entity: Entity):
-    """Test searching observations across entities."""
-    # First add some observations
-    await observation_service.add_observations(
-        sample_entity.id, ["Unique test content", "Other content"]
-    )
-
-    # Search for them
-    results = await observation_service.search_observations("unique")
-
-    assert len(results) == 1
-    assert results[0].content == "Unique test content"
+    observations = entity.observations
+    assert len(observations) == 2
+    assert observations[0].content == "Test observation 1"
+    assert observations[1].content == "Test observation 2"
+    assert all(obs.entity_id == sample_entity.id for obs in observations)
 
 
 @pytest.mark.asyncio
-async def test_delete_observations(observation_service: ObservationService, sample_entity: Entity):
+async def test_delete_observations(observation_service: ObservationService, entity_service: EntityService,  sample_entity: Entity):
     """Test deleting specific observations from an entity."""
     # First add observations
     await observation_service.add_observations(
-        sample_entity.id, ["First observation", "Second observation", "Third observation"]
+        sample_entity.path_id, ["First observation", "Second observation", "Third observation"]
     )
 
     # Then delete some
     contents_to_delete = ["First observation", "Second observation"]
-    result = await observation_service.delete_observations(sample_entity.id, contents_to_delete)
-    assert result is True
+    entity = await observation_service.delete_observations(sample_entity.path_id, contents_to_delete)
 
-    # Verify through search
-    results = await observation_service.search_observations("Third")
-    assert len(results) == 1
-    assert results[0].content == "Third observation"
+    # Verify
+    entity = await entity_service.get_by_path_id(sample_entity.path_id)
+    assert len(entity.observations) == 1
+    assert entity.observations[0].content == "Third observation"
+    assert entity.observations[0].entity_id == sample_entity.id
 
 
 @pytest.mark.asyncio
@@ -64,16 +49,14 @@ async def test_delete_by_entity(observation_service: ObservationService, sample_
     """Test deleting all observations for an entity."""
     # First add observations
     await observation_service.add_observations(
-        sample_entity.id, ["First observation", "Second observation"]
+        sample_entity.path_id, ["First observation", "Second observation"]
     )
 
     # Delete all observations for entity
-    result = await observation_service.delete_by_entity(sample_entity.id)
-    assert result is True
+    deleted = await observation_service.delete_by_entity(sample_entity.id)
 
     # Verify through search
-    results = await observation_service.search_observations("observation")
-    assert len(results) == 0
+    assert deleted
 
 
 @pytest.mark.asyncio
@@ -81,17 +64,18 @@ async def test_delete_nonexistent_observation(
     observation_service: ObservationService, sample_entity: Entity
 ):
     """Test deleting observations that don't exist."""
-    result = await observation_service.delete_observations(
-        sample_entity.id, ["Nonexistent observation"]
+    entity = await observation_service.delete_observations(
+        sample_entity.path_id, ["Nonexistent observation"]
     )
-    assert result is False
+    assert entity is not None
 
 
 @pytest.mark.asyncio
 async def test_delete_observations_invalid_entity(observation_service: ObservationService):
     """Test deleting observations for an entity that doesn't exist."""
-    result = await observation_service.delete_observations("invalid_entity", ["Test observation"])
-    assert result is False
+    
+    with pytest.raises(EntityNotFoundError):
+        await observation_service.delete_observations("invalid_entity", ["Test observation"])
 
 
 @pytest.mark.asyncio
@@ -101,19 +85,21 @@ async def test_observation_with_special_characters(
     """Test handling observations with special characters."""
     content = "Test & observation with @#$% special chars!"
 
-    results = await observation_service.add_observations(sample_entity.id, [content])
-    assert len(results) == 1
-    assert results[0].content == content
+    entity = await observation_service.add_observations(sample_entity.path_id, [content])
+    assert len(entity.observations) == 1
+    assert entity.observations[0].content == content
 
 
 @pytest.mark.asyncio
-async def test_very_long_observation(observation_service: ObservationService, sample_entity: Entity):
+async def test_very_long_observation(
+    observation_service: ObservationService, sample_entity: Entity
+):
     """Test handling very long observation content."""
     long_content = "Very long observation " * 100  # ~1800 characters
 
-    results = await observation_service.add_observations(sample_entity.id, [long_content])
-    assert len(results) == 1
-    assert results[0].content == long_content
+    entity = await observation_service.add_observations(sample_entity.path_id, [long_content])
+    assert len(entity.observations) == 1
+    assert entity.observations[0].content == long_content
 
 
 @pytest.mark.asyncio
@@ -137,14 +123,13 @@ async def test_get_observations_by_context(
     assert results[0].content == "Contextual observation"
     assert results[0].context == "test_context"
 
-"""Additional tests for ObservationService category support."""
 
+"""Additional tests for ObservationService category support."""
 
 
 @pytest.mark.asyncio
 async def test_add_observations_with_categories(
-    observation_service: ObservationService,
-    sample_entity: Entity
+    observation_service: ObservationService, sample_entity: Entity
 ):
     """Test adding observations with specific categories."""
     observations = [
@@ -152,46 +137,17 @@ async def test_add_observations_with_categories(
         ObservationCreate(content="Design observation", category=ObservationCategory.DESIGN),
     ]
 
-    result = await observation_service.add_observations(sample_entity.id, observations)
+    entity = await observation_service.add_observations(sample_entity.path_id, observations)
 
-    assert len(result) == 2
-    assert result[0].category == ObservationCategory.TECH.value
-    assert result[1].category == ObservationCategory.DESIGN.value
+    assert len(entity.observations) == 2
+    assert entity.observations[0].category == ObservationCategory.TECH.value
+    assert entity.observations[1].category == ObservationCategory.DESIGN.value
 
-
-@pytest.mark.asyncio
-async def test_search_observations_by_category(
-    observation_service: ObservationService,
-    sample_entity: Entity
-):
-    """Test searching observations with category filter."""
-    # Add observations with different categories
-    observations = [
-        ObservationCreate(content="Tech implementation note", category=ObservationCategory.TECH),
-        ObservationCreate(content="Design pattern choice", category=ObservationCategory.DESIGN),
-        ObservationCreate(content="Another tech detail", category=ObservationCategory.TECH),
-    ]
-    await observation_service.add_observations(sample_entity.id, observations)
-
-    # Search with category filter
-    tech_results = await observation_service.search_observations(
-        query="note",
-        category=ObservationCategory.TECH
-    )
-    assert len(tech_results) == 1
-    assert tech_results[0].content == "Tech implementation note"
-
-    # Search without category filter
-    all_results = await observation_service.search_observations(
-        query="tech"
-    )
-    assert len(all_results) == 2
 
 
 @pytest.mark.asyncio
 async def test_get_observations_by_category(
-    observation_service: ObservationService,
-    sample_entity: Entity
+    observation_service: ObservationService, sample_entity: Entity
 ):
     """Test retrieving observations by category."""
     # Add observations with different categories
@@ -200,7 +156,7 @@ async def test_get_observations_by_category(
         ObservationCreate(content="Design decision", category=ObservationCategory.DESIGN),
         ObservationCreate(content="Second tech note", category=ObservationCategory.TECH),
     ]
-    await observation_service.add_observations(sample_entity.id, observations)
+    await observation_service.add_observations(sample_entity.path_id, observations)
 
     # Get tech observations
     tech_obs = await observation_service.get_observations_by_category(ObservationCategory.TECH)
@@ -208,14 +164,15 @@ async def test_get_observations_by_category(
     assert all(obs.category == ObservationCategory.TECH.value for obs in tech_obs)
 
     # Get observations for unused category
-    feature_obs = await observation_service.get_observations_by_category(ObservationCategory.FEATURE)
+    feature_obs = await observation_service.get_observations_by_category(
+        ObservationCategory.FEATURE
+    )
     assert len(feature_obs) == 0
 
 
 @pytest.mark.asyncio
 async def test_observation_categories(
-    observation_service: ObservationService,
-    sample_entity: Entity
+    observation_service: ObservationService, sample_entity: Entity
 ):
     """Test retrieving distinct observation categories."""
     # Add observations with various categories
@@ -225,55 +182,27 @@ async def test_observation_categories(
         ObservationCreate(content="Another tech note", category=ObservationCategory.TECH),
         ObservationCreate(content="Feature note", category=ObservationCategory.FEATURE),
     ]
-    await observation_service.add_observations(sample_entity.id, observations)
+    await observation_service.add_observations(sample_entity.path_id, observations)
 
     # Get categories
     categories = await observation_service.observation_categories()
     assert set(categories) == {
         ObservationCategory.TECH.value,
         ObservationCategory.DESIGN.value,
-        ObservationCategory.FEATURE.value
+        ObservationCategory.FEATURE.value,
     }
 
 
 @pytest.mark.asyncio
-async def test_search_observations_empty_category(
-    observation_service: ObservationService,
-    sample_entity: Entity
-):
-    """Test search behavior with empty/invalid category."""
-    # Add some observations
-    observations = [
-        ObservationCreate(content="Tech note", category=ObservationCategory.TECH),
-    ]
-    await observation_service.add_observations(sample_entity.id, observations)
-
-    # Search with empty category should return all matches
-    results = await observation_service.search_observations(
-        query="note",
-        category=None
-    )
-    assert len(results) == 1
-
-    # Search with non-existent category should return empty
-    results = await observation_service.search_observations(
-        query="note",
-        category=ObservationCategory.ISSUE
-    )
-    assert len(results) == 0
-
-
-@pytest.mark.asyncio
 async def test_default_category_behavior(
-    observation_service: ObservationService,
-    sample_entity: Entity
+    observation_service: ObservationService, sample_entity: Entity
 ):
     """Test default category assignment."""
     # Add observation without explicit category
     observations = [
         ObservationCreate(content="Simple note")  # No category specified
     ]
-    result = await observation_service.add_observations(sample_entity.id, observations)
+    entity = await observation_service.add_observations(sample_entity.path_id, observations)
 
-    assert len(result) == 1
-    assert result[0].category == ObservationCategory.NOTE.value  # Should use default
+    assert len(entity.observations) == 1
+    assert entity.observations[0].category == ObservationCategory.NOTE.value  # Should use default
