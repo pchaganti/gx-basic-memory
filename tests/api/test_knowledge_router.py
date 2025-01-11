@@ -67,6 +67,7 @@ async def create_related_entities(client) -> List[RelationResponse]:  # pyright:
         {"name": "TargetEntity", "entity_type": "test"},
     ]
     create_response = await client.post("/knowledge/entities", json={"entities": entities})
+    assert create_response.status_code == 200
     created = create_response.json()["entities"]
     source_path_id = "source_entity"
     target_path_id = "target_entity"
@@ -396,7 +397,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     # 6. Search should find all related entities
     search = await client.post("/search/", json={"text": "Related"})
     matches = search.json()["results"]
-    assert len(matches) == 1
+    assert len(matches) == 3
 
     # 7. Delete main entity
     response = await client.post(

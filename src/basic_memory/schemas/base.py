@@ -123,8 +123,8 @@ class Relation(BaseModel):
     or recipient entity.
     """
 
-    from_path_id: PathId
-    to_path_id: PathId
+    from_id: PathId
+    to_id: PathId
     relation_type: RelationType
     context: Optional[str] = None
 

@@ -56,8 +56,8 @@ def test_relation_in_validation():
     """Test RelationIn validation."""
     data = {"from_id": "test/123", "to_id": "test/456", "relation_type": "test"}
     relation = Relation.model_validate(data)
-    assert relation.from_path_id == "test/123"
-    assert relation.to_path_id == "test/456"
+    assert relation.from_id == "test/123"
+    assert relation.to_id == "test/456"
     assert relation.relation_type == "test"
     assert relation.context is None
 

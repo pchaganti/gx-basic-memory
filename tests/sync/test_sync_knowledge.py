@@ -178,10 +178,10 @@ modified: 2024-01-01
 
     # Verify circular reference works
     a_relation = entity_a.outgoing_relations[0]
-    assert a_relation.to_path_id == entity_b.id
+    assert a_relation.to_id == entity_b.id
 
     b_relation = entity_b.outgoing_relations[0]
-    assert b_relation.to_path_id == entity_a.id
+    assert b_relation.to_id == entity_a.id
 
 
 @pytest.mark.asyncio

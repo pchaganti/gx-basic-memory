@@ -23,7 +23,6 @@ from basic_memory.services import (
 )
 from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
-from basic_memory.services.knowledge import KnowledgeService
 from basic_memory.services.search_service import SearchService
 
 
@@ -107,16 +106,18 @@ SearchRepositoryDep = Annotated[SearchRepository, Depends(get_search_repository)
 ## services
 
 
-async def get_file_service() -> FileService:
-    return FileService()
+async def get_file_service(project_config: ProjectConfigDep) -> FileService:
+    return FileService(project_config.home, KnowledgeWriter())
 
 
 FileServiceDep = Annotated[FileService, Depends(get_file_service)]
 
 
-async def get_entity_service(entity_repository: EntityRepositoryDep) -> EntityService:
+async def get_entity_service(
+    entity_repository: EntityRepositoryDep, file_service: FileServiceDep
+) -> EntityService:
     """Create EntityService with repository."""
-    return EntityService(entity_repository)
+    return EntityService(entity_repository=entity_repository, file_service=file_service)
 
 
 EntityServiceDep = Annotated[EntityService, Depends(get_entity_service)]
@@ -124,17 +125,25 @@ EntityServiceDep = Annotated[EntityService, Depends(get_entity_service)]
 
 async def get_observation_service(
     observation_repository: ObservationRepositoryDep,
+    entity_repository: EntityRepositoryDep,
+    file_service: FileServiceDep,
 ) -> ObservationService:
     """Create ObservationService with repository."""
-    return ObservationService(observation_repository)
+    return ObservationService(
+        observation_repository=observation_repository,
+        entity_repository=entity_repository,
+        file_service=file_service,
+    )
 
 
 ObservationServiceDep = Annotated[ObservationService, Depends(get_observation_service)]
 
 
-async def get_relation_service(relation_repository: RelationRepositoryDep) -> RelationService:
+async def get_relation_service(
+    relation_repository: RelationRepositoryDep, entity_repository: EntityRepositoryDep,  file_service: FileServiceDep
+) -> RelationService:
     """Create RelationService with repository."""
-    return RelationService(relation_repository)
+    return RelationService(relation_repository=relation_repository, entity_repository=entity_repository, file_service=file_service)
 
 
 RelationServiceDep = Annotated[RelationService, Depends(get_relation_service)]
@@ -169,27 +178,3 @@ async def get_knowledge_writer() -> KnowledgeWriter:
 
 
 KnowledgeWriterDep = Annotated[KnowledgeWriter, Depends(get_knowledge_writer)]
-
-
-
-
-async def get_knowledge_service(
-    entity_service: EntityServiceDep,
-    observation_service: ObservationServiceDep,
-    relation_service: RelationServiceDep,
-    file_service: FileServiceDep,
-    knowledge_writer: KnowledgeWriterDep,
-    project_config: ProjectConfigDep,
-) -> KnowledgeService:
-    """Create KnowledgeService with dependencies."""
-    return KnowledgeService(
-        entity_service=entity_service,
-        observation_service=observation_service,
-        relation_service=relation_service,
-        file_service=file_service,
-        knowledge_writer=knowledge_writer,
-        base_path=project_config.knowledge_dir,
-    )
-
-
-KnowledgeServiceDep = Annotated[KnowledgeService, Depends(get_knowledge_service)]

@@ -37,8 +37,8 @@ class RelationService(BaseService[RelationRepository]):
 
         for rs in relations:
             try:
-                from_entity = await self.entity_repository.get_by_path_id(rs.from_path_id)
-                to_entity = await self.entity_repository.get_by_path_id(rs.to_path_id)
+                from_entity = await self.entity_repository.get_by_path_id(rs.from_id)
+                to_entity = await self.entity_repository.get_by_path_id(rs.to_id)
 
                 relation = RelationModel(
                     from_id=from_entity.id,
@@ -50,8 +50,8 @@ class RelationService(BaseService[RelationRepository]):
                 await self.repository.add(relation)
 
                 # Keep track of entities we need to update
-                entities_to_update.add(rs.from_path_id)
-                entities_to_update.add(rs.to_path_id)
+                entities_to_update.add(rs.from_id)
+                entities_to_update.add(rs.to_id)
 
             except Exception as e:
                 logger.error(f"Failed to create relation: {e}")
@@ -86,11 +86,11 @@ class RelationService(BaseService[RelationRepository]):
         try:
             # Delete relations from DB
             for relation in to_delete:
-                entities_to_update.add(relation.from_path_id)
-                entities_to_update.add(relation.to_path_id)
+                entities_to_update.add(relation.from_id)
+                entities_to_update.add(relation.to_id)
 
                 relation = await self.find_relation(
-                    relation.from_path_id, relation.to_path_id, relation.relation_type
+                    relation.from_id, relation.to_id, relation.relation_type
                 )
                 if relation:
                     relations.append(relation)

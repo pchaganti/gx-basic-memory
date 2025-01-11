@@ -5,8 +5,7 @@ from loguru import logger
 
 from basic_memory.deps import (
     EntityServiceDep,
-    KnowledgeServiceDep,
-    get_search_service,
+    get_search_service, RelationServiceDep, ObservationServiceDep, FileServiceDep,
 )
 from basic_memory.schemas import (
     CreateEntityRequest,
@@ -33,11 +32,11 @@ router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 async def create_entities(
     data: CreateEntityRequest,
     background_tasks: BackgroundTasks,
-    knowledge_service: KnowledgeServiceDep,
+    entity_service: EntityServiceDep,
     search_service=Depends(get_search_service),
 ) -> EntityListResponse:
     """Create new entities in the knowledge graph and index them."""
-    entities = await knowledge_service.create_entities(data.entities)
+    entities = await entity_service.create_entities(data.entities)
 
     # Index each entity
     for entity in entities:
@@ -53,7 +52,7 @@ async def update_entity(
     path_id: PathId,
     data: UpdateEntityRequest,
     background_tasks: BackgroundTasks,
-    knowledge_service: KnowledgeServiceDep,
+    entity_service: EntityServiceDep,
     search_service=Depends(get_search_service),
 ) -> EntityResponse:
     """Update an existing entity and reindex it."""
@@ -62,7 +61,7 @@ async def update_entity(
         update_data = data.model_dump(exclude_none=True)
 
         # Update the entity
-        updated_entity = await knowledge_service.update_entity(path_id, **update_data)
+        updated_entity = await entity_service.update_entity(path_id, **update_data)
 
         # Reindex since content changed
         await search_service.index_entity(updated_entity, background_tasks=background_tasks)
@@ -77,11 +76,11 @@ async def update_entity(
 async def create_relations(
     data: CreateRelationsRequest,
     background_tasks: BackgroundTasks,
-    knowledge_service: KnowledgeServiceDep,
+    relation_service: RelationServiceDep,
     search_service=Depends(get_search_service),
 ) -> EntityListResponse:
     """Create relations between entities and update search index."""
-    updated_entities = await knowledge_service.create_relations(data.relations)
+    updated_entities = await relation_service.create_relations(data.relations)
 
     # Reindex updated entities since relations have changed
     for entity in updated_entities:
@@ -96,12 +95,12 @@ async def create_relations(
 async def add_observations(
     data: AddObservationsRequest,
     background_tasks: BackgroundTasks,
-    knowledge_service: KnowledgeServiceDep,
+    observation_service: ObservationServiceDep,
     search_service=Depends(get_search_service),
 ) -> EntityResponse:
     """Add observations to an entity and update search index."""
     logger.debug(f"Adding observations to entity: {data.path_id}")
-    updated_entity = await knowledge_service.add_observations(
+    updated_entity = await observation_service.add_observations(
         data.path_id, data.observations, data.context
     )
 
@@ -116,7 +115,8 @@ async def add_observations(
 
 @router.get("/entities/{path_id:path}", response_model=EntityResponse)
 async def get_entity(
-        knowledge_service: KnowledgeServiceDep,
+        entity_service: EntityServiceDep,
+        file_service: FileServiceDep,
         path_id: PathId,
         content: bool = False,  # New parameter
 ) -> EntityResponse:
@@ -125,13 +125,14 @@ async def get_entity(
     Args:
         path_id: Entity path ID
         content: If True, include full file content
+        :param entity_service: EntityService
     """
     try:
-        entity = await knowledge_service.get_entity_by_path_id(path_id)
+        entity = await entity_service.get_by_path_id(path_id)
         entity_response = EntityResponse.model_validate(entity)
 
         if content:  # Load content if requested
-            content = await knowledge_service.read_entity_content(entity)
+            content = await file_service.read_entity_content(entity)
             entity_response.content = content
 
         return entity_response
@@ -156,11 +157,11 @@ async def open_nodes(
 async def delete_entities(
     data: DeleteEntitiesRequest,
     background_tasks: BackgroundTasks,
-    knowledge_service: KnowledgeServiceDep,
+    entity_service: EntityServiceDep,
     search_service=Depends(get_search_service),
 ) -> DeleteEntitiesResponse:
     """Delete entities and remove from search index."""
-    deleted = await knowledge_service.delete_entities(data.path_ids)
+    deleted = await entity_service.delete_entities(data.path_ids)
 
     # Remove each deleted entity from search index
     for path_id in data.path_ids:
@@ -173,12 +174,12 @@ async def delete_entities(
 async def delete_observations(
     data: DeleteObservationsRequest,
     background_tasks: BackgroundTasks,
-    knowledge_service: KnowledgeServiceDep,
+    observation_service: ObservationServiceDep,
     search_service=Depends(get_search_service),
 ) -> EntityResponse:
     """Delete observations and update search index."""
     path_id = data.path_id
-    updated_entity = await knowledge_service.delete_observations(path_id, data.observations)
+    updated_entity = await observation_service.delete_observations(path_id, data.observations)
 
     # Reindex the entity since observations changed
     await search_service.index_entity(updated_entity, background_tasks=background_tasks)
@@ -190,11 +191,11 @@ async def delete_observations(
 async def delete_relations(
     data: DeleteRelationsRequest,
     background_tasks: BackgroundTasks,
-    knowledge_service: KnowledgeServiceDep,
+    relation_service: RelationServiceDep,
     search_service=Depends(get_search_service),
 ) -> EntityListResponse:
     """Delete relations and update search index."""
-    updated_entities = await knowledge_service.delete_relations(data.relations)
+    updated_entities = await relation_service.delete_relations(data.relations)
 
     # Reindex entities since relations changed
     for entity in updated_entities:

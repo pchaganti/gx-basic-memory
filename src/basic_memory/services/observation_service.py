@@ -1,9 +1,8 @@
 """Service for managing observations in the database."""
 
-from typing import List, Sequence, Optional
+from typing import List, Sequence
 
 from loguru import logger
-from sqlalchemy import select
 
 from basic_memory.models import Observation as ObservationModel
 from basic_memory.models import Entity as EntityModel
@@ -22,16 +21,18 @@ class ObservationService(BaseService[ObservationRepository]):
     File operations are handled by MemoryService.
     """
 
-    def __init__(self, observation_repository: ObservationRepository, entity_repository: EntityRepository, file_service: FileService):
+    def __init__(
+        self,
+        observation_repository: ObservationRepository,
+        entity_repository: EntityRepository,
+        file_service: FileService,
+    ):
         super().__init__(observation_repository)
         self.entity_repository = entity_repository
         self.file_operations = file_service
 
     async def add_observations(
-            self,
-            path_id: str,
-            observations: List[ObservationCreate],
-            context: str | None = None
+        self, path_id: str, observations: List[ObservationCreate], context: str | None = None
     ) -> EntityModel:
         """Add observations to entity and update its file.
 
@@ -44,7 +45,7 @@ class ObservationService(BaseService[ObservationRepository]):
             observations: List of observations with categories
             context: Optional shared context for all observations
         """
-        logger.debug(f"Adding observations to entity {path_id}")
+        logger.debug(f"Adding observations to entity: {path_id}")
 
         try:
             # Get entity to update
@@ -80,11 +81,7 @@ class ObservationService(BaseService[ObservationRepository]):
             logger.error(f"Failed to add observations: {e}")
             raise
 
-    async def delete_observations(
-            self,
-            path_id: str,
-            observations: List[str]
-    ) -> EntityModel:
+    async def delete_observations(self, path_id: str, observations: List[str]) -> EntityModel:
         """Delete observations from entity and update its file.
 
         Args:
@@ -101,8 +98,10 @@ class ObservationService(BaseService[ObservationRepository]):
 
             # Delete observations from DB by comparing the string value to the Observation content
             for observation in observations:
-                result = await self.repository.delete_by_fields(entity_id=entity.id, content=observation)
-                
+                result = await self.repository.delete_by_fields(
+                    entity_id=entity.id, content=observation
+                )
+
             # Write updated file
             _, checksum = await self.file_operations.write_entity_file(entity)
             await self.entity_repository.update(entity.id, {"checksum": checksum})
@@ -114,19 +113,19 @@ class ObservationService(BaseService[ObservationRepository]):
             logger.error(f"Failed to delete observations: {e}")
             raise
 
-
     async def delete_by_entity(self, entity_id: int) -> bool:
         """Delete all observations for an entity."""
         logger.debug(f"Deleting all observations for entity: {entity_id}")
         return await self.repository.delete_by_fields(entity_id=entity_id)
-
 
     async def get_observations_by_context(self, context: str) -> Sequence[ObservationModel]:
         """Get all observations with a specific context."""
         logger.debug(f"Getting observations for context: {context}")
         return await self.repository.find_by_context(context)
 
-    async def get_observations_by_category(self, category: ObservationCategory) -> Sequence[ObservationModel]:
+    async def get_observations_by_category(
+        self, category: ObservationCategory
+    ) -> Sequence[ObservationModel]:
         """Get all observations with a specific context."""
         logger.debug(f"Getting observations for context: {category}")
         return await self.repository.find_by_category(category)

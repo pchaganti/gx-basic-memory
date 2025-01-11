@@ -61,7 +61,7 @@ class RelationResponse(Relation, SQLAlchemyModel):
         "context": "Comprehensive test suite"
     }
     """
-    from_path_id: PathId = Field(
+    from_id: PathId = Field(
         # use the path_id from the associated Entity
         # or the from_id value
         validation_alias=AliasChoices(
@@ -69,7 +69,7 @@ class RelationResponse(Relation, SQLAlchemyModel):
             'from_id',  
         )
     )
-    to_path_id: PathId = Field(
+    to_id: PathId = Field(
         # use the path_id from the associated Entity
         # or the to_id value
         validation_alias=AliasChoices(

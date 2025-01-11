@@ -7,6 +7,7 @@ import pytest_asyncio
 from sqlalchemy import text
 
 from basic_memory import db
+from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.schemas.search import SearchItemType, SearchResponse
 
 
@@ -140,7 +141,13 @@ async def test_search_empty(search_service, client):
 async def test_reindex(client, search_service, entity_service, test_entity, session_maker):
     """Test reindex endpoint."""
     # Create test entity and document
-    await entity_service.create_entity(test_entity)
+    await entity_service.create_entity(        EntitySchema(
+            name="TestEntity1",
+            entity_type="test",
+            summary="A test entity description",
+            observations=["this is a test observation"],
+        ),
+)
 
     # Clear search index
     async with db.scoped_session(session_maker) as session:
