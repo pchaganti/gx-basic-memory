@@ -36,7 +36,7 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
     return model
 
 
-class KnowledgeSyncService:
+class EntitySyncService:
     """Service for managing entities in the database."""
 
     def __init__(
