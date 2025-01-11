@@ -61,9 +61,8 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         knowledge_sync_service = EntitySyncService(
             entity_repository, observation_repository, relation_repository
         )
-        entity_parser = EntityParser(config.home)
-
-        search_service = SearchService(search_repository, entity_service)
+        entity_parser = EntityParser(config.knowledge_dir)
+        search_service = SearchService(search_repository, entity_repository)
 
         # Create sync service
         sync_service = SyncService(
