@@ -13,7 +13,7 @@ from basic_memory.markdown.schemas import (
     Relation as MarkdownRelation,
 )
 from basic_memory.models import Entity as EntityModel
-from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
+from basic_memory.sync.entity_sync_service import EntitySyncService
 
 
 @pytest_asyncio.fixture
@@ -55,11 +55,11 @@ def test_markdown(test_frontmatter, test_content) -> EntityMarkdown:
 
 @pytest.mark.asyncio
 async def test_create_entity_without_relations(
-    knowledge_sync_service: KnowledgeSyncService, test_markdown: EntityMarkdown
+    knowledge_sync_service: EntitySyncService, test_markdown: EntityMarkdown
 ):
     """Test first pass creation without relations."""
     # Create entity first pass
-    entity = await knowledge_sync_service.create_entity_and_observations("test.md", test_markdown)
+    entity = await knowledge_sync_service.create_entity_from_markdown("test.md", test_markdown)
 
     # Check basic fields
     assert entity.name == "Test Entity"
@@ -81,11 +81,11 @@ async def test_create_entity_without_relations(
 
 @pytest.mark.asyncio
 async def test_update_entity_without_relations(
-    knowledge_sync_service: KnowledgeSyncService, test_markdown: EntityMarkdown
+    knowledge_sync_service: EntitySyncService, test_markdown: EntityMarkdown
 ):
     """Test first pass update."""
     # First create entity
-    entity = await knowledge_sync_service.create_entity_and_observations("test.md", test_markdown)
+    entity = await knowledge_sync_service.create_entity_from_markdown("test.md", test_markdown)
 
     # Modify markdown content
     test_markdown.frontmatter.title = "Updated Title"
@@ -109,11 +109,11 @@ async def test_update_entity_without_relations(
 
 @pytest.mark.asyncio
 async def test_update_entity_relations(
-    knowledge_sync_service: KnowledgeSyncService, test_markdown: EntityMarkdown
+    knowledge_sync_service: EntitySyncService, test_markdown: EntityMarkdown
 ):
     """Test second pass relation updates."""
     # Create main entity first
-    entity = await knowledge_sync_service.create_entity_and_observations("test.md", test_markdown)
+    entity = await knowledge_sync_service.create_entity_from_markdown("test.md", test_markdown)
 
     # Create target entities that relations point to
     other_entity = EntityModel(
@@ -157,7 +157,7 @@ async def test_update_entity_relations(
 
 @pytest.mark.asyncio
 async def test_two_pass_sync_flow(
-    knowledge_sync_service: KnowledgeSyncService, test_markdown: EntityMarkdown
+    knowledge_sync_service: EntitySyncService, test_markdown: EntityMarkdown
 ):
     """Test complete two-pass sync flow."""
     # Create target entities first
@@ -179,7 +179,7 @@ async def test_two_pass_sync_flow(
     await knowledge_sync_service.entity_repository.add(another_entity)
 
     # First pass - create without relations
-    entity = await knowledge_sync_service.create_entity_and_observations("test.md", test_markdown)
+    entity = await knowledge_sync_service.create_entity_from_markdown("test.md", test_markdown)
     assert len(entity.relations) == 0
     assert entity.checksum is None
 

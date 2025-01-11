@@ -52,7 +52,7 @@ class EntitySyncService:
     async def delete_entity_by_file_path(self, file_path: str) -> bool:
         return await self.entity_repository.delete_by_file_path(file_path)
 
-    async def create_entity_and_observations(
+    async def create_entity_from_markdown(
         self, file_path: str, markdown: EntityMarkdown
     ) -> EntityModel:
         """First pass: Create entity and observations only.
@@ -62,7 +62,9 @@ class EntitySyncService:
         """
         logger.debug(f"Creating entity without relations: {markdown.frontmatter.id}")
         model = entity_model_from_markdown(file_path, markdown)
-        model.checksum = None  # Mark as incomplete sync
+
+        # Mark as incomplete sync
+        model.checksum = None  
         return await self.entity_repository.add(model)
 
     async def update_entity_and_observations(

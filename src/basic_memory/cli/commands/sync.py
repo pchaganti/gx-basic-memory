@@ -29,7 +29,7 @@ from basic_memory.services import (
     EntityService,
 )
 from basic_memory.services.search_service import SearchService
-from basic_memory.sync import SyncService, FileChangeScanner, KnowledgeSyncService
+from basic_memory.sync import SyncService, FileChangeScanner, EntitySyncService
 from basic_memory.sync.utils import SyncReport
 from basic_memory.utils.file_utils import ParseError
 
@@ -60,7 +60,7 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         # Initialize services
         entity_service = EntityService(entity_repository)
 
-        knowledge_sync_service = KnowledgeSyncService(
+        knowledge_sync_service = EntitySyncService(
             entity_repository, observation_repository, relation_repository
         )
         entity_parser = EntityParser(config.home)
@@ -70,7 +70,7 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         # Create sync service
         sync_service = SyncService(
             scanner=file_change_scanner,
-            knowledge_sync_service=knowledge_sync_service,
+            entity_sync_service=knowledge_sync_service,
             entity_parser=entity_parser,
             search_service=search_service,
         )
@@ -212,7 +212,7 @@ async def run_sync(verbose: bool = False):
         raise typer.Exit(1)
 
     # Sync
-    knowledge_changes = await sync_service.sync(config)
+    knowledge_changes = await sync_service.sync(config.knowledge_dir)
 
     # Display results
     if verbose:

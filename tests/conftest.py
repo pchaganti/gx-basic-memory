@@ -28,7 +28,7 @@ from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
-from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
+from basic_memory.sync.entity_sync_service import EntitySyncService
 from basic_memory.sync.sync_service import SyncService
 
 
@@ -162,14 +162,14 @@ async def knowledge_sync_service(
     entity_repository: EntityRepository,
     observation_repository: ObservationRepository,
     relation_repository: RelationRepository,
-) -> KnowledgeSyncService:
+) -> EntitySyncService:
     """Create EntitySyncService with repository."""
-    return KnowledgeSyncService(entity_repository, observation_repository, relation_repository)
+    return EntitySyncService(entity_repository, observation_repository, relation_repository)
 
 
 @pytest_asyncio.fixture
 async def sync_service(
-    knowledge_sync_service: KnowledgeSyncService,
+    knowledge_sync_service: EntitySyncService,
     file_change_scanner: FileChangeScanner,
     entity_parser: EntityParser,
     search_service: SearchService,
@@ -177,7 +177,7 @@ async def sync_service(
     """Create sync service for testing."""
     return SyncService(
         scanner=file_change_scanner,
-        knowledge_sync_service=knowledge_sync_service,
+        entity_sync_service=knowledge_sync_service,
         entity_parser=entity_parser,
         search_service=search_service,
     )

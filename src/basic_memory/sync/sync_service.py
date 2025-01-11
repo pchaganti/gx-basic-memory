@@ -4,11 +4,10 @@ from pathlib import Path
 
 from loguru import logger
 
-from basic_memory.config import ProjectConfig
 from basic_memory.markdown import EntityParser
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
-from basic_memory.sync.knowledge_sync_service import KnowledgeSyncService
+from basic_memory.sync.entity_sync_service import EntitySyncService
 from basic_memory.sync.utils import SyncReport
 
 
@@ -23,17 +22,16 @@ class SyncService:
     def __init__(
         self,
         scanner: FileChangeScanner,
-        knowledge_sync_service: KnowledgeSyncService,
+        entity_sync_service: EntitySyncService,
         entity_parser: EntityParser,
         search_service: SearchService,
     ):
         self.scanner = scanner
-        self.knowledge_sync_service = knowledge_sync_service
+        self.knowledge_sync_service = entity_sync_service
         self.knowledge_parser = entity_parser
         self.search_service = search_service
 
-
-    async def sync_knowledge(self, directory: Path) -> SyncReport:
+    async def sync(self, directory: Path) -> SyncReport:
         """Sync knowledge files with database."""
         changes = await self.scanner.find_knowledge_changes(directory)
         logger.info(f"Found {changes.total_changes} knowledge changes")
@@ -54,7 +52,7 @@ class SyncService:
         for file_path, entity_markdown in parsed_entities.items():
             if file_path in changes.new:
                 logger.debug(f"Creating new entity_markdown: {file_path}")
-                await self.knowledge_sync_service.create_entity_and_observations(
+                await self.knowledge_sync_service.create_entity_from_markdown(
                     file_path, entity_markdown
                 )
             else:
@@ -74,8 +72,3 @@ class SyncService:
             await self.search_service.index_entity(entity)
 
         return changes
-
-    async def sync(self, config: ProjectConfig) -> SyncReport:
-        """Sync all files with database."""
-        knowledge_changes = await self.sync_knowledge(config.knowledge_dir)
-        return knowledge_changes
