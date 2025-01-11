@@ -49,10 +49,10 @@ async def test_create_relations(
 
     relation_data = [
         RelationSchema(
-            from_path_id=entity1.path_id, to_path_id=entity2.path_id, relation_type="type_0", context="context_0"
+            from_id=entity1.path_id, to_id=entity2.path_id, relation_type="type_0", context="context_0"
         ),
         RelationSchema(
-            from_path_id=entity1.path_id, to_path_id=entity2.path_id, relation_type="type_1", context="context_1"
+            from_id=entity1.path_id, to_id=entity2.path_id, relation_type="type_1", context="context_1"
         ),
     ]
 
@@ -109,7 +109,7 @@ async def test_delete_relation(
 
     # Create a relation first
     relation_data = RelationSchema(
-        from_path_id=entity1.path_id, to_path_id=entity2.path_id, relation_type="test_relation"
+        from_id=entity1.path_id, to_id=entity2.path_id, relation_type="test_relation"
     )
     await relation_service.create_relations([relation_data])
 
@@ -140,10 +140,10 @@ async def test_delete_relations_by_criteria(
 
     # Create test relations
     relation1 = RelationSchema(
-        from_path_id=entity1.path_id, to_path_id=entity2.path_id, relation_type="relation1"
+        from_id=entity1.path_id, to_id=entity2.path_id, relation_type="relation1"
     )
     relation2 = RelationSchema(
-        from_path_id=entity1.path_id, to_path_id=entity2.path_id, relation_type="relation2"
+        from_id=entity1.path_id, to_id=entity2.path_id, relation_type="relation2"
     )
     await relation_service.create_relations([relation1, relation2])
 

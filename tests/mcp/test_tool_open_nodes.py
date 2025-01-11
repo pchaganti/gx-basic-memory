@@ -85,7 +85,7 @@ async def test_open_nodes_with_relations(client):
     from basic_memory.schemas.base import Relation
 
     relation_request = CreateRelationsRequest(
-        relations=[Relation(from_path_id=path_ids[0], to_path_id=path_ids[1], relation_type="depends_on")]
+        relations=[Relation(from_id=path_ids[0], to_id=path_ids[1], relation_type="depends_on")]
     )
     await create_relations(relation_request)
 

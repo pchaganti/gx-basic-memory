@@ -90,7 +90,7 @@ async def test_get_entity_with_relations(client):
 
     relation_request = CreateRelationsRequest(
         relations=[
-            Relation(from_path_id="source_entity", to_path_id="target_entity", relation_type="depends_on")
+            Relation(from_id="source_entity", to_id="target_entity", relation_type="depends_on")
         ]
     )
     await create_relations(relation_request)

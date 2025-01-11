@@ -22,7 +22,7 @@ async def test_create_basic_relation(client):
     # Create relation between them
     relation_request = CreateRelationsRequest(
         relations=[
-            Relation(from_path_id="source_entity", to_path_id="target_entity", relation_type="depends_on")
+            Relation(from_id="source_entity", to_id="target_entity", relation_type="depends_on")
         ]
     )
     result = await create_relations(relation_request)
@@ -65,8 +65,8 @@ async def test_create_relation_with_context(client):
     relation_request = CreateRelationsRequest(
         relations=[
             Relation(
-                from_path_id="source",
-                to_path_id="target",
+                from_id="source",
+                to_id="target",
                 relation_type="implements",
                 context="Implementation details",
             )
@@ -99,8 +99,8 @@ async def test_create_multiple_relations(client):
 
     relation_request = CreateRelationsRequest(
         relations=[
-            Relation(from_path_id="entity1", to_path_id="entity2", relation_type="connects_to"),
-            Relation(from_path_id="entity2", to_path_id="entity3", relation_type="depends_on"),
+            Relation(from_id="entity1", to_id="entity2", relation_type="connects_to"),
+            Relation(from_id="entity2", to_id="entity3", relation_type="depends_on"),
         ]
     )
     result = await create_relations(relation_request)
@@ -140,8 +140,8 @@ async def test_create_bidirectional_relations(client):
     # Create relations in both directions
     relation_request = CreateRelationsRequest(
         relations=[
-            Relation(from_path_id="service", to_path_id="database", relation_type="depends_on"),
-            Relation(from_path_id="database", to_path_id="service", relation_type="supports"),
+            Relation(from_id="service", to_id="database", relation_type="depends_on"),
+            Relation(from_id="database", to_id="service", relation_type="supports"),
         ]
     )
     result = await create_relations(relation_request)
@@ -171,7 +171,7 @@ async def test_create_relation_with_invalid_entity(client):
 
     relation_request = CreateRelationsRequest(
         relations=[
-            Relation(from_path_id="real_entity", to_path_id="non_existent_entity", relation_type="depends_on")
+            Relation(from_id="real_entity", to_id="non_existent_entity", relation_type="depends_on")
         ]
     )
 
@@ -193,7 +193,7 @@ async def test_create_duplicate_relation(client):
     await create_entities(entity_request)
 
     # Create relation
-    relation = Relation(from_path_id="source", to_path_id="target", relation_type="connects_to")
+    relation = Relation(from_id="source", to_id="target", relation_type="connects_to")
     relation_request = CreateRelationsRequest(relations=[relation])
 
     # Create first relation

@@ -18,7 +18,7 @@ from basic_memory import db
 from basic_memory.cli.app import app
 from basic_memory.config import config
 from basic_memory.db import DatabaseType
-from basic_memory.markdown import KnowledgeParser
+from basic_memory.markdown import EntityParser
 from basic_memory.repository import (
     EntityRepository,
     ObservationRepository,
@@ -27,8 +27,6 @@ from basic_memory.repository import (
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services import (
     EntityService,
-    ObservationService,
-    RelationService,
 )
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import SyncService, FileChangeScanner, KnowledgeSyncService
@@ -61,13 +59,11 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
 
         # Initialize services
         entity_service = EntityService(entity_repository)
-        observation_service = ObservationService(observation_repository)
-        relation_service = RelationService(relation_repository)
 
         knowledge_sync_service = KnowledgeSyncService(
-            entity_service, observation_service, relation_service
+            entity_repository, observation_repository, relation_repository
         )
-        knowledge_parser = KnowledgeParser()
+        entity_parser = EntityParser(config.home)
 
         search_service = SearchService(search_repository, entity_service)
 
@@ -75,7 +71,7 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         sync_service = SyncService(
             scanner=file_change_scanner,
             knowledge_sync_service=knowledge_sync_service,
-            knowledge_parser=knowledge_parser,
+            entity_parser=entity_parser,
             search_service=search_service,
         )
 
@@ -147,9 +143,9 @@ def display_sync_summary(knowledge: SyncReport):
 
     # Format as: "Synced X files (A new, B modified, C deleted)"
     changes = []
-    new_count =  len(knowledge.new)
-    mod_count =  len(knowledge.modified)
-    del_count =  len(knowledge.deleted)
+    new_count = len(knowledge.new)
+    mod_count = len(knowledge.modified)
+    del_count = len(knowledge.deleted)
 
     if new_count:
         changes.append(f"[green]{new_count} new[/green]")

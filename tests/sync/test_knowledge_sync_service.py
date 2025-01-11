@@ -130,8 +130,8 @@ async def test_update_entity_relations(
         file_path="concept/another_entity.md",
         content_type="text/markdown",
     )
-    await knowledge_sync_service.entity_service.add(other_entity)
-    await knowledge_sync_service.entity_service.add(another_entity)
+    await knowledge_sync_service.entity_repository.add(other_entity)
+    await knowledge_sync_service.entity_repository.add(another_entity)
 
     # Update relations and set checksum
     test_checksum = "test-checksum-123"
@@ -175,8 +175,8 @@ async def test_two_pass_sync_flow(
         file_path="concept/another_entity.md",
         content_type="text/markdown",
     )
-    await knowledge_sync_service.entity_service.add(other_entity)
-    await knowledge_sync_service.entity_service.add(another_entity)
+    await knowledge_sync_service.entity_repository.add(other_entity)
+    await knowledge_sync_service.entity_repository.add(another_entity)
 
     # First pass - create without relations
     entity = await knowledge_sync_service.create_entity_and_observations("test.md", test_markdown)

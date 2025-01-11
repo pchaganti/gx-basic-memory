@@ -159,12 +159,12 @@ async def activity_service(document_service, entity_service, relation_service):
 
 @pytest_asyncio.fixture
 async def knowledge_sync_service(
-    entity_service: EntityService,
-    observation_service: ObservationService,
-    relation_service: RelationService,
+    entity_repository: EntityRepository,
+    observation_repository: ObservationRepository,
+    relation_repository: RelationRepository,
 ) -> KnowledgeSyncService:
     """Create EntitySyncService with repository."""
-    return KnowledgeSyncService(entity_service, observation_service, relation_service)
+    return KnowledgeSyncService(entity_repository, observation_repository, relation_repository)
 
 
 @pytest_asyncio.fixture
