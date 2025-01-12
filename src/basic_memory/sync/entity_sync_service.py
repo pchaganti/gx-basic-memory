@@ -5,6 +5,7 @@ from loguru import logger
 from basic_memory.models import Entity as EntityModel, Observation, Relation, ObservationCategory
 from basic_memory.markdown.schemas import EntityMarkdown
 from basic_memory.repository import EntityRepository, ObservationRepository, RelationRepository
+from basic_memory.services.exceptions import EntityNotFoundError
 
 
 def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> EntityModel:
@@ -77,6 +78,8 @@ class EntitySyncService:
         """
         logger.debug(f"Updating entity and observations: {path_id}")
         db_entity = await self.entity_repository.get_by_path_id(path_id)
+        if not db_entity:
+            raise EntityNotFoundError(f"Entity not found: {path_id}")
 
         # Update fields from markdown
         db_entity.name = markdown.frontmatter.title
