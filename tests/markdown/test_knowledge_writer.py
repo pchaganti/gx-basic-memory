@@ -18,7 +18,7 @@ def sample_entity() -> Entity:
     """Create a sample knowledge entity for testing."""
     return Entity(
         id=1,
-        name="test_entity",
+        title="test_entity",
         entity_type="test",
         path_id="knowledge/test_entity",
         file_path="knowledge/test_entity.md",
@@ -44,7 +44,7 @@ def entity_with_observations(sample_entity: Entity) -> Entity:
 def entity_with_relations(sample_entity: Entity) -> Entity:
     """Create an entity with relations."""
     target = Entity(
-        id=2, name="target_entity", entity_type="test", path_id="knowledge/target_entity"
+        id=2, title="target_entity", entity_type="test", path_id="knowledge/target_entity"
     )
     sample_entity.outgoing_relations = [
         Relation(from_id=1, to_id=2, relation_type="connects_to", to_entity=target)

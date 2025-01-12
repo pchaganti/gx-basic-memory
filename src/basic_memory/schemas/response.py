@@ -91,7 +91,7 @@ class EntityResponse(SQLAlchemyModel):
     Example Response:
     {
         "path_id": "component/memory_service",
-        "name": "MemoryService",
+        "title": "MemoryService",
         "entity_type": "component",
         "description": "Core persistence service",
         "observations": [
@@ -119,7 +119,7 @@ class EntityResponse(SQLAlchemyModel):
 
     # Note this Class does not inherit form Entity because of the Entity.path_id semantics
     path_id: PathId
-    name: str
+    title: str
     entity_type: EntityType
     entity_metadata: Optional[Dict] = None
     content_type: ContentType
@@ -141,7 +141,7 @@ class EntityListResponse(SQLAlchemyModel):
         "entities": [
             {
                 "path_id": "component/search_service",
-                "name": "SearchService",
+                "title": "SearchService",
                 "entity_type": "component",
                 "description": "Knowledge graph search",
                 "observations": [
@@ -153,7 +153,7 @@ class EntityListResponse(SQLAlchemyModel):
             },
             {
                 "path_id": "document/api_docs",
-                "name": "API_Documentation",
+                "title": "API_Documentation",
                 "entity_type": "document",
                 "description": "API Reference",
                 "observations": [
@@ -181,7 +181,7 @@ class SearchNodesResponse(SQLAlchemyModel):
         "matches": [
             {
                 "path_id": "component/memory_service",
-                "name": "MemoryService",
+                "title": "MemoryService",
                 "entity_type": "component",
                 "description": "Core service",
                 "observations": [...],

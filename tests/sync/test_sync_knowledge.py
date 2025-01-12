@@ -47,7 +47,7 @@ A test concept.
     # Create related entity in DB that will be deleted
     other = Entity(
         path_id="concept/other",
-        name="Other",
+        title="Other",
         entity_type="test",
         file_path="concept/other.md",
         checksum="12345678",

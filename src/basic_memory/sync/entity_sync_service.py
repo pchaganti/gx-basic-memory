@@ -106,7 +106,7 @@ class EntitySyncService:
         return await self.entity_repository.update(
             db_entity.id,
             {
-                "name": db_entity.title,
+                "title": db_entity.title,
                 "entity_type": db_entity.entity_type,
                 "summary": db_entity.summary,
                 # Mark as incomplete

@@ -28,7 +28,7 @@ async def related_entities(session_maker):
     """Create entities with relations between them."""
     async with db.scoped_session(session_maker) as session:
         source = Entity(
-            name="source",
+            title="source",
             entity_type="test",
             path_id="source/source",
             file_path="source/source.md",
@@ -36,7 +36,7 @@ async def related_entities(session_maker):
             content_type="text/markdown",
         )
         target = Entity(
-            name="target",
+            title="target",
             entity_type="test",
             path_id="target/target",
             file_path="target/target.md",
@@ -57,7 +57,7 @@ async def related_entities(session_maker):
 async def test_create_entity(entity_repository: EntityRepository):
     """Test creating a new entity"""
     entity_data = {
-        "name": "Test",
+        "title": "Test",
         "entity_type": "test",
         "path_id": "test/test",
         "file_path": "test/test.md",
@@ -91,7 +91,7 @@ async def test_create_all(entity_repository: EntityRepository):
     """Test creating a new entity"""
     entity_data = [
         {
-            "name": "Test_1",
+            "title": "Test_1",
             "entity_type": "test",
             "path_id": "test/test_1",
             "file_path": "test/test_1.md",
@@ -99,7 +99,7 @@ async def test_create_all(entity_repository: EntityRepository):
             "content_type": "text/markdown",
         },
         {
-            "name": "Test-2",
+            "title": "Test-2",
             "entity_type": "test",
             "path_id": "test/test_2",
             "file_path": "test/test_2.md",
@@ -129,7 +129,7 @@ async def test_create_all(entity_repository: EntityRepository):
 async def test_create_entity_null_description(session_maker, entity_repository: EntityRepository):
     """Test creating an entity with null description"""
     entity_data = {
-        "name": "Test",
+        "title": "Test",
         "entity_type": "test",
         "path_id": "test/test",
         "file_path": "test/test.md",
@@ -279,7 +279,7 @@ async def test_entities(session_maker):
     async with db.scoped_session(session_maker) as session:
         entities = [
             Entity(
-                name="entity1",
+                title="entity1",
                 entity_type="test",
                 summary="First test entity",
                 path_id="type1/entity1",
@@ -287,7 +287,7 @@ async def test_entities(session_maker):
                 content_type= "text/markdown",
             ),
             Entity(
-                name="entity2",
+                title="entity2",
                 entity_type="test",
                 summary="Second test entity",
                 path_id="type1/entity2",
@@ -295,7 +295,7 @@ async def test_entities(session_maker):
                 content_type="text/markdown",
             ),
             Entity(
-                name="entity3",
+                title="entity3",
                 entity_type="test",
                 summary="Third test entity",
                 path_id="type2/entity3",
@@ -394,7 +394,7 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
     async with db.scoped_session(session_maker) as session:
         # Core entities
         core = Entity(
-            name="core_service",
+            title="core_service",
             entity_type="note",
             path_id="service/core",
             file_path="service/core.md",
@@ -402,7 +402,7 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
             content_type="text/markdown",
         )
         dbe = Entity(
-            name="db_service",
+            title="db_service",
             entity_type="test",
             path_id="service/db",
             file_path="service/db.md",
@@ -411,7 +411,7 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
         )
         # Related entity of different type
         config = Entity(
-            name="service_config",
+            title="service_config",
             entity_type="test",
             path_id="config/service",
             file_path="config/service.md",

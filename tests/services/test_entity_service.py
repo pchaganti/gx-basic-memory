@@ -20,7 +20,7 @@ pytestmark = pytest.mark.asyncio
 async def test_create_entity(entity_service: EntityService, file_service: FileService):
     """Test successful entity creation."""
     entity_data = EntitySchema(
-        name="TestEntity",
+        title="TestEntity",
         entity_type="test",
         summary="A test entity description",
         observations=["this is a test observation"],
@@ -68,13 +68,13 @@ async def test_create_entities(entity_service: EntityService, file_service: File
     """Test successful entity creation."""
     entity_data = [
         EntitySchema(
-            name="TestEntity1",
+            title="TestEntity1",
             entity_type="test",
             summary="A test entity description",
             observations=["this is a test observation"],
         ),
         EntitySchema(
-            name="TestEntity2",
+            title="TestEntity2",
             entity_type="test",
             summary="A test entity description",
             observations=["this is a test observation"],
@@ -120,7 +120,7 @@ async def test_create_entities(entity_service: EntityService, file_service: File
 async def test_get_by_path_id(entity_service: EntityService):
     """Test finding entity by type and name combination."""
     entity1_data = EntitySchema(
-        name="TestEntity1",
+        title="TestEntity1",
         entity_type="test",
         summary="First test entity",
         observations=[],
@@ -128,7 +128,7 @@ async def test_get_by_path_id(entity_service: EntityService):
     entity1 = await entity_service.create_entity(entity1_data)
 
     entity2_data = EntitySchema(
-        name="TestEntity2",
+        title="TestEntity2",
         entity_type="test",
         summary="Second test entity",
         observations=[],
@@ -156,7 +156,7 @@ async def test_get_by_path_id(entity_service: EntityService):
 
 async def test_create_entity_no_description(entity_service: EntityService):
     """Test creating entity without description (should be None)."""
-    entity_data = EntitySchema(name="TestEntity", entity_type="test", observations=[])
+    entity_data = EntitySchema(title="TestEntity", entity_type="test", observations=[])
 
     entity = await entity_service.create_entity(entity_data)
     assert entity.summary is None
@@ -169,7 +169,7 @@ async def test_create_entity_no_description(entity_service: EntityService):
 async def test_get_entity_success(entity_service: EntityService):
     """Test successful entity retrieval."""
     entity_data = EntitySchema(
-        name="TestEntity",
+        title="TestEntity",
         entity_type="test",
         summary="Test description",
         observations=[],
@@ -189,7 +189,7 @@ async def test_get_entity_success(entity_service: EntityService):
 async def test_delete_entity_success(entity_service: EntityService):
     """Test successful entity deletion."""
     entity_data = EntitySchema(
-        name="TestEntity",
+        title="TestEntity",
         entity_type="test",
         observations=[],
     )
@@ -220,7 +220,7 @@ async def test_create_entity_with_special_chars(entity_service: EntityService):
     name = "TestEntity_Special"  # Note: Using valid path characters
     description = "Description with $pecial chars & symbols!"
     entity_data = EntitySchema(
-        name=name,
+        title=name,
         entity_type="test",
         summary=description,
     )
@@ -238,7 +238,7 @@ async def test_create_entity_long_description(entity_service: EntityService):
     """Test creating entity with a long description."""
     long_description = "A" * 1000  # 1000 character description
     entity_data = EntitySchema(
-        name="TestEntity",
+        title="TestEntity",
         entity_type="test",
         summary=long_description,
         observations=[],
@@ -256,13 +256,13 @@ async def test_open_nodes_by_path_ids(entity_service: EntityService):
     """Test opening multiple nodes by path IDs."""
     # Create test entities
     entity1_data = EntitySchema(
-        name="Entity1",
+        title="Entity1",
         entity_type="test",
         summary="First entity",
         observations=[],
     )
     entity2_data = EntitySchema(
-        name="Entity2",
+        title="Entity2",
         entity_type="test",
         summary="Second entity",
         observations=[],
@@ -289,7 +289,7 @@ async def test_open_nodes_some_not_found(entity_service: EntityService):
     """Test opening nodes with mix of existing and non-existent path IDs."""
     # Create one test entity
     entity_data = EntitySchema(
-        name="Entity1",
+        title="Entity1",
         entity_type="test",
         summary="Test entity",
         observations=[],
@@ -308,13 +308,13 @@ async def test_delete_entities_by_path_ids(entity_service: EntityService):
     """Test deleting multiple entities by path IDs."""
     # Create test entities
     entity1_data = EntitySchema(
-        name="Entity1",
+        title="Entity1",
         entity_type="test",
         summary="First entity",
         observations=[],
     )
     entity2_data = EntitySchema(
-        name="Entity2",
+        title="Entity2",
         entity_type="test",
         summary="Second entity",
         observations=[],
@@ -352,7 +352,7 @@ async def test_get_entity_path(entity_service: EntityService):
     entity = EntityModel(
         id=1,
         path_id="test-entity",
-        name="test-entity",
+        title="test-entity",
         entity_type="test",
         summary="Test entity",
     )
@@ -367,7 +367,7 @@ async def test_update_knowledge_entity_summary(entity_service: EntityService, fi
     # Create test entity
     entity = await entity_service.create_entity(
         EntitySchema(
-            name="test",
+            title="test",
             entity_type="test",
             summary="Test entity",
             entity_metadata={"status": "draft"},
@@ -398,7 +398,7 @@ async def test_update_note_entity_content(entity_service: EntityService, file_se
     # Create test entity
     entity = await entity_service.create_entity(
         EntitySchema(
-            name="test",
+            title="test",
             entity_type="note",
             summary="Test note",
             entity_metadata={"status": "draft"},
@@ -428,7 +428,7 @@ async def test_update_entity_name(entity_service: EntityService, file_service: F
     # Create test entity
     entity = await entity_service.create_entity(
         EntitySchema(
-            name="test",
+            title="test",
             entity_type="test",
             summary="Test entity",
             entity_metadata={"status": "draft"},
@@ -436,7 +436,7 @@ async def test_update_entity_name(entity_service: EntityService, file_service: F
     )
 
     # Update name
-    updated = await entity_service.update_entity(entity.path_id, name="new-name")
+    updated = await entity_service.update_entity(entity.path_id, title="new-name")
 
     # Verify name was updated in DB
     assert updated.title == "new-name"

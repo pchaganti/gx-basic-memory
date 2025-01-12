@@ -13,7 +13,7 @@ from basic_memory.repository.relation_repository import RelationRepository
 async def source_entity(session_maker):
     """Create a source entity for testing relations."""
     entity = Entity(
-        name="test_source",
+        title="test_source",
         entity_type="test",
         path_id="source/test_source",
         file_path="source/test_source.md",
@@ -30,7 +30,7 @@ async def source_entity(session_maker):
 async def target_entity(session_maker):
     """Create a target entity for testing relations."""
     entity = Entity(
-        name="test_target",
+        title="test_target",
         entity_type="test",
         path_id="target/test_target",
         file_path="target/test_target.md",
@@ -60,7 +60,7 @@ async def test_relations(session_maker, source_entity, target_entity):
 async def related_entity(entity_repository):
     """Create a second entity for testing relations"""
     entity_data = {
-        "name": "Related Entity",
+        "title": "Related Entity",
         "entity_type": "test",
         "path_id": "test/related_entity",
         "file_path": "test/related_entity.md",

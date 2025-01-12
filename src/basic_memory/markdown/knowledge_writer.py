@@ -56,7 +56,7 @@ class KnowledgeWriter:
         # Otherwise, build structured content from entity data
         sections = []
         
-        # Only add entity name as title if we don't have structured content
+        # Only add entity title if we don't have structured content
         # This prevents duplicate titles when raw content already has a title
         if not (entity.observations or entity.outgoing_relations):
             sections.extend([

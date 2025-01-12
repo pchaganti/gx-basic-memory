@@ -13,8 +13,8 @@ async def test_create_basic_relation(client):
     # First create test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="SourceEntity", entity_type="test"),
-            Entity(name="TargetEntity", entity_type="test"),
+            Entity(title="SourceEntity", entity_type="test"),
+            Entity(title="TargetEntity", entity_type="test"),
         ]
     )
     await create_entities(entity_request)
@@ -56,8 +56,8 @@ async def test_create_relation_with_context(client):
     # Create test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="Source", entity_type="test"),
-            Entity(name="Target", entity_type="test"),
+            Entity(title="Source", entity_type="test"),
+            Entity(title="Target", entity_type="test"),
         ]
     )
     await create_entities(entity_request)
@@ -90,9 +90,9 @@ async def test_create_multiple_relations(client):
     # Create test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="Entity1", entity_type="test"),
-            Entity(name="Entity2", entity_type="test"),
-            Entity(name="Entity3", entity_type="test"),
+            Entity(title="Entity1", entity_type="test"),
+            Entity(title="Entity2", entity_type="test"),
+            Entity(title="Entity3", entity_type="test"),
         ]
     )
     await create_entities(entity_request)
@@ -131,8 +131,8 @@ async def test_create_bidirectional_relations(client):
     # Create test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="Service", entity_type="test"),
-            Entity(name="Database", entity_type="test"),
+            Entity(title="Service", entity_type="test"),
+            Entity(title="Database", entity_type="test"),
         ]
     )
     await create_entities(entity_request)
@@ -166,7 +166,7 @@ async def test_create_bidirectional_relations(client):
 async def test_create_relation_with_invalid_entity(client):
     """Test creating a relation with non-existent entity fails."""
     # Create only one of the needed entities
-    entity_request = CreateEntityRequest(entities=[Entity(name="RealEntity", entity_type="test")])
+    entity_request = CreateEntityRequest(entities=[Entity(title="RealEntity", entity_type="test")])
     await create_entities(entity_request)
 
     relation_request = CreateRelationsRequest(
@@ -186,8 +186,8 @@ async def test_create_duplicate_relation(client):
     # Create test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="Source", entity_type="test"),
-            Entity(name="Target", entity_type="test"),
+            Entity(title="Source", entity_type="test"),
+            Entity(title="Target", entity_type="test"),
         ]
     )
     await create_entities(entity_request)

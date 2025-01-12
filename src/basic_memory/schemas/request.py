@@ -45,9 +45,10 @@ class SearchNodesRequest(BaseModel):
     """Search for entities in the knowledge graph.
 
     The search looks across multiple fields:
-    - Entity names
+    - Entity title
     - Entity types
-    - Descriptions
+    - summary
+    - file content
     - Observations
 
     Features:
@@ -92,7 +93,7 @@ class CreateRelationsRequest(BaseModel):
 
 class UpdateEntityRequest(BaseModel):
     """Request to update an existing entity."""
-    name: Optional[str] = None
+    title: Optional[str] = None
     entity_type: Optional[EntityType] = None
     summary: Optional[str] = None
     content: Optional[str] = None

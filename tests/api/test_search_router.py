@@ -17,7 +17,7 @@ def test_entity():
 
     class Entity:
         id = 1
-        name = "TestComponent"
+        title = "TestComponent"
         entity_type = "test"
         entity_metadata = {"test": "test"}
         path_id = "component/test_component"
@@ -142,7 +142,7 @@ async def test_reindex(client, search_service, entity_service, test_entity, sess
     """Test reindex endpoint."""
     # Create test entity and document
     await entity_service.create_entity(        EntitySchema(
-            name="TestEntity1",
+            title="TestEntity1",
             entity_type="test",
             summary="A test entity description",
             observations=["this is a test observation"],

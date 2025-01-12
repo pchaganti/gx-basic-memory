@@ -117,14 +117,14 @@ async def test_update_entity_relations(
 
     # Create target entities that relations point to
     other_entity = EntityModel(
-        name="Other Entity",
+        title="Other Entity",
         entity_type="test",
         path_id="concept/other_entity",
         file_path="concept/other_entity.md",
         content_type="text/markdown",
     )
     another_entity = EntityModel(
-        name="Another Entity",
+        title="Another Entity",
         entity_type="test",
         path_id="concept/another_entity",
         file_path="concept/another_entity.md",
@@ -162,14 +162,14 @@ async def test_two_pass_sync_flow(
     """Test complete two-pass sync flow."""
     # Create target entities first
     other_entity = EntityModel(
-        name="Other Entity",
+        title="Other Entity",
         entity_type="test",
         path_id="concept/other_entity",
         file_path="concept/other_entity.md",
         content_type="text/markdown",
     )
     another_entity = EntityModel(
-        name="Another Entity",
+        title="Another Entity",
         entity_type="test",
         path_id="concept/another_entity",
         file_path="concept/another_entity.md",

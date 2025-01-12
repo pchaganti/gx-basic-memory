@@ -15,7 +15,7 @@ from basic_memory.schemas.request import (
 async def test_add_basic_observation(client):
     """Test adding a single observation with default category."""
     # First create an entity to add observations to
-    entity_request = CreateEntityRequest(entities=[Entity(name="TestEntity", entity_type="test")])
+    entity_request = CreateEntityRequest(entities=[Entity(title="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
     entity_id = result.entities[0].path_id
 
@@ -36,7 +36,7 @@ async def test_add_basic_observation(client):
 async def test_add_categorized_observations(client):
     """Test adding observations with different categories."""
     # Create test entity
-    entity_request = CreateEntityRequest(entities=[Entity(name="TestEntity", entity_type="test")])
+    entity_request = CreateEntityRequest(entities=[Entity(title="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
     entity_id = result.entities[0].path_id
 
@@ -73,7 +73,7 @@ async def test_add_categorized_observations(client):
 async def test_add_observations_with_context(client):
     """Test adding observations with shared context."""
     # Create test entity
-    entity_request = CreateEntityRequest(entities=[Entity(name="TestEntity", entity_type="test")])
+    entity_request = CreateEntityRequest(entities=[Entity(title="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
     entity_id = result.entities[0].path_id
 
@@ -104,7 +104,7 @@ async def test_add_observations_preserves_existing(client):
     # Create entity with initial observation
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="TestEntity", entity_type="test", observations=["Initial observation"])
+            Entity(title="TestEntity", entity_type="test", observations=["Initial observation"])
         ]
     )
     result = await create_entities(entity_request)
@@ -130,7 +130,7 @@ async def test_add_observations_preserves_existing(client):
 async def test_add_multiple_observations_same_category(client):
     """Test adding multiple observations in the same category."""
     # Create test entity
-    entity_request = CreateEntityRequest(entities=[Entity(name="TestEntity", entity_type="test")])
+    entity_request = CreateEntityRequest(entities=[Entity(title="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
     entity_id = result.entities[0].path_id
 

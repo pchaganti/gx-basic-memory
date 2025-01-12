@@ -72,7 +72,7 @@ async def test_sync_null_checksum_cleanup(
     # Create entity with null checksum (simulating incomplete sync)
     entity = Entity(
         path_id="concept/incomplete",
-        name="Incomplete",
+        title="Incomplete",
         entity_type="test",
         file_path="concept/incomplete.md",
         checksum=None,  # Null checksum

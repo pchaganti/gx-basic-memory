@@ -208,7 +208,7 @@ async def search_service(
 async def sample_entity(entity_repository: EntityRepository) -> Entity:
     """Create a sample entity for testing."""
     entity_data = {
-        "name": "Test Entity",
+        "title": "Test Entity",
         "entity_type": "test",
         "summary": "A test entity",
         "path_id": "test/test_entity",

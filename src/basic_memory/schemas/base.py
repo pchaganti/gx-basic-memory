@@ -5,7 +5,7 @@ The graph consists of entities (nodes) connected by relations (edges), where eac
 entity can have multiple observations (facts) attached to it.
 
 Key Concepts:
-1. Entities are nodes with a type and name, storing factual observations
+1. Entities are nodes storing factual observations
 2. Relations are directed edges between entities using active voice verbs
 3. Observations are atomic facts/notes about an entity
 4. Everything is stored in both SQLite and markdown files
@@ -133,14 +133,14 @@ class Entity(BaseModel):
     """Represents a node in our knowledge graph - could be a person, project, concept, etc.
 
     Each entity has:
-    - A unique name (used to generate its ID)
+    - A title 
     - An entity type (for classification)
     - A list of observations (facts/notes about the entity)
     - Optional relations to other entities
     - Optional description for high-level overview
     """
 
-    name: str
+    title: str
     entity_type: EntityType
     entity_metadata: Optional[Dict] = Field(default=None, description="Optional metadata")
     content: Optional[str] = None
@@ -153,8 +153,8 @@ class Entity(BaseModel):
 
     @property
     def path_id(self) -> PathId:
-        """Get the path ID in format {snake_case_name}."""
-        normalized_name = to_snake_case(self.name)
+        """Get the path ID in format {snake_case_title}."""
+        normalized_name = to_snake_case(self.title)
         return normalized_name
 
     @property

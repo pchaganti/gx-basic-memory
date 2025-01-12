@@ -13,7 +13,7 @@ async def test_create_basic_entity(client):
     request = CreateEntityRequest(
         entities=[
             Entity(
-                name="TestEntity",
+                title="TestEntity",
                 entity_type="test",
                 summary="A test entity",
                 observations=["First observation"],
@@ -28,7 +28,7 @@ async def test_create_basic_entity(client):
 
     # Check the created entity
     entity = result.entities[0]
-    assert entity.name == "TestEntity"
+    assert entity.title == "TestEntity"
     assert entity.entity_type == "test"
     assert entity.path_id == "test_entity"
     assert entity.summary == "A test entity"
@@ -49,7 +49,7 @@ async def test_create_entity_with_multiple_observations(client):
     request = CreateEntityRequest(
         entities=[
             Entity(
-                name="TestEntity",
+                title="TestEntity",
                 entity_type="test",
                 summary="A test entity",
                 observations=["First observation", "Second observation", "Third observation"],
@@ -75,8 +75,8 @@ async def test_create_multiple_entities(client):
     """Test creating multiple entities in one request."""
     request = CreateEntityRequest(
         entities=[
-            Entity(name="Entity1", entity_type="test", observations=["Observation 1"]),
-            Entity(name="Entity2", entity_type="test", observations=["Observation 2"]),
+            Entity(title="Entity1", entity_type="test", observations=["Observation 1"]),
+            Entity(title="Entity2", entity_type="test", observations=["Observation 2"]),
         ]
     )
 
@@ -84,8 +84,8 @@ async def test_create_multiple_entities(client):
     assert len(result.entities) == 2
 
     # Entities should be in order
-    assert result.entities[0].name == "Entity1"
-    assert result.entities[1].name == "Entity2"
+    assert result.entities[0].title == "Entity1"
+    assert result.entities[1].title == "Entity2"
 
     # Each should have its observation
     assert result.entities[0].observations[0].content == "Observation 1"
@@ -98,7 +98,7 @@ async def test_create_entity_without_observations(client):
     request = CreateEntityRequest(
         entities=[
             Entity(
-                name="TestEntity",
+                title="TestEntity",
                 entity_type="test",
                 summary="A test entity without observations",
             )
@@ -108,19 +108,19 @@ async def test_create_entity_without_observations(client):
     result = await create_entities(request)
 
     entity = result.entities[0]
-    assert entity.name == "TestEntity"
+    assert entity.title == "TestEntity"
     assert len(entity.observations) == 0
 
 
 @pytest.mark.asyncio
 async def test_create_minimal_entity(client):
     """Test creating an entity with just name and type."""
-    request = CreateEntityRequest(entities=[Entity(name="MinimalEntity", entity_type="test")])
+    request = CreateEntityRequest(entities=[Entity(title="MinimalEntity", entity_type="test")])
 
     result = await create_entities(request)
 
     entity = result.entities[0]
-    assert entity.name == "MinimalEntity"
+    assert entity.title == "MinimalEntity"
     assert entity.entity_type == "test"
     assert entity.path_id == "minimal_entity"
     assert entity.summary is None

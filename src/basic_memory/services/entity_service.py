@@ -14,7 +14,7 @@ from . import BaseService
 
 def entity_model(entity: EntitySchema):
     model = EntityModel(
-        name=entity.name,
+        title=entity.title,
         entity_type=entity.entity_type,
         entity_metadata=entity.entity_metadata,
         path_id=entity.path_id,

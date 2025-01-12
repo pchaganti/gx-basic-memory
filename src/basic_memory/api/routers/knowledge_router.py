@@ -143,7 +143,7 @@ async def get_entity(
 async def open_nodes(
     data: OpenNodesRequest, entity_service: EntityServiceDep
 ) -> EntityListResponse:
-    """Open specific nodes by their names."""
+    """Open specific nodes"""
     entities = await entity_service.open_nodes(data.path_ids)
     return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]

@@ -31,7 +31,7 @@ def test_entity_data():
     return {
         "entities": [
             {
-                "name": "Test Entity",
+                "title": "Test Entity",
                 "entity_type": "test",
                 "summary": "",  # Empty string instead of None
                 "observations": ["This is a test observation"],
@@ -46,7 +46,7 @@ def test_directory_entity_data():
     return {
         "entities": [
             {
-                "name": "Directory Organization",
+                "title": "Directory Organization",
                 "entity_type": "memory",
                 "summary": "Implemented filesystem organization by entity type",
                 "observations": [

@@ -15,7 +15,7 @@ async def test_get_basic_entity(client):
     entity_request = CreateEntityRequest(
         entities=[
             Entity(
-                name="TestEntity",
+                title="TestEntity",
                 entity_type="test",
                 summary="A test entity",
                 observations=["First observation"],
@@ -29,7 +29,7 @@ async def test_get_basic_entity(client):
     entity = await get_entity(path_id)
 
     # Verify entity details
-    assert entity.name == "TestEntity"
+    assert entity.title == "TestEntity"
     assert entity.entity_type == "test"
     assert entity.path_id == "test_entity"
     assert entity.summary == "A test entity"
@@ -47,7 +47,7 @@ async def test_get_entity_with_content(client):
     entity_request = CreateEntityRequest(
         entities=[
             Entity(
-                name="TestEntity",
+                title="TestEntity",
                 entity_type="test",
                 content="A test entity",
                 observations=["First observation"],
@@ -77,8 +77,8 @@ async def test_get_entity_with_relations(client):
     # Create two entities that will have a relation
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="SourceEntity", entity_type="test"),
-            Entity(name="TargetEntity", entity_type="test"),
+            Entity(title="SourceEntity", entity_type="test"),
+            Entity(title="TargetEntity", entity_type="test"),
         ]
     )
     await create_entities(entity_request)
@@ -109,7 +109,7 @@ async def test_get_entity_with_categorized_observations(client):
     # Create entity with categorized observations
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(name="TestEntity", entity_type="test", summary="Test entity with categories")
+            Entity(title="TestEntity", entity_type="test", summary="Test entity with categories")
         ]
     )
     result = await create_entities(entity_request)

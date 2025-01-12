@@ -17,7 +17,7 @@ async def test_entities(
     """Create two test entities."""
     async with session_maker() as session:
         entity1 = EntityModel(
-            name="test_entity_1",
+            title="test_entity_1",
             entity_type="test",
             path_id="test/test_entity_1",
             file_path="test/test_entity_1.md",
@@ -25,7 +25,7 @@ async def test_entities(
             content_type="text/markdown",
         )
         entity2 = EntityModel(
-            name="test_entity_2",
+            title="test_entity_2",
             entity_type="test",
             path_id="test/test_entity_2",
             file_path="test/test_entity_2.md",

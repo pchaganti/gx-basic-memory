@@ -14,7 +14,7 @@ def test_entity():
 
     class Entity:
         id = 1
-        name = "TestComponent"
+        title = "TestComponent"
         entity_type = "knowledge"
         entity_metadata = {"test": "test"}
         path_id = "component/test_component"
@@ -114,7 +114,7 @@ async def test_reindex_all(search_service, entity_service, session_maker):
     # Create test entities and documents
     test_entity = await entity_service.create_entity(
         EntitySchema(
-            name="TestComponent",
+            title="TestComponent",
             entity_type="test",
             summary="A test entity description",
             observations=["this is a test observation"],
@@ -150,7 +150,7 @@ async def test_reindex_with_background_tasks(search_service, entity_service, ses
     # Create test data
     await entity_service.create_entity(
         EntitySchema(
-            name="TestEntity1",
+            title="TestEntity1",
             entity_type="test",
             summary="A test entity description",
             observations=["this is a test observation"],

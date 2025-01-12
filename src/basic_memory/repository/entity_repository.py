@@ -19,7 +19,7 @@ class EntityRepository(Repository[Entity]):
         super().__init__(session_maker, Entity)
 
     async def get_by_path_id(self, path_id: str) -> Optional[Entity]:
-        """Get entity by type and name."""
+        """Get entity by path_id."""
         query = self.select().where(Entity.path_id == path_id).options(*self.get_load_options())
         return await self.find_one(query)
 
@@ -112,7 +112,7 @@ class EntityRepository(Repository[Entity]):
         ]
 
     async def find_by_path_ids(self, path_ids: List[str]) -> Sequence[Entity]:
-        """Find multiple entities by their entity_type and name pairs."""
+        """Find multiple entities by their path_id."""
 
         # Handle empty input explicitly
         if not path_ids:
@@ -125,7 +125,7 @@ class EntityRepository(Repository[Entity]):
         return list(result.scalars().all())
 
     async def delete_by_path_ids(self, path_ids: List[str]) -> int:
-        """Delete multiple entities by entity_type and name pairs."""
+        """Delete multiple entities by path_id."""
 
         # Handle empty input explicitly
         if not path_ids:

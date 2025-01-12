@@ -16,9 +16,9 @@ from basic_memory.schemas.base import to_snake_case
 
 def test_entity_in_minimal():
     """Test creating EntityIn with minimal required fields."""
-    data = {"name": "test_entity", "entity_type": "knowledge"}
+    data = {"title": "test_entity", "entity_type": "knowledge"}
     entity = Entity.model_validate(data)
-    assert entity.name == "test_entity"
+    assert entity.title == "test_entity"
     assert entity.entity_type == "knowledge"
     assert entity.summary is None
     assert entity.observations == []
@@ -27,13 +27,13 @@ def test_entity_in_minimal():
 def test_entity_in_complete():
     """Test creating EntityIn with all fields."""
     data = {
-        "name": "test_entity",
+        "title": "test_entity",
         "entity_type": "knowledge",
         "summary": "A test entity",
         "observations": ["Test observation"],
     }
     entity = Entity.model_validate(data)
-    assert entity.name == "test_entity"
+    assert entity.title == "test_entity"
     assert entity.entity_type == "knowledge"
     assert entity.summary == "A test entity"
     assert len(entity.observations) == 1
@@ -46,7 +46,7 @@ def test_entity_in_validation():
         Entity.model_validate({"file_path": "test"})  # Missing required fields
 
     with pytest.raises(ValidationError):
-        Entity.model_validate({"name": "test"})  # Missing entityType
+        Entity.model_validate({"title": "test"})  # Missing entityType
 
     with pytest.raises(ValidationError):
         Entity.model_validate({"entityType": "test"})  # Missing name
@@ -84,8 +84,8 @@ def test_create_entities_input():
     """Test CreateEntitiesInput validation."""
     data = {
         "entities": [
-            {"name": "entity1", "entity_type": "knowledge"},
-            {"name": "entity2", "entity_type": "knowledge", "summary": "test description"},
+            {"title": "entity1", "entity_type": "knowledge"},
+            {"title": "entity2", "entity_type": "knowledge", "summary": "test description"},
         ]
     }
     create_input = CreateEntityRequest.model_validate(data)
@@ -102,7 +102,7 @@ def test_entity_out_from_attributes():
     # Simulate database model attributes
     db_data = {
         "path_id": "test/test",
-        "name": "test",
+        "title": "test",
         "entity_type": "knowledge",
         "content_type": "text/markdown",
         "summary": "test description",
@@ -121,14 +121,14 @@ def test_entity_out_from_attributes():
 def test_optional_fields():
     """Test handling of optional fields."""
     # Create with no optional fields
-    entity = Entity.model_validate({"name": "test", "entity_type": "knowledge"})
+    entity = Entity.model_validate({"title": "test", "entity_type": "knowledge"})
     assert entity.summary is None
     assert entity.observations == []
 
     # Create with empty optional fields
     entity = Entity.model_validate(
         {
-            "name": "test",
+            "title": "test",
             "entity_type": "knowledge",
             "summary": None,
             "observations": [],
@@ -139,7 +139,7 @@ def test_optional_fields():
 
     # Create with some optional fields
     entity = Entity.model_validate(
-        {"name": "test", "entity_type": "knowledge", "summary": "test", "observations": []}
+        {"title": "test", "entity_type": "knowledge", "summary": "test", "observations": []}
     )
     assert entity.summary == "test"
     assert entity.observations == []
@@ -188,19 +188,19 @@ def test_path_id_generation():
     """Test path_id property generates correct paths."""
     test_cases = [
         (
-            {"name": "BasicMemory", "entity_type": "knowledge"},
+            {"title": "BasicMemory", "entity_type": "knowledge"},
             "basic_memory"
         ),
         (
-            {"name": "Memory Service", "entity_type": "knowledge"},
+            {"title": "Memory Service", "entity_type": "knowledge"},
             "memory_service"
         ),
         (
-            {"name": "API Gateway", "entity_type": "knowledge"},
+            {"title": "API Gateway", "entity_type": "knowledge"},
             "api_gateway"
         ),
         (
-            {"name": "TestCase1", "entity_type": "knowledge"},
+            {"title": "TestCase1", "entity_type": "knowledge"},
             "test_case1"
         ),
     ]

@@ -88,7 +88,7 @@ async def test_delete_observations(session_maker: async_sessionmaker, repo):
     # Create test entity
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
-            name="test_entity",
+            title="test_entity",
             entity_type="test",
             summary="Test entity",
             path_id="test/test_entity",
@@ -118,7 +118,7 @@ async def test_delete_observation_by_id(session_maker: async_sessionmaker, repo)
     # Create test entity
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
-            name="test_entity",
+            title="test_entity",
             entity_type="test",
             summary="Test entity",
             path_id="test/test_entity",
@@ -147,7 +147,7 @@ async def test_delete_observation_by_content(session_maker: async_sessionmaker, 
     # Create test entity
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
-            name="test_entity",
+            title="test_entity",
             entity_type="test",
             summary="Test entity",
             path_id="test/test_entity",
@@ -178,7 +178,7 @@ async def test_find_by_category(session_maker: async_sessionmaker, repo):
     # Create test entity
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
-            name="test_entity",
+            title="test_entity",
             entity_type="test",
             summary="Test entity",
             path_id="test/test_entity",
@@ -220,7 +220,7 @@ async def test_observation_categories(session_maker: async_sessionmaker, repo):
     # Create test entity
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
-            name="test_entity",
+            title="test_entity",
             entity_type="test",
             summary="Test entity",
             path_id="test/test_entity",
@@ -268,7 +268,7 @@ async def test_find_by_category_case_sensitivity(session_maker: async_sessionmak
     """Test how category search handles case sensitivity."""
     async with db.scoped_session(session_maker) as session:
         entity = Entity(
-            name="test_entity",
+            title="test_entity",
             entity_type="test",
             summary="Test entity",
             path_id="test/test_entity",

@@ -16,7 +16,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
     """Create test entities with different types."""
     entities = [
         Entity(
-            name="Memory Service",
+            title="Memory Service",
             entity_type="test",
             content_type="text/markdown",
             summary="Core memory service",
@@ -28,7 +28,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             ],
         ),
         Entity(
-            name="File Format",
+            title="File Format",
             entity_type="test",
             content_type="text/markdown",
             summary="File format spec",
@@ -40,7 +40,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             ],
         ),
         Entity(
-            name="Technical Decision",
+            title="Technical Decision",
             entity_type="test",
             content_type="text/markdown",
             summary="Architecture decision",
@@ -53,7 +53,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
         ),
         # Add another technical component for sorting tests
         Entity(
-            name="API Service",
+            title="API Service",
             entity_type="test",
             content_type="text/markdown",
             summary="API layer",
@@ -129,9 +129,9 @@ async def test_list_entities_by_type(client: AsyncClient, test_entities):
     assert data.total == 4
 
     # Verify content
-    names = {e.name for e in data.entities}
-    assert "Memory Service" in names
-    assert "API Service" in names
+    titles = {e.title for e in data.entities}
+    assert "Memory Service" in titles
+    assert "API Service" in titles
 
 
 async def test_list_entities_with_sorting(client: AsyncClient, test_entities):

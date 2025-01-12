@@ -17,7 +17,7 @@ async def test_get_observation_categories(client):
     request = CreateEntityRequest(
         entities=[
             Entity(
-                name="Test Entity",
+                title="Test Entity",
                 entity_type="test",
                 summary="Test entity",
                 observations=[],
