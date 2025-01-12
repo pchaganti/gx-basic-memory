@@ -8,18 +8,20 @@ from pydantic import BaseModel, field_validator
 
 class SearchItemType(str, Enum):
     """Types of searchable items."""
+
     DOCUMENT = "document"
     ENTITY = "entity"
 
 
 class SearchQuery(BaseModel):
     """Search query parameters."""
+
     text: str
     types: Optional[List[SearchItemType]] = None
     entity_types: Optional[List[str]] = None
     after_date: Optional[Union[datetime, str]] = None
 
-    @field_validator('after_date')
+    @field_validator("after_date")
     @classmethod
     def validate_date(cls, v: Optional[Union[datetime, str]]) -> Optional[str]:
         """Convert datetime to ISO format if needed."""
@@ -32,7 +34,8 @@ class SearchQuery(BaseModel):
 
 class SearchResult(BaseModel):
     """Search result item."""
-    path_id: str
+
+    permalink: str
     file_path: str
     type: SearchItemType
     score: float
@@ -41,4 +44,5 @@ class SearchResult(BaseModel):
 
 class SearchResponse(BaseModel):
     """Wrapper for search results list."""
+
     results: List[SearchResult]

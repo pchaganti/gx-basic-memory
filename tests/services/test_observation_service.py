@@ -16,7 +16,7 @@ async def test_add_observations(observation_service: ObservationService, sample_
     """Test adding observations to an entity."""
     observations = ["Test observation 1", "Test observation 2"]
 
-    entity = await observation_service.add_observations(sample_entity.path_id, observations)
+    entity = await observation_service.add_observations(sample_entity.permalink, observations)
 
     observations = entity.observations
     assert len(observations) == 2
@@ -26,19 +26,23 @@ async def test_add_observations(observation_service: ObservationService, sample_
 
 
 @pytest.mark.asyncio
-async def test_delete_observations(observation_service: ObservationService, entity_service: EntityService,  sample_entity: Entity):
+async def test_delete_observations(
+    observation_service: ObservationService, entity_service: EntityService, sample_entity: Entity
+):
     """Test deleting specific observations from an entity."""
     # First add observations
     await observation_service.add_observations(
-        sample_entity.path_id, ["First observation", "Second observation", "Third observation"]
+        sample_entity.permalink, ["First observation", "Second observation", "Third observation"]
     )
 
     # Then delete some
     contents_to_delete = ["First observation", "Second observation"]
-    entity = await observation_service.delete_observations(sample_entity.path_id, contents_to_delete)
+    entity = await observation_service.delete_observations(
+        sample_entity.permalink, contents_to_delete
+    )
 
     # Verify
-    entity = await entity_service.get_by_path_id(sample_entity.path_id)
+    entity = await entity_service.get_by_permalink(sample_entity.permalink)
     assert len(entity.observations) == 1
     assert entity.observations[0].content == "Third observation"
     assert entity.observations[0].entity_id == sample_entity.id
@@ -49,7 +53,7 @@ async def test_delete_by_entity(observation_service: ObservationService, sample_
     """Test deleting all observations for an entity."""
     # First add observations
     await observation_service.add_observations(
-        sample_entity.path_id, ["First observation", "Second observation"]
+        sample_entity.permalink, ["First observation", "Second observation"]
     )
 
     # Delete all observations for entity
@@ -65,7 +69,7 @@ async def test_delete_nonexistent_observation(
 ):
     """Test deleting observations that don't exist."""
     entity = await observation_service.delete_observations(
-        sample_entity.path_id, ["Nonexistent observation"]
+        sample_entity.permalink, ["Nonexistent observation"]
     )
     assert entity is not None
 
@@ -73,7 +77,7 @@ async def test_delete_nonexistent_observation(
 @pytest.mark.asyncio
 async def test_delete_observations_invalid_entity(observation_service: ObservationService):
     """Test deleting observations for an entity that doesn't exist."""
-    
+
     with pytest.raises(EntityNotFoundError):
         await observation_service.delete_observations("invalid_entity", ["Test observation"])
 
@@ -85,7 +89,7 @@ async def test_observation_with_special_characters(
     """Test handling observations with special characters."""
     content = "Test & observation with @#$% special chars!"
 
-    entity = await observation_service.add_observations(sample_entity.path_id, [content])
+    entity = await observation_service.add_observations(sample_entity.permalink, [content])
     assert len(entity.observations) == 1
     assert entity.observations[0].content == content
 
@@ -97,7 +101,7 @@ async def test_very_long_observation(
     """Test handling very long observation content."""
     long_content = "Very long observation " * 100  # ~1800 characters
 
-    entity = await observation_service.add_observations(sample_entity.path_id, [long_content])
+    entity = await observation_service.add_observations(sample_entity.permalink, [long_content])
     assert len(entity.observations) == 1
     assert entity.observations[0].content == long_content
 
@@ -137,12 +141,11 @@ async def test_add_observations_with_categories(
         ObservationCreate(content="Design observation", category=ObservationCategory.DESIGN),
     ]
 
-    entity = await observation_service.add_observations(sample_entity.path_id, observations)
+    entity = await observation_service.add_observations(sample_entity.permalink, observations)
 
     assert len(entity.observations) == 2
     assert entity.observations[0].category == ObservationCategory.TECH.value
     assert entity.observations[1].category == ObservationCategory.DESIGN.value
-
 
 
 @pytest.mark.asyncio
@@ -156,7 +159,7 @@ async def test_get_observations_by_category(
         ObservationCreate(content="Design decision", category=ObservationCategory.DESIGN),
         ObservationCreate(content="Second tech note", category=ObservationCategory.TECH),
     ]
-    await observation_service.add_observations(sample_entity.path_id, observations)
+    await observation_service.add_observations(sample_entity.permalink, observations)
 
     # Get tech observations
     tech_obs = await observation_service.get_observations_by_category(ObservationCategory.TECH)
@@ -182,7 +185,7 @@ async def test_observation_categories(
         ObservationCreate(content="Another tech note", category=ObservationCategory.TECH),
         ObservationCreate(content="Feature note", category=ObservationCategory.FEATURE),
     ]
-    await observation_service.add_observations(sample_entity.path_id, observations)
+    await observation_service.add_observations(sample_entity.permalink, observations)
 
     # Get categories
     categories = await observation_service.observation_categories()
@@ -202,7 +205,7 @@ async def test_default_category_behavior(
     observations = [
         ObservationCreate(content="Simple note")  # No category specified
     ]
-    entity = await observation_service.add_observations(sample_entity.path_id, observations)
+    entity = await observation_service.add_observations(sample_entity.permalink, observations)
 
     assert len(entity.observations) == 1
     assert entity.observations[0].category == ObservationCategory.NOTE.value  # Should use default

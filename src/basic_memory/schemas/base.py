@@ -10,6 +10,7 @@ Key Concepts:
 3. Observations are atomic facts/notes about an entity
 4. Everything is stored in both SQLite and markdown files
 """
+
 import mimetypes
 import re
 from enum import Enum
@@ -29,7 +30,7 @@ def to_snake_case(name: str) -> str:
         Memory_Service -> memory_service
     """
     name = name.strip()
-    
+
     # Replace spaces and hyphens and . with underscores
     s1 = re.sub(r"[\s\-\\.]", "_", name)
 
@@ -48,7 +49,6 @@ def validate_path_format(path: str) -> str:
     return path
 
 
-
 class ObservationCategory(str, Enum):
     """Categories for structuring observations.
 
@@ -62,6 +62,7 @@ class ObservationCategory(str, Enum):
 
     Categories are case-insensitive for easier use.
     """
+
     TECH = "tech"
     DESIGN = "design"
     FEATURE = "feature"
@@ -76,16 +77,16 @@ class ObservationCategory(str, Enum):
             return cls(value.lower())
         except ValueError:
             return None
-        
-        
+
+
 PathId = Annotated[str, BeforeValidator(to_snake_case), BeforeValidator(validate_path_format)]
 """Unique identifier in format '{path}/{normalized_name}'."""
 
 Observation = Annotated[
-    str, 
+    str,
     BeforeValidator(str.strip),  # Clean whitespace
     MinLen(1),  # Ensure non-empty after stripping
-    MaxLen(1000)  # Keep reasonable length
+    MaxLen(1000),  # Keep reasonable length
 ]
 """A single piece of information about an entity. Must be non-empty and under 1000 characters.
 """
@@ -94,21 +95,20 @@ EntityType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(20
 """Classification of entity (e.g., 'person', 'project', 'concept'). """
 
 ALLOWED_CONTENT_TYPES = {
-    'text/markdown',
-    'text/plain',
-    'application/pdf',
-    'image/jpeg',
-    'image/png',
-    'image/svg+xml',
+    "text/markdown",
+    "text/plain",
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/svg+xml",
 }
 
 ContentType = Annotated[
-    str, 
+    str,
     BeforeValidator(str.lower),
-    Field(pattern=r'^[\w\-\+\.]+/[\w\-\+\.]+$'),
-    Field(json_schema_extra={"examples": list(ALLOWED_CONTENT_TYPES)})
+    Field(pattern=r"^[\w\-\+\.]+/[\w\-\+\.]+$"),
+    Field(json_schema_extra={"examples": list(ALLOWED_CONTENT_TYPES)}),
 ]
-
 
 
 RelationType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
@@ -119,7 +119,7 @@ class Relation(BaseModel):
     """Represents a directed edge between entities in the knowledge graph.
 
     Relations are directed connections stored in active voice (e.g., "created", "depends_on").
-    The from_path_id represents the source or actor entity, while to_path_id represents the target
+    The from_permalink represents the source or actor entity, while to_permalink represents the target
     or recipient entity.
     """
 
@@ -133,7 +133,7 @@ class Entity(BaseModel):
     """Represents a node in our knowledge graph - could be a person, project, concept, etc.
 
     Each entity has:
-    - A title 
+    - A title
     - An entity type (for classification)
     - A list of observations (facts/notes about the entity)
     - Optional relations to other entities
@@ -147,32 +147,32 @@ class Entity(BaseModel):
     summary: Optional[str] = None
     content_type: ContentType = Field(
         description="MIME type of the content (e.g. text/markdown, image/jpeg)",
-        examples=["text/markdown", "image/jpeg"]
-    ) 
+        examples=["text/markdown", "image/jpeg"],
+    )
     observations: List[Observation] = []
 
     @property
-    def path_id(self) -> PathId:
+    def permalink(self) -> PathId:
         """Get the path ID in format {snake_case_title}."""
         normalized_name = to_snake_case(self.title)
         return normalized_name
 
     @property
     def file_path(self):
-        """Get the file path for this entity based on its path_id."""
-        return f"{self.path_id}.md"
+        """Get the file path for this entity based on its permalink."""
+        return f"{self.permalink}.md"
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def infer_content_type(cls, data: Dict) -> Dict:
         """Infer content_type from file_path if not provided."""
-        if 'content_type' not in data:
-            # Get path from either file_path or construct from path_id
-            file_path = data.get('file_path') or f"{data.get('name')}.md"
-            
+        if "content_type" not in data:
+            # Get path from either file_path or construct from permalink
+            file_path = data.get("file_path") or f"{data.get('name')}.md"
+
             if not file_path:
                 raise ValidationError("Either file_path or name must be provided")
             mime_type, _ = mimetypes.guess_type(file_path)
-            data['content_type'] = mime_type or 'text/plain'
+            data["content_type"] = mime_type or "text/plain"
 
         return data

@@ -17,7 +17,7 @@ def entity_model(entity: EntitySchema):
         title=entity.title,
         entity_type=entity.entity_type,
         entity_metadata=entity.entity_metadata,
-        path_id=entity.path_id,
+        permalink=entity.permalink,
         file_path=entity.file_path,
         summary=entity.summary,
         content_type=entity.content_type,
@@ -57,7 +57,7 @@ class EntityService(BaseService[EntityModel]):
         except Exception as e:
             # Clean up on any failure
             if db_entity:
-                await self.delete_entity(db_entity.path_id)
+                await self.delete_entity(db_entity.permalink)
                 await self.file_service.delete_entity_file(db_entity)
             logger.error(f"Failed to create entity: {e}")
             raise
@@ -69,7 +69,7 @@ class EntityService(BaseService[EntityModel]):
 
     async def update_entity(
         self,
-        path_id: str,
+        permalink: str,
         content: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         **update_fields: Any,
@@ -77,7 +77,7 @@ class EntityService(BaseService[EntityModel]):
         """Update an entity's content and metadata.
 
         Args:
-            path_id: Entity's path ID
+            permalink: Entity's path ID
             content: Optional new content
             metadata: Optional metadata updates
             **update_fields: Additional entity fields to update
@@ -88,12 +88,12 @@ class EntityService(BaseService[EntityModel]):
         Raises:
             EntityNotFoundError: If entity doesn't exist
         """
-        logger.debug(f"Updating entity with path_id: {path_id}")
+        logger.debug(f"Updating entity with permalink: {permalink}")
 
         # Get existing entity
-        entity = await self.get_by_path_id(path_id)
+        entity = await self.get_by_permalink(permalink)
         if not entity:
-            raise EntityNotFoundError(f"Entity not found: {path_id}")
+            raise EntityNotFoundError(f"Entity not found: {permalink}")
 
         try:
             # Build update data
@@ -128,13 +128,13 @@ class EntityService(BaseService[EntityModel]):
             logger.error(f"Failed to update entity: {e}")
             raise
 
-    async def delete_entity(self, path_id: str) -> bool:
+    async def delete_entity(self, permalink: str) -> bool:
         """Delete entity and its file."""
-        logger.debug(f"Deleting entity: {path_id}")
+        logger.debug(f"Deleting entity: {permalink}")
 
         try:
             # Get entity first for file deletion
-            entity = await self.get_by_path_id(path_id)
+            entity = await self.get_by_permalink(permalink)
 
             # Delete file first (it's source of truth)
             await self.file_service.delete_entity_file(entity)
@@ -143,30 +143,30 @@ class EntityService(BaseService[EntityModel]):
             return await self.repository.delete(entity.id)
 
         except EntityNotFoundError:
-            logger.info(f"Entity not found: {path_id}")
+            logger.info(f"Entity not found: {permalink}")
             return True  # Already deleted
 
         except Exception as e:
             logger.error(f"Failed to delete entity: {e}")
             raise
 
-    async def delete_entities(self, path_ids: List[str]) -> bool:
+    async def delete_entities(self, permalinks: List[str]) -> bool:
         """Delete multiple entities and their files."""
-        logger.debug(f"Deleting entities: {path_ids}")
+        logger.debug(f"Deleting entities: {permalinks}")
         success = True
 
-        for path_id in path_ids:
-            await self.delete_entity(path_id)
+        for permalink in permalinks:
+            await self.delete_entity(permalink)
             success = True
 
         return success
 
-    async def get_by_path_id(self, path_id: str) -> EntityModel:
+    async def get_by_permalink(self, permalink: str) -> EntityModel:
         """Get entity by type and name combination."""
-        logger.debug(f"Getting entity by path_id: {path_id}")
-        db_entity = await self.repository.get_by_path_id(path_id)
+        logger.debug(f"Getting entity by permalink: {permalink}")
+        db_entity = await self.repository.get_by_permalink(permalink)
         if not db_entity:
-            raise EntityNotFoundError(f"Entity not found: {path_id}")
+            raise EntityNotFoundError(f"Entity not found: {permalink}")
         return db_entity
 
     async def get_all(self) -> Sequence[EntityModel]:
@@ -188,10 +188,10 @@ class EntityService(BaseService[EntityModel]):
         logger.debug(f"Listing entities: type={entity_type} sort={sort_by}")
         return await self.repository.list_entities(entity_type=entity_type, sort_by=sort_by)
 
-    async def open_nodes(self, path_ids: List[str]) -> Sequence[EntityModel]:
+    async def open_nodes(self, permalinks: List[str]) -> Sequence[EntityModel]:
         """Get specific nodes and their relationships."""
-        logger.debug(f"Opening nodes path_ids: {path_ids}")
-        return await self.repository.find_by_path_ids(path_ids)
+        logger.debug(f"Opening nodes permalinks: {permalinks}")
+        return await self.repository.find_by_permalinks(permalinks)
 
     async def delete_entity_by_file_path(self, file_path):
         await self.repository.delete_by_file_path(file_path)

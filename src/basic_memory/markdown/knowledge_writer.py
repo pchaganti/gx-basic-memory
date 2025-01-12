@@ -16,7 +16,7 @@ class KnowledgeWriter:
     async def format_frontmatter(self, entity: EntityModel) -> dict:
         """Generate frontmatter metadata for entity."""
         frontmatter = {
-            "id": entity.path_id,
+            "id": entity.permalink,
             "type": entity.entity_type,
             "created": entity.created_at.isoformat(),
             "modified": entity.updated_at.isoformat(),

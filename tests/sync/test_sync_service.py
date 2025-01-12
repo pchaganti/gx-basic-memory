@@ -58,7 +58,7 @@ modified: 2024-01-01
     await asyncio.gather(sync_service.sync(test_config.home), modify_file())
 
     # Verify final state
-    doc = await sync_service.knowledge_sync_service.entity_repository.get_by_path_id("changing")
+    doc = await sync_service.knowledge_sync_service.entity_repository.get_by_permalink("changing")
     assert doc is not None
     # File should have a checksum, even if it's from either version
     assert doc.checksum is not None
@@ -71,7 +71,7 @@ async def test_sync_null_checksum_cleanup(
     """Test handling of entities with null checksums from incomplete syncs."""
     # Create entity with null checksum (simulating incomplete sync)
     entity = Entity(
-        path_id="concept/incomplete",
+        permalink="concept/incomplete",
         title="Incomplete",
         entity_type="test",
         file_path="concept/incomplete.md",
@@ -99,5 +99,5 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify entity was properly synced
-    updated = await entity_service.get_by_path_id("concept/incomplete")
+    updated = await entity_service.get_by_permalink("concept/incomplete")
     assert updated.checksum is not None

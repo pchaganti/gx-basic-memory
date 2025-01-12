@@ -60,7 +60,7 @@ class SearchService:
                 *[f"{obs.category}: {obs.content}" for obs in entity.observations],
                 # Add relations
                 *[
-                    f"{rel.relation_type} {rel.to_entity.path_id}: {rel.context or ''}"
+                    f"{rel.relation_type} {rel.to_entity.permalink}: {rel.context or ''}"
                     for rel in entity.relations
                 ],
             ]
@@ -77,7 +77,7 @@ class SearchService:
             background_tasks.add_task(
                 self._do_index,
                 content=content,
-                path_id=entity.path_id,
+                permalink=entity.permalink,
                 file_path=entity.file_path,
                 type=SearchItemType.ENTITY,
                 metadata=metadata,
@@ -85,20 +85,20 @@ class SearchService:
         else:
             await self._do_index(
                 content=content,
-                path_id=entity.path_id,
+                permalink=entity.permalink,
                 file_path=entity.file_path,
                 type=SearchItemType.ENTITY,
                 metadata=metadata,
             )
 
     async def _do_index(
-        self, content: str, path_id: str, file_path: str, type: SearchItemType, metadata: dict
+        self, content: str, permalink: str, file_path: str, type: SearchItemType, metadata: dict
     ) -> None:
         """Actually perform the indexing."""
         await self.repository.index_item(
-            content=content, path_id=path_id, file_path=file_path, type=type, metadata=metadata
+            content=content, permalink=permalink, file_path=file_path, type=type, metadata=metadata
         )
 
-    async def delete_by_path_id(self, path_id: str):
+    async def delete_by_permalink(self, permalink: str):
         """Delete an item from the search index."""
-        await self.repository.delete_by_path_id(path_id)
+        await self.repository.delete_by_permalink(permalink)

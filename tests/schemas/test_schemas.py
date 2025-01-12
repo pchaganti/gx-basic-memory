@@ -9,7 +9,8 @@ from basic_memory.schemas import (
     Relation,
     CreateEntityRequest,
     SearchNodesRequest,
-    OpenNodesRequest, RelationResponse,
+    OpenNodesRequest,
+    RelationResponse,
 )
 from basic_memory.schemas.base import to_snake_case
 
@@ -70,9 +71,16 @@ def test_relation_in_validation():
     with pytest.raises(ValidationError):
         Relation.model_validate({"from_id": "123", "to_id": "456"})  # Missing relationType
 
+
 def test_relation_response():
     """Test RelationResponse validation."""
-    data = {"from_id": "test/123", "to_id": "test/456", "relation_type": "test", "from_entity":{"path_id": "test/123"}, "to_entity":{"path_id": "test/456"}}
+    data = {
+        "from_id": "test/123",
+        "to_id": "test/456",
+        "relation_type": "test",
+        "from_entity": {"permalink": "test/123"},
+        "to_entity": {"permalink": "test/456"},
+    }
     relation = RelationResponse.model_validate(data)
     assert relation.from_id == "test/123"
     assert relation.to_id == "test/456"
@@ -101,18 +109,24 @@ def test_entity_out_from_attributes():
     """Test EntityOut creation from database model attributes."""
     # Simulate database model attributes
     db_data = {
-        "path_id": "test/test",
+        "permalink": "test/test",
         "title": "test",
         "entity_type": "knowledge",
         "content_type": "text/markdown",
         "summary": "test description",
         "observations": [{"id": 1, "content": "test obs", "context": None}],
         "relations": [
-            {"id": 1, "from_id": "test/test", "to_id": "test/test", "relation_type": "test", "context": None}
+            {
+                "id": 1,
+                "from_id": "test/test",
+                "to_id": "test/test",
+                "relation_type": "test",
+                "context": None,
+            }
         ],
     }
     entity = EntityResponse.model_validate(db_data)
-    assert entity.path_id == "test/test"
+    assert entity.permalink == "test/test"
     assert entity.summary == "test description"
     assert len(entity.observations) == 1
     assert len(entity.relations) == 1
@@ -156,12 +170,12 @@ def test_search_nodes_input():
 
 def test_open_nodes_input():
     """Test OpenNodesInput validation."""
-    open_input = OpenNodesRequest.model_validate({"path_ids": ["test/test", "test/test2"]})
-    assert len(open_input.path_ids) == 2
+    open_input = OpenNodesRequest.model_validate({"permalinks": ["test/test", "test/test2"]})
+    assert len(open_input.permalinks) == 2
 
     # Empty names list should fail
     with pytest.raises(ValidationError):
-        OpenNodesRequest.model_validate({"path_ids": []})
+        OpenNodesRequest.model_validate({"permalinks": []})
 
 
 def test_path_sanitization():
@@ -184,28 +198,15 @@ def test_path_sanitization():
         assert result == expected, f"Failed for input: {input_str}"
 
 
-def test_path_id_generation():
-    """Test path_id property generates correct paths."""
+def test_permalink_generation():
+    """Test permalink property generates correct paths."""
     test_cases = [
-        (
-            {"title": "BasicMemory", "entity_type": "knowledge"},
-            "basic_memory"
-        ),
-        (
-            {"title": "Memory Service", "entity_type": "knowledge"},
-            "memory_service"
-        ),
-        (
-            {"title": "API Gateway", "entity_type": "knowledge"},
-            "api_gateway"
-        ),
-        (
-            {"title": "TestCase1", "entity_type": "knowledge"},
-            "test_case1"
-        ),
+        ({"title": "BasicMemory", "entity_type": "knowledge"}, "basic_memory"),
+        ({"title": "Memory Service", "entity_type": "knowledge"}, "memory_service"),
+        ({"title": "API Gateway", "entity_type": "knowledge"}, "api_gateway"),
+        ({"title": "TestCase1", "entity_type": "knowledge"}, "test_case1"),
     ]
 
     for input_data, expected_path in test_cases:
         entity = Entity.model_validate(input_data)
-        assert entity.path_id == expected_path, f"Failed for input: {input_data}"
-
+        assert entity.permalink == expected_path, f"Failed for input: {input_data}"

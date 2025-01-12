@@ -48,9 +48,7 @@ def test_content() -> EntityContent:
 @pytest_asyncio.fixture
 def test_markdown(test_frontmatter, test_content) -> EntityMarkdown:
     """Create complete test markdown entity."""
-    return EntityMarkdown(
-        frontmatter=test_frontmatter, content=test_content
-    )
+    return EntityMarkdown(frontmatter=test_frontmatter, content=test_content)
 
 
 @pytest.mark.asyncio
@@ -64,7 +62,7 @@ async def test_create_entity_without_relations(
     # Check basic fields
     assert entity.title == "Test Entity"
     assert entity.entity_type == "knowledge"
-    assert entity.path_id == "concept/test_entity"
+    assert entity.permalink == "concept/test_entity"
     assert entity.summary == "A test entity description"
 
     # Check observations
@@ -94,7 +92,7 @@ async def test_update_entity_without_relations(
 
     # Update entity
     updated = await knowledge_sync_service.update_entity_and_observations(
-        entity.path_id, test_markdown
+        entity.permalink, test_markdown
     )
 
     # Check fields updated
@@ -119,14 +117,14 @@ async def test_update_entity_relations(
     other_entity = EntityModel(
         title="Other Entity",
         entity_type="test",
-        path_id="concept/other_entity",
+        permalink="concept/other_entity",
         file_path="concept/other_entity.md",
         content_type="text/markdown",
     )
     another_entity = EntityModel(
         title="Another Entity",
         entity_type="test",
-        path_id="concept/another_entity",
+        permalink="concept/another_entity",
         file_path="concept/another_entity.md",
         content_type="text/markdown",
     )
@@ -164,14 +162,14 @@ async def test_two_pass_sync_flow(
     other_entity = EntityModel(
         title="Other Entity",
         entity_type="test",
-        path_id="concept/other_entity",
+        permalink="concept/other_entity",
         file_path="concept/other_entity.md",
         content_type="text/markdown",
     )
     another_entity = EntityModel(
         title="Another Entity",
         entity_type="test",
-        path_id="concept/another_entity",
+        permalink="concept/another_entity",
         file_path="concept/another_entity.md",
         content_type="text/markdown",
     )

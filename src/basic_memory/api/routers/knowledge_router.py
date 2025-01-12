@@ -5,7 +5,10 @@ from loguru import logger
 
 from basic_memory.deps import (
     EntityServiceDep,
-    get_search_service, RelationServiceDep, ObservationServiceDep, FileServiceDep,
+    get_search_service,
+    RelationServiceDep,
+    ObservationServiceDep,
+    FileServiceDep,
 )
 from basic_memory.schemas import (
     CreateEntityRequest,
@@ -47,9 +50,9 @@ async def create_entities(
     )
 
 
-@router.put("/entities/{path_id:path}", response_model=EntityResponse)
+@router.put("/entities/{permalink:path}", response_model=EntityResponse)
 async def update_entity(
-    path_id: PathId,
+    permalink: PathId,
     data: UpdateEntityRequest,
     background_tasks: BackgroundTasks,
     entity_service: EntityServiceDep,
@@ -61,7 +64,7 @@ async def update_entity(
         update_data = data.model_dump(exclude_none=True)
 
         # Update the entity
-        updated_entity = await entity_service.update_entity(path_id, **update_data)
+        updated_entity = await entity_service.update_entity(permalink, **update_data)
 
         # Reindex since content changed
         await search_service.index_entity(updated_entity, background_tasks=background_tasks)
@@ -69,7 +72,7 @@ async def update_entity(
         return EntityResponse.model_validate(updated_entity)
 
     except EntityNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Entity with {path_id} not found")
+        raise HTTPException(status_code=404, detail=f"Entity with {permalink} not found")
 
 
 @router.post("/relations", response_model=EntityListResponse)
@@ -99,9 +102,9 @@ async def add_observations(
     search_service=Depends(get_search_service),
 ) -> EntityResponse:
     """Add observations to an entity and update search index."""
-    logger.debug(f"Adding observations to entity: {data.path_id}")
+    logger.debug(f"Adding observations to entity: {data.permalink}")
     updated_entity = await observation_service.add_observations(
-        data.path_id, data.observations, data.context
+        data.permalink, data.observations, data.context
     )
 
     # Reindex the entity with new observations
@@ -113,22 +116,22 @@ async def add_observations(
 ## Read endpoints
 
 
-@router.get("/entities/{path_id:path}", response_model=EntityResponse)
+@router.get("/entities/{permalink:path}", response_model=EntityResponse)
 async def get_entity(
-        entity_service: EntityServiceDep,
-        file_service: FileServiceDep,
-        path_id: PathId,
-        content: bool = False,  # New parameter
+    entity_service: EntityServiceDep,
+    file_service: FileServiceDep,
+    permalink: PathId,
+    content: bool = False,  # New parameter
 ) -> EntityResponse:
     """Get a specific entity by ID.
 
     Args:
-        path_id: Entity path ID
+        permalink: Entity path ID
         content: If True, include full file content
         :param entity_service: EntityService
     """
     try:
-        entity = await entity_service.get_by_path_id(path_id)
+        entity = await entity_service.get_by_permalink(permalink)
         entity_response = EntityResponse.model_validate(entity)
 
         if content:  # Load content if requested
@@ -137,14 +140,15 @@ async def get_entity(
 
         return entity_response
     except EntityNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Entity with {path_id} not found")
+        raise HTTPException(status_code=404, detail=f"Entity with {permalink} not found")
+
 
 @router.post("/nodes", response_model=EntityListResponse)
 async def open_nodes(
     data: OpenNodesRequest, entity_service: EntityServiceDep
 ) -> EntityListResponse:
     """Open specific nodes"""
-    entities = await entity_service.open_nodes(data.path_ids)
+    entities = await entity_service.open_nodes(data.permalinks)
     return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )
@@ -161,11 +165,11 @@ async def delete_entities(
     search_service=Depends(get_search_service),
 ) -> DeleteEntitiesResponse:
     """Delete entities and remove from search index."""
-    deleted = await entity_service.delete_entities(data.path_ids)
+    deleted = await entity_service.delete_entities(data.permalinks)
 
     # Remove each deleted entity from search index
-    for path_id in data.path_ids:
-        background_tasks.add_task(search_service.delete_by_path_id, path_id)
+    for permalink in data.permalinks:
+        background_tasks.add_task(search_service.delete_by_permalink, permalink)
 
     return DeleteEntitiesResponse(deleted=deleted)
 
@@ -178,8 +182,8 @@ async def delete_observations(
     search_service=Depends(get_search_service),
 ) -> EntityResponse:
     """Delete observations and update search index."""
-    path_id = data.path_id
-    updated_entity = await observation_service.delete_observations(path_id, data.observations)
+    permalink = data.permalink
+    updated_entity = await observation_service.delete_observations(permalink, data.observations)
 
     # Reindex the entity since observations changed
     await search_service.index_entity(updated_entity, background_tasks=background_tasks)

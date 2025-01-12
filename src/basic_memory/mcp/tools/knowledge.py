@@ -42,7 +42,7 @@ await create_entities({
         ]
     }]
 })
-"""
+""",
         },
         {
             "name": "Create Feature",
@@ -61,10 +61,10 @@ await create_entities({
         ]
     }]
 })
-"""
-        }
+""",
+        },
     ],
-    output_model=EntityListResponse
+    output_model=EntityListResponse,
 )
 async def create_entities(request: CreateEntityRequest) -> EntityListResponse:
     """Create new entities in the knowledge graph."""
@@ -90,7 +90,7 @@ await create_relations({
         "context": "Needs storage for search indexes"
     }]
 })
-"""
+""",
         },
         {
             "name": "Link Implementation",
@@ -105,10 +105,10 @@ await create_relations({
         "context": "Primary search implementation"
     }]
 })
-"""
-        }
+""",
+        },
     ],
-    output_model=EntityListResponse
+    output_model=EntityListResponse,
 )
 async def create_relations(request: CreateRelationsRequest) -> EntityListResponse:
     """Create relations between existing entities."""
@@ -141,29 +141,29 @@ deps = [rel for rel in component.relations
 print("\\nDependencies:")
 for dep in deps:
     print(f"- {dep.to_id}")
-"""
+""",
         }
     ],
-    output_model=EntityResponse
+    output_model=EntityResponse,
 )
-async def get_entity(path_id: PathId, content: bool = False) -> EntityResponse:
-    """Get a specific entity by its path_id.
-    
+async def get_entity(permalink: PathId, content: bool = False) -> EntityResponse:
+    """Get a specific entity by its permalink.
+
     Args:
-        path_id: Path identifier for the entity
+        permalink: Path identifier for the entity
         content: If True, includes the full markdown content of the entity
     """
     try:
-        url = f"/knowledge/entities/{path_id}"
+        url = f"/knowledge/entities/{permalink}"
         params = {"content": "true"} if content else {}
         response = await client.get(url, params=params)
         if response.status_code == 404:
-            raise EntityNotFoundError(f"Entity not found: {path_id}")
+            raise EntityNotFoundError(f"Entity not found: {permalink}")
         response.raise_for_status()
         return EntityResponse.model_validate(response.json())
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
-            raise EntityNotFoundError(f"Entity not found: {path_id}")
+            raise EntityNotFoundError(f"Entity not found: {permalink}")
         raise
 
 
@@ -177,7 +177,7 @@ async def get_entity(path_id: PathId, content: bool = False) -> EntityResponse:
 # Add technical observations
 await add_observations(
     request=AddObservationsRequest(
-        path_id="component/search_service",
+        permalink="component/search_service",
         context="Performance optimization",
         observations=[
             ObservationCreate(
@@ -195,10 +195,10 @@ await add_observations(
         ]
     )
 )
-"""
+""",
         }
     ],
-    output_model=EntityResponse
+    output_model=EntityResponse,
 )
 async def add_observations(request: AddObservationsRequest) -> EntityResponse:
     """Add observations to an existing entity."""
@@ -217,17 +217,17 @@ async def add_observations(request: AddObservationsRequest) -> EntityResponse:
 # Remove old implementation notes
 await delete_observations(
     request=DeleteObservationsRequest(
-        path_id="component/indexer",
+        permalink="component/indexer",
         observations=[
             "Using old indexing algorithm",
             "Temporary workaround for issue #123"
         ]
     )
 )
-"""
+""",
         }
     ],
-    output_model=EntityResponse
+    output_model=EntityResponse,
 )
 async def delete_observations(request: DeleteObservationsRequest) -> EntityResponse:
     """Delete specific observations from an entity."""
@@ -253,10 +253,10 @@ await delete_relations(
         }]
     )
 )
-"""
+""",
         }
     ],
-    output_model=EntityListResponse 
+    output_model=EntityListResponse,
 )
 async def delete_relations(request: DeleteRelationsRequest) -> EntityListResponse:
     """Delete relations between entities."""
@@ -275,16 +275,16 @@ async def delete_relations(request: DeleteRelationsRequest) -> EntityListRespons
 # Remove deprecated components
 await delete_entities(
     request=DeleteEntitiesRequest(
-        path_ids=[
+        permalinks=[
             "component/old_service",
             "test/obsolete_test"
         ]
     )
 )
-"""
+""",
         }
     ],
-    output_model=Dict[str, bool]
+    output_model=Dict[str, bool],
 )
 async def delete_entities(request: DeleteEntitiesRequest) -> DeleteEntitiesResponse:
     """Delete entities from the knowledge graph."""

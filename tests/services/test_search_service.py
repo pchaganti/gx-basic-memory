@@ -17,7 +17,7 @@ def test_entity():
         title = "TestComponent"
         entity_type = "knowledge"
         entity_metadata = {"test": "test"}
-        path_id = "component/test_component"
+        permalink = "component/test_component"
         file_path = "entities/component/test_component.md"
         summary = "A test component for search"
         content_type = "text/markdown"
@@ -35,7 +35,7 @@ def test_document():
 
     class Document:
         id = 1
-        path_id = "docs/test_doc.md"
+        permalink = "docs/test_doc.md"
         file_path = "docs/test_doc.md"
         doc_metadata = {"title": "Test Document", "type": "technical"}
         created_at = datetime.now(timezone.utc)
@@ -63,7 +63,7 @@ async def test_index_entity(search_service, test_entity):
     # Search for the entity
     results = await search_service.search(SearchQuery(text="test component"))
     assert len(results) == 1
-    assert results[0].path_id == test_entity.path_id
+    assert results[0].permalink == test_entity.permalink
     assert results[0].type == SearchItemType.ENTITY
 
 
@@ -138,7 +138,7 @@ async def test_reindex_all(search_service, entity_service, session_maker):
         SearchQuery(text="TestComponent", types=[SearchItemType.ENTITY])
     )
     assert len(entity_results) == 1
-    assert entity_results[0].path_id == test_entity.path_id
+    assert entity_results[0].permalink == test_entity.permalink
     assert entity_results[0].type == SearchItemType.ENTITY
 
 

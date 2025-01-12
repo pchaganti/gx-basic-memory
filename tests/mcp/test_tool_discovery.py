@@ -35,7 +35,7 @@ async def test_get_observation_categories(client):
     ]
 
     await add_observations(
-        AddObservationsRequest(path_id=entity.path_id, observations=observations)
+        AddObservationsRequest(permalink=entity.permalink, observations=observations)
     )
 
     # Get categories

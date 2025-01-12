@@ -42,7 +42,7 @@ def test_timeframe_to_timedelta():
     assert TimeFrame("1w").to_timedelta == timedelta(weeks=1)
     assert TimeFrame("1m").to_timedelta == timedelta(days=30)  # Approximate
 
-    
+
 def test_activity_change_model():
     """Test ActivityChange model."""
     now = datetime.utcnow()
@@ -50,15 +50,15 @@ def test_activity_change_model():
         activity_type=ActivityType.ENTITY,
         change_type=ChangeType.CREATED,
         timestamp=now,
-        path_id="test/path",
+        permalink="test/path",
         summary="Created test document",
-        content="Test content"
+        content="Test content",
     )
-    
+
     assert change.activity_type == ActivityType.ENTITY
     assert change.change_type == ChangeType.CREATED
     assert change.timestamp == now
-    assert change.path_id == "test/path"
+    assert change.permalink == "test/path"
     assert change.summary == "Created test document"
     assert change.content == "Test content"
 
@@ -66,11 +66,9 @@ def test_activity_change_model():
 def test_activity_summary_model():
     """Test ActivitySummary model."""
     summary = ActivitySummary(
-        entity_changes=3,
-        relation_changes=2,
-        most_active_paths=["path1", "path2"]
+        entity_changes=3, relation_changes=2, most_active_paths=["path1", "path2"]
     )
-    
+
     assert summary.entity_changes == 3
     assert summary.relation_changes == 2
     assert summary.most_active_paths == ["path1", "path2"]
@@ -83,21 +81,15 @@ def test_recent_activity_model():
         activity_type=ActivityType.ENTITY,
         change_type=ChangeType.CREATED,
         timestamp=now,
-        path_id="test/path",
-        summary="Created test document"
+        permalink="test/path",
+        summary="Created test document",
     )
-    
-    summary = ActivitySummary(
-        entity_changes=1
-    )
-    
-    activity = RecentActivity(
-        timeframe="1d",
-        changes=[change],
-        summary=summary
-    )
-    
+
+    summary = ActivitySummary(entity_changes=1)
+
+    activity = RecentActivity(timeframe="1d", changes=[change], summary=summary)
+
     assert activity.timeframe == "1d"
     assert len(activity.changes) == 1
-    assert activity.changes[0].path_id == "test/path"
+    assert activity.changes[0].permalink == "test/path"
     assert activity.summary.entity_changes == 1

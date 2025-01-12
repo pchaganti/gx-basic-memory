@@ -41,7 +41,7 @@ def test_observation_response():
     """Test ObservationResponse validation and conversion."""
     data = {
         "id": 1,
-        "path_id": 1,
+        "permalink": 1,
         "content": "Test observation",
         "category": "tech",
         "context": "Test context",

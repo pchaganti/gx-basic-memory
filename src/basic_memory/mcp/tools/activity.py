@@ -30,7 +30,7 @@ print(f"Relations changed: {activity.summary.relation_changes}")
 print("\\nMost active paths:")
 for path in activity.summary.most_active_paths:
     print(f"- {path}")
-"""
+""",
         },
         {
             "name": "Document Changes",
@@ -44,9 +44,9 @@ docs = await get_recent_activity(
 
 # Show document evolution chronologically
 for change in sorted(docs.changes, key=lambda x: x.timestamp):
-    print(f"{change.timestamp}: {change.path_id}")
+    print(f"{change.timestamp}: {change.permalink}")
     print(f"  {change.change_type}: {change.summary}")
-"""
+""",
         },
         {
             "name": "Knowledge Evolution",
@@ -69,16 +69,16 @@ for type_, changes in changes_by_type.items():
 entity_changes = defaultdict(int)
 for change in weekly.changes:
     if change.activity_type == "entity":
-        entity_changes[change.path_id] += 1
+        entity_changes[change.permalink] += 1
 
 print("\\nMost active entities:")
-for path_id, count in sorted(
+for permalink, count in sorted(
     entity_changes.items(), 
     key=lambda x: x[1], 
     reverse=True
 )[:5]:
-    print(f"- {path_id}: {count} changes")
-"""
+    print(f"- {permalink}: {count} changes")
+""",
         },
         {
             "name": "Context Building",
@@ -89,14 +89,14 @@ activity = await get_recent_activity(timeframe="1d")
 
 # Extract changed entities for deeper analysis
 entity_ids = [
-    change.path_id for change in activity.changes
+    change.permalink for change in activity.changes
     if change.activity_type == "entity"
 ]
 
 # Load full entity details
 if entity_ids:
     entities = await open_nodes(
-        request=OpenNodesRequest(path_ids=entity_ids)
+        request=OpenNodesRequest(permalinks=entity_ids)
     )
     
     # Analyze recent development focus
@@ -112,27 +112,27 @@ if entity_ids:
         print(f"\\n{name}:")
         for obs in observations:
             print(f"- {obs.content}")
-"""
-        }
+""",
+        },
     ],
-    output_model=RecentActivity
+    output_model=RecentActivity,
 )
 async def get_recent_activity(
     timeframe: str = "1d",
     activity_types: Optional[List[ActivityType]] = None,
 ) -> RecentActivity:
     """Track changes across the knowledge base.
-    
+
     Args:
         timeframe: Time window to analyze ("1h", "1d", "1w")
         activity_types: Optional list of types to filter by
-        
+
     Returns:
         RecentActivity object with changes and summary statistics
     """
     logger.debug(f"Getting recent activity (timeframe={timeframe}, types={activity_types})")
 
-    # Build params 
+    # Build params
     params = {
         "timeframe": timeframe,
     }

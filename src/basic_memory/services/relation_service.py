@@ -37,8 +37,8 @@ class RelationService(BaseService[RelationRepository]):
 
         for rs in relations:
             try:
-                from_entity = await self.entity_repository.get_by_path_id(rs.from_id)
-                to_entity = await self.entity_repository.get_by_path_id(rs.to_id)
+                from_entity = await self.entity_repository.get_by_permalink(rs.from_id)
+                to_entity = await self.entity_repository.get_by_permalink(rs.to_id)
 
                 relation = RelationModel(
                     from_id=from_entity.id,
@@ -58,10 +58,10 @@ class RelationService(BaseService[RelationRepository]):
                 continue
 
         # Get fresh copies of all updated entities
-        for path_id in entities_to_update:
+        for permalink in entities_to_update:
             try:
                 # Get fresh entity
-                entity = await self.entity_repository.get_by_path_id(path_id)
+                entity = await self.entity_repository.get_by_permalink(permalink)
 
                 # Write updated file
                 _, checksum = await self.file_service.write_entity_file(entity)
@@ -70,11 +70,13 @@ class RelationService(BaseService[RelationRepository]):
                 updated_entities.append(updated)
 
             except Exception as e:
-                logger.error(f"Failed to update entity {path_id}: {e}")
+                logger.error(f"Failed to update entity {permalink}: {e}")
                 continue
 
         # select again to eagerly load all relations
-        return await self.entity_repository.find_by_path_ids([e.path_id for e in updated_entities])
+        return await self.entity_repository.find_by_permalinks(
+            [e.permalink for e in updated_entities]
+        )
 
     async def delete_relations(self, to_delete: List[RelationSchema]) -> Sequence[EntityModel]:
         """Delete relations and return all updated entities."""
@@ -104,12 +106,12 @@ class RelationService(BaseService[RelationRepository]):
                 logger.warning("No relations were deleted")
 
             # Get fresh copies of all updated entities
-            for path_id in entities_to_update:
+            for permalink in entities_to_update:
                 try:
                     # Get fresh entity
-                    entity = await self.entity_repository.get_by_path_id(path_id)
+                    entity = await self.entity_repository.get_by_permalink(permalink)
                     if not entity:
-                        raise EntityNotFoundError(f"Entity not found: {path_id}")
+                        raise EntityNotFoundError(f"Entity not found: {permalink}")
 
                     # Write updated file
                     _, checksum = await self.file_service.write_entity_file(entity)
@@ -118,7 +120,7 @@ class RelationService(BaseService[RelationRepository]):
                     updated_entities.append(updated)
 
                 except Exception as e:
-                    logger.error(f"Failed to update entity {path_id}: {e}")
+                    logger.error(f"Failed to update entity {permalink}: {e}")
                     continue
 
             return updated_entities
@@ -128,9 +130,9 @@ class RelationService(BaseService[RelationRepository]):
             raise
 
     async def find_relation(
-        self, from_path_id: str, to_path_id: str, relation_type: str
+        self, from_permalink: str, to_permalink: str, relation_type: str
     ) -> RelationModel:
-        return await self.repository.find_relation(from_path_id, to_path_id, relation_type)
+        return await self.repository.find_relation(from_permalink, to_permalink, relation_type)
 
     async def delete_relation(
         self, from_entity: EntityModel, to_entity: EntityModel, relation_type: str

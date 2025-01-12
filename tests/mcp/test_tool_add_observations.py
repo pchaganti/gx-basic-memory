@@ -17,11 +17,11 @@ async def test_add_basic_observation(client):
     # First create an entity to add observations to
     entity_request = CreateEntityRequest(entities=[Entity(title="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
-    entity_id = result.entities[0].path_id
+    entity_id = result.entities[0].permalink
 
     # Add an observation
     request = AddObservationsRequest(
-        path_id=entity_id, observations=[ObservationCreate(content="Test observation")]
+        permalink=entity_id, observations=[ObservationCreate(content="Test observation")]
     )
     updated = await add_observations(request)
 
@@ -38,11 +38,11 @@ async def test_add_categorized_observations(client):
     # Create test entity
     entity_request = CreateEntityRequest(entities=[Entity(title="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
-    entity_id = result.entities[0].path_id
+    entity_id = result.entities[0].permalink
 
     # Add observations with different categories
     request = AddObservationsRequest(
-        path_id=entity_id,
+        permalink=entity_id,
         observations=[
             ObservationCreate(
                 content="Implementation uses SQLite", category=ObservationCategory.TECH
@@ -75,12 +75,12 @@ async def test_add_observations_with_context(client):
     # Create test entity
     entity_request = CreateEntityRequest(entities=[Entity(title="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
-    entity_id = result.entities[0].path_id
+    entity_id = result.entities[0].permalink
 
     # Add observations with context
     shared_context = "Design meeting 2024-12-25"
     request = AddObservationsRequest(
-        path_id=entity_id,
+        permalink=entity_id,
         context=shared_context,
         observations=[
             ObservationCreate(
@@ -108,11 +108,11 @@ async def test_add_observations_preserves_existing(client):
         ]
     )
     result = await create_entities(entity_request)
-    entity_id = result.entities[0].path_id
+    entity_id = result.entities[0].permalink
 
     # Add new observations
     request = AddObservationsRequest(
-        path_id=entity_id,
+        permalink=entity_id,
         observations=[
             ObservationCreate(content="New observation", category=ObservationCategory.TECH)
         ],
@@ -132,13 +132,13 @@ async def test_add_multiple_observations_same_category(client):
     # Create test entity
     entity_request = CreateEntityRequest(entities=[Entity(title="TestEntity", entity_type="test")])
     result = await create_entities(entity_request)
-    entity_id = result.entities[0].path_id
+    entity_id = result.entities[0].permalink
 
     # Add multiple tech observations
     tech_observations = ["Uses async/await", "Implements SQLite backend", "Handles UTF-8 encoding"]
 
     request = AddObservationsRequest(
-        path_id=entity_id,
+        permalink=entity_id,
         observations=[
             ObservationCreate(content=obs, category=ObservationCategory.TECH)
             for obs in tech_observations
@@ -158,7 +158,7 @@ async def test_add_observation_to_nonexistent_entity(client):
     """Test adding observations to a non-existent entity fails."""
     # Create request for non-existent entity
     request = AddObservationsRequest(
-        path_id="test/nonexistent",
+        permalink="test/nonexistent",
         observations=[
             ObservationCreate(content="This should fail", category=ObservationCategory.NOTE)
         ],

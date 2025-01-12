@@ -30,7 +30,7 @@ async def related_entities(session_maker):
         source = Entity(
             title="source",
             entity_type="test",
-            path_id="source/source",
+            permalink="source/source",
             file_path="source/source.md",
             summary="Source entity",
             content_type="text/markdown",
@@ -38,7 +38,7 @@ async def related_entities(session_maker):
         target = Entity(
             title="target",
             entity_type="test",
-            path_id="target/target",
+            permalink="target/target",
             file_path="target/target.md",
             summary="Target entity",
             content_type="text/markdown",
@@ -59,7 +59,7 @@ async def test_create_entity(entity_repository: EntityRepository):
     entity_data = {
         "title": "Test",
         "entity_type": "test",
-        "path_id": "test/test",
+        "permalink": "test/test",
         "file_path": "test/test.md",
         "summary": "Test description",
         "content_type": "text/markdown",
@@ -93,7 +93,7 @@ async def test_create_all(entity_repository: EntityRepository):
         {
             "title": "Test_1",
             "entity_type": "test",
-            "path_id": "test/test_1",
+            "permalink": "test/test_1",
             "file_path": "test/test_1.md",
             "summary": "Test description",
             "content_type": "text/markdown",
@@ -101,7 +101,7 @@ async def test_create_all(entity_repository: EntityRepository):
         {
             "title": "Test-2",
             "entity_type": "test",
-            "path_id": "test/test_2",
+            "permalink": "test/test_2",
             "file_path": "test/test_2.md",
             "summary": "Test description",
             "content_type": "text/markdown",
@@ -131,7 +131,7 @@ async def test_create_entity_null_description(session_maker, entity_repository: 
     entity_data = {
         "title": "Test",
         "entity_type": "test",
-        "path_id": "test/test",
+        "permalink": "test/test",
         "file_path": "test/test.md",
         "content_type": "text/markdown",
         "summary": None,
@@ -167,9 +167,7 @@ async def test_find_by_id(entity_repository: EntityRepository, sample_entity: En
 @pytest.mark.asyncio
 async def test_update_entity(entity_repository: EntityRepository, sample_entity: Entity):
     """Test updating an entity"""
-    updated = await entity_repository.update(
-        sample_entity.id, {"summary": "Updated description"}
-    )
+    updated = await entity_repository.update(sample_entity.id, {"summary": "Updated description"})
     assert updated is not None
     assert updated.summary == "Updated description"
     assert updated.title == sample_entity.title  # Other fields unchanged
@@ -282,15 +280,15 @@ async def test_entities(session_maker):
                 title="entity1",
                 entity_type="test",
                 summary="First test entity",
-                path_id="type1/entity1",
+                permalink="type1/entity1",
                 file_path="type1/entity1.md",
-                content_type= "text/markdown",
+                content_type="text/markdown",
             ),
             Entity(
                 title="entity2",
                 entity_type="test",
                 summary="Second test entity",
-                path_id="type1/entity2",
+                permalink="type1/entity2",
                 file_path="type1/entity2.md",
                 content_type="text/markdown",
             ),
@@ -298,7 +296,7 @@ async def test_entities(session_maker):
                 title="entity3",
                 entity_type="test",
                 summary="Third test entity",
-                path_id="type2/entity3",
+                permalink="type2/entity3",
                 file_path="type2/entity3.md",
                 content_type="text/markdown",
             ),
@@ -308,39 +306,39 @@ async def test_entities(session_maker):
 
 
 @pytest.mark.asyncio
-async def test_find_by_path_ids(entity_repository: EntityRepository, test_entities):
+async def test_find_by_permalinks(entity_repository: EntityRepository, test_entities):
     """Test finding multiple entities by their type/name pairs."""
     # Test finding multiple entities
-    path_ids = [e.path_id for e in test_entities]
-    found = await entity_repository.find_by_path_ids(path_ids)
+    permalinks = [e.permalink for e in test_entities]
+    found = await entity_repository.find_by_permalinks(permalinks)
     assert len(found) == 3
     names = {e.title for e in found}
     assert names == {"entity1", "entity2", "entity3"}
 
     # Test finding subset of entities
-    path_ids = [e.path_id for e in test_entities if e.title != "entity2"]
-    found = await entity_repository.find_by_path_ids(path_ids)
+    permalinks = [e.permalink for e in test_entities if e.title != "entity2"]
+    found = await entity_repository.find_by_permalinks(permalinks)
     assert len(found) == 2
     names = {e.title for e in found}
     assert names == {"entity1", "entity3"}
 
     # Test with non-existent entities
-    path_ids = ["type1/entity1", "type3/nonexistent"]
-    found = await entity_repository.find_by_path_ids(path_ids)
+    permalinks = ["type1/entity1", "type3/nonexistent"]
+    found = await entity_repository.find_by_permalinks(permalinks)
     assert len(found) == 1
     assert found[0].title == "entity1"
 
     # Test empty input
-    found = await entity_repository.find_by_path_ids([])
+    found = await entity_repository.find_by_permalinks([])
     assert len(found) == 0
 
 
 @pytest.mark.asyncio
-async def test_delete_by_path_ids(entity_repository: EntityRepository, test_entities):
+async def test_delete_by_permalinks(entity_repository: EntityRepository, test_entities):
     """Test deleting entities by type/name pairs."""
     # Test deleting multiple entities
-    path_ids = [e.path_id for e in test_entities if e.title != "entity3"]
-    deleted_count = await entity_repository.delete_by_path_ids(path_ids)
+    permalinks = [e.permalink for e in test_entities if e.title != "entity3"]
+    deleted_count = await entity_repository.delete_by_permalinks(permalinks)
     assert deleted_count == 2
 
     # Verify deletions
@@ -350,16 +348,16 @@ async def test_delete_by_path_ids(entity_repository: EntityRepository, test_enti
 
     # Test deleting non-existent entities
     path__ids = ["type3/nonexistent"]
-    deleted_count = await entity_repository.delete_by_path_ids(path__ids)
+    deleted_count = await entity_repository.delete_by_permalinks(path__ids)
     assert deleted_count == 0
 
     # Test empty input
-    deleted_count = await entity_repository.delete_by_path_ids([])
+    deleted_count = await entity_repository.delete_by_permalinks([])
     assert deleted_count == 0
 
 
 @pytest.mark.asyncio
-async def test_delete_by_path_ids_with_observations(
+async def test_delete_by_permalinks_with_observations(
     entity_repository: EntityRepository, test_entities, session_maker
 ):
     """Test deleting entities with observations by type/name pairs."""
@@ -372,8 +370,8 @@ async def test_delete_by_path_ids_with_observations(
         session.add_all(observations)
 
     # Delete entities
-    path_ids = [e.path_id for e in test_entities]
-    deleted_count = await entity_repository.delete_by_path_ids(path_ids)
+    permalinks = [e.permalink for e in test_entities]
+    deleted_count = await entity_repository.delete_by_permalinks(permalinks)
     assert deleted_count == 3
 
     # Verify observations were cascaded
@@ -396,7 +394,7 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
         core = Entity(
             title="core_service",
             entity_type="note",
-            path_id="service/core",
+            permalink="service/core",
             file_path="service/core.md",
             summary="Core service",
             content_type="text/markdown",
@@ -404,7 +402,7 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
         dbe = Entity(
             title="db_service",
             entity_type="test",
-            path_id="service/db",
+            permalink="service/db",
             file_path="service/db.md",
             summary="Database service",
             content_type="text/markdown",
@@ -413,7 +411,7 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
         config = Entity(
             title="service_config",
             entity_type="test",
-            path_id="config/service",
+            permalink="config/service",
             file_path="config/service.md",
             summary="Service configuration",
             content_type="text/markdown",

@@ -20,10 +20,10 @@ async def test_open_multiple_entities(client):
         ]
     )
     create_result = await create_entities(entity_request)
-    path_ids = [e.path_id for e in create_result.entities]
+    permalinks = [e.permalink for e in create_result.entities]
 
     # Open the nodes
-    request = OpenNodesRequest(path_ids=path_ids)
+    request = OpenNodesRequest(permalinks=permalinks)
     result = await open_nodes(request)
     assert isinstance(result, EntityListResponse)
     response = EntityListResponse.model_validate(result)
@@ -32,7 +32,7 @@ async def test_open_multiple_entities(client):
     assert len(response.entities) == 2
 
     for response_entity in response.entities:
-        assert response_entity.path_id in path_ids
+        assert response_entity.permalink in permalinks
         assert response_entity.title in ["Entity1", "Entity2"]
 
 
@@ -51,10 +51,10 @@ async def test_open_nodes_with_details(client):
         ]
     )
     create_result = await create_entities(entity_request)
-    path_id = create_result.entities[0].path_id
+    permalink = create_result.entities[0].permalink
 
     # Open the node
-    request = OpenNodesRequest(path_ids=[path_id])
+    request = OpenNodesRequest(permalinks=[permalink])
     result = await open_nodes(request)
     response = EntityListResponse.model_validate(result)
 
@@ -77,7 +77,7 @@ async def test_open_nodes_with_relations(client):
         ]
     )
     create_result = await create_entities(entity_request)
-    path_ids = [e.path_id for e in create_result.entities]
+    permalinks = [e.permalink for e in create_result.entities]
 
     # Add a relation between them
     from basic_memory.mcp.tools.knowledge import create_relations
@@ -85,12 +85,12 @@ async def test_open_nodes_with_relations(client):
     from basic_memory.schemas.base import Relation
 
     relation_request = CreateRelationsRequest(
-        relations=[Relation(from_id=path_ids[0], to_id=path_ids[1], relation_type="depends_on")]
+        relations=[Relation(from_id=permalinks[0], to_id=permalinks[1], relation_type="depends_on")]
     )
     await create_relations(relation_request)
 
     # Open both nodes
-    request = OpenNodesRequest(path_ids=path_ids)
+    request = OpenNodesRequest(permalinks=permalinks)
     result = await open_nodes(request)
     response = EntityListResponse.model_validate(result)
 
@@ -105,31 +105,33 @@ async def test_open_nonexistent_nodes(client):
     # First create one real entity
     entity_request = CreateEntityRequest(entities=[Entity(title="RealEntity", entity_type="test")])
     create_result = await create_entities(entity_request)
-    real_path_id = create_result.entities[0].path_id
+    real_permalink = create_result.entities[0].permalink
 
     # Try to open both real and non-existent
-    request = OpenNodesRequest(path_ids=[real_path_id, "nonexistent"])
+    request = OpenNodesRequest(permalinks=[real_permalink, "nonexistent"])
     result = await open_nodes(request)
     response = EntityListResponse.model_validate(result)
 
     # Should only get the real entity back
     assert len(response.entities) == 1
-    assert real_path_id in response.entities[0].path_id
+    assert real_permalink in response.entities[0].permalink
 
 
 @pytest.mark.asyncio
 async def test_open_single_node(client):
-    """Test behavior with single path_id."""
+    """Test behavior with single permalink."""
     # Create an entity
-    entity_request = CreateEntityRequest(entities=[Entity(title="SingleEntity", entity_type="test")])
+    entity_request = CreateEntityRequest(
+        entities=[Entity(title="SingleEntity", entity_type="test")]
+    )
     create_result = await create_entities(entity_request)
-    path_id = create_result.entities[0].path_id
+    permalink = create_result.entities[0].permalink
 
     # Open just one node
-    request = OpenNodesRequest(path_ids=[path_id])
+    request = OpenNodesRequest(permalinks=[permalink])
     result = await open_nodes(request)
     response = EntityListResponse.model_validate(result)
 
     # Should get just that entity
     assert len(response.entities) == 1
-    assert path_id in response.entities[0].path_id
+    assert permalink in response.entities[0].permalink

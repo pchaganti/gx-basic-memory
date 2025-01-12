@@ -20,7 +20,7 @@ def test_entity():
         title = "TestComponent"
         entity_type = "test"
         entity_metadata = {"test": "test"}
-        path_id = "component/test_component"
+        permalink = "component/test_component"
         file_path = "entities/component/test_component.md"
         summary = "A test component for search testing"
         content_type = "text/markdown"
@@ -46,7 +46,7 @@ async def test_search_basic(client, indexed_entity):
     assert response.status_code == 200
     search_results = SearchResponse.model_validate(response.json())
     assert len(search_results.results) == 1
-    assert search_results.results[0].path_id == indexed_entity.path_id
+    assert search_results.results[0].permalink == indexed_entity.permalink
 
 
 @pytest.mark.asyncio
@@ -141,13 +141,14 @@ async def test_search_empty(search_service, client):
 async def test_reindex(client, search_service, entity_service, test_entity, session_maker):
     """Test reindex endpoint."""
     # Create test entity and document
-    await entity_service.create_entity(        EntitySchema(
+    await entity_service.create_entity(
+        EntitySchema(
             title="TestEntity1",
             entity_type="test",
             summary="A test entity description",
             observations=["this is a test observation"],
         ),
-)
+    )
 
     # Clear search index
     async with db.scoped_session(session_maker) as session:
@@ -186,6 +187,6 @@ async def test_multiple_filters(client, indexed_entity):
     search_result = SearchResponse.model_validate(response.json())
     assert len(search_result.results) == 1
     result = search_result.results[0]
-    assert result.path_id == indexed_entity.path_id
+    assert result.permalink == indexed_entity.permalink
     assert result.type == SearchItemType.ENTITY.value
     assert result.metadata["entity_type"] == "test"

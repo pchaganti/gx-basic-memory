@@ -15,7 +15,7 @@ async def source_entity(session_maker):
     entity = Entity(
         title="test_source",
         entity_type="test",
-        path_id="source/test_source",
+        permalink="source/test_source",
         file_path="source/test_source.md",
         summary="Source entity",
         content_type="text/markdown",
@@ -32,7 +32,7 @@ async def target_entity(session_maker):
     entity = Entity(
         title="test_target",
         entity_type="test",
-        path_id="target/test_target",
+        permalink="target/test_target",
         file_path="target/test_target.md",
         summary="Target entity",
         content_type="text/markdown",
@@ -62,7 +62,7 @@ async def related_entity(entity_repository):
     entity_data = {
         "title": "Related Entity",
         "entity_type": "test",
-        "path_id": "test/related_entity",
+        "permalink": "test/related_entity",
         "file_path": "test/related_entity.md",
         "summary": "A related test entity",
         "content_type": "text/markdown",
@@ -165,8 +165,8 @@ async def test_find_by_entities(
 async def test_find_relation(relation_repository: RelationRepository, sample_relation: Relation):
     """Test finding relations by type"""
     relation = await relation_repository.find_relation(
-        from_path_id=sample_relation.from_entity.path_id,
-        to_path_id=sample_relation.to_entity.path_id,
+        from_permalink=sample_relation.from_entity.permalink,
+        to_permalink=sample_relation.to_entity.permalink,
         relation_type=sample_relation.relation_type,
     )
     assert relation.id == sample_relation.id

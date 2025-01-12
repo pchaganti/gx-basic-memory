@@ -19,7 +19,7 @@ async def test_entities(
         entity1 = EntityModel(
             title="test_entity_1",
             entity_type="test",
-            path_id="test/test_entity_1",
+            permalink="test/test_entity_1",
             file_path="test/test_entity_1.md",
             summary="Test entity 1",
             content_type="text/markdown",
@@ -27,7 +27,7 @@ async def test_entities(
         entity2 = EntityModel(
             title="test_entity_2",
             entity_type="test",
-            path_id="test/test_entity_2",
+            permalink="test/test_entity_2",
             file_path="test/test_entity_2.md",
             summary="Test entity 2",
             content_type="text/markdown",
@@ -49,10 +49,16 @@ async def test_create_relations(
 
     relation_data = [
         RelationSchema(
-            from_id=entity1.path_id, to_id=entity2.path_id, relation_type="type_0", context="context_0"
+            from_id=entity1.permalink,
+            to_id=entity2.permalink,
+            relation_type="type_0",
+            context="context_0",
         ),
         RelationSchema(
-            from_id=entity1.path_id, to_id=entity2.path_id, relation_type="type_1", context="context_1"
+            from_id=entity1.permalink,
+            to_id=entity2.permalink,
+            relation_type="type_1",
+            context="context_1",
         ),
     ]
 
@@ -85,16 +91,16 @@ async def test_create_relations(
     assert relations_e1[1].relation_type == "type_1"
 
     # Verify outgoing relation is updated
-    found = await entity_service.get_by_path_id(entity1.path_id)
+    found = await entity_service.get_by_permalink(entity1.permalink)
     file_path = file_service.get_entity_path(found)
     content, _ = await file_service.read_file(file_path)
-    
+
     # verify relation format
     assert f"- type_0 [[{entity2.title}]] (context_0)" in content
     assert f"- type_1 [[{entity2.title}]] (context_1)" in content
 
     # Verify other entity file is not updated
-    found = await entity_service.get_by_path_id(entity2.path_id)
+    found = await entity_service.get_by_permalink(entity2.permalink)
     file_path = file_service.get_entity_path(found)
     content, _ = await file_service.read_file(file_path)
     assert "type_0" not in content
@@ -109,7 +115,7 @@ async def test_delete_relation(
 
     # Create a relation first
     relation_data = RelationSchema(
-        from_id=entity1.path_id, to_id=entity2.path_id, relation_type="test_relation"
+        from_id=entity1.permalink, to_id=entity2.permalink, relation_type="test_relation"
     )
     await relation_service.create_relations([relation_data])
 
@@ -140,10 +146,10 @@ async def test_delete_relations_by_criteria(
 
     # Create test relations
     relation1 = RelationSchema(
-        from_id=entity1.path_id, to_id=entity2.path_id, relation_type="relation1"
+        from_id=entity1.permalink, to_id=entity2.permalink, relation_type="relation1"
     )
     relation2 = RelationSchema(
-        from_id=entity1.path_id, to_id=entity2.path_id, relation_type="relation2"
+        from_id=entity1.permalink, to_id=entity2.permalink, relation_type="relation2"
     )
     await relation_service.create_relations([relation1, relation2])
 

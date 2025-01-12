@@ -25,7 +25,7 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
     model = EntityModel(
         title=markdown.frontmatter.title,
         entity_type=markdown.frontmatter.type,
-        path_id=markdown.frontmatter.id,
+        permalink=markdown.frontmatter.id,
         file_path=file_path,
         content_type="text/markdown",
         summary=markdown.content.content,
@@ -65,21 +65,21 @@ class EntitySyncService:
         model = entity_model_from_markdown(file_path, markdown)
 
         # Mark as incomplete sync
-        model.checksum = None  
+        model.checksum = None
         return await self.entity_repository.add(model)
 
     async def update_entity_and_observations(
-        self, path_id: str, markdown: EntityMarkdown
+        self, permalink: str, markdown: EntityMarkdown
     ) -> EntityModel:
         """First pass: Update entity fields and observations.
 
         Updates everything except relations and sets null checksum
         to indicate sync not complete.
         """
-        logger.debug(f"Updating entity and observations: {path_id}")
-        db_entity = await self.entity_repository.get_by_path_id(path_id)
+        logger.debug(f"Updating entity and observations: {permalink}")
+        db_entity = await self.entity_repository.get_by_permalink(permalink)
         if not db_entity:
-            raise EntityNotFoundError(f"Entity not found: {path_id}")
+            raise EntityNotFoundError(f"Entity not found: {permalink}")
 
         # Update fields from markdown
         db_entity.title = markdown.frontmatter.title
@@ -88,7 +88,7 @@ class EntitySyncService:
 
         # Clear observations for entity
         await self.observation_repository.delete_by_fields(entity_id=db_entity.id)
-        
+
         # add new observations
         observations = [
             Observation(
@@ -122,14 +122,14 @@ class EntitySyncService:
             checksum: Final checksum to set after relations are updated
         """
         logger.debug(f"Updating relations for entity: {markdown.frontmatter.id}")
-        db_entity = await self.entity_repository.get_by_path_id(markdown.frontmatter.id)
+        db_entity = await self.entity_repository.get_by_permalink(markdown.frontmatter.id)
 
         # get all entities from relations
-        target_entity_path_ids = [rel.target for rel in markdown.content.relations]
-        target_entities = await self.entity_repository.find_by_path_ids(target_entity_path_ids)
+        target_entity_permalinks = [rel.target for rel in markdown.content.relations]
+        target_entities = await self.entity_repository.find_by_permalinks(target_entity_permalinks)
 
         # dict by path
-        entity_by_path = {e.path_id: e for e in target_entities}
+        entity_by_path = {e.permalink: e for e in target_entities}
 
         # Clear and update relations
         await self.relation_repository.delete_outgoing_relations_from_entity(db_entity.id)

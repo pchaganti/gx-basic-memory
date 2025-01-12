@@ -23,15 +23,15 @@ async def test_get_basic_entity(client):
         ]
     )
     create_result = await create_entities(entity_request)
-    path_id = create_result.entities[0].path_id
+    permalink = create_result.entities[0].permalink
 
     # Get the entity without content
-    entity = await get_entity(path_id)
+    entity = await get_entity(permalink)
 
     # Verify entity details
     assert entity.title == "TestEntity"
     assert entity.entity_type == "test"
-    assert entity.path_id == "test_entity"
+    assert entity.permalink == "test_entity"
     assert entity.summary == "A test entity"
 
     # Check observations
@@ -39,6 +39,7 @@ async def test_get_basic_entity(client):
     obs = entity.observations[0]
     assert obs.content == "First observation"
     assert obs.category == ObservationCategory.NOTE
+
 
 @pytest.mark.asyncio
 async def test_get_entity_with_content(client):
@@ -55,10 +56,10 @@ async def test_get_entity_with_content(client):
         ]
     )
     create_result = await create_entities(entity_request)
-    path_id = create_result.entities[0].path_id
+    permalink = create_result.entities[0].permalink
 
     # Get entity with content
-    entity = await get_entity(path_id, content=True)
+    entity = await get_entity(permalink, content=True)
     assert entity.content is not None
 
     # if we passed in content, it should just be the
@@ -113,14 +114,14 @@ async def test_get_entity_with_categorized_observations(client):
         ]
     )
     result = await create_entities(entity_request)
-    path_id = result.entities[0].path_id
+    permalink = result.entities[0].permalink
 
     # Add observations with different categories
     from basic_memory.mcp.tools.knowledge import add_observations
     from basic_memory.schemas.request import AddObservationsRequest, ObservationCreate
 
     obs_request = AddObservationsRequest(
-        path_id=path_id,
+        permalink=permalink,
         observations=[
             ObservationCreate(content="Technical detail", category=ObservationCategory.TECH),
             ObservationCreate(content="Design decision", category=ObservationCategory.DESIGN),
@@ -130,7 +131,7 @@ async def test_get_entity_with_categorized_observations(client):
     await add_observations(obs_request)
 
     # Get and verify entity without content
-    entity = await get_entity(path_id)
+    entity = await get_entity(permalink)
     assert len(entity.observations) == 3
     categories = {obs.category for obs in entity.observations}
     assert ObservationCategory.TECH in categories

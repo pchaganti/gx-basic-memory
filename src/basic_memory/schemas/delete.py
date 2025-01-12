@@ -34,7 +34,7 @@ class DeleteEntitiesRequest(BaseModel):
     4. Deletes the corresponding markdown file
     """
 
-    path_ids: Annotated[List[PathId], MinLen(1)]
+    permalinks: Annotated[List[PathId], MinLen(1)]
 
 
 class DeleteRelationsRequest(BaseModel):
@@ -56,5 +56,5 @@ class DeleteObservationsRequest(BaseModel):
     match exactly for deletion.
     """
 
-    path_id: PathId
+    permalink: PathId
     observations: Annotated[List[Observation], MinLen(1)]

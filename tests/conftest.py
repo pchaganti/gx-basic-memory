@@ -211,7 +211,7 @@ async def sample_entity(entity_repository: EntityRepository) -> Entity:
         "title": "Test Entity",
         "entity_type": "test",
         "summary": "A test entity",
-        "path_id": "test/test_entity",
+        "permalink": "test/test_entity",
         "file_path": "test/test_entity.md",
         "content_type": "text/markdown",
     }

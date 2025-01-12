@@ -3,16 +3,23 @@
 from typing import List, Optional, Annotated, Dict, Any
 from annotated_types import MaxLen, MinLen
 
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel
 
-from basic_memory.schemas.base import Observation, Entity, Relation, PathId, ObservationCategory, EntityType
+from basic_memory.schemas.base import (
+    Observation,
+    Entity,
+    Relation,
+    PathId,
+    ObservationCategory,
+    EntityType,
+)
 
 
 class ObservationCreate(BaseModel):
     """A single observation with category, content, and optional context."""
 
     category: ObservationCategory = ObservationCategory.NOTE
-    content: Observation 
+    content: Observation
 
 
 class AddObservationsRequest(BaseModel):
@@ -23,7 +30,7 @@ class AddObservationsRequest(BaseModel):
     to our understanding of the entity.
     """
 
-    path_id: PathId
+    permalink: PathId
     context: Optional[str] = None
     observations: List[ObservationCreate]
 
@@ -34,7 +41,7 @@ class CreateEntityRequest(BaseModel):
     Entities represent nodes in the knowledge graph. They can be created
     with initial observations and optional descriptions. Entity IDs are
     automatically generated from the type and name.
-    
+
     Observations will be assigned the default category of 'note'.
     """
 
@@ -81,21 +88,21 @@ class OpenNodesRequest(BaseModel):
     discovered through search.
     """
 
-    path_ids: Annotated[List[PathId], MinLen(1)]
+    permalinks: Annotated[List[PathId], MinLen(1)]
 
 
 class CreateRelationsRequest(BaseModel):
-
     relations: List[Relation]
 
 
 ## update
 
+
 class UpdateEntityRequest(BaseModel):
     """Request to update an existing entity."""
+
     title: Optional[str] = None
     entity_type: Optional[EntityType] = None
     summary: Optional[str] = None
     content: Optional[str] = None
     entity_metadata: Optional[Dict[str, Any]] = None
-

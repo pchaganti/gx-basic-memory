@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-from multipart import file_path
 
 from basic_memory.models import Entity
 from basic_memory.sync import FileChangeScanner
@@ -67,7 +66,8 @@ async def test_scan_with_unreadable_file(file_change_scanner: FileChangeScanner,
 
 @pytest.mark.asyncio
 async def test_detect_new_files(
-    file_change_scanner: FileChangeScanner, temp_dir: Path,
+    file_change_scanner: FileChangeScanner,
+    temp_dir: Path,
 ):
     """Test detection of new files."""
     # Create new file
@@ -91,7 +91,9 @@ async def test_detect_modified_file(file_change_scanner: FileChangeScanner, temp
 
     # Create DB state with original checksum
     original_checksum = await compute_checksum(content)
-    db_records = {file_path: FileState(file_path=file_path, path_id="test", checksum=original_checksum)}
+    db_records = {
+        file_path: FileState(file_path=file_path, permalink="test", checksum=original_checksum)
+    }
 
     # Modify file
     await create_test_file(temp_dir / file_path, "modified")
@@ -108,7 +110,9 @@ async def test_detect_deleted_files(file_change_scanner: FileChangeScanner, temp
     file_path = "deleted.md"
 
     # Create DB state with file that doesn't exist
-    db_records = {file_path: FileState(file_path=file_path, path_id="deleted", checksum="any-checksum")}
+    db_records = {
+        file_path: FileState(file_path=file_path, permalink="deleted", checksum="any-checksum")
+    }
 
     changes = await file_change_scanner.find_changes(directory=temp_dir, db_file_state=db_records)
 
@@ -116,18 +120,16 @@ async def test_detect_deleted_files(file_change_scanner: FileChangeScanner, temp
     assert file_path in changes.deleted
 
 
-
 @pytest.mark.asyncio
 async def test_get_db_state_entities(file_change_scanner: FileChangeScanner):
     """Test converting entity records to file states."""
-    entity = Entity(path_id="concept/test", file_path="concept/test.md", checksum="test-checksum")
+    entity = Entity(permalink="concept/test", file_path="concept/test.md", checksum="test-checksum")
 
     db_records = await file_change_scanner.get_db_file_state([entity])
 
     assert len(db_records) == 1
     assert "concept/test.md" in db_records
     assert db_records["concept/test.md"].checksum == "test-checksum"
-
 
 
 @pytest.mark.asyncio

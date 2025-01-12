@@ -56,10 +56,10 @@ class SyncService:
                     file_path, entity_markdown
                 )
             else:
-                path_id = entity_markdown.frontmatter.id
-                logger.debug(f"Updating entity_markdown: {path_id}")
+                permalink = entity_markdown.frontmatter.id
+                logger.debug(f"Updating entity_markdown: {permalink}")
                 await self.knowledge_sync_service.update_entity_and_observations(
-                    path_id, entity_markdown
+                    permalink, entity_markdown
                 )
 
         # Second pass: Process relations

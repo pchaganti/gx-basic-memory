@@ -39,11 +39,11 @@ async def create_entity(client) -> EntityResponse:
     return create_response.entities[0]
 
 
-async def add_observations(client, path_id: str) -> List[ObservationResponse]:
+async def add_observations(client, permalink: str) -> List[ObservationResponse]:
     response = await client.post(
         "/knowledge/observations",
         json={
-            "path_id": path_id,
+            "permalink": permalink,
             "observations": [
                 {"content": "First observation", "category": "tech"},
                 {"content": "Second observation", "category": "note"},
@@ -69,15 +69,19 @@ async def create_related_entities(client) -> List[RelationResponse]:  # pyright:
     create_response = await client.post("/knowledge/entities", json={"entities": entities})
     assert create_response.status_code == 200
     created = create_response.json()["entities"]
-    source_path_id = "source_entity"
-    target_path_id = "target_entity"
+    source_permalink = "source_entity"
+    target_permalink = "target_entity"
 
     # Create relation between them
     response = await client.post(
         "/knowledge/relations",
         json={
             "relations": [
-                {"from_id": source_path_id, "to_id": target_path_id, "relation_type": "related_to"}
+                {
+                    "from_id": source_permalink,
+                    "to_id": target_permalink,
+                    "relation_type": "related_to",
+                }
             ]
         },
     )
@@ -94,13 +98,13 @@ async def create_related_entities(client) -> List[RelationResponse]:  # pyright:
 
     assert len(source_entity.relations) == 1
     source_relation = source_entity.relations[0]
-    assert source_relation.from_id == source_path_id
-    assert source_relation.to_id == target_path_id
+    assert source_relation.from_id == source_permalink
+    assert source_relation.to_id == target_permalink
 
     assert len(target_entity.relations) == 1
     target_relation = target_entity.relations[0]
-    assert target_relation.from_id == source_path_id
-    assert target_relation.to_id == target_path_id
+    assert target_relation.from_id == source_permalink
+    assert target_relation.to_id == target_permalink
 
     return source_entity.relations + target_entity.relations
 
@@ -121,15 +125,15 @@ async def test_get_entity(client: AsyncClient):
     data = response.json()
 
     # Now get it by path
-    path_id = data["entities"][0]["path_id"]
-    response = await client.get(f"/knowledge/entities/{path_id}")
+    permalink = data["entities"][0]["permalink"]
+    response = await client.get(f"/knowledge/entities/{permalink}")
 
     # Verify retrieval
     assert response.status_code == 200
     entity = response.json()
     assert entity["title"] == "TestEntity"
     assert entity["entity_type"] == "test"
-    assert entity["path_id"] == "test_entity"
+    assert entity["permalink"] == "test_entity"
 
 
 @pytest.mark.asyncio
@@ -145,12 +149,12 @@ async def test_add_observations(client: AsyncClient):
     data = {"title": "TestEntity", "entity_type": "test"}
     response = await client.post("/knowledge/entities", json={"entities": [data]})
 
-    path_id = "test_entity"
+    permalink = "test_entity"
     # Add observations
-    await add_observations(client, path_id)
+    await add_observations(client, permalink)
 
     # Verify observations appear in entity
-    entity_response = await client.get(f"/knowledge/entities/{path_id}")
+    entity_response = await client.get(f"/knowledge/entities/{permalink}")
     entity = entity_response.json()
     assert len(entity["observations"]) == 2
 
@@ -168,7 +172,7 @@ async def test_open_nodes(client: AsyncClient):
     # Open nodes by path IDs
     response = await client.post(
         "/knowledge/nodes",
-        json={"path_ids": ["alpha_test"]},
+        json={"permalinks": ["alpha_test"]},
     )
 
     # Verify results
@@ -178,7 +182,7 @@ async def test_open_nodes(client: AsyncClient):
     entity = data["entities"][0]
     assert entity["title"] == "AlphaTest"
     assert entity["entity_type"] == "test"
-    assert entity["path_id"] == "alpha_test"
+    assert entity["permalink"] == "alpha_test"
 
 
 @pytest.mark.asyncio
@@ -190,14 +194,14 @@ async def test_delete_entity(client: AsyncClient):
 
     # Test deletion
     response = await client.post(
-        "/knowledge/entities/delete", json={"path_ids": ["test/TestEntity"]}
+        "/knowledge/entities/delete", json={"permalinks": ["test/TestEntity"]}
     )
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
 
     # Verify entity is gone
-    path_id = quote("test/TestEntity")
-    response = await client.get(f"/knowledge/entities/{path_id}")
+    permalink = quote("test/TestEntity")
+    response = await client.get(f"/knowledge/entities/{permalink}")
     assert response.status_code == 404
 
 
@@ -213,15 +217,15 @@ async def test_delete_entity_bulk(client: AsyncClient):
 
     # Test deletion
     response = await client.post(
-        "/knowledge/entities/delete", json={"path_ids": ["Entity1", "Entity2"]}
+        "/knowledge/entities/delete", json={"permalinks": ["Entity1", "Entity2"]}
     )
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
 
     # Verify entities are gone
     for name in ["Entity1", "Entity2"]:
-        path_id = quote(f"{name}")
-        response = await client.get(f"/knowledge/entities/{path_id}")
+        permalink = quote(f"{name}")
+        response = await client.get(f"/knowledge/entities/{permalink}")
         assert response.status_code == 404
 
 
@@ -234,7 +238,7 @@ async def test_delete_entity_with_observations(client, observation_repository):
     await add_observations(client, "TestEntity")
 
     # Delete entity
-    response = await client.post("/knowledge/entities/delete", json={"path_ids": ["TestEntity"]})
+    response = await client.post("/knowledge/entities/delete", json={"permalinks": ["TestEntity"]})
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
 
@@ -252,7 +256,7 @@ async def test_delete_observations(client, observation_repository):
     observations = await add_observations(client, "TestEntity")  # adds 2
 
     # Delete specific observations
-    request_data = {"path_id": "TestEntity", "observations": [observations[0].content]}
+    request_data = {"permalink": "TestEntity", "observations": [observations[0].content]}
     response = await client.post("/knowledge/observations/delete", json=request_data)
     assert response.status_code == 200
     data = response.json()
@@ -291,7 +295,9 @@ async def test_delete_relations(client, relation_repository):
 @pytest.mark.asyncio
 async def test_delete_nonexistent_entity(client: AsyncClient):
     """Test deleting a nonexistent entity by path ID."""
-    response = await client.post("/knowledge/entities/delete", json={"path_ids": ["non_existent"]})
+    response = await client.post(
+        "/knowledge/entities/delete", json={"permalinks": ["non_existent"]}
+    )
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
 
@@ -303,7 +309,7 @@ async def test_delete_nonexistent_observations(client: AsyncClient):
     entity_data = {"title": "TestEntity", "entity_type": "test"}
     await client.post("/knowledge/entities", json={"entities": [entity_data]})
 
-    request_data = {"path_id": "TestEntity", "observations": ["Nonexistent observation"]}
+    request_data = {"permalink": "TestEntity", "observations": ["Nonexistent observation"]}
     response = await client.post("/knowledge/observations/delete", json=request_data)
     assert response.status_code == 200
 
@@ -375,7 +381,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     await client.post(
         "/knowledge/observations",
         json={
-            "path_id": "main_entity",
+            "permalink": "main_entity",
             "observations": [
                 {"content": "Connected to first related entity", "category": "tech"},
                 {"content": "Connected to second related entity", "category": "note"},
@@ -385,8 +391,8 @@ async def test_full_knowledge_flow(client: AsyncClient):
     )
 
     # 5. Verify full graph structure
-    path_id = "MainEntity"
-    main_get = await client.get(f"/knowledge/entities/{path_id}")
+    permalink = "MainEntity"
+    main_get = await client.get(f"/knowledge/entities/{permalink}")
     main_entity = main_get.json()
 
     # Check entity structure
@@ -401,14 +407,14 @@ async def test_full_knowledge_flow(client: AsyncClient):
 
     # 7. Delete main entity
     response = await client.post(
-        "/knowledge/entities/delete", json={"path_ids": ["MainEntity", "NonEntity"]}
+        "/knowledge/entities/delete", json={"permalinks": ["MainEntity", "NonEntity"]}
     )
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
 
     # Verify deletion
-    path_id = "MainEntity"
-    response = await client.get(f"/knowledge/entities/{path_id}")
+    permalink = "MainEntity"
+    response = await client.get(f"/knowledge/entities/{permalink}")
     assert response.status_code == 404
 
 
@@ -432,7 +438,7 @@ async def test_entity_indexing(client: AsyncClient):
     assert search_response.status_code == 200
     search_result = SearchResponse.model_validate(search_response.json())
     assert len(search_result.results) == 1
-    assert search_result.results[0].path_id == "search_test"
+    assert search_result.results[0].permalink == "search_test"
     assert search_result.results[0].type == SearchItemType.ENTITY.value
 
 
@@ -453,7 +459,7 @@ async def test_observation_update_indexing(client: AsyncClient):
     await client.post(
         "/knowledge/observations",
         json={
-            "path_id": entity["path_id"],
+            "permalink": entity["permalink"],
             "observations": [{"content": "Unique sphinx observation", "category": "tech"}],
         },
     )
@@ -464,7 +470,7 @@ async def test_observation_update_indexing(client: AsyncClient):
     )
     search_result = SearchResponse.model_validate(search_response.json())
     assert len(search_result.results) == 1
-    assert search_result.results[0].path_id == entity["path_id"]
+    assert search_result.results[0].permalink == entity["permalink"]
 
 
 @pytest.mark.asyncio
@@ -490,7 +496,7 @@ async def test_entity_delete_indexing(client: AsyncClient):
 
     # Delete entity
     delete_response = await client.post(
-        "/knowledge/entities/delete", json={"path_ids": [entity["path_id"]]}
+        "/knowledge/entities/delete", json={"permalinks": [entity["permalink"]]}
     )
     assert delete_response.status_code == 200
 
@@ -535,8 +541,8 @@ async def test_relation_indexing(client: AsyncClient):
     )
     search_result = SearchResponse.model_validate(search_response.json())
     assert len(search_result.results) == 2  # Both source and target entities
-    path_ids = {r.path_id for r in search_result.results}
-    assert path_ids == {"source_test", "target_test"}
+    permalinks = {r.permalink for r in search_result.results}
+    assert permalinks == {"source_test", "target_test"}
 
 
 @pytest.mark.asyncio
@@ -557,7 +563,7 @@ async def test_update_entity_basic(client: AsyncClient):
         "title": "updated-test",
         "summary": "Updated description",
     }
-    response = await client.put(f"/knowledge/entities/{entity['path_id']}", json=update_data)
+    response = await client.put(f"/knowledge/entities/{entity['permalink']}", json=update_data)
     assert response.status_code == 200
     updated = response.json()
 
@@ -574,24 +580,25 @@ async def test_get_entity_content_parameter(client: AsyncClient):
     data = {
         "title": "TestContent",
         "entity_type": "test",
-        "content": "# Test Content\n\nSome test content."
+        "content": "# Test Content\n\nSome test content.",
     }
     response = await client.post("/knowledge/entities", json={"entities": [data]})
     assert response.status_code == 200
-    path_id = response.json()["entities"][0]["path_id"]
+    permalink = response.json()["entities"][0]["permalink"]
 
     # Get without content
-    response = await client.get(f"/knowledge/entities/{path_id}")
+    response = await client.get(f"/knowledge/entities/{permalink}")
     assert response.status_code == 200
     entity = response.json()
     assert entity["content"] is None
 
     # Get with content
-    response = await client.get(f"/knowledge/entities/{path_id}?content=true")
+    response = await client.get(f"/knowledge/entities/{permalink}?content=true")
     assert response.status_code == 200
     entity = response.json()
     assert "# Test Content" in entity["content"]
     assert "Some test content" in entity["content"]
+
 
 @pytest.mark.asyncio
 async def test_update_entity_content(client: AsyncClient):
@@ -604,13 +611,13 @@ async def test_update_entity_content(client: AsyncClient):
     # Update note content
     new_content = "# Updated Note\n\nNew content."
     response = await client.put(
-        f"/knowledge/entities/{note['path_id']}", json={"content": new_content}
+        f"/knowledge/entities/{note['permalink']}", json={"content": new_content}
     )
     assert response.status_code == 200
     updated = response.json()
 
     # Verify through get request to check file
-    response = await client.get(f"/knowledge/entities/{updated['path_id']}?content=true")
+    response = await client.get(f"/knowledge/entities/{updated['permalink']}?content=true")
     fetched = response.json()
     assert "# Updated Note" in fetched["content"]
     assert "New content" in fetched["content"]
@@ -631,7 +638,7 @@ async def test_update_entity_type_conversion(client: AsyncClient):
 
     # Convert to knowledge type
     response = await client.put(
-        f"/knowledge/entities/{note['path_id']}", json={"entity_type": "test"}
+        f"/knowledge/entities/{note['permalink']}", json={"entity_type": "test"}
     )
     assert response.status_code == 200
     updated = response.json()
@@ -640,7 +647,7 @@ async def test_update_entity_type_conversion(client: AsyncClient):
     assert updated["entity_type"] == "test"
 
     # Get latest to verify file format
-    response = await client.get(f"/knowledge/entities/{updated['path_id']}")
+    response = await client.get(f"/knowledge/entities/{updated['permalink']}")
     knowledge = response.json()
     assert knowledge.get("content") is None
 
@@ -655,7 +662,7 @@ async def test_update_entity_metadata(client: AsyncClient):
 
     # Update metadata
     update_data = {"entity_metadata": {"status": "final", "reviewed": True}}
-    response = await client.put(f"/knowledge/entities/{entity['path_id']}", json=update_data)
+    response = await client.put(f"/knowledge/entities/{entity['permalink']}", json=update_data)
     assert response.status_code == 200
     updated = response.json()
 
@@ -681,7 +688,7 @@ async def test_update_entity_search_index(client: AsyncClient):
 
     # Update with new searchable content
     update_data = {"summary": "Updated with unique sphinx marker"}
-    response = await client.put(f"/knowledge/entities/{entity['path_id']}", json=update_data)
+    response = await client.put(f"/knowledge/entities/{entity['permalink']}", json=update_data)
     assert response.status_code == 200
 
     # Search should find new content
@@ -690,7 +697,7 @@ async def test_update_entity_search_index(client: AsyncClient):
     )
     results = search_response.json()["results"]
     assert len(results) == 1
-    assert results[0]["path_id"] == entity["path_id"]
+    assert results[0]["permalink"] == entity["permalink"]
 
 
 @pytest.mark.asyncio
@@ -699,9 +706,7 @@ async def test_get_entity_with_relations(client: AsyncClient):
     # Create a note and knowledge entity
     note = await client.post(
         "/knowledge/entities",
-        json={
-            "entities": [{"title": "test-note", "entity_type": "note", "summary": "Test note"}]
-        },
+        json={"entities": [{"title": "test-note", "entity_type": "note", "summary": "Test note"}]},
     )
     knowledge = await client.post(
         "/knowledge/entities",
@@ -718,8 +723,8 @@ async def test_get_entity_with_relations(client: AsyncClient):
         json={
             "relations": [
                 {
-                    "from_id": note.json()["entities"][0]["path_id"],
-                    "to_id": knowledge.json()["entities"][0]["path_id"],
+                    "from_id": note.json()["entities"][0]["permalink"],
+                    "to_id": knowledge.json()["entities"][0]["permalink"],
                     "relation_type": "references",
                 }
             ]
@@ -727,9 +732,11 @@ async def test_get_entity_with_relations(client: AsyncClient):
     )
 
     # Verify GET returns relations for both types
-    note_response = await client.get(f"/knowledge/entities/{note.json()['entities'][0]['path_id']}")
+    note_response = await client.get(
+        f"/knowledge/entities/{note.json()['entities'][0]['permalink']}"
+    )
     knowledge_response = await client.get(
-        f"/knowledge/entities/{knowledge.json()['entities'][0]['path_id']}"
+        f"/knowledge/entities/{knowledge.json()['entities'][0]['permalink']}"
     )
 
     assert len(note_response.json()["relations"]) == 1

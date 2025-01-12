@@ -37,7 +37,7 @@
 #         deleted={"old/deleted.md"},
 #         moved={
 #             "new/location.md": FileState(
-#                 path_id="new/location.md", checksum="abc123", moved_from="old/location.md"
+#                 permalink="new/location.md", checksum="abc123", moved_from="old/location.md"
 #             )
 #         },
 #     )
@@ -61,7 +61,7 @@
 #         deleted={"old/deleted.md"},
 #         moved={
 #             "new/location.md": FileState(
-#                 path_id="new/location.md",
+#                 permalink="new/location.md",
 #                 checksum="abc123def",  # 8 chars for display
 #                 moved_from="old/location.md",
 #             )
@@ -100,7 +100,7 @@
 #
 #     # Add some files to DB with different paths to test moves
 #     await entity_repository.create(
-#         {"path_id": "old/doc.md", "file_path": "old/doc.md", "checksum": "abc123"}
+#         {"permalink": "old/doc.md", "file_path": "old/doc.md", "checksum": "abc123"}
 #     )
 #
 #     # Run status check
@@ -133,7 +133,7 @@
 #
 #     # Add to DB
 #     await entity_repository.create(
-#         {"path_id": original_path, "file_path": original_path, "checksum": checksum}
+#         {"permalink": original_path, "file_path": original_path, "checksum": checksum}
 #     )
 #
 #     # Simulate case change in filesystem
@@ -160,7 +160,7 @@
 #     checksum = await compute_checksum(content)
 #
 #     # Add to DB with same path
-#     await entity_repository.create({"path_id": path, "file_path": path, "checksum": checksum})
+#     await entity_repository.create({"permalink": path, "file_path": path, "checksum": checksum})
 #
 #     # Check changes
 #     changes = await file_change_scanner.find_knowledge_changes(docs_dir)

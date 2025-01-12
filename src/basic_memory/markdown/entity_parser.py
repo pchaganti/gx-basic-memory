@@ -24,14 +24,12 @@ class EntityParser:
     """Parser for markdown files into Entity objects."""
 
     def __init__(self, base_path: Path):
-        """Initialize parser with base path for relative path_id generation."""
+        """Initialize parser with base path for relative permalink generation."""
         self.base_path = base_path.resolve()
-        self.md = (MarkdownIt()
-                   .use(observation_plugin)
-                   .use(relation_plugin))
+        self.md = MarkdownIt().use(observation_plugin).use(relation_plugin)
 
-    def get_path_id(self, file_path: Path) -> str:
-        """Get path_id from file path relative to base_path.
+    def get_permalink(self, file_path: Path) -> str:
+        """Get permalink from file path relative to base_path.
 
         Example:
             base_path: /project/root
@@ -61,13 +59,13 @@ class EntityParser:
         post = frontmatter.load(str(file_path))
 
         # Extract or generate required fields
-        path_id = post.metadata.get("id") or self.get_path_id(file_path)
+        permalink = post.metadata.get("id") or self.get_permalink(file_path)
         stats = file_path.stat()
 
         # Parse frontmatter
         entity_frontmatter = EntityFrontmatter(
             type=str(post.metadata.get("type", "note")),
-            id=path_id,
+            id=permalink,
             title=str(post.metadata.get("title", file_path.name)),
             created=self.parse_date(post.metadata.get("created"))
             or datetime.fromtimestamp(stats.st_ctime),

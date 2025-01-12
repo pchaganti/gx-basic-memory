@@ -1,6 +1,5 @@
 """Service for file operations with checksum tracking."""
 
-from datetime import datetime, UTC
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 
@@ -31,12 +30,11 @@ class FileService:
         self.base_path = base_path
         self.knowledge_writer = knowledge_writer
 
-
     def get_entity_path(self, entity: EntityModel) -> Path:
         """Generate filesystem path for entity."""
         if entity.file_path:
             return self.base_path / entity.file_path
-        return self.base_path / f"{entity.path_id}.md"
+        return self.base_path / f"{entity.permalink}.md"
 
     async def write_entity_file(
         self,
@@ -62,12 +60,11 @@ class FileService:
             logger.error(f"Failed to write entity file: {e}")
             raise FileOperationError(f"Failed to write entity file: {e}")
 
-
     async def read_entity_content(self, entity: EntityModel) -> str:
         """Get entity's content if it's a note.
 
         Args:
-            path_id: Entity's path ID
+            permalink: Entity's path ID
 
         Returns:
             content without frontmatter
@@ -75,7 +72,7 @@ class FileService:
         Raises:
             FileOperationError: If entity file doesn't exist
         """
-        logger.debug(f"Reading entity with path_id: {entity.path_id}")
+        logger.debug(f"Reading entity with permalink: {entity.permalink}")
 
         # For notes, read the actual file content
         file_path = self.get_entity_path(entity)
@@ -86,7 +83,6 @@ class FileService:
             content = content.strip()
         return content
 
-
     async def delete_entity_file(self, entity: EntityModel) -> None:
         """Delete entity file from filesystem."""
         try:
@@ -95,7 +91,6 @@ class FileService:
         except Exception as e:
             logger.error(f"Failed to delete entity file: {e}")
             raise FileOperationError(f"Failed to delete entity file: {e}")
-
 
     async def exists(self, path: Path) -> bool:
         """
@@ -265,7 +260,7 @@ class FileService:
     ) -> str:
         """
         Add YAML frontmatter to content.
-        
+
         Args:
             content: Content to add frontmatter to
             frontmatter: Frontmatter to add

@@ -13,7 +13,6 @@ from sqlalchemy import (
     DateTime,
     Index,
     JSON,
-    CheckConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,14 +26,14 @@ class Entity(Base):
 
     Entities represent semantic nodes maintained by the AI layer. Each entity:
     - Has a unique numeric ID (database-generated)
-    - Maps to a file on disk 
+    - Maps to a file on disk
     - Maintains a checksum for change detection
     - Tracks both source file and semantic properties
     """
 
     __tablename__ = "entity"
     __table_args__ = (
-        UniqueConstraint("path_id", name="uix_entity_path_id"),  # Make path_id unique
+        UniqueConstraint("permalink", name="uix_entity_permalink"),  # Make permalink unique
         Index("ix_entity_type", "entity_type"),
         Index("ix_entity_created_at", "created_at"),  # For timeline queries
         Index("ix_entity_updated_at", "updated_at"),  # For timeline queries
@@ -48,12 +47,12 @@ class Entity(Base):
     content_type: Mapped[str] = mapped_column(String)
 
     # Normalized path for URIs
-    path_id: Mapped[str] = mapped_column(String, unique=True, index=True)
+    permalink: Mapped[str] = mapped_column(String, unique=True, index=True)
     # Actual filesystem relative path
     file_path: Mapped[str] = mapped_column(String, unique=True, index=True)
     # checksum of file
     checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    
+
     # Content summary
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
@@ -96,6 +95,7 @@ class ObservationCategory(str, Enum):
     ISSUE = "issue"
     TODO = "todo"
 
+
 class Observation(Base):
     """
     An observation about an entity.
@@ -122,12 +122,9 @@ class Observation(Base):
     )
     context: Mapped[str] = mapped_column(Text, nullable=True)
     tags: Mapped[Optional[list[str]]] = mapped_column(
-        JSON,
-        nullable=True,
-        default=list,
-        server_default='[]'
+        JSON, nullable=True, default=list, server_default="[]"
     )
-    
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")

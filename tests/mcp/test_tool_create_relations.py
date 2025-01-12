@@ -30,8 +30,8 @@ async def test_create_basic_relation(client):
     assert len(result.entities) == 2
 
     # Find source and target entities
-    source = next(e for e in result.entities if e.path_id == "source_entity")
-    target = next(e for e in result.entities if e.path_id == "target_entity")
+    source = next(e for e in result.entities if e.permalink == "source_entity")
+    target = next(e for e in result.entities if e.permalink == "target_entity")
 
     # Both entities should have the relation for bi-directional navigation
     assert len(source.relations) == 1
@@ -74,8 +74,8 @@ async def test_create_relation_with_context(client):
     )
     result = await create_relations(relation_request)
 
-    source = next(e for e in result.entities if e.path_id == "source")
-    target = next(e for e in result.entities if e.path_id == "target")
+    source = next(e for e in result.entities if e.permalink == "source")
+    target = next(e for e in result.entities if e.permalink == "target")
 
     # Both entities should have the relation with context
     assert len(source.relations) == 1
@@ -109,9 +109,9 @@ async def test_create_multiple_relations(client):
     assert len(result.entities) == 3
 
     # Get entities
-    entity1 = next(e for e in result.entities if e.path_id == "entity1")
-    entity2 = next(e for e in result.entities if e.path_id == "entity2")
-    entity3 = next(e for e in result.entities if e.path_id == "entity3")
+    entity1 = next(e for e in result.entities if e.permalink == "entity1")
+    entity2 = next(e for e in result.entities if e.permalink == "entity2")
+    entity3 = next(e for e in result.entities if e.permalink == "entity3")
 
     # Entity1 and Entity2 should share the connects_to relation
     assert len(entity1.relations) == 1
@@ -146,8 +146,8 @@ async def test_create_bidirectional_relations(client):
     )
     result = await create_relations(relation_request)
 
-    service = next(e for e in result.entities if e.path_id == "service")
-    database = next(e for e in result.entities if e.path_id == "database")
+    service = next(e for e in result.entities if e.permalink == "service")
+    database = next(e for e in result.entities if e.permalink == "database")
 
     # Each entity should have both relations for full navigation
     assert len(service.relations) == 2

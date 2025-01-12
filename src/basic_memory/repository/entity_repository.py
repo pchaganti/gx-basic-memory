@@ -2,7 +2,7 @@
 
 from typing import List, Optional, Sequence
 
-from sqlalchemy import select, or_, asc, desc
+from sqlalchemy import select, or_, asc
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.interfaces import LoaderOption
@@ -18,16 +18,16 @@ class EntityRepository(Repository[Entity]):
         """Initialize with session maker."""
         super().__init__(session_maker, Entity)
 
-    async def get_by_path_id(self, path_id: str) -> Optional[Entity]:
-        """Get entity by path_id."""
-        query = self.select().where(Entity.path_id == path_id).options(*self.get_load_options())
+    async def get_by_permalink(self, permalink: str) -> Optional[Entity]:
+        """Get entity by permalink."""
+        query = self.select().where(Entity.permalink == permalink).options(*self.get_load_options())
         return await self.find_one(query)
 
     async def list_entities(
-            self,
-            entity_type: Optional[str] = None,
-            sort_by: Optional[str] = "updated_at",
-            include_related: bool = False,
+        self,
+        entity_type: Optional[str] = None,
+        sort_by: Optional[str] = "updated_at",
+        include_related: bool = False,
     ) -> Sequence[Entity]:
         """List all entities, optionally filtered by type and sorted."""
         query = self.select()
@@ -44,8 +44,12 @@ class EntityRepository(Repository[Entity]):
                 query = query.where(
                     or_(
                         Entity.entity_type == entity_type,
-                        Entity.outgoing_relations.any(Relation.to_entity.has(entity_type=entity_type)),
-                        Entity.incoming_relations.any(Relation.from_entity.has(entity_type=entity_type))
+                        Entity.outgoing_relations.any(
+                            Relation.to_entity.has(entity_type=entity_type)
+                        ),
+                        Entity.incoming_relations.any(
+                            Relation.from_entity.has(entity_type=entity_type)
+                        ),
                     )
                 )
             else:
@@ -111,28 +115,30 @@ class EntityRepository(Repository[Entity]):
             selectinload(Entity.incoming_relations).selectinload(Relation.to_entity),
         ]
 
-    async def find_by_path_ids(self, path_ids: List[str]) -> Sequence[Entity]:
-        """Find multiple entities by their path_id."""
+    async def find_by_permalinks(self, permalinks: List[str]) -> Sequence[Entity]:
+        """Find multiple entities by their permalink."""
 
         # Handle empty input explicitly
-        if not path_ids:
+        if not permalinks:
             return []
 
         # Use existing select pattern
-        query = self.select().options(*self.get_load_options()).where(Entity.path_id.in_(path_ids))
+        query = (
+            self.select().options(*self.get_load_options()).where(Entity.permalink.in_(permalinks))
+        )
 
         result = await self.execute_query(query)
         return list(result.scalars().all())
 
-    async def delete_by_path_ids(self, path_ids: List[str]) -> int:
-        """Delete multiple entities by path_id."""
+    async def delete_by_permalinks(self, permalinks: List[str]) -> int:
+        """Delete multiple entities by permalink."""
 
         # Handle empty input explicitly
-        if not path_ids:
+        if not permalinks:
             return 0
 
         # Find matching entities
-        entities = await self.find_by_path_ids(path_ids)
+        entities = await self.find_by_permalinks(permalinks)
         if not entities:
             return 0
 

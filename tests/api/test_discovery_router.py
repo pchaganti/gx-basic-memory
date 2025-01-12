@@ -20,7 +20,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             entity_type="test",
             content_type="text/markdown",
             summary="Core memory service",
-            path_id="component/memory_service",
+            permalink="component/memory_service",
             file_path="component/memory_service.md",
             observations=[
                 Observation(category="tech", content="Using SQLite for storage"),
@@ -32,7 +32,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             entity_type="test",
             content_type="text/markdown",
             summary="File format spec",
-            path_id="spec/file_format",
+            permalink="spec/file_format",
             file_path="spec/file_format.md",
             observations=[
                 Observation(category="feature", content="Support for frontmatter"),
@@ -44,7 +44,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             entity_type="test",
             content_type="text/markdown",
             summary="Architecture decision",
-            path_id="decision/tech_choice",
+            permalink="decision/tech_choice",
             file_path="decision/tech_choice.md",
             observations=[
                 Observation(category="note", content="Team discussed options"),
@@ -57,7 +57,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             entity_type="test",
             content_type="text/markdown",
             summary="API layer",
-            path_id="component/api_service",
+            permalink="component/api_service",
             file_path="component/api_service.md",
             observations=[
                 Observation(category="tech", content="FastAPI based"),
@@ -143,12 +143,12 @@ async def test_list_entities_with_sorting(client: AsyncClient, test_entities):
     names = [e.name for e in data.entities]
     assert names == sorted(names)  # Should be alphabetical
 
-    # Sort by path_id
-    response = await client.get("/discovery/entities/technical_component?sort_by=path_id")
+    # Sort by permalink
+    response = await client.get("/discovery/entities/technical_component?sort_by=permalink")
     assert response.status_code == 200
     data = TypedEntityList.model_validate(response.json())
-    path_ids = [e.path_id for e in data.entities]
-    assert path_ids == sorted(path_ids)
+    permalinks = [e.permalink for e in data.entities]
+    assert permalinks == sorted(permalinks)
 
 
 async def test_list_entities_empty_type(client: AsyncClient, test_entities):

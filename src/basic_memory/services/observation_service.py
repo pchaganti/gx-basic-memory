@@ -32,7 +32,7 @@ class ObservationService(BaseService[ObservationRepository]):
         self.file_operations = file_service
 
     async def add_observations(
-        self, path_id: str, observations: List[ObservationCreate], context: str | None = None
+        self, permalink: str, observations: List[ObservationCreate], context: str | None = None
     ) -> EntityModel:
         """Add observations to entity and update its file.
 
@@ -41,17 +41,17 @@ class ObservationService(BaseService[ObservationRepository]):
         - [category] Content text #tag1 #tag2 (optional context)
 
         Args:
-            path_id: Entity path ID
+            permalink: Entity path ID
             observations: List of observations with categories
             context: Optional shared context for all observations
         """
-        logger.debug(f"Adding observations to entity: {path_id}")
+        logger.debug(f"Adding observations to entity: {permalink}")
 
         try:
             # Get entity to update
-            entity = await self.entity_repository.get_by_path_id(path_id)
+            entity = await self.entity_repository.get_by_permalink(permalink)
             if not entity:
-                raise EntityNotFoundError(f"Entity not found: {path_id}")
+                raise EntityNotFoundError(f"Entity not found: {permalink}")
 
             # Add observations to DB
             await self.repository.create_all(
@@ -68,33 +68,33 @@ class ObservationService(BaseService[ObservationRepository]):
             )
 
             # Get updated entity
-            entity = await self.entity_repository.get_by_path_id(path_id)
+            entity = await self.entity_repository.get_by_permalink(permalink)
 
             # Write updated file and checksum
             _, checksum = await self.file_operations.write_entity_file(entity)
             await self.entity_repository.update(entity.id, {"checksum": checksum})
 
             # Return final entity with all updates and relations
-            return await self.entity_repository.get_by_path_id(path_id)
+            return await self.entity_repository.get_by_permalink(permalink)
 
         except Exception as e:
             logger.error(f"Failed to add observations: {e}")
             raise
 
-    async def delete_observations(self, path_id: str, observations: List[str]) -> EntityModel:
+    async def delete_observations(self, permalink: str, observations: List[str]) -> EntityModel:
         """Delete observations from entity and update its file.
 
         Args:
-            path_id: Entity path ID
+            permalink: Entity path ID
             observations: List of observation contents to delete
         """
-        logger.debug(f"Deleting observations from entity {path_id}")
+        logger.debug(f"Deleting observations from entity {permalink}")
 
         try:
             # Get entity
-            entity = await self.entity_repository.get_by_path_id(path_id)
+            entity = await self.entity_repository.get_by_permalink(permalink)
             if not entity:
-                raise EntityNotFoundError(f"Entity not found: {path_id}")
+                raise EntityNotFoundError(f"Entity not found: {permalink}")
 
             # Delete observations from DB by comparing the string value to the Observation content
             for observation in observations:
@@ -107,7 +107,7 @@ class ObservationService(BaseService[ObservationRepository]):
             await self.entity_repository.update(entity.id, {"checksum": checksum})
 
             # Return final entity with all updates
-            return await self.entity_repository.get_by_path_id(path_id)
+            return await self.entity_repository.get_by_permalink(permalink)
 
         except Exception as e:
             logger.error(f"Failed to delete observations: {e}")

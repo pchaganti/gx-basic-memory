@@ -28,7 +28,7 @@ by_type = defaultdict(list)
 
 for result in results.results:
     meta = result.metadata
-    path = result.path_id
+    path = result.permalink
     
     # Group by status if available
     if "status" in meta:
@@ -78,7 +78,7 @@ sorted_results = sorted(
 
 print("Recent Changes:")
 for result in sorted_results:
-    print(f"\\n{result.path_id}")
+    print(f"\\n{result.permalink}")
     print(f"Type: {result.type}")
     print(f"Score: {result.score:.2f}")
     if "updated_at" in result.metadata:
@@ -112,7 +112,7 @@ docs.sort(key=lambda x: x.score)
 
 print("Technical Documentation:")
 for doc in docs:
-    print(f"\\n{doc.path_id}")
+    print(f"\\n{doc.permalink}")
     if "title" in doc.metadata:
         print(f"Title: {doc.metadata['title']}")
     print(f"Score: {doc.score:.2f}")
@@ -125,7 +125,7 @@ for doc in docs:
             "description": "Find content related to a specific entity",
             "code": """
 # First get the entity to extract key terms
-entity = await get_entity(path_id="component/memory_service")
+entity = await get_entity(permalink="component/memory_service")
 
 if entity:
     # Build search terms from entity info
@@ -143,12 +143,12 @@ if entity:
     )
     
     # Filter out the original entity and sort by relevance
-    related = [r for r in results.results if r.path_id != entity["path_id"]]
+    related = [r for r in results.results if r.permalink != entity["permalink"]]
     related.sort(key=lambda x: x.score)
 
     print(f"Content Related to {entity['name']}:")
     for result in related[:5]:  # Top 5 most relevant
-        print(f"\\n{result.path_id}")
+        print(f"\\n{result.permalink}")
         print(f"Type: {result.type}")
         print(f"Score: {result.score:.2f}")
 """,
@@ -156,7 +156,6 @@ if entity:
     ],
 )
 async def search(query: SearchQuery) -> SearchResponse:
-
     """Search across all content in basic-memory.
 
     Args:
@@ -175,7 +174,7 @@ async def search(query: SearchQuery) -> SearchResponse:
 
 @mcp.tool(
     category="search",
-    description="Load multiple entities by their path_ids in a single request",
+    description="Load multiple entities by their permalinks in a single request",
     examples=[
         {
             "name": "Load and Analyze Entity Context",
@@ -192,9 +191,9 @@ results = await search(
 
 if results.results:
     # Load full context for found entities
-    path_ids = [r.path_id for r in results.results]
+    permalinks = [r.permalink for r in results.results]
     context = await open_nodes(
-        request=OpenNodesRequest(path_ids=path_ids)
+        request=OpenNodesRequest(permalinks=permalinks)
     )
     
     # Analyze relationships
@@ -219,10 +218,10 @@ if results.results:
     ],
 )
 async def open_nodes(request: OpenNodesRequest) -> EntityListResponse:
-    """Load multiple entities by their path_ids.
+    """Load multiple entities by their permalinks.
 
     Args:
-        request: OpenNodesRequest containing list of path_ids to load
+        request: OpenNodesRequest containing list of permalinks to load
 
     Returns:
         EntityListResponse containing complete details for each requested entity

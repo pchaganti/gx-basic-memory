@@ -1,4 +1,5 @@
 """Repository for managing Relation objects."""
+
 from sqlalchemy import and_, delete
 from typing import Sequence, List, Optional
 
@@ -18,7 +19,9 @@ class RelationRepository(Repository[Relation]):
     def __init__(self, session_maker: async_sessionmaker):
         super().__init__(session_maker, Relation)
 
-    async def find_relation(self, from_path_id: str, to_path_id: str, relation_type: str) -> Optional[Relation]:
+    async def find_relation(
+        self, from_permalink: str, to_permalink: str, relation_type: str
+    ) -> Optional[Relation]:
         """Find a relation by its from and to path IDs."""
         from_entity = aliased(Entity)
         to_entity = aliased(Entity)
@@ -29,9 +32,9 @@ class RelationRepository(Repository[Relation]):
             .join(to_entity, Relation.to_id == to_entity.id)
             .where(
                 and_(
-                    from_entity.path_id == from_path_id,
-                    to_entity.path_id == to_path_id,
-                    Relation.relation_type == relation_type
+                    from_entity.permalink == from_permalink,
+                    to_entity.permalink == to_permalink,
+                    Relation.relation_type == relation_type,
                 )
             )
         )
@@ -62,9 +65,7 @@ class RelationRepository(Repository[Relation]):
         as these are the ones owned by this entity's markdown file.
         """
         async with db.scoped_session(self.session_maker) as session:
-            await session.execute(
-                delete(Relation).where(Relation.from_id == entity_id)
-            )
+            await session.execute(delete(Relation).where(Relation.from_id == entity_id))
 
     def get_load_options(self) -> List[LoaderOption]:
         return [selectinload(Relation.from_entity), selectinload(Relation.to_entity)]

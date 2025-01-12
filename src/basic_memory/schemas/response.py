@@ -11,12 +11,11 @@ Key Features:
 4. Bulk operations return all affected items
 """
 
-import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 
 from pydantic import BaseModel, ConfigDict, Field, AliasPath, AliasChoices
 
-from basic_memory.schemas.base import Observation, Relation, PathId, Entity, EntityType, ContentType
+from basic_memory.schemas.base import Relation, PathId, EntityType, ContentType
 from basic_memory.schemas.request import ObservationCreate
 
 
@@ -44,6 +43,7 @@ class ObservationResponse(ObservationCreate, SQLAlchemyModel):
         "context": "Initial database design meeting"
     }
     """
+
     context: Optional[str] = None
 
 
@@ -61,20 +61,21 @@ class RelationResponse(Relation, SQLAlchemyModel):
         "context": "Comprehensive test suite"
     }
     """
+
     from_id: PathId = Field(
-        # use the path_id from the associated Entity
+        # use the permalink from the associated Entity
         # or the from_id value
         validation_alias=AliasChoices(
-            AliasPath('from_entity', 'path_id'),  
-            'from_id',  
+            AliasPath("from_entity", "permalink"),
+            "from_id",
         )
     )
     to_id: PathId = Field(
-        # use the path_id from the associated Entity
+        # use the permalink from the associated Entity
         # or the to_id value
         validation_alias=AliasChoices(
-            AliasPath('to_entity', 'path_id'),  
-            'to_id',  
+            AliasPath("to_entity", "permalink"),
+            "to_id",
         )
     )
 
@@ -90,7 +91,7 @@ class EntityResponse(SQLAlchemyModel):
 
     Example Response:
     {
-        "path_id": "component/memory_service",
+        "permalink": "component/memory_service",
         "title": "MemoryService",
         "entity_type": "component",
         "description": "Core persistence service",
@@ -117,8 +118,8 @@ class EntityResponse(SQLAlchemyModel):
     }
     """
 
-    # Note this Class does not inherit form Entity because of the Entity.path_id semantics
-    path_id: PathId
+    # Note this Class does not inherit form Entity because of the Entity.permalink semantics
+    permalink: PathId
     title: str
     entity_type: EntityType
     entity_metadata: Optional[Dict] = None
@@ -133,14 +134,14 @@ class EntityListResponse(SQLAlchemyModel):
     """Response for create_entities operation.
 
     Returns complete information about entities returned from the service,
-    including their path_ids, observations,
+    including their permalinks, observations,
     and any established relations.
 
     Example Response:
     {
         "entities": [
             {
-                "path_id": "component/search_service",
+                "permalink": "component/search_service",
                 "title": "SearchService",
                 "entity_type": "component",
                 "description": "Knowledge graph search",
@@ -152,7 +153,7 @@ class EntityListResponse(SQLAlchemyModel):
                 "relations": []
             },
             {
-                "path_id": "document/api_docs",
+                "permalink": "document/api_docs",
                 "title": "API_Documentation",
                 "entity_type": "document",
                 "description": "API Reference",
@@ -180,7 +181,7 @@ class SearchNodesResponse(SQLAlchemyModel):
     {
         "matches": [
             {
-                "path_id": "component/memory_service",
+                "permalink": "component/memory_service",
                 "title": "MemoryService",
                 "entity_type": "component",
                 "description": "Core service",
@@ -199,7 +200,6 @@ class SearchNodesResponse(SQLAlchemyModel):
     query: str
 
 
-
 class DeleteEntitiesResponse(SQLAlchemyModel):
     """Response indicating successful entity deletion.
 
@@ -213,4 +213,3 @@ class DeleteEntitiesResponse(SQLAlchemyModel):
     """
 
     deleted: bool
-
