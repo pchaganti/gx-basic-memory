@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from basic_memory import db
 from basic_memory.models import Entity, Observation, Relation
+from basic_memory.models.knowledge import generate_permalink
 from basic_memory.repository.entity_repository import EntityRepository
 
 
@@ -447,3 +448,81 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
     core_service = next(e for e in services_and_related if e.title == "core_service")
     assert len(core_service.outgoing_relations) > 0  # Has incoming relation from config
     assert len(core_service.incoming_relations) > 0  # Has outgoing relation to db
+
+
+@pytest.mark.asyncio
+async def test_create_entity_with_invalid_permalink(entity_repository: EntityRepository):
+    """Test that creating an entity with invalid permalink raises error."""
+    with pytest.raises(ValueError, match="Invalid permalink format"):
+        await entity_repository.create({
+            "title": "Test",
+            "entity_type": "test",
+            "permalink": "Test/Invalid!!",  # Invalid permalink
+            "file_path": "test/test.md",
+            "content_type": "text/markdown",
+        })
+
+
+@pytest.mark.asyncio
+async def test_generate_permalink_from_file_path():
+    """Test permalink generation from different file paths."""
+    test_cases = [
+        ("docs/My Feature.md", "docs/my-feature"),
+        ("specs/API (v2).md", "specs/api-v2"),
+        ("notes/2024/Q1 Planning!!!.md", "notes/2024/q1-planning"),
+        ("test/Über File.md", "test/uber-file"),
+        ("docs/my_feature_name.md", "docs/my_feature_name"),
+        ("specs/multiple--dashes.md", "specs/multiple-dashes"),
+        ("notes/trailing/space/ file.md", "notes/trailing/space/file"),
+    ]
+
+    for input_path, expected in test_cases:
+        result = generate_permalink(input_path)
+        assert result == expected, f"Failed for {input_path}"
+        # Verify the result passes validation
+        Entity(
+            title="test",
+            entity_type="test",
+            permalink=result,
+            file_path=input_path,
+            content_type="text/markdown"
+        )  # This will raise ValueError if invalid
+
+
+@pytest.mark.asyncio
+async def test_get_by_title(entity_repository: EntityRepository, session_maker):
+    """Test getting an entity by title."""
+    # Create test entities
+    async with db.scoped_session(session_maker) as session:
+        entities = [
+            Entity(
+                title="Unique Title",
+                entity_type="test",
+                permalink="test/unique-title",
+                file_path="test/unique-title.md",
+                content_type="text/markdown",
+            ),
+            Entity(
+                title="Another Title",
+                entity_type="test",
+                permalink="test/another-title",
+                file_path="test/another-title.md",
+                content_type="text/markdown",
+            ),
+        ]
+        session.add_all(entities)
+        await session.flush()
+
+    # Test getting by exact title
+    found = await entity_repository.get_by_title("Unique Title")
+    assert found is not None
+    assert found.title == "Unique Title"
+
+    # Test case sensitivity
+    found = await entity_repository.get_by_title("unique title")
+    assert found is None  # Should be case-sensitive
+
+    # Test non-existent title
+    found = await entity_repository.get_by_title("Non Existent")
+    assert found is None
+

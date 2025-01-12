@@ -1,7 +1,10 @@
 """Knowledge graph models."""
 
+import re
+import os
 from datetime import datetime
 from typing import Optional
+from unidecode import unidecode
 
 from sqlalchemy import (
     Integer,
@@ -14,10 +17,47 @@ from sqlalchemy import (
     Index,
     JSON,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from basic_memory.models.base import Base
 from enum import Enum
+
+
+def generate_permalink(file_path: str) -> str:
+    """Generate a stable permalink from a file path.
+    
+    Args:
+        file_path: Original file path
+        
+    Returns:
+        Normalized permalink that matches validation rules
+        
+    Examples:
+        >>> generate_permalink("docs/My Feature.md")
+        'docs/my-feature'
+        >>> generate_permalink("specs/API (v2).md")
+        'specs/api-v2'
+    """
+    # Remove extension
+    base = os.path.splitext(file_path)[0]
+    
+    # Transliterate unicode to ascii
+    ascii_text = unidecode(base)
+    
+    # Convert to lowercase
+    lower_text = ascii_text.lower()
+    
+    # Replace spaces and invalid chars with hyphens
+    clean_text = re.sub(r'[^a-z0-9/\-_]', '-', lower_text)
+    
+    # Collapse multiple hyphens
+    clean_text = re.sub(r'-+', '-', clean_text)
+    
+    # Clean each path segment
+    segments = clean_text.split('/')
+    clean_segments = [s.strip('-') for s in segments]
+    
+    return '/'.join(clean_segments)
 
 
 class Entity(Base):
@@ -35,6 +75,7 @@ class Entity(Base):
     __table_args__ = (
         UniqueConstraint("permalink", name="uix_entity_permalink"),  # Make permalink unique
         Index("ix_entity_type", "entity_type"),
+        Index("ix_entity_title", "title"),
         Index("ix_entity_created_at", "created_at"),  # For timeline queries
         Index("ix_entity_updated_at", "updated_at"),  # For timeline queries
     )
@@ -82,6 +123,23 @@ class Entity(Base):
     @property
     def relations(self):
         return self.incoming_relations + self.outgoing_relations
+
+    @validates('permalink')
+    def validate_permalink(self, key, value):
+        """Validate permalink format.
+        
+        Requirements:
+        1. Must be valid URI path component
+        2. Only lowercase letters, numbers, hyphens, and underscores
+        3. Path segments separated by forward slashes
+        4. No leading/trailing hyphens in segments
+        """
+        if not re.match(r'^[a-z0-9][a-z0-9\-_/]*[a-z0-9]$', value):
+            raise ValueError(
+                f"Invalid permalink format: {value}. "
+                "Use only lowercase letters, numbers, hyphens, and underscores."
+            )
+        return value
 
     def __repr__(self) -> str:
         return f"Entity(id={self.id}, name='{self.title}', type='{self.entity_type}', summary='{self.summary}')"
