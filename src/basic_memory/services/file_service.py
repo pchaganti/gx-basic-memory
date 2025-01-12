@@ -80,9 +80,11 @@ class FileService:
         # For notes, read the actual file content
         file_path = self.get_entity_path(entity)
         content, _ = await self.read_file(file_path)
-        # Strip frontmatter from content
-        _, _, content = content.split("---", 2)
-        return content.strip()
+        if "---" in content:
+            # Strip frontmatter from content
+            _, _, content = content.split("---", 2)
+            content = content.strip()
+        return content
 
 
     async def delete_entity_file(self, entity: EntityModel) -> None:
