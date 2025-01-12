@@ -23,7 +23,7 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
         return obs.category
 
     model = EntityModel(
-        name=markdown.frontmatter.title,
+        title=markdown.frontmatter.title,
         entity_type=markdown.frontmatter.type,
         path_id=markdown.frontmatter.id,
         file_path=file_path,
@@ -82,7 +82,7 @@ class EntitySyncService:
             raise EntityNotFoundError(f"Entity not found: {path_id}")
 
         # Update fields from markdown
-        db_entity.name = markdown.frontmatter.title
+        db_entity.title = markdown.frontmatter.title
         db_entity.entity_type = markdown.frontmatter.type
         db_entity.summary = markdown.content.content
 
@@ -106,7 +106,7 @@ class EntitySyncService:
         return await self.entity_repository.update(
             db_entity.id,
             {
-                "name": db_entity.name,
+                "name": db_entity.title,
                 "entity_type": db_entity.entity_type,
                 "summary": db_entity.summary,
                 # Mark as incomplete

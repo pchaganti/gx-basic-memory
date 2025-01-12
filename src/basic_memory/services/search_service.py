@@ -54,7 +54,7 @@ class SearchService:
         # Build searchable content
         content = "\n".join(
             [
-                entity.name,
+                entity.title,
                 entity.summary or "",
                 # Add observations
                 *[f"{obs.category}: {obs.content}" for obs in entity.observations],

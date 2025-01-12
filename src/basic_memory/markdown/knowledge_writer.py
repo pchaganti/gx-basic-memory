@@ -60,7 +60,7 @@ class KnowledgeWriter:
         # This prevents duplicate titles when raw content already has a title
         if not (entity.observations or entity.outgoing_relations):
             sections.extend([
-                f"# {entity.name}",
+                f"# {entity.title}",
                 "",  # Empty line after title
             ])
             
@@ -88,7 +88,7 @@ class KnowledgeWriter:
             ])
             
             for rel in entity.outgoing_relations:
-                line = f"- {rel.relation_type} [[{rel.to_entity.name}]]"
+                line = f"- {rel.relation_type} [[{rel.to_entity.title}]]"
                 if rel.context:
                     line += f" ({rel.context})"
                 sections.append(line)
@@ -96,4 +96,4 @@ class KnowledgeWriter:
 
         # Return joined sections, ensure content isn't empty
         content = "\n".join(sections).strip()
-        return content if content else f"# {entity.name}"
+        return content if content else f"# {entity.title}"

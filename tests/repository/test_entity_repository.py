@@ -68,7 +68,7 @@ async def test_create_entity(entity_repository: EntityRepository):
 
     # Verify returned object
     assert entity.id is not None
-    assert entity.name == "Test"
+    assert entity.title == "Test"
     assert entity.summary == "Test description"
     assert isinstance(entity.created_at, datetime)
     assert isinstance(entity.updated_at, datetime)
@@ -78,7 +78,7 @@ async def test_create_entity(entity_repository: EntityRepository):
     assert found is not None
     assert found.id is not None
     assert found.id == entity.id
-    assert found.name == entity.name
+    assert found.title == entity.title
     assert found.summary == entity.summary
 
     # assert relations are eagerly loaded
@@ -117,7 +117,7 @@ async def test_create_all(entity_repository: EntityRepository):
     assert found is not None
     assert found.id is not None
     assert found.id == entity.id
-    assert found.name == entity.name
+    assert found.title == entity.title
     assert found.summary == entity.summary
 
     # assert relations are eagerly loaded
@@ -152,7 +152,7 @@ async def test_find_by_id(entity_repository: EntityRepository, sample_entity: En
     found = await entity_repository.find_by_id(sample_entity.id)
     assert found is not None
     assert found.id == sample_entity.id
-    assert found.name == sample_entity.name
+    assert found.title == sample_entity.title
 
     # Verify against direct database query
     async with db.scoped_session(entity_repository.session_maker) as session:
@@ -160,7 +160,7 @@ async def test_find_by_id(entity_repository: EntityRepository, sample_entity: En
         result = await session.execute(stmt)
         db_entity = result.scalar_one()
         assert db_entity.id == found.id
-        assert db_entity.name == found.name
+        assert db_entity.title == found.title
         assert db_entity.summary == found.summary
 
 
@@ -172,7 +172,7 @@ async def test_update_entity(entity_repository: EntityRepository, sample_entity:
     )
     assert updated is not None
     assert updated.summary == "Updated description"
-    assert updated.name == sample_entity.name  # Other fields unchanged
+    assert updated.title == sample_entity.title  # Other fields unchanged
 
     # Verify in database
     async with db.scoped_session(entity_repository.session_maker) as session:
@@ -180,7 +180,7 @@ async def test_update_entity(entity_repository: EntityRepository, sample_entity:
         result = await session.execute(stmt)
         db_entity = result.scalar_one()
         assert db_entity.summary == "Updated description"
-        assert db_entity.name == sample_entity.name
+        assert db_entity.title == sample_entity.title
 
 
 @pytest.mark.asyncio
@@ -314,21 +314,21 @@ async def test_find_by_path_ids(entity_repository: EntityRepository, test_entiti
     path_ids = [e.path_id for e in test_entities]
     found = await entity_repository.find_by_path_ids(path_ids)
     assert len(found) == 3
-    names = {e.name for e in found}
+    names = {e.title for e in found}
     assert names == {"entity1", "entity2", "entity3"}
 
     # Test finding subset of entities
-    path_ids = [e.path_id for e in test_entities if e.name != "entity2"]
+    path_ids = [e.path_id for e in test_entities if e.title != "entity2"]
     found = await entity_repository.find_by_path_ids(path_ids)
     assert len(found) == 2
-    names = {e.name for e in found}
+    names = {e.title for e in found}
     assert names == {"entity1", "entity3"}
 
     # Test with non-existent entities
     path_ids = ["type1/entity1", "type3/nonexistent"]
     found = await entity_repository.find_by_path_ids(path_ids)
     assert len(found) == 1
-    assert found[0].name == "entity1"
+    assert found[0].title == "entity1"
 
     # Test empty input
     found = await entity_repository.find_by_path_ids([])
@@ -339,14 +339,14 @@ async def test_find_by_path_ids(entity_repository: EntityRepository, test_entiti
 async def test_delete_by_path_ids(entity_repository: EntityRepository, test_entities):
     """Test deleting entities by type/name pairs."""
     # Test deleting multiple entities
-    path_ids = [e.path_id for e in test_entities if e.name != "entity3"]
+    path_ids = [e.path_id for e in test_entities if e.title != "entity3"]
     deleted_count = await entity_repository.delete_by_path_ids(path_ids)
     assert deleted_count == 2
 
     # Verify deletions
     remaining = await entity_repository.find_all()
     assert len(remaining) == 1
-    assert remaining[0].name == "entity3"
+    assert remaining[0].title == "entity3"
 
     # Test deleting non-existent entities
     path__ids = ["type3/nonexistent"]
@@ -433,7 +433,7 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
     # Test 1: List without related entities
     services = await entity_repository.list_entities(entity_type="test", include_related=False)
     assert len(services) == 2
-    service_names = {s.name for s in services}
+    service_names = {s.title for s in services}
     assert service_names == {"service_config", "db_service"}
 
     # Test 2: List services with related entities
@@ -442,10 +442,10 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
     )
     assert len(services_and_related) == 3
     # Should include both services and the config
-    entity_names = {e.name for e in services_and_related}
+    entity_names = {e.title for e in services_and_related}
     assert entity_names == {"core_service", "db_service", "service_config"}
 
     # Test 3: Verify relations are loaded
-    core_service = next(e for e in services_and_related if e.name == "core_service")
+    core_service = next(e for e in services_and_related if e.title == "core_service")
     assert len(core_service.outgoing_relations) > 0  # Has incoming relation from config
     assert len(core_service.incoming_relations) > 0  # Has outgoing relation to db

@@ -96,7 +96,7 @@ class ActivityService:
                     change_type=change_type,
                     timestamp=updated_at,
                     path_id=entity.path_id,
-                    summary=f"{change_type.value.title()} entity: {entity.name}",
+                    summary=f"{change_type.value.title()} entity: {entity.title}",
                     content=entity.summary
                 )
             )

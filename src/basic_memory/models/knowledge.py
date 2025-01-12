@@ -42,7 +42,7 @@ class Entity(Base):
 
     # Core identity
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String)
+    title: Mapped[str] = mapped_column(String)
     entity_type: Mapped[str] = mapped_column(String)
     entity_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     content_type: Mapped[str] = mapped_column(String)
@@ -85,7 +85,7 @@ class Entity(Base):
         return self.incoming_relations + self.outgoing_relations
 
     def __repr__(self) -> str:
-        return f"Entity(id={self.id}, name='{self.name}', type='{self.entity_type}', summary='{self.summary}')"
+        return f"Entity(id={self.id}, name='{self.title}', type='{self.entity_type}', summary='{self.summary}')"
 
 
 class ObservationCategory(str, Enum):

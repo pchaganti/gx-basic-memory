@@ -90,8 +90,8 @@ async def test_create_relations(
     content, _ = await file_service.read_file(file_path)
     
     # verify relation format
-    assert f"- type_0 [[{entity2.name}]] (context_0)" in content
-    assert f"- type_1 [[{entity2.name}]] (context_1)" in content
+    assert f"- type_0 [[{entity2.title}]] (context_0)" in content
+    assert f"- type_1 [[{entity2.title}]] (context_1)" in content
 
     # Verify other entity file is not updated
     found = await entity_service.get_by_path_id(entity2.path_id)

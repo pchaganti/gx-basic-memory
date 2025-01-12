@@ -81,7 +81,7 @@ class EntityRepository(Repository[Entity]):
             self.select()
             .where(
                 or_(
-                    Entity.name.ilike(search_term),
+                    Entity.title.ilike(search_term),
                     Entity.entity_type.ilike(search_term),
                     Entity.summary.ilike(search_term),
                     Entity.observations.any(Observation.content.ilike(search_term)),

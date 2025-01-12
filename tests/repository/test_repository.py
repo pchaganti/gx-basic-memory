@@ -41,7 +41,7 @@ async def test_add(repository):
     # Verify we can find in db
     found = await repository.find_by_id("test_add")
     assert found is not None
-    assert found.name == "Test Add"
+    assert found.title == "Test Add"
 
 
 @pytest.mark.asyncio
@@ -54,7 +54,7 @@ async def test_add_all(repository):
     # Verify we can find them in db
     found = await repository.find_by_id("test_0")
     assert found is not None
-    assert found.name == "Test 0"
+    assert found.title == "Test 0"
 
 
 @pytest.mark.asyncio
@@ -69,7 +69,7 @@ async def test_bulk_create(repository):
     # Verify we can find them in db
     found = await repository.find_by_id("test_0")
     assert found is not None
-    assert found.name == "Test 0"
+    assert found.title == "Test 0"
 
 
 @pytest.mark.asyncio

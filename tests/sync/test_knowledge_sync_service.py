@@ -62,7 +62,7 @@ async def test_create_entity_without_relations(
     entity = await knowledge_sync_service.create_entity_from_markdown("test.md", test_markdown)
 
     # Check basic fields
-    assert entity.name == "Test Entity"
+    assert entity.title == "Test Entity"
     assert entity.entity_type == "knowledge"
     assert entity.path_id == "concept/test_entity"
     assert entity.summary == "A test entity description"
@@ -98,7 +98,7 @@ async def test_update_entity_without_relations(
     )
 
     # Check fields updated
-    assert updated.name == "Updated Title"
+    assert updated.title == "Updated Title"
     assert updated.summary == "Updated description"
     assert len(updated.observations) == 1
     assert updated.observations[0].content == "Updated observation"
