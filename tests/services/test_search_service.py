@@ -138,8 +138,11 @@ async def test_search_filters(indexed_search):
             entity_types=["component"]
         )
     )
-    assert len(results) == 1
-    assert results[0].file_path == "components/core-service.md"
+    assert len(results) == 2
+
+    file_paths = [r.file_path for r in results]
+    assert "components/core-service.md" in file_paths
+    assert "components/auth/service.md" in file_paths
 
     # Search with non-matching type (should return empty)
     results = await indexed_search.search(

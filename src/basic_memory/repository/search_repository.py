@@ -36,7 +36,7 @@ class SearchRepository:
         if query.text:
             search_text = query.text.lower().strip()
             params["text"] = f"{search_text}*"
-            conditions.append("title MATCH :text OR content MATCH :text")
+            conditions.append("(title MATCH :text OR content MATCH :text)")
 
         # Handle type filter
         if query.types:
