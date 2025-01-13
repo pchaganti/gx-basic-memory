@@ -8,8 +8,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory import db
-from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
 from basic_memory.models.search import CREATE_SEARCH_INDEX
+from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
 
 
 class SearchRepository:
@@ -27,46 +27,13 @@ class SearchRepository:
     async def search(
         self, query: SearchQuery, context: Optional[List[str]] = None
     ) -> List[SearchResult]:
-        """Search across all indexed content using FTS5.
-        
-        Uses a three-tier matching strategy:
-        1. title:term matches (highest priority)
-        2. Exact term matches (medium priority)
-        3. Prefix matches (lowest priority)
-        """
+        """Search across all indexed content."""
         conditions = []
         params = {}
 
-        # Handle text search with fuzzy matching
+        # Handle text search
         if query.text:
-            # Prepare search terms
-            search_terms = query.text.lower().split()
-            params["search_terms"] = search_terms
-            
-            # Build match conditions in priority order
-            matches = []
-            
-            # 1. Title field matches (highest weight)
-            title_matches = [f'title:"{term}"' for term in search_terms]
-            if len(search_terms) > 1:
-                # Multi-word title match
-                title_phrase = " ".join(f'title:"{term}"' for term in search_terms)
-                title_matches.append(f'NEAR({title_phrase}, {len(search_terms)})')
-            matches.extend(title_matches)
-            
-            # 2. Exact word matches
-            matches.extend([f'"{term}"' for term in search_terms])
-            if len(search_terms) > 1:
-                # Multi-word proximity match
-                phrase = " ".join(f'"{term}"' for term in search_terms)
-                matches.append(f'NEAR({phrase}, {len(search_terms) * 2})')
-            
-            # 3. Prefix matches
-            matches.extend([f'{term}*' for term in search_terms])
-            
-            # Complete match expression
-            match_expr = " OR ".join(matches)
-            conditions.append(f"content MATCH '{match_expr}'")
+            conditions.append(f"content MATCH '{query.text}'")
 
         # Handle type filter
         if query.types:
@@ -87,26 +54,16 @@ class SearchRepository:
         # Build WHERE clause
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
-        # Build SQL query
         sql = f"""
-            WITH search_results AS (
-                SELECT 
-                    permalink,
-                    file_path,
-                    type,
-                    metadata,
-                    rank
-                FROM search_index 
-                WHERE {where_clause}
-            )
             SELECT 
                 permalink,
                 file_path,
                 type,
                 metadata,
-                rank as score
-            FROM search_results
-            ORDER BY rank ASC
+                bm25(search_index) as score
+            FROM search_index 
+            WHERE {where_clause}
+            ORDER BY score DESC
         """
 
         logger.debug(f"Search query: {sql}")
@@ -129,6 +86,7 @@ class SearchRepository:
 
     async def index_item(
         self,
+        title: str,
         content: str,
         permalink: str,
         file_path: str,

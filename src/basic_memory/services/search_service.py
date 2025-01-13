@@ -50,12 +50,11 @@ class SearchService:
     async def index_entity(
         self, entity: Entity, background_tasks: Optional[BackgroundTasks] = None
     ) -> None:
-        """Index an entity's core identity for fuzzy matching.
+        """Index an entity's content for search.
         
-        Core content:
-        - Original title (lowercase)
-        - Title with field marker (for weighted matching)
-        - Path components as discrete terms
+        Indexes:
+        - Title in dedicated field for better match control
+        - Path components in content field for findability
         """
         # Build searchable content
         content_parts = []
@@ -64,6 +63,7 @@ class SearchService:
         title = entity.title.lower()
         content_parts.extend([
             title,  # Base title
+            entity.summary or "",
             f"title:{title}",  # Field marker for targeted matching
             *title.split(),  # Individual words
         ])
@@ -88,6 +88,7 @@ class SearchService:
         if background_tasks:
             background_tasks.add_task(
                 self._do_index,
+                title=title,
                 content=content,
                 permalink=entity.permalink,
                 file_path=entity.file_path,
@@ -96,6 +97,7 @@ class SearchService:
             )
         else:
             await self._do_index(
+                title=title,
                 content=content,
                 permalink=entity.permalink,
                 file_path=entity.file_path,
@@ -104,10 +106,17 @@ class SearchService:
             )
 
     async def _do_index(
-        self, content: str, permalink: str, file_path: str, type: SearchItemType, metadata: dict
+        self,
+        title: str,
+        content: str,
+        permalink: str,
+        file_path: str,
+        type: SearchItemType,
+        metadata: dict,
     ) -> None:
         """Actually perform the indexing."""
         await self.repository.index_item(
+            title=title,
             content=content,
             permalink=permalink,
             file_path=file_path,
