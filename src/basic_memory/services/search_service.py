@@ -50,43 +50,31 @@ class SearchService:
     async def index_entity(
         self, entity: Entity, background_tasks: Optional[BackgroundTasks] = None
     ) -> None:
-        """Index an entity and its components.
+        """Index an entity's core identity for fuzzy matching.
         
-        Creates multiple variations of content to improve matching:
-        - Core identity (title, permalink)
-        - Path components
-        - Title variations
-        - Observation content
-        - Relation data
+        Core content:
+        - Original title (lowercase)
+        - Title with field marker (for weighted matching)
+        - Path components as discrete terms
         """
+        # Build searchable content
         content_parts = []
         
-        # Core identity - high weight terms
-        weight_prefix = "title:"  # FTS5 will consider this a separate term
+        # Title variations
+        title = entity.title.lower()
         content_parts.extend([
-            entity.title.lower(),  # Original title
-            f"{weight_prefix}{entity.title.lower()}",  # Weighted title
-            entity.permalink.lower(),  # Full permalink
-            *entity.permalink.split("/"),  # Path components
-            entity.permalink.replace("/", " ").lower(),  # Path as search terms
+            title,  # Base title
+            f"title:{title}",  # Field marker for targeted matching
+            *title.split(),  # Individual words
         ])
         
-        # Title variations for fuzzy matching
-        words = entity.title.lower().split()
-        content_parts.extend(words)  # Individual words
-        if len(words) > 1:
-            # Forward word combinations ("auth service" -> "auth", "auth service")
-            content_parts.extend([" ".join(words[:i+1]) for i in range(len(words))])
-            # Backward combinations ("auth service" -> "service", "auth service") 
-            content_parts.extend([" ".join(words[i:]) for i in range(len(words))])
-            
-        # Summary if available
-        if entity.summary:
-            content_parts.extend([
-                entity.summary,
-                entity.summary.lower(),
-            ])
-                
+        # Permalink components
+        permalink = entity.permalink.lower()
+        content_parts.extend([
+            permalink.replace("/", " "),  # Path as search terms
+            *permalink.split("/"),  # Individual path segments
+        ])
+
         # Join all parts and remove empty strings
         content = "\n".join(p for p in content_parts if p and p.strip())
 

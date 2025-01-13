@@ -27,7 +27,13 @@ class SearchRepository:
     async def search(
         self, query: SearchQuery, context: Optional[List[str]] = None
     ) -> List[SearchResult]:
-        """Search across all indexed content using FTS5."""
+        """Search across all indexed content using FTS5.
+        
+        Uses a three-tier matching strategy:
+        1. title:term matches (highest priority)
+        2. Exact term matches (medium priority)
+        3. Prefix matches (lowest priority)
+        """
         conditions = []
         params = {}
 
@@ -37,25 +43,28 @@ class SearchRepository:
             search_terms = query.text.lower().split()
             params["search_terms"] = search_terms
             
-            # Build match criteria
+            # Build match conditions in priority order
             matches = []
-            exact_matches = []
-            prefix_matches = []
             
-            for term in search_terms:
-                exact_matches.append(f'"{term}"')
-                prefix_matches.append(f'{term}*')
-            
-            # Build complete match expression:
-            # 1. Exact terms (highest relevance)
-            matches.extend(exact_matches)
-            # 2. Prefix matches (lower relevance)
-            matches.extend(prefix_matches)
-            # 3. NEAR matches if multiple terms
+            # 1. Title field matches (highest weight)
+            title_matches = [f'title:"{term}"' for term in search_terms]
             if len(search_terms) > 1:
-                phrase = " ".join(exact_matches)
-                matches.append(f"NEAR({phrase}, {len(search_terms) * 2})")
+                # Multi-word title match
+                title_phrase = " ".join(f'title:"{term}"' for term in search_terms)
+                title_matches.append(f'NEAR({title_phrase}, {len(search_terms)})')
+            matches.extend(title_matches)
             
+            # 2. Exact word matches
+            matches.extend([f'"{term}"' for term in search_terms])
+            if len(search_terms) > 1:
+                # Multi-word proximity match
+                phrase = " ".join(f'"{term}"' for term in search_terms)
+                matches.append(f'NEAR({phrase}, {len(search_terms) * 2})')
+            
+            # 3. Prefix matches
+            matches.extend([f'{term}*' for term in search_terms])
+            
+            # Complete match expression
             match_expr = " OR ".join(matches)
             conditions.append(f"content MATCH '{match_expr}'")
 

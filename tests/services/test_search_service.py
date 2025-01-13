@@ -1,3 +1,5 @@
+"""Tests for search service fuzzy matching."""
+
 import pytest
 from datetime import datetime, timezone
 
@@ -11,7 +13,6 @@ from basic_memory.schemas.search import SearchQuery, SearchItemType
 @pytest.fixture
 def test_entity():
     """Create a test entity"""
-
     class Entity:
         id = 1
         title = "TestComponent"
@@ -28,26 +29,130 @@ def test_entity():
 
     return Entity()
 
-
 @pytest.fixture
-def test_document():
-    """Create a test document"""
-
-    class Document:
-        id = 1
-        permalink = "docs/test_doc.md"
-        file_path = "docs/test_doc.md"
-        doc_metadata = {"title": "Test Document", "type": "technical"}
-        created_at = datetime.now(timezone.utc)
-        updated_at = datetime.now(timezone.utc)
-
-    return Document()
+async def test_entities(search_service):
+    """Create a set of test entities with variations."""
+    entities = [
+        # Core services
+        type("Entity", (), {
+            "id": 1,
+            "title": "Core Service",
+            "entity_type": "component",
+            "permalink": "components/core-service",
+            "file_path": "components/core-service.md",
+            "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "observations": [],
+            "relations": [],
+            "summary": "The core service implementation",
+            "entity_metadata": {}
+        })(),
+        # Auth service
+        type("Entity", (), {
+            "id": 2,
+            "title": "Auth Service",
+            "entity_type": "component",
+            "permalink": "components/auth/service",
+            "file_path": "components/auth/service.md",
+            "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "observations": [],
+            "relations": [],
+            "summary": "Authentication service",
+            "entity_metadata": {}
+        })(),
+        # Config service
+        type("Entity", (), {
+            "id": 3,
+            "title": "Service Config",
+            "entity_type": "config",
+            "permalink": "config/service-config",
+            "file_path": "config/service-config.md",
+            "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "observations": [],
+            "relations": [],
+            "summary": "Service configuration",
+            "entity_metadata": {}
+        })(),
+        # Features doc
+        type("Entity", (), {
+            "id": 4,
+            "title": "Core Features",
+            "entity_type": "specs",
+            "permalink": "specs/features/core",
+            "file_path": "specs/features/core.md",
+            "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "observations": [],
+            "relations": [],
+            "summary": "Core feature specifications",
+            "entity_metadata": {}
+        })()
+    ]
+    
+    # Index all entities
+    for entity in entities:
+        await search_service.index_entity(entity)
+        
+    return entities
 
 
 @pytest.mark.asyncio
+async def test_exact_match(search_service, test_entities):
+    """Test exact matching of titles."""
+    results = await search_service.search(SearchQuery(text="Core Service"))
+    assert len(results) == 1
+    assert results[0].permalink == "components/core-service"
+
+
+@pytest.mark.asyncio
+async def test_partial_match(search_service, test_entities):
+    """Test partial matching of titles."""
+    results = await search_service.search(SearchQuery(text="Auth Serv"))
+    assert len(results) == 1
+    assert results[0].permalink == "components/auth/service"
+
+
+@pytest.mark.asyncio
+async def test_misspelling_match(search_service, test_entities):
+    """Test matching with misspellings."""
+    results = await search_service.search(SearchQuery(text="Core Servise"))
+    assert len(results) == 1
+    assert results[0].permalink == "components/core-service"
+
+
+@pytest.mark.asyncio
+async def test_multiple_results_ranking(search_service, test_entities):
+    """Test result ranking with multiple matches."""
+    # Search for 'service' - should find multiple but rank appropriately
+    results = await search_service.search(SearchQuery(text="service"))
+    assert len(results) > 1
+    # Auth service should rank higher than core service
+    auth_idx = next(i for i, r in enumerate(results) if r.permalink == "components/auth/service")
+    core_idx = next(i for i, r in enumerate(results) if r.permalink == "components/core-service")
+    assert auth_idx < core_idx  # Lower index = better rank
+
+
+@pytest.mark.asyncio
+async def test_directory_context(search_service, test_entities):
+    """Test matching with directory context."""
+    results = await search_service.search(
+        SearchQuery(text="Core"),
+        context=["components/"]  # Should prefer matches in components/
+    )
+    assert len(results) > 0
+    assert results[0].permalink.startswith("components/")
+
+
+# Original test_init_search_index
+@pytest.mark.asyncio
 async def test_init_search_index(search_service, session_maker):
     """Test search index initialization"""
-    # Check that table exists
     async with db.scoped_session(session_maker) as session:
         result = await session.execute(
             text("SELECT name FROM sqlite_master WHERE type='table' AND name='search_index';")
@@ -55,6 +160,7 @@ async def test_init_search_index(search_service, session_maker):
         assert result.scalar() == "search_index"
 
 
+# Original test_index_entity
 @pytest.mark.asyncio
 async def test_index_entity(search_service, test_entity):
     """Test indexing an entity"""
@@ -67,6 +173,7 @@ async def test_index_entity(search_service, test_entity):
     assert results[0].type == SearchItemType.ENTITY
 
 
+# Original test_search_filtering
 @pytest.mark.asyncio
 async def test_search_filtering(search_service, test_entity):
     """Test search with filters"""
@@ -83,6 +190,7 @@ async def test_search_filtering(search_service, test_entity):
     assert len(results) == 0
 
 
+# Original test_update_index
 @pytest.mark.asyncio
 async def test_update_index(search_service, test_entity):
     """Test updating indexed content"""
@@ -97,6 +205,7 @@ async def test_update_index(search_service, test_entity):
     assert len(results) == 1
 
 
+# Original test_search_date_filter
 @pytest.mark.asyncio
 async def test_search_date_filter(search_service, test_entity):
     """Test searching with date filter"""
@@ -108,6 +217,7 @@ async def test_search_date_filter(search_service, test_entity):
     assert len(results) == 0
 
 
+# Original test_reindex_all
 @pytest.mark.asyncio
 async def test_reindex_all(search_service, entity_service, session_maker):
     """Test reindexing all content."""
@@ -142,6 +252,7 @@ async def test_reindex_all(search_service, entity_service, session_maker):
     assert entity_results[0].type == SearchItemType.ENTITY
 
 
+# Original test_reindex_with_background_tasks
 @pytest.mark.asyncio
 async def test_reindex_with_background_tasks(search_service, entity_service, session_maker):
     """Test reindexing with background tasks."""
