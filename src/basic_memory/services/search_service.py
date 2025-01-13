@@ -147,3 +147,7 @@ class SearchService:
             type=type,
             metadata=metadata,
         )
+
+    async def delete_by_permalink(self, path_id: str):
+        """Delete an item from the search index."""
+        await self.repository.delete_by_permalink(path_id)
