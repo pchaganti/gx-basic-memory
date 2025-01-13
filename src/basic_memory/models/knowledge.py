@@ -134,6 +134,9 @@ class Entity(Base):
         3. Path segments separated by forward slashes
         4. No leading/trailing hyphens in segments
         """
+        if not value:
+            raise ValueError("Permalink must not be None")
+        
         if not re.match(r'^[a-z0-9][a-z0-9\-_/]*[a-z0-9]$', value):
             raise ValueError(
                 f"Invalid permalink format: {value}. "

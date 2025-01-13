@@ -1,6 +1,6 @@
 """Service for search operations."""
 
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from fastapi import BackgroundTasks
 from loguru import logger
@@ -47,33 +47,57 @@ class SearchService:
         """Search across all indexed content."""
         return await self.repository.search(query, context)
 
+    def _generate_variants(self, text: str) -> Set[str]:
+        """Generate text variants for better fuzzy matching.
+        
+        Creates variations of the text to improve match chances:
+        - Original form
+        - Lowercase form
+        - Path segments (for permalinks)
+        - Common word boundaries
+        """
+        variants = {text, text.lower()}
+        
+        # Add path segments
+        if "/" in text:
+            variants.update(p.strip() for p in text.split("/") if p.strip())
+            
+        # Add word boundaries
+        variants.update(w.strip() for w in text.lower().split() if w.strip())
+        
+        # Add trigrams for fuzzy matching
+        variants.update(text[i:i+3].lower() for i in range(len(text)-2))
+        
+        return variants
+
     async def index_entity(
         self, entity: Entity, background_tasks: Optional[BackgroundTasks] = None
     ) -> None:
         """Index an entity's content for search.
         
         Indexes:
-        - Title in dedicated field for better match control
-        - Path components in content field for findability
+        - Title and its variations for fuzzy matching
+        - Path components for better findability
+        - Content with context preservation
         """
-        # Build searchable content
+        # Generate searchable content with variations
         content_parts = []
         
-        # Title variations
-        title = entity.title.lower()
-        content_parts.extend([
-            title,  # Base title
-            entity.summary or "",
-            f"title:{title}",  # Field marker for targeted matching
-            *title.split(),  # Individual words
-        ])
+        # Add title variations
+        title_variants = self._generate_variants(entity.title)
+        content_parts.extend(title_variants)
         
-        # Permalink components
-        permalink = entity.permalink.lower()
-        content_parts.extend([
-            permalink.replace("/", " "),  # Path as search terms
-            *permalink.split("/"),  # Individual path segments
-        ])
+        # Add summary if available
+        if entity.summary:
+            content_parts.append(entity.summary)
+            
+        # Add permalink variations
+        permalink_variants = self._generate_variants(entity.permalink)
+        content_parts.extend(permalink_variants)
+        
+        # Add file path components
+        path_variants = self._generate_variants(entity.file_path)
+        content_parts.extend(path_variants)
 
         # Join all parts and remove empty strings
         content = "\n".join(p for p in content_parts if p and p.strip())
@@ -88,7 +112,7 @@ class SearchService:
         if background_tasks:
             background_tasks.add_task(
                 self._do_index,
-                title=title,
+                title=entity.title,
                 content=content,
                 permalink=entity.permalink,
                 file_path=entity.file_path,
@@ -97,7 +121,7 @@ class SearchService:
             )
         else:
             await self._do_index(
-                title=title,
+                title=entity.title,
                 content=content,
                 permalink=entity.permalink,
                 file_path=entity.file_path,
@@ -123,7 +147,3 @@ class SearchService:
             type=type,
             metadata=metadata,
         )
-
-    async def delete_by_permalink(self, permalink: str):
-        """Delete an item from the search index."""
-        await self.repository.delete_by_permalink(permalink)

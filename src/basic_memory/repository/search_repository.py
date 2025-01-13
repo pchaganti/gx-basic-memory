@@ -2,6 +2,7 @@
 
 import json
 from typing import List, Optional
+from pathlib import Path
 
 from loguru import logger
 from sqlalchemy import text
@@ -27,17 +28,18 @@ class SearchRepository:
     async def search(
         self, query: SearchQuery, context: Optional[List[str]] = None
     ) -> List[SearchResult]:
-        """Search across all indexed content."""
+        """Search across all indexed content with fuzzy matching."""
         conditions = []
         params = {}
 
         # Handle text search
         if query.text:
-            conditions.append(f"content MATCH '{query.text}'")
+            search_text = query.text.lower().strip()
+            params["text"] = f"{search_text}*"
+            conditions.append("title MATCH :text OR content MATCH :text")
 
         # Handle type filter
         if query.types:
-            # Get string values from enums
             type_list = ", ".join(f"'{t.value}'" for t in query.types)
             conditions.append(f"type IN ({type_list})")
 
@@ -51,6 +53,16 @@ class SearchRepository:
             params["after_date"] = query.after_date
             conditions.append("json_extract(metadata, '$.created_at') > :after_date")
 
+        # Add context-based path matching if context provided
+        if context:
+            context_conditions = []
+            for i, path in enumerate(context):
+                param_name = f"context_{i}"
+                params[param_name] = f"%{Path(path).parent.as_posix()}%"
+                context_conditions.append(f"file_path LIKE :{param_name}")
+            if context_conditions:
+                conditions.append(f"({' OR '.join(context_conditions)})")
+
         # Build WHERE clause
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
@@ -63,7 +75,7 @@ class SearchRepository:
                 bm25(search_index) as score
             FROM search_index 
             WHERE {where_clause}
-            ORDER BY score DESC
+            ORDER BY score ASC
         """
 
         logger.debug(f"Search query: {sql}")
@@ -77,7 +89,7 @@ class SearchRepository:
                 SearchResult(
                     permalink=row.permalink,
                     file_path=row.file_path,
-                    type=SearchItemType(row.type),  # Convert string to enum
+                    type=SearchItemType(row.type),
                     score=row.score,
                     metadata=json.loads(row.metadata),
                 )
@@ -90,7 +102,7 @@ class SearchRepository:
         content: str,
         permalink: str,
         file_path: str,
-        type: SearchItemType,  # Now accepts enum
+        type: SearchItemType,
         metadata: dict,
     ):
         """Index or update a single item."""
@@ -105,16 +117,17 @@ class SearchRepository:
             await session.execute(
                 text("""
                     INSERT INTO search_index (
-                        content, permalink, file_path, type, metadata
+                        title, content, permalink, file_path, type, metadata
                     ) VALUES (
-                        :content, :permalink, :file_path, :type, :metadata
+                        :title, :content, :permalink, :file_path, :type, :metadata
                     )
                 """),
                 {
+                    "title": title,
                     "content": content,
                     "permalink": permalink,
                     "file_path": file_path,
-                    "type": type.value,  # Store the string value
+                    "type": type.value,
                     "metadata": json.dumps(metadata),
                 },
             )
