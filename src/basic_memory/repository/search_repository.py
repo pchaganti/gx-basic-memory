@@ -27,13 +27,37 @@ class SearchRepository:
     async def search(
         self, query: SearchQuery, context: Optional[List[str]] = None
     ) -> List[SearchResult]:
-        """Search across all indexed content."""
+        """Search across all indexed content using FTS5."""
         conditions = []
         params = {}
 
-        # Handle text search
+        # Handle text search with fuzzy matching
         if query.text:
-            conditions.append(f"content MATCH '{query.text}'")
+            # Prepare search terms
+            search_terms = query.text.lower().split()
+            params["search_terms"] = search_terms
+            
+            # Build match criteria
+            matches = []
+            exact_matches = []
+            prefix_matches = []
+            
+            for term in search_terms:
+                exact_matches.append(f'"{term}"')
+                prefix_matches.append(f'{term}*')
+            
+            # Build complete match expression:
+            # 1. Exact terms (highest relevance)
+            matches.extend(exact_matches)
+            # 2. Prefix matches (lower relevance)
+            matches.extend(prefix_matches)
+            # 3. NEAR matches if multiple terms
+            if len(search_terms) > 1:
+                phrase = " ".join(exact_matches)
+                matches.append(f"NEAR({phrase}, {len(search_terms) * 2})")
+            
+            match_expr = " OR ".join(matches)
+            conditions.append(f"content MATCH '{match_expr}'")
 
         # Handle type filter
         if query.types:
@@ -54,17 +78,30 @@ class SearchRepository:
         # Build WHERE clause
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
+        # Build SQL query
         sql = f"""
+            WITH search_results AS (
+                SELECT 
+                    permalink,
+                    file_path,
+                    type,
+                    metadata,
+                    rank
+                FROM search_index 
+                WHERE {where_clause}
+            )
             SELECT 
                 permalink,
                 file_path,
                 type,
                 metadata,
-                bm25(search_index) as score
-            FROM search_index 
-            WHERE {where_clause}
-            ORDER BY score DESC
+                rank as score
+            FROM search_results
+            ORDER BY rank ASC
         """
+
+        logger.debug(f"Search query: {sql}")
+        logger.debug(f"Search params: {params}")
 
         async with db.scoped_session(self.session_maker) as session:
             result = await session.execute(text(sql), params)
