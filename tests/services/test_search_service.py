@@ -71,12 +71,13 @@ async def indexed_search(search_service, test_entities):
 
 
 @pytest.mark.asyncio
-async def test_basic_text_search(indexed_search):
+async def test_basic_text_search(indexed_search, test_entities):
     """Test basic search functionality works as expected."""
     # Test exact word match
     results = await indexed_search.search(SearchQuery(text="API"))
     assert len(results) == 1
     assert results[0].file_path == "docs/api/documentation.md"
+    assert results[0].id == test_entities[-1].id
 
     # Test prefix match (serv should match service)
     results = await indexed_search.search(SearchQuery(text="Serv"))

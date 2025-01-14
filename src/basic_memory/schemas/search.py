@@ -15,7 +15,6 @@ class SearchItemType(str, Enum):
 
 class SearchQuery(BaseModel):
     """Search query parameters."""
-
     text: str
     types: Optional[List[SearchItemType]] = None
     entity_types: Optional[List[str]] = None
@@ -35,6 +34,7 @@ class SearchQuery(BaseModel):
 class SearchResult(BaseModel):
     """Search result item."""
 
+    id: int 
     permalink: str
     file_path: str
     type: SearchItemType

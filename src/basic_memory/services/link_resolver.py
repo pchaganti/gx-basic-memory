@@ -12,7 +12,7 @@ from basic_memory.models.knowledge import generate_permalink
 from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
 
 
-class LinkResolver(BaseService[Entity]):
+class LinkResolver():
     """Service for resolving markdown links to permalinks.
 
     Uses a combination of exact matching and search-based resolution:
@@ -24,60 +24,45 @@ class LinkResolver(BaseService[Entity]):
 
     def __init__(self, entity_repository: EntityRepository, search_service: SearchService):
         """Initialize with repositories."""
-        super().__init__(entity_repository)
+        self.entity_repository = entity_repository
         self.search_service = search_service
 
     async def resolve_link(
         self,
         link_text: str,
-    ) -> str:
+    ) -> Entity:
         """Resolve a markdown link to a permalink.
-
-        Args:
-            link_text: The text content of the link (without brackets)
-            source_permalink: Optional permalink of the source document for context
-
-        Returns:
-            Resolved permalink, or normalized new permalink if no match found
         """
         logger.debug(f"Resolving link: {link_text}")
 
         # Clean link text and extract any alias
         clean_text, alias = self._normalize_link_text(link_text)
 
-        try:
-            # 1. Try exact permalink match first (most efficient)
-            entity = await self.repository.get_by_permalink(clean_text)
-            if entity:
-                logger.debug(f"Found exact permalink match: {entity.permalink}")
-                return entity.permalink
+        # 1. Try exact permalink match first (most efficient)
+        entity = await self.entity_repository.get_by_permalink(clean_text)
+        if entity:
+            logger.debug(f"Found exact permalink match: {entity.permalink}")
+            return entity
 
-            # 2. Try exact title match
-            entity = await self.repository.get_by_title(clean_text)
-            if entity:
-                logger.debug(f"Found title match: {entity.permalink}")
-                return entity.permalink
+        # 2. Try exact title match
+        entity = await self.entity_repository.get_by_title(clean_text)
+        if entity:
+            logger.debug(f"Found title match: {entity.permalink}")
+            return entity
 
-            # 3. Fall back to search for fuzzy matching
-            results = await self.search_service.search(
-                query=SearchQuery(text=clean_text, types=[SearchItemType.ENTITY]),
-            )
+        # 3. Fall back to search for fuzzy matching
+        results = await self.search_service.search(
+            query=SearchQuery(text=clean_text, types=[SearchItemType.ENTITY]),
+        )
 
-            if results:
-                # Look for best match
-                best_match = self._select_best_match(clean_text, results)
-                logger.debug(f"Selected best match from {len(results)} results: {best_match}")
-                return best_match
+        if results:
+            # Look for best match
+            best_match = self._select_best_match(clean_text, results)
+            logger.debug(f"Selected best match from {len(results)} results: {best_match.permalink}")
+            return await self.entity_repository.get_by_permalink(best_match.permalink)
+        
 
-            # No matches found - generate permalink for new entity
-            logger.debug(f"No match found for link: {link_text}")
-            return generate_permalink(f"{clean_text}.md")
-
-        except Exception as e:
-            logger.error(f"Error resolving link {link_text}: {e}")
-            # On error, return normalized version for new entity
-            return generate_permalink(f"{clean_text}.md")
-
+    # TODO replace with search ranking 
     def _normalize_link_text(self, link_text: str) -> Tuple[str, Optional[str]]:
         """Normalize link text and extract alias if present.
 
@@ -103,7 +88,7 @@ class LinkResolver(BaseService[Entity]):
 
         return text, alias
 
-    def _select_best_match(self, search_text: str, results: List[SearchResult]) -> str:
+    def _select_best_match(self, search_text: str, results: List[SearchResult]) -> Entity:
         """Select best match from search results.
 
         Uses multiple criteria:
@@ -136,7 +121,7 @@ class LinkResolver(BaseService[Entity]):
             if last_part == search_text.lower():
                 score *= 0.2
 
-            scored_results.append((score, result.permalink))
+            scored_results.append((score, result))
 
         # Sort by score (lowest first) and return best
         scored_results.sort()

@@ -90,7 +90,7 @@ async def test_missing_sections(tmp_path):
     entity = await parser.parse_file(test_file)
     assert len(entity.content.relations) == 1
     assert entity.content.relations[0].target == "links"
-    assert entity.content.relations[0].type == "mentions"
+    assert entity.content.relations[0].type == "links to"
 
 
 @pytest.mark.asyncio
@@ -175,7 +175,7 @@ async def test_malformed_frontmatter(tmp_path):
     
     parser = EntityParser(tmp_path)
     entity = await parser.parse_file(test_file)
-    assert entity.frontmatter.id == "malformed"  # Generated from filename
+    assert entity.frontmatter.permalink is None
     
 
 @pytest.mark.asyncio

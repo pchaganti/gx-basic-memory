@@ -1,11 +1,14 @@
 """Service for managing entities in the database."""
 
 from loguru import logger
+from sqlalchemy.exc import IntegrityError
 
 from basic_memory.models import Entity as EntityModel, Observation, Relation, ObservationCategory
 from basic_memory.markdown.schemas import EntityMarkdown
+from basic_memory.models.knowledge import generate_permalink
 from basic_memory.repository import EntityRepository, ObservationRepository, RelationRepository
 from basic_memory.services.exceptions import EntityNotFoundError
+from basic_memory.services.link_resolver import LinkResolver
 
 
 def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> EntityModel:
@@ -22,10 +25,12 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
             return ObservationCategory.NOTE.value
         return obs.category
 
+    # TODO handle permalink conflicts
+    permalink = markdown.frontmatter.permalink or generate_permalink(file_path)
     model = EntityModel(
         title=markdown.frontmatter.title,
         entity_type=markdown.frontmatter.type,
-        permalink=markdown.frontmatter.permalink,
+        permalink=permalink,
         file_path=file_path,
         content_type="text/markdown",
         summary=markdown.content.content,
@@ -45,10 +50,12 @@ class EntitySyncService:
         entity_repository: EntityRepository,
         observation_repository: ObservationRepository,
         relation_repository: RelationRepository,
+        link_resolver: LinkResolver,
     ):
         self.entity_repository = entity_repository
         self.observation_repository = observation_repository
         self.relation_repository = relation_repository
+        self.link_resolver = link_resolver
 
     async def delete_entity_by_file_path(self, file_path: str) -> bool:
         return await self.entity_repository.delete_by_file_path(file_path)
@@ -114,44 +121,44 @@ class EntitySyncService:
             },
         )
 
-    async def update_entity_relations(self, file_path: str, markdown: EntityMarkdown) -> EntityModel:
-        """Second pass: Update relations and set checksum.
-        """
+    async def update_entity_relations(
+        self,
+        file_path: str,
+        markdown: EntityMarkdown,
+    ) -> EntityModel:
+        """Update relations for entity"""
         logger.debug(f"Updating relations for entity: {file_path}")
         db_entity = await self.entity_repository.get_by_file_path(file_path)
 
-        # get all entities from relations
-        target_entity_permalinks = [rel.target for rel in markdown.content.relations]
-        target_entities = await self.entity_repository.find_by_permalinks(target_entity_permalinks)
-
-        # dict by path
-        entity_by_path = {e.permalink: e for e in target_entities}
-
-        # Clear and update relations
+        # Clear existing relations first
         await self.relation_repository.delete_outgoing_relations_from_entity(db_entity.id)
 
-        # Use dict to deduplicate relations keyed by (target, type)
-        relation_dict = {}
+        # Process each relation
         for rel in markdown.content.relations:
-            if rel.target not in entity_by_path:
-                continue  # Skip if target doesn't exist
+            # Resolve the target permalink
+            target_entity = await self.link_resolver.resolve_link(
+                rel.target,
+            )
 
-            to_id = entity_by_path[rel.target].id
-            key = (to_id, rel.type)
+            # Look up target entity
+            if not target_entity:
+                logger.warning(f"Skipping relation in {file_path}: target not found: {rel.target}")
+                continue
 
-            # Only keep the first instance of each relation type to a target
-            if key not in relation_dict:
-                relation_dict[key] = Relation(
-                    from_id=db_entity.id,
-                    to_id=to_id,
-                    relation_type=rel.type,
-                    context=rel.context,
+            # Create the relation
+            relation = Relation(
+                from_id=db_entity.id,
+                to_id=target_entity.id,
+                relation_type=rel.type,
+                context=rel.context,
+            )
+            try:
+                await self.relation_repository.add(relation)
+            except IntegrityError:
+                # Unique constraint violation - relation already exists
+                logger.debug(
+                    f"Skipping duplicate relation {rel.type} from {db_entity.permalink} target: {rel.target}, type: {rel.type}"
                 )
-            else:
-                logger.info(
-                    f"Skipping duplicate relation '{rel.type}' to '{rel.target}' in {markdown.frontmatter.id}"
-                )
+                continue
 
-        # Create unique relations
-        await self.relation_repository.add_all(relation_dict.values())
-
+        return await self.entity_repository.get_by_file_path(file_path)

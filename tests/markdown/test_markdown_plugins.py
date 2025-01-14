@@ -120,7 +120,7 @@ def test_inline_relations():
     tokens = md.parse("This references [[Another Doc]].")
     rel_token = next(t for t in tokens if t.meta and 'relations' in t.meta)
     rel = rel_token.meta['relations'][0]
-    assert rel['type'] == 'mentions'
+    assert rel['type'] == 'links to'
     assert rel['target'] == 'Another Doc'
     
     # Multiple inline links
@@ -158,6 +158,6 @@ Some text with a [[Link]].
     
     # Should find all relations (Feature, AnotherDoc, and Link)
     assert len(relations) == 3
-    assert any(r['target'] == 'Link' and r['type'] == 'mentions' for r in relations)
+    assert any(r['target'] == 'Link' and r['type'] == 'links to' for r in relations)
     assert any(r['target'] == 'Feature' for r in relations)
     assert any(r['target'] == 'AnotherDoc' for r in relations)

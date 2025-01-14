@@ -24,6 +24,12 @@ class SearchRepository:
             await session.execute(CREATE_SEARCH_INDEX)
             await session.commit()
 
+    def _quote_search_term(self, term: str) -> str:
+        """Add quotes if term contains special characters."""
+        if any(c in term for c in '/-'):
+            return f'"{term}"'
+        return term
+
     async def search(self, query: SearchQuery) -> List[SearchResult]:
         """Search across all indexed content with fuzzy matching."""
         conditions = []
@@ -31,7 +37,7 @@ class SearchRepository:
 
         # Handle text search
         if query.text:
-            search_text = query.text.lower().strip()
+            search_text = self._quote_search_term(query.text.lower().strip())
             params["text"] = f"{search_text}*"
             conditions.append("(title MATCH :text OR content MATCH :text)")
 
@@ -55,6 +61,7 @@ class SearchRepository:
 
         sql = f"""
             SELECT 
+                id, 
                 permalink,
                 file_path,
                 type,
@@ -74,6 +81,7 @@ class SearchRepository:
 
             return [
                 SearchResult(
+                    id=row.id,
                     permalink=row.permalink,
                     file_path=row.file_path,
                     type=SearchItemType(row.type),
@@ -85,6 +93,7 @@ class SearchRepository:
 
     async def index_item(
         self,
+        id: int,
         title: str,
         content: str,
         permalink: str,
@@ -104,12 +113,13 @@ class SearchRepository:
             await session.execute(
                 text("""
                     INSERT INTO search_index (
-                        title, content, permalink, file_path, type, metadata
+                        id, title, content, permalink, file_path, type, metadata
                     ) VALUES (
-                        :title, :content, :permalink, :file_path, :type, :metadata
+                        :id, :title, :content, :permalink, :file_path, :type, :metadata
                     )
                 """),
                 {
+                    "id": id,
                     "title": title,
                     "content": content,
                     "permalink": permalink,

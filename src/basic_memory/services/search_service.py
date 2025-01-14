@@ -49,7 +49,7 @@ class SearchService:
 
     def _generate_variants(self, text: str) -> Set[str]:
         """Generate text variants for better fuzzy matching.
-        
+
         Creates variations of the text to improve match chances:
         - Original form
         - Lowercase form
@@ -57,24 +57,24 @@ class SearchService:
         - Common word boundaries
         """
         variants = {text, text.lower()}
-        
+
         # Add path segments
         if "/" in text:
             variants.update(p.strip() for p in text.split("/") if p.strip())
-            
+
         # Add word boundaries
         variants.update(w.strip() for w in text.lower().split() if w.strip())
-        
+
         # Add trigrams for fuzzy matching
-        variants.update(text[i:i+3].lower() for i in range(len(text)-2))
-        
+        variants.update(text[i : i + 3].lower() for i in range(len(text) - 2))
+
         return variants
 
     async def index_entity(
         self, entity: Entity, background_tasks: Optional[BackgroundTasks] = None
     ) -> None:
         """Index an entity's content for search.
-        
+
         Indexes:
         - Title and its variations for fuzzy matching
         - Path components for better findability
@@ -82,19 +82,19 @@ class SearchService:
         """
         # Generate searchable content with variations
         content_parts = []
-        
+
         # Add title variations
         title_variants = self._generate_variants(entity.title)
         content_parts.extend(title_variants)
-        
+
         # Add summary if available
         if entity.summary:
             content_parts.append(entity.summary)
-            
+
         # Add permalink variations
         permalink_variants = self._generate_variants(entity.permalink)
         content_parts.extend(permalink_variants)
-        
+
         # Add file path components
         path_variants = self._generate_variants(entity.file_path)
         content_parts.extend(path_variants)
@@ -112,6 +112,7 @@ class SearchService:
         if background_tasks:
             background_tasks.add_task(
                 self._do_index,
+                id=entity.id,
                 title=entity.title,
                 content=content,
                 permalink=entity.permalink,
@@ -121,6 +122,7 @@ class SearchService:
             )
         else:
             await self._do_index(
+                id=entity.id,
                 title=entity.title,
                 content=content,
                 permalink=entity.permalink,
@@ -131,6 +133,7 @@ class SearchService:
 
     async def _do_index(
         self,
+        id: int,
         title: str,
         content: str,
         permalink: str,
@@ -140,6 +143,7 @@ class SearchService:
     ) -> None:
         """Actually perform the indexing."""
         await self.repository.index_item(
+            id=id,
             title=title,
             content=content,
             permalink=permalink,

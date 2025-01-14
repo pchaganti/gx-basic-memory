@@ -57,10 +57,7 @@ async def test_entities(entity_repository):
     ]
     
     # Add to repository
-    for entity in entities:
-        await entity_repository.add(entity)
-    
-    return entities
+    return await entity_repository.add_all(entities)
 
 
 @pytest_asyncio.fixture
@@ -74,17 +71,17 @@ async def link_resolver(entity_repository, search_service, test_entities):
 
 
 @pytest.mark.asyncio
-async def test_exact_permalink_match(link_resolver):
+async def test_exact_permalink_match(link_resolver, test_entities):
     """Test resolving a link that exactly matches a permalink."""
-    result = await link_resolver.resolve_link("components/core-service")
-    assert result == "components/core-service"
+    entity = await link_resolver.resolve_link("components/core-service")
+    assert entity.permalink == "components/core-service"
 
 
 @pytest.mark.asyncio
-async def test_exact_title_match(link_resolver):
+async def test_exact_title_match(link_resolver, test_entities):
     """Test resolving a link that matches an entity title."""
-    result = await link_resolver.resolve_link("Core Service")
-    assert result == "components/core-service"
+    entity = await link_resolver.resolve_link("Core Service")
+    assert entity.permalink == "components/core-service"
 
 
 @pytest.mark.skip(reason="Fuzzy misspelling not yet implemented")
@@ -92,29 +89,13 @@ async def test_exact_title_match(link_resolver):
 async def test_fuzzy_title_match_misspelling(link_resolver):
     # Test slight misspelling
     result = await link_resolver.resolve_link("Core Servise")
-    assert result == "components/core-service"
+    assert result.permalink == "components/core-service"
 
 @pytest.mark.asyncio
 async def test_fuzzy_title_partial_match(link_resolver):
     # Test partial match
     result = await link_resolver.resolve_link("Auth Serv")
-    assert result == "components/auth/service"
-
-
-@pytest.mark.asyncio
-async def test_context_aware_matching(link_resolver):
-    """Test that matching considers source context."""
-    # Should prefer match in components/ when source is in components/
-    result = await link_resolver.resolve_link(
-        "Service",  # Ambiguous - could match several
-    )
-    assert result.startswith("config/service-config")
-    
-    # Should prefer match in specs/ when source is in specs/
-    result = await link_resolver.resolve_link(
-        "Core",  # Ambiguous - could match several
-    )
-    assert result.startswith("components/core-service")
+    assert result.permalink == "components/auth/service"
 
 
 @pytest.mark.asyncio
@@ -137,19 +118,12 @@ async def test_link_text_normalization(link_resolver):
 
 
 @pytest.mark.asyncio
-async def test_new_entity_permalink_generation(link_resolver):
-    """Test generating permalink for non-existent entity."""
+async def test_resolve_none(link_resolver):
+    """Test resolving non-existent entity."""
     # Basic new entity
-    result = await link_resolver.resolve_link("New Feature")
-    assert result == "new-feature"
-    
-    # With directory structure
-    result = await link_resolver.resolve_link("components/New Feature")
-    assert result == "components/new-feature"
-    
-    # With special characters
-    result = await link_resolver.resolve_link("New Feature (v2)!!!")
-    assert result == "new-feature-v2"
+    assert await link_resolver.resolve_link("New Feature") is None 
+        
+
 
 @pytest.mark.skip("Advanced relevance scoring not yet implemented")
 @pytest.mark.asyncio
@@ -159,23 +133,20 @@ async def test_multiple_matches_resolution(link_resolver):
     test_cases = [
         {
             "link": "Service",  # Ambiguous
-            "source": "components/some-service",
             "expected_prefix": "components/"  # Should prefer component directory match
         },
         {
             "link": "Core",  # Ambiguous
-            "source": "specs/features/other",
             "expected_prefix": "specs/"  # Should prefer specs directory match
         },
         {
             "link": "Service",
-            "source": None,  # No context
             "expected": "components/core-service"  # Should pick shortest/highest scored
         }
     ]
     
     for case in test_cases:
-        result = await link_resolver.resolve_link(case["link"], case["source"])
+        result = await link_resolver.resolve_link(case["link"])
         if "expected_prefix" in case:
             assert result.startswith(case["expected_prefix"])
         else:

@@ -5,9 +5,10 @@ from sqlalchemy import DDL
 # Define FTS5 virtual table creation
 CREATE_SEARCH_INDEX = DDL("""
 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+    id UNINDEXED,     -- row id of the indexed item 
     title,            -- Title for exact/fuzzy matching
     content,          -- Additional searchable content
-    permalink UNINDEXED, -- Link to entity/document
+    permalink UNINDEXED, -- Link to entity
     file_path UNINDEXED, -- Filesystem path
     type UNINDEXED,    -- entity type
     metadata UNINDEXED, -- Additional metadata

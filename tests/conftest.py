@@ -138,6 +138,7 @@ def knowledge_writer():
     """Create writer instance."""
     return KnowledgeWriter()
 
+
 @pytest.fixture
 def link_resolver(entity_repository: EntityRepository, search_service: SearchService):
     """Create parser instance."""
@@ -163,26 +164,29 @@ async def activity_service(entity_service, relation_service):
 
 
 @pytest_asyncio.fixture
-async def knowledge_sync_service(
+async def entity_sync_service(
     entity_repository: EntityRepository,
     observation_repository: ObservationRepository,
     relation_repository: RelationRepository,
+    link_resolver: LinkResolver,
 ) -> EntitySyncService:
     """Create EntitySyncService with repository."""
-    return EntitySyncService(entity_repository, observation_repository, relation_repository)
+    return EntitySyncService(entity_repository, observation_repository, relation_repository, link_resolver)
 
 
 @pytest_asyncio.fixture
 async def sync_service(
-    knowledge_sync_service: EntitySyncService,
+    entity_sync_service: EntitySyncService,
     file_change_scanner: FileChangeScanner,
     entity_parser: EntityParser,
+    entity_repository: EntityRepository,
     search_service: SearchService,
 ) -> SyncService:
     """Create sync service for testing."""
     return SyncService(
         scanner=file_change_scanner,
-        entity_sync_service=knowledge_sync_service,
+        entity_sync_service=entity_sync_service,
+        entity_repository=entity_repository,
         entity_parser=entity_parser,
         search_service=search_service,
     )

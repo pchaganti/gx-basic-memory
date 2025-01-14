@@ -54,6 +54,7 @@ class SyncService:
             parsed_entities[file_path] = entity_markdown
 
         # First pass: Create/update entities
+        # entities will have a null checksum to indicate they are not complete
         for file_path, entity_markdown in parsed_entities.items():
             # if the file is new, create an entity
             if file_path in changes.new:
@@ -80,6 +81,6 @@ class SyncService:
             await self.search_service.index_entity(entity)
 
             # Set final checksum to mark sync complete
-            return await self.entity_repository.update(entity.id, {"checksum": checksum})
+            await self.entity_repository.update(entity.id, {"checksum": checksum})
 
         return changes
