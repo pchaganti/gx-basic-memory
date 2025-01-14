@@ -1,7 +1,7 @@
 """Schema models for entity markdown files."""
 
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -28,7 +28,7 @@ class EntityFrontmatter(BaseModel):
 
     title: str
     type: str
-    id: str
+    permalink: Optional[str] = None
     created: datetime
     modified: datetime
     tags: List[str]

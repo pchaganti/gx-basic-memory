@@ -136,7 +136,7 @@ def parse_inline_relations(content: str) -> List[Dict[str, Any]]:
         target = match.group(1).strip()
         if target and not target.startswith('[['):  # Avoid nested matches
             relations.append({
-                'type': 'mentions',
+                'type': 'links to',
                 'target': target,
                 'context': None
             })
@@ -226,7 +226,7 @@ def relation_plugin(md: MarkdownIt) -> None:
                     if rel:
                         token.meta['relations'] = [rel]
                 
-                # Always check for inline relations in any text
+                # Always check for inline links in any text
                 elif '[[' in token.content:
                     rels = parse_inline_relations(token.content)
                     if rels:

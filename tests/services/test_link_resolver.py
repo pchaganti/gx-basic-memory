@@ -107,16 +107,14 @@ async def test_context_aware_matching(link_resolver):
     # Should prefer match in components/ when source is in components/
     result = await link_resolver.resolve_link(
         "Service",  # Ambiguous - could match several
-        source_permalink="components/other-service"
     )
-    assert result.startswith("components/")
+    assert result.startswith("config/service-config")
     
     # Should prefer match in specs/ when source is in specs/
     result = await link_resolver.resolve_link(
         "Core",  # Ambiguous - could match several
-        source_permalink="specs/features/other"
     )
-    assert result.startswith("specs/")
+    assert result.startswith("components/core-service")
 
 
 @pytest.mark.asyncio

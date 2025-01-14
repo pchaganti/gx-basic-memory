@@ -25,6 +25,7 @@ from basic_memory.services import (
 )
 from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
+from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.entity_sync_service import EntitySyncService
@@ -137,6 +138,11 @@ def knowledge_writer():
     """Create writer instance."""
     return KnowledgeWriter()
 
+@pytest.fixture
+def link_resolver(entity_repository: EntityRepository, search_service: SearchService):
+    """Create parser instance."""
+    return LinkResolver(entity_repository, search_service)
+
 
 @pytest.fixture
 def entity_parser(test_config):
@@ -151,9 +157,9 @@ def file_change_scanner(entity_repository) -> FileChangeScanner:
 
 
 @pytest_asyncio.fixture
-async def activity_service(document_service, entity_service, relation_service):
+async def activity_service(entity_service, relation_service):
     """Create activity service with real dependencies."""
-    return ActivityService(entity_service, document_service, relation_service)
+    return ActivityService(entity_service, relation_service)
 
 
 @pytest_asyncio.fixture

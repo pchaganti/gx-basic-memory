@@ -1,8 +1,7 @@
 """Repository for search operations."""
 
 import json
-from typing import List, Optional
-from pathlib import Path
+from typing import List
 
 from loguru import logger
 from sqlalchemy import text
@@ -25,9 +24,7 @@ class SearchRepository:
             await session.execute(CREATE_SEARCH_INDEX)
             await session.commit()
 
-    async def search(
-        self, query: SearchQuery, context: Optional[List[str]] = None
-    ) -> List[SearchResult]:
+    async def search(self, query: SearchQuery) -> List[SearchResult]:
         """Search across all indexed content with fuzzy matching."""
         conditions = []
         params = {}
@@ -52,16 +49,6 @@ class SearchRepository:
         if query.after_date:
             params["after_date"] = query.after_date
             conditions.append("json_extract(metadata, '$.created_at') > :after_date")
-
-        # Add context-based path matching if context provided
-        if context:
-            context_conditions = []
-            for i, path in enumerate(context):
-                param_name = f"context_{i}"
-                params[param_name] = f"%{Path(path).parent.as_posix()}%"
-                context_conditions.append(f"file_path LIKE :{param_name}")
-            if context_conditions:
-                conditions.append(f"({' OR '.join(context_conditions)})")
 
         # Build WHERE clause
         where_clause = " AND ".join(conditions) if conditions else "1=1"

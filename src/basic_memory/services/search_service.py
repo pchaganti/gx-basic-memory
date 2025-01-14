@@ -45,7 +45,7 @@ class SearchService:
         self, query: SearchQuery, context: Optional[List[str]] = None
     ) -> List[SearchResult]:
         """Search across all indexed content."""
-        return await self.repository.search(query, context)
+        return await self.repository.search(query)
 
     def _generate_variants(self, text: str) -> Set[str]:
         """Generate text variants for better fuzzy matching.
