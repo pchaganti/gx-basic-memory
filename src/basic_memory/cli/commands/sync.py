@@ -29,7 +29,6 @@ from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import SyncService, FileChangeScanner, EntitySyncService
 from basic_memory.sync.utils import SyncReport
-from basic_memory.utils.file_utils import ParseError
 
 console = Console()
 
@@ -61,10 +60,7 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
 
         # Initialize services
         knowledge_sync_service = EntitySyncService(
-            entity_repository, 
-            observation_repository, 
-            relation_repository,
-            link_resolver
+            entity_repository, observation_repository, relation_repository, link_resolver
         )
         entity_parser = EntityParser(config.home)
 
@@ -193,32 +189,11 @@ def display_detailed_sync_results(knowledge: SyncReport):
                 deleted.add(f"[red]{path}[/red]")
         console.print(knowledge_tree)
 
-async def validate_knowledge_files(
-    sync_service: SyncService, directory: Path
-) -> List[ValidationIssue]:
-    """Pre-validate knowledge files and collect all issues."""
-    issues = []
-    changes = await sync_service.scanner.find_knowledge_changes(directory)
-
-    for file_path in [*changes.new, *changes.modified]:
-        try:
-            await sync_service.entity_parser.parse_file(directory / file_path)
-        except ParseError as e:
-            issues.append(ValidationIssue(file_path=file_path, error=str(e)))
-
-    return issues
-
 
 async def run_sync(verbose: bool = False):
     """Run sync operation."""
 
     sync_service = await get_sync_service()
-
-    # Validate knowledge files before attempting sync
-    issues = await validate_knowledge_files(sync_service, config.home)
-    if issues:
-        display_validation_errors(issues)
-        raise typer.Exit(1)
 
     # Sync
     knowledge_changes = await sync_service.sync(config.home)

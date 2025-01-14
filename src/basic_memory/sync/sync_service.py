@@ -40,7 +40,18 @@ class SyncService:
         changes = await self.scanner.find_knowledge_changes(directory)
         logger.info(f"Found {changes.total_changes} knowledge changes")
 
-        # Handle deletions first
+        # Handle moves first
+        for old_path, new_path in changes.moves.items():
+            logger.debug(f"Moving entity: {old_path} -> {new_path}")
+            entity = await self.entity_repository.get_by_file_path(old_path)
+            if entity:
+                # Update file_path but keep the same permalink for link stability
+                await self.entity_repository.update(
+                    entity.id,
+                    {"file_path": new_path, "checksum": changes.checksums[new_path]}
+                )
+                
+        # Handle deletions next
         # remove rows from db for files no longer present
         for file_path in changes.deleted:
             logger.debug(f"Deleting entity from db: {file_path}")

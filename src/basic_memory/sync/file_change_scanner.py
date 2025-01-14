@@ -98,28 +98,27 @@ class FileChangeScanner:
         report = SyncReport()
 
         # Track potentially moved files by checksum
-        files_by_checksum = {}  # checksum -> (file_path, permalink)
+        files_by_checksum = {}  # checksum -> file_path
 
-        # Find new and modified files
+        # First find potential new files and record checksums
         for file_path, checksum in current_files.items():
             logger.debug(f"{file_path} ({checksum[:8]})")
 
             if file_path not in db_file_state:
+                # Could be new or could be the destination of a move
                 report.new.add(file_path)
-                # Track new file's checksum for move detection
                 files_by_checksum[checksum] = file_path
             elif checksum != db_file_state[file_path].checksum:
                 report.modified.add(file_path)
 
             report.checksums[file_path] = checksum
 
-        # Find deleted and moved files
+        # Now detect moves and deletions
         for db_file_path, db_state in db_file_state.items():
             if db_file_path not in current_files:
-                # Check if this file was moved by looking for same checksum
                 if db_state.checksum in files_by_checksum:
-                    new_path = files_by_checksum[db_state.checksum]
                     # Found a move - file exists at new path with same checksum
+                    new_path = files_by_checksum[db_state.checksum]
                     report.moves[db_file_path] = new_path
                     # Remove from new files since it's a move
                     report.new.remove(new_path)
