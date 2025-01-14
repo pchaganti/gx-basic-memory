@@ -25,7 +25,7 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
     model = EntityModel(
         title=markdown.frontmatter.title,
         entity_type=markdown.frontmatter.type,
-        permalink=markdown.frontmatter.id,
+        permalink=markdown.frontmatter.permalink,
         file_path=file_path,
         content_type="text/markdown",
         summary=markdown.content.content,
@@ -61,7 +61,7 @@ class EntitySyncService:
         Creates the entity with null checksum to indicate sync not complete.
         Relations will be added in second pass.
         """
-        logger.debug(f"Creating entity without relations: {markdown.frontmatter.id}")
+        logger.debug(f"Creating entity without relations: {markdown.frontmatter.title}")
         model = entity_model_from_markdown(file_path, markdown)
 
         # Mark as incomplete sync
@@ -69,17 +69,17 @@ class EntitySyncService:
         return await self.entity_repository.add(model)
 
     async def update_entity_and_observations(
-        self, permalink: str, markdown: EntityMarkdown
+        self, file_path: str, markdown: EntityMarkdown
     ) -> EntityModel:
         """First pass: Update entity fields and observations.
 
         Updates everything except relations and sets null checksum
         to indicate sync not complete.
         """
-        logger.debug(f"Updating entity and observations: {permalink}")
-        db_entity = await self.entity_repository.get_by_permalink(permalink)
+        logger.debug(f"Updating entity and observations: {file_path}")
+        db_entity = await self.entity_repository.get_by_file_path(file_path)
         if not db_entity:
-            raise EntityNotFoundError(f"Entity not found: {permalink}")
+            raise EntityNotFoundError(f"Entity not found: {file_path}")
 
         # Update fields from markdown
         db_entity.title = markdown.frontmatter.title
@@ -114,15 +114,11 @@ class EntitySyncService:
             },
         )
 
-    async def update_entity_relations(self, markdown: EntityMarkdown, checksum: str) -> EntityModel:
+    async def update_entity_relations(self, file_path: str, markdown: EntityMarkdown) -> EntityModel:
         """Second pass: Update relations and set checksum.
-
-        Args:
-            markdown: Parsed markdown entity with relations
-            checksum: Final checksum to set after relations are updated
         """
-        logger.debug(f"Updating relations for entity: {markdown.frontmatter.id}")
-        db_entity = await self.entity_repository.get_by_permalink(markdown.frontmatter.id)
+        logger.debug(f"Updating relations for entity: {file_path}")
+        db_entity = await self.entity_repository.get_by_file_path(file_path)
 
         # get all entities from relations
         target_entity_permalinks = [rel.target for rel in markdown.content.relations]
@@ -159,5 +155,3 @@ class EntitySyncService:
         # Create unique relations
         await self.relation_repository.add_all(relation_dict.values())
 
-        # Set final checksum to mark sync complete
-        return await self.entity_repository.update(db_entity.id, {"checksum": checksum})

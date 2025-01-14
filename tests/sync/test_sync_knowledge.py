@@ -103,7 +103,7 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify entity created but no relations
-    entity = await sync_service.knowledge_sync_service.entity_repository.get_by_permalink(
+    entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
         "concept/depends_on_future"
     )
     assert entity is not None
@@ -157,10 +157,10 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify both entities and their relations
-    entity_a = await sync_service.knowledge_sync_service.entity_repository.get_by_permalink(
+    entity_a = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
         "concept/entity_a"
     )
-    entity_b = await sync_service.knowledge_sync_service.entity_repository.get_by_permalink(
+    entity_b = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
         "concept/entity_b"
     )
 
@@ -232,7 +232,7 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify duplicates are handled
-    entity = await sync_service.knowledge_sync_service.entity_repository.get_by_permalink(
+    entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
         "concept/duplicate_relations"
     )
 
@@ -274,7 +274,7 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify observations
-    entity = await sync_service.knowledge_sync_service.entity_repository.get_by_permalink(
+    entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
         "concept/invalid_category"
     )
 
@@ -353,13 +353,13 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify all relations are created correctly regardless of order
-    entity_a = await sync_service.knowledge_sync_service.entity_repository.get_by_permalink(
+    entity_a = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
         "concept/entity_a"
     )
-    entity_b = await sync_service.knowledge_sync_service.entity_repository.get_by_permalink(
+    entity_b = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
         "concept/entity_b"
     )
-    entity_c = await sync_service.knowledge_sync_service.entity_repository.get_by_permalink(
+    entity_c = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
         "concept/entity_c"
     )
 

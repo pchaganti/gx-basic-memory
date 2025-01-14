@@ -187,7 +187,7 @@ async def validate_knowledge_files(
 
     for file_path in [*changes.new, *changes.modified]:
         try:
-            await sync_service.knowledge_parser.parse_file(directory / file_path)
+            await sync_service.entity_parser.parse_file(directory / file_path)
         except ParseError as e:
             issues.append(ValidationIssue(file_path=file_path, error=str(e)))
 

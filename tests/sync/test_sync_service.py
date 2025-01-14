@@ -58,7 +58,7 @@ modified: 2024-01-01
     await asyncio.gather(sync_service.sync(test_config.home), modify_file())
 
     # Verify final state
-    doc = await sync_service.knowledge_sync_service.entity_repository.get_by_permalink("changing")
+    doc = await sync_service.entity_sync_service.entity_repository.get_by_permalink("changing")
     assert doc is not None
     # File should have a checksum, even if it's from either version
     assert doc.checksum is not None

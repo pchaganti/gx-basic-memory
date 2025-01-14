@@ -526,3 +526,29 @@ async def test_get_by_title(entity_repository: EntityRepository, session_maker):
     found = await entity_repository.get_by_title("Non Existent")
     assert found is None
 
+
+@pytest.mark.asyncio
+async def test_get_by_file_path(entity_repository: EntityRepository, session_maker):
+    """Test getting an entity by title."""
+    # Create test entities
+    async with db.scoped_session(session_maker) as session:
+        entities = [
+            Entity(
+                title="Unique Title",
+                entity_type="test",
+                permalink="test/unique-title",
+                file_path="test/unique-title.md",
+                content_type="text/markdown",
+            ),
+        ]
+        session.add_all(entities)
+        await session.flush()
+
+    # Test getting by file_path
+    found = await entity_repository.get_by_file_path("test/unique-title.md")
+    assert found is not None
+    assert found.title == "Unique Title"
+
+    # Test non-existent file_path
+    found = await entity_repository.get_by_file_path("not/a/real/file.md")
+    assert found is None

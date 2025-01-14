@@ -28,6 +28,11 @@ class EntityRepository(Repository[Entity]):
         query = self.select().where(Entity.title == title).options(*self.get_load_options())
         return await self.find_one(query)
 
+    async def get_by_file_path(self, file_path: str) -> Optional[Entity]:
+        """Get entity by file_path."""
+        query = self.select().where(Entity.file_path == file_path).options(*self.get_load_options())
+        return await self.find_one(query)
+
     async def list_entities(
         self,
         entity_type: Optional[str] = None,
