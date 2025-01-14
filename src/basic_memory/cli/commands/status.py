@@ -67,8 +67,19 @@ def group_changes_by_directory(changes: SyncReport) -> Dict[str, Dict[str, int]]
     ]:
         for path in paths:
             dir_name = path.split("/", 1)[0]
-            by_dir.setdefault(dir_name, {"new": 0, "modified": 0, "deleted": 0})
+            by_dir.setdefault(dir_name, {"new": 0, "modified": 0, "deleted": 0, "moved": 0})
             by_dir[dir_name][change_type] += 1
+
+    # Handle moves - count in both source and destination directories
+    for old_path, new_path in changes.moves.items():
+        old_dir = old_path.split("/", 1)[0]
+        new_dir = new_path.split("/", 1)[0]
+        by_dir.setdefault(old_dir, {"new": 0, "modified": 0, "deleted": 0, "moved": 0})
+        by_dir.setdefault(new_dir, {"new": 0, "modified": 0, "deleted": 0, "moved": 0})
+        by_dir[old_dir]["moved"] += 1
+        if old_dir != new_dir:
+            by_dir[new_dir]["moved"] += 1
+
     return by_dir
 
 
@@ -79,6 +90,8 @@ def build_directory_summary(counts: Dict[str, int]) -> str:
         parts.append(f"[green]+{counts['new']} new[/green]")
     if counts["modified"]:
         parts.append(f"[yellow]~{counts['modified']} modified[/yellow]")
+    if counts["moved"]:
+        parts.append(f"[blue]↔{counts['moved']} moved[/blue]")
     if counts["deleted"]:
         parts.append(f"[red]-{counts['deleted']} deleted[/red]")
     return " ".join(parts)
@@ -101,6 +114,10 @@ def display_changes(title: str, changes: SyncReport, verbose: bool = False):
         if changes.modified:
             mod_branch = tree.add("[yellow]Modified[/yellow]")
             add_files_to_tree(mod_branch, changes.modified, "yellow", changes.checksums)
+        if changes.moves:
+            move_branch = tree.add("[blue]Moved[/blue]")
+            for old_path, new_path in sorted(changes.moves.items()):
+                move_branch.add(f"[blue]{old_path}[/blue] → [blue]{new_path}[/blue]")
         if changes.deleted:
             del_branch = tree.add("[red]Deleted[/red]")
             add_files_to_tree(del_branch, changes.deleted, "red")

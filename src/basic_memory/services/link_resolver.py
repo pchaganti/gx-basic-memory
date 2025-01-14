@@ -62,7 +62,6 @@ class LinkResolver():
             return await self.entity_repository.get_by_permalink(best_match.permalink)
         
 
-    # TODO replace with search ranking 
     def _normalize_link_text(self, link_text: str) -> Tuple[str, Optional[str]]:
         """Normalize link text and extract alias if present.
 

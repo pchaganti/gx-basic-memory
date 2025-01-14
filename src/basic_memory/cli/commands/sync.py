@@ -25,6 +25,7 @@ from basic_memory.repository import (
     RelationRepository,
 )
 from basic_memory.repository.search_repository import SearchRepository
+from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import SyncService, FileChangeScanner, EntitySyncService
 from basic_memory.sync.utils import SyncReport
@@ -51,21 +52,28 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         relation_repository = RelationRepository(session_maker)
         search_repository = SearchRepository(session_maker)
 
+        # Initialize services
+        search_service = SearchService(search_repository, entity_repository)
+        link_resolver = LinkResolver(entity_repository, search_service)
+
         # Initialize scanner
         file_change_scanner = FileChangeScanner(entity_repository)
 
         # Initialize services
         knowledge_sync_service = EntitySyncService(
-            entity_repository, observation_repository, relation_repository
+            entity_repository, 
+            observation_repository, 
+            relation_repository,
+            link_resolver
         )
         entity_parser = EntityParser(config.home)
-        search_service = SearchService(search_repository, entity_repository)
 
         # Create sync service
         sync_service = SyncService(
             scanner=file_change_scanner,
             entity_sync_service=knowledge_sync_service,
             entity_parser=entity_parser,
+            entity_repository=entity_repository,
             search_service=search_service,
         )
 
@@ -135,16 +143,19 @@ def display_sync_summary(knowledge: SyncReport):
         console.print("[green]Everything up to date[/green]")
         return
 
-    # Format as: "Synced X files (A new, B modified, C deleted)"
+    # Format as: "Synced X files (A new, B modified, C moved, D deleted)"
     changes = []
     new_count = len(knowledge.new)
     mod_count = len(knowledge.modified)
+    move_count = len(knowledge.moves)
     del_count = len(knowledge.deleted)
 
     if new_count:
         changes.append(f"[green]{new_count} new[/green]")
     if mod_count:
         changes.append(f"[yellow]{mod_count} modified[/yellow]")
+    if move_count:
+        changes.append(f"[blue]{move_count} moved[/blue]")
     if del_count:
         changes.append(f"[red]{del_count} deleted[/red]")
 
@@ -171,12 +182,16 @@ def display_detailed_sync_results(knowledge: SyncReport):
             for path in sorted(knowledge.modified):
                 checksum = knowledge.checksums.get(path, "")
                 modified.add(f"[yellow]{path}[/yellow] ({checksum[:8]})")
+        if knowledge.moves:
+            moved = knowledge_tree.add("[blue]Moved[/blue]")
+            for old_path, new_path in sorted(knowledge.moves.items()):
+                checksum = knowledge.checksums.get(new_path, "")
+                moved.add(f"[blue]{old_path}[/blue] → [blue]{new_path}[/blue] ({checksum[:8]})")
         if knowledge.deleted:
             deleted = knowledge_tree.add("[red]Deleted[/red]")
             for path in sorted(knowledge.deleted):
                 deleted.add(f"[red]{path}[/red]")
         console.print(knowledge_tree)
-
 
 async def validate_knowledge_files(
     sync_service: SyncService, directory: Path

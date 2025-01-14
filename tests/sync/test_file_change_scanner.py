@@ -143,3 +143,128 @@ async def test_empty_directory(file_change_scanner: FileChangeScanner, temp_dir:
     assert not changes.new
     assert not changes.modified
     assert not changes.deleted
+
+
+@pytest.mark.asyncio
+async def test_detect_moved_file(file_change_scanner: FileChangeScanner, temp_dir: Path):
+    """Test detection of file moves."""
+    # Create original file
+    old_path = "original/test.md"
+    new_path = "new/location/test.md"
+    content = "test content"
+
+    await create_test_file(temp_dir / old_path, content)
+    original_checksum = await compute_checksum(content)
+
+    # Set up DB state with original location
+    db_records = {
+        old_path: FileState(
+            file_path=old_path,
+            permalink="test",
+            checksum=original_checksum
+        )
+    }
+
+    # Move file to new location
+    old_file = temp_dir / old_path
+    new_file = temp_dir / new_path
+    new_file.parent.mkdir(parents=True, exist_ok=True)
+    old_file.rename(new_file)
+
+    # Check changes
+    changes = await file_change_scanner.find_changes(
+        directory=temp_dir,
+        db_file_state=db_records
+    )
+
+    # Should detect as move
+    assert len(changes.moves) == 1
+    assert changes.moves[old_path] == new_path
+    # Should not be in new or deleted
+    assert old_path not in changes.new
+    assert old_path not in changes.deleted
+    assert new_path not in changes.new
+
+
+@pytest.mark.asyncio
+async def test_move_with_content_change(file_change_scanner: FileChangeScanner, temp_dir: Path):
+    """Test handling a file that is both moved and modified."""
+    # Create original file
+    old_path = "original/test.md"
+    new_path = "new/location/test.md"
+    content = "original content"
+
+    await create_test_file(temp_dir / old_path, content)
+    original_checksum = await compute_checksum(content)
+
+    # Set up DB state with original location
+    db_records = {
+        old_path: FileState(
+            file_path=old_path,
+            permalink="test",
+            checksum=original_checksum
+        )
+    }
+
+    # Move file and change content
+    old_file = temp_dir / old_path
+    new_file = temp_dir / new_path
+    new_file.parent.mkdir(parents=True, exist_ok=True)
+    await create_test_file(new_file, "modified content")
+    old_file.unlink()
+
+    # Check changes
+    changes = await file_change_scanner.find_changes(
+        directory=temp_dir,
+        db_file_state=db_records
+    )
+
+    # Should be treated as delete + new, not move
+    assert old_path in changes.deleted
+    assert new_path in changes.new
+    assert len(changes.moves) == 0
+
+
+@pytest.mark.asyncio
+async def test_multiple_moves(file_change_scanner: FileChangeScanner, temp_dir: Path):
+    """Test detecting multiple file moves at once."""
+    # Create original files
+    files = {
+        "a/test1.md": "content1",
+        "b/test2.md": "content2"
+    }
+    new_locations = {
+        "a/test1.md": "new/test1.md",
+        "b/test2.md": "new/nested/test2.md"
+    }
+
+    db_records = {}
+    # Create files and DB state
+    for old_path, content in files.items():
+        await create_test_file(temp_dir / old_path, content)
+        checksum = await compute_checksum(content)
+        db_records[old_path] = FileState(
+            file_path=old_path,
+            permalink=old_path.replace(".md", ""),
+            checksum=checksum
+        )
+
+    # Move all files
+    for old_path, new_path in new_locations.items():
+        old_file = temp_dir / old_path
+        new_file = temp_dir / new_path
+        new_file.parent.mkdir(parents=True, exist_ok=True)
+        old_file.rename(new_file)
+
+    # Check changes
+    changes = await file_change_scanner.find_changes(
+        directory=temp_dir,
+        db_file_state=db_records
+    )
+
+    # Should detect both moves
+    assert len(changes.moves) == 2
+    assert changes.moves["a/test1.md"] == "new/test1.md"
+    assert changes.moves["b/test2.md"] == "new/nested/test2.md"
+    assert not changes.new
+    assert not changes.deleted

@@ -87,18 +87,9 @@ class FileChangeScanner:
         return result
 
     async def find_changes(
-        self, directory: Path, db_file_state: Dict[str, FileState]
+            self, directory: Path, db_file_state: Dict[str, FileState]
     ) -> SyncReport:
-        """
-        Find changes between filesystem and database.
-
-        Args:
-            directory: Directory to check
-            db_file_state: dict mapping file_path to DbState(permalink, checksum)
-
-        Returns:
-            SyncReport detailing changes
-        """
+        """Find changes between filesystem and database."""
         # Get current files and checksums
         scan_result = await self.scan_directory(directory)
         current_files = scan_result.files
@@ -106,28 +97,41 @@ class FileChangeScanner:
         # Build report
         report = SyncReport()
 
+        # Track potentially moved files by checksum
+        files_by_checksum = {}  # checksum -> (file_path, permalink)
+
         # Find new and modified files
         for file_path, checksum in current_files.items():
             logger.debug(f"{file_path} ({checksum[:8]})")
 
             if file_path not in db_file_state:
                 report.new.add(file_path)
+                # Track new file's checksum for move detection
+                files_by_checksum[checksum] = file_path
             elif checksum != db_file_state[file_path].checksum:
                 report.modified.add(file_path)
 
             report.checksums[file_path] = checksum
 
-        # Find deleted files - need to be deleted from db
-        # either not in current_files, or
-        # db row has no checksum
+        # Find deleted and moved files
         for db_file_path, db_state in db_file_state.items():
             if db_file_path not in current_files:
-                report.deleted.add(db_file_path)
+                # Check if this file was moved by looking for same checksum
+                if db_state.checksum in files_by_checksum:
+                    new_path = files_by_checksum[db_state.checksum]
+                    # Found a move - file exists at new path with same checksum
+                    report.moves[db_file_path] = new_path
+                    # Remove from new files since it's a move
+                    report.new.remove(new_path)
+                else:
+                    # Actually deleted
+                    report.deleted.add(db_file_path)
 
         # Log summary
         logger.debug(f"Changes found: {report.total_changes}")
         logger.debug(f"  New: {len(report.new)}")
         logger.debug(f"  Modified: {len(report.modified)}")
+        logger.debug(f"  Moved: {len(report.moves)}")
         logger.debug(f"  Deleted: {len(report.deleted)}")
 
         if scan_result.errors:

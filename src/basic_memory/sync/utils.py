@@ -12,14 +12,16 @@ class SyncReport:
         new: Files that exist on disk but not in database
         modified: Files that exist in both but have different checksums
         deleted: Files that exist in database but not on disk
+        moves: Files that have been moved from one location to another
         checksums: Current checksums for files on disk
     """
     new: Set[str] = field(default_factory=set)
     modified: Set[str] = field(default_factory=set)
     deleted: Set[str] = field(default_factory=set)
+    moves: Dict[str, str] = field(default_factory=dict)  # old_path -> new_path
     checksums: Dict[str, str] = field(default_factory=dict)
 
     @property
     def total_changes(self) -> int:
         """Total number of files that need attention."""
-        return len(self.new) + len(self.modified) + len(self.deleted)
+        return len(self.new) + len(self.modified) + len(self.deleted) + len(self.moves)
