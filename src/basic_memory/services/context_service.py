@@ -1,14 +1,14 @@
 """Service for building rich context from the knowledge graph."""
 
-from datetime import datetime, timedelta
-from typing import List, Optional, Sequence, Tuple
-from sqlalchemy import text
+from datetime import datetime
+from typing import List, Optional, Tuple
 from loguru import logger
+from sqlalchemy import text
 
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas.memory_url import MemoryUrl
-from basic_memory.schemas.search import SearchItemType
+from basic_memory.schemas.search import SearchItemType, SearchQuery
 
 
 class ContextService:
@@ -65,23 +65,45 @@ class ContextService:
 
     async def find_by_pattern(self, pattern: str):
         """Find entities matching a glob pattern."""
-        # TODO: Implement pattern matching
-        return []
+        # Convert glob pattern to SQL LIKE pattern 
+        sql_pattern = pattern.replace('*', '%')
+        
+        # Use search with permalink pattern
+        query = SearchQuery(
+            permalink_pattern=sql_pattern,
+            types=[SearchItemType.ENTITY]  # Only match entities
+        )
+        
+        return await self.search_repository.search(query)
 
     async def find_by_fuzzy(self, search_terms: str):
         """Find entities using fuzzy text search."""
-        # TODO: Implement fuzzy search
-        return []
+        query = SearchQuery(
+            text=search_terms,
+            types=[SearchItemType.ENTITY]  # Only match entities
+        )
+        return await self.search_repository.search(query)
 
     async def find_related(self, permalink: str):
         """Find entities related to a given permalink."""
-        # TODO: Implement related content search
-        return []
+        # First find the target entity
+        query = SearchQuery(permalink_pattern=permalink)
+        results = await self.search_repository.search(query)
+        
+        if not results:
+            return []
+            
+        # Use find_connected to get related items
+        entity = results[0]
+        return await self.find_connected(
+            [(entity.type, entity.id)],
+            max_depth=1  # Only immediate relations
+        )
 
     async def find_by_permalink(self, permalink: str):
         """Find an entity by exact permalink."""
-        # TODO: Implement direct permalink lookup
-        return []
+        query = SearchQuery(permalink_pattern=permalink)
+        return await self.search_repository.search(query)
 
     async def find_connected(
         self,
@@ -89,13 +111,7 @@ class ContextService:
         max_depth: int = 2,
         since: Optional[datetime] = None,
     ):
-        """Find items connected through relations.
-        
-        Args:
-            type_id_pairs: List of (type, id) tuples to start from
-            max_depth: How many relation steps to traverse
-            since: Only include items modified since this time
-        """
+        """Find items connected through relations."""
         if not type_id_pairs:
             return []
             
@@ -159,7 +175,7 @@ class ContextService:
                     r1.type = 'relation' AND 
                     (r1.from_id = cg.id OR r1.to_id = cg.id)
                     {r1_date_filter}
-                )
+        )
                 -- Then join to ALL related items at the same depth 
                 JOIN search_index related ON (
                     -- The found relation 
@@ -198,6 +214,6 @@ class ContextService:
                 root_id, created_at
             ORDER BY depth, type, id
         """)
-
+        
         results = await self.search_repository.execute_query(query, params=params)
         return results.all()

@@ -42,6 +42,11 @@ class SearchRepository:
             params["text"] = f"{search_text}*"
             conditions.append("(title MATCH :text OR content MATCH :text)")
 
+        # Handle pattern search on permalink if specified
+        if query.permalink_pattern:
+            params["permalink_pattern"] = query.permalink_pattern
+            conditions.append("permalink LIKE :permalink_pattern")
+
         # Handle type filter
         if query.types:
             type_list = ", ".join(f"'{t.value}'" for t in query.types)
