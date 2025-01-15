@@ -1,6 +1,6 @@
 """Service for building rich context from the knowledge graph."""
 
-from datetime import datetime, UTC
+from datetime import datetime, timedelta
 from typing import List, Optional, Sequence, Tuple
 from sqlalchemy import text
 from loguru import logger
@@ -92,38 +92,40 @@ class ContextService:
     async def find_connected(
         self,
         type_id_pairs: List[Tuple[str, int]],
-        depth: int = 2,
+        max_depth: int = 2,
         since: Optional[datetime] = None,
     ):
         """Find items connected through relations.
         
+        This uses a recursive CTE to traverse the knowledge graph:
+        1. Start from a set of seed items (any type)
+        2. Find all paths through relations in a single traversal
+        3. Collect observations for any entities found
+        4. Group by item to take shortest path to each
+        
         Args:
             type_id_pairs: List of (type, id) tuples to start from
-            depth: How many relation steps to traverse
+            max_depth: How many relation steps to traverse
             since: Only include items modified since this time
         """
         if not type_id_pairs:
             return []
             
-        logger.debug(f"Finding connected items for {type_id_pairs} with depth {depth}")
+        logger.debug(f"Finding connected items for {type_id_pairs} with depth {max_depth}")
 
-        # Build date condition
+        # Build the VALUES clause for our seed items
+        values = ", ".join([f"('{t}', {i})" for t, i in type_id_pairs])
+
+        # Build date condition for timeframe filtering
         date_filter = ""
         if since:
-            date_filter = "AND si.created_at >= :since"
-
-        # Build VALUES clause for type_id pairs
-        value_list = []
-        params = {}
-        for i, (type_, id_) in enumerate(type_id_pairs):
-            value_list.append(f"(:type_{i}, :id_{i})")
-            params[f"type_{i}"] = type_
-            params[f"id_{i}"] = id_
-        values_clause = f"({','.join(value_list)})"
+            date_filter = f"AND si.created_at >= {since.timestamp()}" #TODO fix date compare
 
         query = text(f"""
             WITH RECURSIVE context_graph AS (
-                -- Base case: Start with provided items
+                -- Base case: Starting points
+                -- These can be entities, relations, or observations
+                -- Each gets depth 0 and its own id as root_id
                 SELECT
                     id,
                     type,
@@ -139,11 +141,12 @@ class ContextService:
                     id as root_id,
                     created_at
                 FROM search_index
-                WHERE (type, id) IN {values_clause}
+                WHERE (type, id) IN (VALUES {values})
 
                 UNION ALL
 
-                -- Forward relations
+                -- Relations and connected entities in a single traversal step
+                -- This ensures we always take the shortest path to each item
                 SELECT
                     si.id,
                     si.type,
@@ -159,61 +162,25 @@ class ContextService:
                     cg.root_id,
                     si.created_at
                 FROM context_graph cg
-                JOIN search_index si ON si.from_id = cg.id 
-                WHERE si.type = :relation_type
-                AND cg.depth < :max_depth
+                JOIN search_index si ON (
+                    -- Forward relations (A -> B)
+                    (si.from_id = cg.id AND si.type = 'relation')
+                    OR 
+                    -- Backward relations (B -> A)
+                    (si.to_id = cg.id AND si.type = 'relation')
+                    OR
+                    -- Entities connected by relations we've found
+                    -- Note: entity connection only happens after we find a relation
+                    (cg.type = 'relation' AND si.type = 'entity' AND 
+                     (si.id = cg.to_id OR si.id = cg.from_id))
+                )
+                WHERE cg.depth < {max_depth}
                 {date_filter}
 
                 UNION ALL
 
-                -- Backward relations
-                SELECT
-                    si.id,
-                    si.type,
-                    si.title,
-                    si.permalink,
-                    si.from_id,
-                    si.to_id,
-                    si.relation_type,
-                    si.category,
-                    si.entity_id,
-                    si.content,
-                    cg.depth + 1,
-                    cg.root_id,
-                    si.created_at
-                FROM context_graph cg
-                JOIN search_index si ON si.to_id = cg.id
-                WHERE si.type = :relation_type
-                AND cg.depth < :max_depth
-                {date_filter}
-
-                UNION ALL
-
-                -- Get entities on either side of relations
-                SELECT
-                    si.id,
-                    si.type,
-                    si.title,
-                    si.permalink,
-                    si.from_id,
-                    si.to_id,
-                    si.relation_type,
-                    si.category,
-                    si.entity_id,
-                    si.content,
-                    cg.depth + 1,
-                    cg.root_id,
-                    si.created_at
-                FROM context_graph cg
-                JOIN search_index si ON si.id = cg.to_id OR si.id = cg.from_id
-                WHERE si.type = :entity_type
-                AND cg.type = :relation_type
-                AND cg.depth < :max_depth
-                {date_filter}
-
-                UNION ALL
-
-                -- Get observations for entities
+                -- Observations for any entities we've found
+                -- These attach to entities but don't continue the traversal
                 SELECT
                     si.id,
                     si.type,
@@ -230,11 +197,14 @@ class ContextService:
                     si.created_at
                 FROM context_graph cg
                 JOIN search_index si ON si.entity_id = cg.id
-                WHERE si.type = :observation_type
-                AND cg.depth < :max_depth
+                WHERE si.type = 'observation'
+                AND cg.depth < {max_depth}
                 {date_filter}
             )
-            SELECT
+            -- Take the shortest path to each item
+            -- Items can be reached multiple ways, but we only want
+            -- to return each one once at its minimum depth from any root
+            SELECT DISTINCT
                 type,
                 id,
                 title,
@@ -245,21 +215,15 @@ class ContextService:
                 category,
                 entity_id,
                 content,
-                depth,
+                min(depth) as depth,
                 root_id,
                 created_at
             FROM context_graph
+            GROUP BY type, id, title, permalink, from_id, to_id, 
+                     relation_type, category, entity_id, content, 
+                     root_id, created_at
             ORDER BY type, id, depth ASC
         """)
 
-        # Add remaining parameters
-        params.update({
-            "max_depth": depth,
-            "since": since,
-            "entity_type": SearchItemType.ENTITY.value,
-            "relation_type": SearchItemType.RELATION.value,
-            "observation_type": SearchItemType.OBSERVATION.value
-        })
-
-        results = await self.search_repository.execute_query(query, params)
-        return results
+        results = await self.search_repository.execute_query(query)
+        return results.all()
