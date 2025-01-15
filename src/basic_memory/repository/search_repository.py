@@ -1,7 +1,7 @@
 """Repository for search operations."""
 
 import json
-from typing import List
+from typing import List, Optional
 
 from loguru import logger
 from sqlalchemy import text
@@ -66,6 +66,11 @@ class SearchRepository:
                 file_path,
                 type,
                 metadata,
+                from_id,
+                to_id,
+                relation_type,
+                entity_id,
+                category,
                 bm25(search_index) as score
             FROM search_index 
             WHERE {where_clause}
@@ -87,6 +92,11 @@ class SearchRepository:
                     type=SearchItemType(row.type),
                     score=row.score,
                     metadata=json.loads(row.metadata),
+                    from_id=row.from_id,
+                    to_id=row.to_id,
+                    relation_type=row.relation_type,
+                    entity_id=row.entity_id,
+                    category=row.category
                 )
                 for row in rows
             ]
@@ -100,6 +110,11 @@ class SearchRepository:
         file_path: str,
         type: SearchItemType,
         metadata: dict,
+        from_id: Optional[int] = None,
+        to_id: Optional[int] = None,
+        relation_type: Optional[str] = None,
+        entity_id: Optional[int] = None,
+        category: Optional[str] = None,
     ):
         """Index or update a single item."""
         async with db.scoped_session(self.session_maker) as session:
@@ -112,18 +127,18 @@ class SearchRepository:
             # Insert new record
             await session.execute(
                 text("""
-                                INSERT INTO search_index (
-                                    id, title, content, permalink, file_path, type, metadata,
-                                    from_id, to_id, relation_type,
-                                    entity_id, category,
-                                    created_at, updated_at
-                                ) VALUES (
-                                    :id, :title, :content, :permalink, :file_path, :type, :metadata,
-                                    :from_id, :to_id, :relation_type,
-                                    :entity_id, :category,
-                                    :created_at, :updated_at
-                                )
-                            """),
+                    INSERT INTO search_index (
+                        id, title, content, permalink, file_path, type, metadata,
+                        from_id, to_id, relation_type,
+                        entity_id, category,
+                        created_at, updated_at
+                    ) VALUES (
+                        :id, :title, :content, :permalink, :file_path, :type, :metadata,
+                        :from_id, :to_id, :relation_type,
+                        :entity_id, :category,
+                        :created_at, :updated_at
+                    )
+                """),
                 {
                     "id": id,
                     "title": title,
@@ -132,12 +147,11 @@ class SearchRepository:
                     "file_path": file_path,
                     "type": type.value,
                     "metadata": json.dumps(metadata),
-                    # Optional fields based on type
-                    "from_id": metadata.get("from_id"),
-                    "to_id": metadata.get("to_id"),
-                    "relation_type": metadata.get("relation_type"),
-                    "entity_id": metadata.get("entity_id"),
-                    "category": metadata.get("category"),
+                    "from_id": from_id,
+                    "to_id": to_id,
+                    "relation_type": relation_type,
+                    "entity_id": entity_id,
+                    "category": category,
                     "created_at": metadata.get("created_at"),
                     "updated_at": metadata.get("updated_at")
                 },

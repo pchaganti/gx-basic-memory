@@ -150,9 +150,9 @@ class SearchService:
                     permalink=observation_permalink,
                     file_path=entity.file_path,
                     type=SearchItemType.OBSERVATION,
+                    category=obs.category,
+                    entity_id=entity.id,
                     metadata={
-                        "entity_id": entity.id,
-                        "category": obs.category,
                         "created_at": obs.created_at.isoformat(),
                         "updated_at": obs.updated_at.isoformat(),
                         "tags": obs.tags
@@ -166,9 +166,9 @@ class SearchService:
                     permalink=observation_permalink,
                     file_path=entity.file_path,
                     type=SearchItemType.OBSERVATION,
+                    category=obs.category,
+                    entity_id=entity.id,
                     metadata={
-                        "entity_id": entity.id,
-                        "category": obs.category,
                         "created_at": obs.created_at.isoformat(),
                         "updated_at": obs.updated_at.isoformat(),
                         "tags": obs.tags
@@ -183,18 +183,23 @@ class SearchService:
             # source/relation_type/target
             # e.g., "specs/search/implements/features/search-ui"
             relation_permalink = f"{rel.from_entity.permalink}/{rel.relation_type}/{rel.to_entity.permalink}"
+            
+            # Create descriptive title showing the relationship
+            relation_title = f"{rel.from_entity.title} → {rel.to_entity.title}"
+            
             if background_tasks:
                 background_tasks.add_task(
                     self._do_index,
                     id=rel.id,
-                    title=f"{rel.relation_type}",
+                    title=relation_title,
                     content=rel.context or "",
                     permalink=relation_permalink,
                     file_path=entity.file_path,
                     type=SearchItemType.RELATION,
+                    from_id=rel.from_id,
+                    to_id=rel.to_id,
+                    relation_type=rel.relation_type,
                     metadata={
-                        "from_id": rel.from_id,
-                        "to_id": rel.to_id,
                         "created_at": rel.created_at.isoformat(),
                         "updated_at": rel.updated_at.isoformat()
                     }
@@ -202,14 +207,15 @@ class SearchService:
             else:
                 await self._do_index(
                     id=rel.id,
-                    title=f"{rel.relation_type}",
+                    title=relation_title,
                     content=rel.context or "",
                     permalink=relation_permalink,
                     file_path=entity.file_path,
                     type=SearchItemType.RELATION,
+                    from_id=rel.from_id,
+                    to_id=rel.to_id,
+                    relation_type=rel.relation_type,
                     metadata={
-                        "from_id": rel.from_id,
-                        "to_id": rel.to_id,
                         "created_at": rel.created_at.isoformat(),
                         "updated_at": rel.updated_at.isoformat()
                     }
@@ -224,6 +230,11 @@ class SearchService:
         file_path: str,
         type: SearchItemType,
         metadata: dict,
+        from_id: Optional[int] = None,
+        to_id: Optional[int] = None,
+        relation_type: Optional[str] = None,
+        entity_id: Optional[int] = None,
+        category: Optional[str] = None,
     ) -> None:
         """Actually perform the indexing."""
         await self.repository.index_item(
@@ -234,6 +245,11 @@ class SearchService:
             file_path=file_path,
             type=type,
             metadata=metadata,
+            from_id=from_id,
+            to_id=to_id,
+            relation_type=relation_type,
+            entity_id=entity_id,
+            category=category,
         )
 
     async def delete_by_permalink(self, path_id: str):

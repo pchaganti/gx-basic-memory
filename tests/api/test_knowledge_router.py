@@ -403,7 +403,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     # 6. Search should find all related entities/relations/observations
     search = await client.post("/search/", json={"text": "Related"})
     matches = search.json()["results"]
-    assert len(matches) == 4
+    assert len(matches) == 6
 
     # 7. Delete main entity
     response = await client.post(
