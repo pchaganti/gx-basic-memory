@@ -101,13 +101,8 @@ class ContextService:
             
         logger.debug(f"Finding connected items for {type_id_pairs} with depth {max_depth}")
 
-        # Build the VALUES clause for our seed items
+        # Build the VALUES clause directly since SQLite doesn't handle parameterized IN well
         values = ", ".join([f"('{t}', {i})" for t, i in type_id_pairs])
-
-        # Build date condition for timeframe filtering
-        date_filter = f""
-        if since:
-            date_filter = f"AND created_at >= '{since.isoformat()}'"
 
         # Debug: Check what's in the search index
         debug_query = text("""
@@ -122,6 +117,16 @@ class ContextService:
                 logger.debug(f"Relation {r.id}: from={r.from_id} to={r.to_id} type={r.relation_type}")
             else:
                 logger.debug(f"{r.type} {r.id}")
+
+        # Parameters for bindings
+        params = {"max_depth": max_depth}
+        if since:
+            params["since_date"] = since.isoformat()
+
+        # Build date filter
+        date_filter = f"AND base.created_at >= :since_date" if since else ""
+        r1_date_filter = f"AND r1.created_at >= :since_date" if since else ""
+        related_date_filter = f"AND related.created_at >= :since_date" if since else ""
 
         query = text(f"""
             WITH RECURSIVE context_graph AS (
@@ -141,12 +146,12 @@ class ContextService:
                     id as root_id,
                     created_at
                 FROM search_index base
-                WHERE (type, id) IN (VALUES {values})
+                WHERE (base.type, base.id) IN ({values})
                 {date_filter}
 
                 UNION 
 
-                -- Find all connected items (relations + entities) at each depth
+                -- Find relations and their connected items at each depth
                 SELECT
                     related.id,
                     related.type,
@@ -162,15 +167,15 @@ class ContextService:
                     cg.root_id,
                     related.created_at
                 FROM context_graph cg
-                INNER JOIN search_index r1 ON (
+                JOIN search_index r1 ON (
                     -- First find the relations
                     cg.type = 'entity' AND 
                     r1.type = 'relation' AND 
                     (r1.from_id = cg.id OR r1.to_id = cg.id)
-                    {date_filter.replace('created_at', 'r1.created_at')}
+                    {r1_date_filter}
                 )
                 -- Then join to ALL related items at the same depth 
-                LEFT JOIN search_index related ON (
+                JOIN search_index related ON (
                     -- The found relation 
                     related.id = r1.id
                     OR
@@ -181,9 +186,9 @@ class ContextService:
                     -- Any observations that are relevant
                     (related.type = 'observation' AND 
                      (related.entity_id = r1.from_id OR related.entity_id = r1.to_id))
+                    {related_date_filter}
                 )
-                WHERE cg.depth < {max_depth}
-                {date_filter.replace('created_at', 'related.created_at')}
+                WHERE cg.depth < :max_depth
             )
             -- Select shortest path to each item
             SELECT DISTINCT 
@@ -205,8 +210,8 @@ class ContextService:
                 type, id, title, permalink, from_id, to_id,
                 relation_type, category, entity_id, content,
                 root_id, created_at
-            ORDER BY depth, type
+            ORDER BY depth, type, id
         """)
 
-        results = await self.search_repository.execute_query(query)
+        results = await self.search_repository.execute_query(query, params=params)
         return results.all()

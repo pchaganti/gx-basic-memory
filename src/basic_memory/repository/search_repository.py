@@ -1,7 +1,7 @@
 """Repository for search operations."""
 
 import json
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 
 from loguru import logger
 from sqlalchemy import text, Executable, Result
@@ -169,10 +169,24 @@ class SearchRepository:
             )
             await session.commit()
 
-    async def execute_query(self, query: Executable, use_query_options:bool = True) -> Result[Any]:
-        """Execute a query asynchronously."""
+    async def execute_query(
+        self, 
+        query: Executable, 
+        params: Optional[Dict[str, Any]] = None, 
+        use_query_options:bool = True
+    ) -> Result[Any]:
+        """Execute a query asynchronously.
+        
+        Args:
+            query: The query to execute
+            params: Optional parameters to bind to the query
+            use_query_options: Whether to apply query options
+        """
         logger.debug(f"Executing query: {query}")
         async with db.scoped_session(self.session_maker) as session:
-            result = await session.execute(query)
+            if params:
+                result = await session.execute(query, params)
+            else:
+                result = await session.execute(query)
             logger.debug("Query executed successfully")
             return result
