@@ -150,14 +150,14 @@ async def test_path_pattern_search(indexed_search):
     """Test path pattern matching in permalinks."""
     # Test exact path match
     results = await indexed_search.search(
-        SearchQuery(permalink_pattern="components/core-service")
+        SearchQuery(permalink="components/core-service")
     )
     assert len(results) == 1
     assert results[0].permalink == "components/core-service"
 
     # Test prefix matching with *
     results = await indexed_search.search(
-        SearchQuery(permalink_pattern="components/*")
+        SearchQuery(permalink="components/*")
     )
     assert len(results) == 2  # Should match both core-service and auth/service
     permalinks = {r.permalink for r in results}
@@ -166,7 +166,7 @@ async def test_path_pattern_search(indexed_search):
 
     # Test nested path matching
     results = await indexed_search.search(
-        SearchQuery(permalink_pattern="components/*/service")
+        SearchQuery(permalink="components/*/service")
     )
     permalinks = [r.permalink for r in results]
     assert len(permalinks) == 2
@@ -175,7 +175,7 @@ async def test_path_pattern_search(indexed_search):
 
     # Test top-level pattern
     results = await indexed_search.search(
-        SearchQuery(permalink_pattern="*/service")
+        SearchQuery(permalink="*/service")
     )
     permalinks = [r.permalink for r in results]
     assert len(permalinks) == 3

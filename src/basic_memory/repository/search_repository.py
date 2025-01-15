@@ -71,8 +71,8 @@ class SearchRepository:
             conditions.append("(title MATCH :text OR content MATCH :text)")
 
         # Handle pattern search on permalink using FTS
-        if query.permalink_pattern:
-            fts_pattern = self._convert_pattern_to_fts(query.permalink_pattern)
+        if query.permalink:
+            fts_pattern = self._convert_pattern_to_fts(query.permalink)
             if fts_pattern:
                 params["permalink_pattern"] = fts_pattern
                 conditions.append("permalink MATCH :permalink_pattern")

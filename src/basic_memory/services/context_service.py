@@ -66,12 +66,9 @@ class ContextService:
     async def find_by_pattern(self, pattern: str):
         """Find entities matching a glob pattern."""
         # Convert glob pattern to SQL LIKE pattern 
-        sql_pattern = pattern.replace('*', '%')
-        
         # Use search with permalink pattern
         query = SearchQuery(
-            permalink_pattern=sql_pattern,
-            types=[SearchItemType.ENTITY]  # Only match entities
+            permalink=pattern,
         )
         
         return await self.search_repository.search(query)
@@ -80,14 +77,13 @@ class ContextService:
         """Find entities using fuzzy text search."""
         query = SearchQuery(
             text=search_terms,
-            types=[SearchItemType.ENTITY]  # Only match entities
         )
         return await self.search_repository.search(query)
 
     async def find_related(self, permalink: str):
         """Find entities related to a given permalink."""
         # First find the target entity
-        query = SearchQuery(permalink_pattern=permalink)
+        query = SearchQuery(permalink=permalink)
         results = await self.search_repository.search(query)
         
         if not results:
@@ -102,7 +98,7 @@ class ContextService:
 
     async def find_by_permalink(self, permalink: str):
         """Find an entity by exact permalink."""
-        query = SearchQuery(permalink_pattern=permalink)
+        query = SearchQuery(permalink=permalink)
         return await self.search_repository.search(query)
 
     async def find_connected(

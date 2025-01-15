@@ -15,8 +15,8 @@ class SearchItemType(str, Enum):
 
 class SearchQuery(BaseModel):
     """Search query parameters."""
-    text: Optional[str] = None  # Made optional to allow permalink-only search
-    permalink_pattern: Optional[str] = None  # Added for pattern matching
+    text: Optional[str] = None  
+    permalink: Optional[str] = None  
     types: Optional[List[SearchItemType]] = None
     entity_types: Optional[List[str]] = None
     after_date: Optional[Union[datetime, str]] = None
