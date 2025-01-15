@@ -3,32 +3,26 @@
 The memory:// URL scheme provides a unified way to address knowledge across projects:
 memory://project-name/path/to/content
 
-The host portion (project-name) identifies the knowledge base context, while
-the path represents a relative permalink within that project.
-
 Examples:
-    memory://basic-memory/specs/search/*           # Pattern matching
-    memory://basic-memory/topic/search~ranking     # Fuzzy search
-    memory://basic-memory/specs/link-resolution    # Exact permalink
-    memory://basic-memory/related/sync             # Related content
-    memory://basic-memory/context/current          # Context building
+    memory://basic-memory/specs/search/*      # Pattern matching
+    memory://basic-memory/specs/xyz           # Exact permalink
+    memory://basic-memory/related/sync        # Related content
 """
 
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, field_validator, ValidationError
+from pydantic import BaseModel, Field, field_validator
 
 
 class MemoryUrl(BaseModel):
     """memory:// URL scheme for knowledge addressing."""
     
     scheme: str = Field(default="memory", frozen=True)
-    host: str
-    path: str
+    host: str  # Project identifier
+    path: str  # Full path
     
-    # Special fields for pattern matching and context
-    pattern: Optional[str] = None
-    fuzzy: Optional[str] = None
-    params: Dict[str, Any] = Field(default_factory=dict)
+    # Query params
+    pattern: Optional[str] = None  # Path pattern if * present
+    params: Dict[str, Any] = Field(default_factory=dict)  # For special modes like 'related'
     
     @field_validator("scheme")
     @classmethod
@@ -61,7 +55,7 @@ class MemoryUrl(BaseModel):
             raise ValueError("URL must include both host and path")
             
         host, path = parts
-        path = "/" + path  # Add leading slash for consistency
+        path = "/" + path  # Add leading slash
         
         # Create base URL
         url = cls(scheme=scheme, host=host, path=path)
@@ -69,13 +63,9 @@ class MemoryUrl(BaseModel):
         # Parse special patterns
         path_no_slash = path[1:] if path.startswith('/') else path
         
-        # Handle glob patterns - keep * for FTS5
+        # Handle glob patterns - preserve * for FTS
         if '*' in path_no_slash:
             url.pattern = path_no_slash
-            
-        # Handle fuzzy search
-        if '~' in path_no_slash:
-            url.fuzzy = path_no_slash.replace('~', ' ')
             
         # Extract special prefixes
         segments = path_no_slash.split('/')

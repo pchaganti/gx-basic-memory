@@ -12,26 +12,15 @@ def test_basic_permalink():
     assert url.host == "basic-memory"
     assert url.path == "/specs/search"
     assert url.pattern is None
-    assert url.fuzzy is None
     assert url.params == {}
 
 
 def test_glob_pattern():
-    """Test glob pattern conversion."""
+    """Test pattern matching."""
     url = MemoryUrl.parse("memory://basic-memory/specs/search/*")
     assert url.host == "basic-memory"
     assert url.path == "/specs/search/*"
-    assert url.pattern == "specs/search/%"
-    assert url.fuzzy is None
-
-
-def test_fuzzy_search():
-    """Test fuzzy search term parsing."""
-    url = MemoryUrl.parse("memory://basic-memory/topic/search~ranking")
-    assert url.host == "basic-memory"
-    assert url.path == "/topic/search~ranking"
-    assert url.pattern is None
-    assert url.fuzzy == "topic/search ranking"
+    assert url.pattern == "specs/search/*"
 
 
 def test_related_prefix():
@@ -73,15 +62,7 @@ def test_complex_pattern():
     url = MemoryUrl.parse("memory://basic-memory/specs/*/search/*")
     assert url.host == "basic-memory"
     assert url.path == "/specs/*/search/*"
-    assert url.pattern == "specs/%/search/%"
-
-
-def test_complex_fuzzy():
-    """Test multiple fuzzy terms."""
-    url = MemoryUrl.parse("memory://basic-memory/specs/search~ranking~performance")
-    assert url.host == "basic-memory"
-    assert url.path == "/specs/search~ranking~performance"
-    assert url.fuzzy == "specs/search ranking performance"
+    assert url.pattern == "specs/*/search/*"
 
 
 def test_url_reconstruction():
