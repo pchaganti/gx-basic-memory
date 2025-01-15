@@ -12,7 +12,13 @@ from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemTyp
 
 
 class SearchService:
-    """Service for search operations."""
+    """Service for search operations.
+    
+    Supports three primary search modes:
+    1. Exact permalink lookup
+    2. Pattern matching with * (e.g., 'specs/*')
+    3. Full-text search across title/content
+    """
 
     def __init__(
         self,
@@ -42,10 +48,48 @@ class SearchService:
         logger.info("Reindex complete")
 
     async def search(
-        self, query: SearchQuery, context: Optional[List[str]] = None
+        self, 
+        query: SearchQuery, 
+        context: Optional[List[str]] = None
     ) -> List[SearchResult]:
-        """Search across all indexed content."""
-        return await self.repository.search(query)
+        """Search across all indexed content.
+        
+        Supports three modes:
+        1. Exact permalink: finds direct matches for a specific path
+        2. Pattern match: handles * wildcards in paths
+        3. Text search: full-text search across title/content
+        """
+        logger.debug(f"Searching with query: {query}")
+        
+        # Determine search mode based on provided parameters
+        if query.permalink:
+            # Exact permalink lookup
+            results = await self.repository.search(
+                SearchQuery(permalink=query.permalink)
+            )
+        elif query.permalink_pattern:
+            # Pattern matching with *
+            results = await self.repository.search(
+                SearchQuery(permalink_pattern=query.permalink_pattern)
+            )
+        elif query.text:
+            # Full-text search
+            results = await self.repository.search(
+                SearchQuery(text=query.text)
+            )
+        else:
+            return []  # No search criteria provided
+            
+        # Apply any filters
+        results = [
+            r for r in results
+            if (not query.types or r.type in query.types) and
+               (not query.entity_types or
+                (r.type == SearchItemType.ENTITY and 
+                 r.metadata.get('entity_type') in query.entity_types))
+        ]
+        
+        return results
 
     def _generate_variants(self, text: str) -> Set[str]:
         """Generate text variants for better fuzzy matching.
@@ -176,8 +220,6 @@ class SearchService:
                 )
 
         # Only index outgoing relations (ones defined in this file)
-        # Relations are indexed from the source entity's perspective since
-        # that's where they are defined in the markdown
         for rel in entity.outgoing_relations:
             # Create relation permalink showing the semantic connection:
             # source/relation_type/target

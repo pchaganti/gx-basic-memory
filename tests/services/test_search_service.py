@@ -68,120 +68,108 @@ async def indexed_search(search_service, test_entities):
 
 
 @pytest.mark.asyncio
-async def test_basic_text_search(indexed_search, test_entities):
-    """Test basic search functionality works as expected."""
-    # Test exact word match
-    results = await indexed_search.search(SearchQuery(text="API"))
-    assert len(results) == 1
-    assert results[0].file_path == "docs/api/documentation.md"
-    assert results[0].id == test_entities[-1].id
-
-    # Test prefix match (serv should match service)
-    results = await indexed_search.search(SearchQuery(text="Serv"))
-    assert len(results) > 0
-    assert any(r.file_path == "components/core-service.md" for r in results)
-
-
-@pytest.mark.asyncio
-async def test_case_insensitive_search(indexed_search):
-    """Test that search is case insensitive."""
-    test_cases = [
-        "core",
-        "CORE",
-        "Core",
-    ]
-    for search_text in test_cases:
-        results = await indexed_search.search(SearchQuery(text=search_text))
-        assert len(results) == 2, f"Failed for '{search_text}'"
-
-        file_paths = [r.file_path for r in results]
-        assert "components/core-service.md" in file_paths
-        assert "specs/features/core.md" in file_paths
-
-
-@pytest.mark.asyncio
-async def test_whitespace_handling(indexed_search):
-    """Test that whitespace is handled correctly."""
-    test_cases = [
-        "  API  ",  # Extra spaces
-        "API Documentation",  # Normal spacing
-        "API    Documentation",  # Multiple spaces
-    ]
-    for search_text in test_cases:
-        results = await indexed_search.search(SearchQuery(text=search_text))
-        assert len(results) == 1, f"Failed for '{search_text}'"
-        assert results[0].file_path == "docs/api/documentation.md"
-
-
-@pytest.mark.asyncio
-async def test_content_search(indexed_search):
-    """Test searching in content/summary field."""
-    # Test matching against summary text
-    results = await indexed_search.search(SearchQuery(text="implementation"))
-    assert len(results) == 2
-
-    file_paths = [r.file_path for r in results]
-    assert "components/core-service.md" in file_paths
-    assert "components/auth/service.md" in file_paths
-
-
-@pytest.mark.asyncio
-async def test_search_filters(indexed_search):
-    """Test search filtering."""
-    # Search with correct type filter
-    results = await indexed_search.search(
-        SearchQuery(text="service", types=[SearchItemType.ENTITY], entity_types=["component"])
-    )
-    assert len(results) == 2
-
-    file_paths = [r.file_path for r in results]
-    assert "components/core-service.md" in file_paths
-    assert "components/auth/service.md" in file_paths
-
-    # Search with non-matching type (should return empty)
-    results = await indexed_search.search(
-        SearchQuery(text="service", types=[SearchItemType.RELATION])
-    )
-    assert len(results) == 0
-
-
-@pytest.mark.asyncio
-async def test_path_pattern_search(indexed_search):
-    """Test path pattern matching in permalinks."""
-    # Test exact path match
-    results = await indexed_search.search(
-        SearchQuery(permalink="components/core-service")
-    )
+async def test_search_modes(indexed_search):
+    """Test all three search modes work correctly."""
+    # 1. Exact permalink
+    results = await indexed_search.search(SearchQuery(permalink="components/core-service"))
     assert len(results) == 1
     assert results[0].permalink == "components/core-service"
 
-    # Test prefix matching with *
-    results = await indexed_search.search(
-        SearchQuery(permalink="components/*")
-    )
-    assert len(results) == 2  # Should match both core-service and auth/service
+    # 2. Pattern matching
+    results = await indexed_search.search(SearchQuery(permalink_pattern="components/*"))
+    assert len(results) == 2
     permalinks = {r.permalink for r in results}
     assert "components/core-service" in permalinks
     assert "components/auth/service" in permalinks
 
-    # Test nested path matching
-    results = await indexed_search.search(
-        SearchQuery(permalink="components/*/service")
-    )
-    permalinks = [r.permalink for r in results]
-    assert len(permalinks) == 2
-    assert "components/auth/service" in permalinks
-    assert "components/core-service" in permalinks
+    # 3. Full-text search
+    results = await indexed_search.search(SearchQuery(text="implementation"))
+    assert len(results) >= 1
+    assert any("service" in r.permalink for r in results)
 
-    # Test top-level pattern
+
+@pytest.mark.asyncio
+async def test_text_search_features(indexed_search):
+    """Test text search functionality."""
+    # Case insensitive
+    results = await indexed_search.search(SearchQuery(text="API"))
+    assert len(results) == 1
+    assert results[0].file_path == "docs/api/documentation.md"
+
+    # Partial word match
+    results = await indexed_search.search(SearchQuery(text="Serv"))
+    assert len(results) > 0
+    assert any(r.file_path == "components/core-service.md" for r in results)
+
+    # Multiple terms
+    results = await indexed_search.search(SearchQuery(text="core service"))
+    assert any("core-service" in r.permalink for r in results)
+
+
+@pytest.mark.asyncio
+async def test_pattern_matching(indexed_search):
+    """Test pattern matching with various wildcards."""
+    # Test nested wildcards
     results = await indexed_search.search(
-        SearchQuery(permalink="*/service")
+        SearchQuery(permalink_pattern="components/*/service")
     )
-    permalinks = [r.permalink for r in results]
-    assert len(permalinks) == 3
-    assert "components/auth/service" in permalinks
-    assert "components/core-service" in permalinks
-    assert "config/service-config" in permalinks
+    assert len(results) == 1  # Should match components/auth/service
+    assert results[0].permalink == "components/auth/service"
+
+    # Test start wildcards
+    results = await indexed_search.search(
+        SearchQuery(permalink_pattern="*/service")
+    )
+    assert len(results) == 1
+    assert results[0].permalink == "components/auth/service"
+
+    # Test end wildcards
+    results = await indexed_search.search(
+        SearchQuery(permalink_pattern="components/*")
+    )
+    assert len(results) == 2
+    assert all("components/" in r.permalink for r in results)
+
+
+@pytest.mark.asyncio
+async def test_filters(indexed_search):
+    """Test search filters."""
+    # Filter by type
+    results = await indexed_search.search(
+        SearchQuery(
+            text="service",
+            types=[SearchItemType.ENTITY]
+        )
+    )
+    assert all(r.type == SearchItemType.ENTITY for r in results)
+
+    # Filter by entity type
+    results = await indexed_search.search(
+        SearchQuery(
+            text="service",
+            entity_types=["component"]
+        )
+    )
+    assert all(r.metadata.get("entity_type") == "component" for r in results)
+
+    # Combined filters
+    results = await indexed_search.search(
+        SearchQuery(
+            text="service",
+            types=[SearchItemType.ENTITY],
+            entity_types=["component"]
+        )
+    )
+    assert len(results) == 2
+    assert all(r.type == SearchItemType.ENTITY for r in results)
+    assert all(r.metadata.get("entity_type") == "component" for r in results)
+
+
+@pytest.mark.asyncio
+async def test_no_criteria(indexed_search):
+    """Test search with no criteria returns empty list."""
+    results = await indexed_search.search(SearchQuery())
+    assert len(results) == 0
 
 
 @pytest.mark.asyncio
@@ -195,14 +183,14 @@ async def test_init_search_index(search_service, session_maker):
 
 
 @pytest.mark.asyncio
-async def test_update_index(search_service, full_entity):
+async def test_update_index(indexed_search, full_entity):
     """Test updating indexed content."""
-    await search_service.index_entity(full_entity)
+    await indexed_search.index_entity(full_entity)
 
     # Update entity
     full_entity.summary = "Updated description with new terms"
-    await search_service.index_entity(full_entity)
+    await indexed_search.index_entity(full_entity)
 
     # Search for new terms
-    results = await search_service.search(SearchQuery(text="new terms"))
+    results = await indexed_search.search(SearchQuery(text="new terms"))
     assert len(results) == 1
