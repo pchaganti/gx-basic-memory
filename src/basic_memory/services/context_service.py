@@ -104,20 +104,6 @@ class ContextService:
         # Build the VALUES clause directly since SQLite doesn't handle parameterized IN well
         values = ", ".join([f"('{t}', {i})" for t, i in type_id_pairs])
 
-        # Debug: Check what's in the search index
-        debug_query = text("""
-            SELECT type, id, from_id, to_id, relation_type 
-            FROM search_index 
-            ORDER BY type, id
-        """)
-        debug_results = await self.search_repository.execute_query(debug_query)
-        logger.debug("Current search index contents:")
-        for r in debug_results:
-            if r.type == "relation":
-                logger.debug(f"Relation {r.id}: from={r.from_id} to={r.to_id} type={r.relation_type}")
-            else:
-                logger.debug(f"{r.type} {r.id}")
-
         # Parameters for bindings
         params = {"max_depth": max_depth}
         if since:
