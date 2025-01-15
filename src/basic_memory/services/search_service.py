@@ -75,62 +75,122 @@ class SearchService:
     ) -> None:
         """Index an entity's content for search.
 
-        Indexes:
-        - Title and its variations for fuzzy matching
-        - Path components for better findability
+        Each type gets its own row in the search index with appropriate metadata
+        and type-specific fields populated.
         - Content with context preservation
         """
-        # Generate searchable content with variations
         content_parts = []
-
-        # Add title variations
         title_variants = self._generate_variants(entity.title)
         content_parts.extend(title_variants)
 
-        # Add summary if available
         if entity.summary:
             content_parts.append(entity.summary)
 
-        # Add permalink variations
-        permalink_variants = self._generate_variants(entity.permalink)
-        content_parts.extend(permalink_variants)
+        content_parts.extend(self._generate_variants(entity.permalink))
+        content_parts.extend(self._generate_variants(entity.file_path))
+        
+        entity_content = "\n".join(p for p in content_parts if p and p.strip())
 
-        # Add file path components
-        path_variants = self._generate_variants(entity.file_path)
-        content_parts.extend(path_variants)
-
-        # Join all parts and remove empty strings
-        content = "\n".join(p for p in content_parts if p and p.strip())
-
-        metadata = {
-            "entity_type": entity.entity_type,
-            "created_at": entity.created_at.isoformat(),
-            "updated_at": entity.updated_at.isoformat(),
-        }
-
-        # Queue indexing if background_tasks provided
+        # Index entity
         if background_tasks:
             background_tasks.add_task(
                 self._do_index,
                 id=entity.id,
                 title=entity.title,
-                content=content,
+                content=entity_content,
                 permalink=entity.permalink,
                 file_path=entity.file_path,
                 type=SearchItemType.ENTITY,
-                metadata=metadata,
+                metadata={
+                    "entity_type": entity.entity_type,
+                    "created_at": entity.created_at.isoformat(),
+                    "updated_at": entity.updated_at.isoformat(),
+                }
             )
         else:
             await self._do_index(
                 id=entity.id,
                 title=entity.title,
-                content=content,
+                content=entity_content,
                 permalink=entity.permalink,
                 file_path=entity.file_path,
                 type=SearchItemType.ENTITY,
-                metadata=metadata,
+                metadata={
+                    "entity_type": entity.entity_type,
+                    "created_at": entity.created_at.isoformat(),
+                    "updated_at": entity.updated_at.isoformat(),
+                }
             )
 
+        # Index each observation
+        for obs in entity.observations:
+            if background_tasks:
+                background_tasks.add_task(
+                    self._do_index,
+                    id=obs.id,
+                    title=f"{obs.category}: {obs.content[:50]}...",
+                    content=obs.content,
+                    permalink=f"{entity.permalink}/observations/{obs.id}",
+                    file_path=entity.file_path,
+                    type=SearchItemType.OBSERVATION,
+                    metadata={
+                        "entity_id": entity.id,
+                        "category": obs.category,
+                        "created_at": obs.created_at.isoformat(),
+                        "updated_at": obs.updated_at.isoformat(),
+                        "tags": obs.tags
+                    }
+                )
+            else:
+                await self._do_index(
+                    id=obs.id,
+                    title=f"{obs.category}: {obs.content[:50]}...",
+                    content=obs.content,
+                    permalink=f"{entity.permalink}/observations/{obs.id}",
+                    file_path=entity.file_path,
+                    type=SearchItemType.OBSERVATION,
+                    metadata={
+                        "entity_id": entity.id,
+                        "category": obs.category,
+                        "created_at": obs.created_at.isoformat(),
+                        "updated_at": obs.updated_at.isoformat(),
+                        "tags": obs.tags
+                    }
+                )
+
+        # Index each relation
+        for rel in entity.relations:
+            if background_tasks:
+                background_tasks.add_task(
+                    self._do_index,
+                    id=rel.id,
+                    title=f"{rel.relation_type}",
+                    content=rel.context or "",
+                    permalink=f"{entity.permalink}/relations/{rel.id}",
+                    file_path=entity.file_path,
+                    type=SearchItemType.RELATION,
+                    metadata={
+                        "from_id": rel.from_id,
+                        "to_id": rel.to_id,
+                        "created_at": rel.created_at.isoformat(),
+                        "updated_at": rel.updated_at.isoformat()
+                    }
+                )
+            else:
+                await self._do_index(
+                    id=rel.id,
+                    title=f"{rel.relation_type}",
+                    content=rel.context or "",
+                    permalink=f"{entity.permalink}/relations/{rel.id}",
+                    file_path=entity.file_path,
+                    type=SearchItemType.RELATION,
+                    metadata={
+                        "from_id": rel.from_id,
+                        "to_id": rel.to_id,
+                        "created_at": rel.created_at.isoformat(),
+                        "updated_at": rel.updated_at.isoformat()
+                    }
+                )
     async def _do_index(
         self,
         id: int,
