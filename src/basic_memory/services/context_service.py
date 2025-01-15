@@ -28,13 +28,7 @@ class ContextService:
         depth: int = 2,
         since: Optional[datetime] = None,
     ):
-        """Build rich context from a memory:// URI.
-        
-        Args:
-            uri: memory:// URI to build context from
-            depth: How many relation steps to traverse (default: 2)
-            since: Only include items modified since this time
-        """
+        """Build rich context from a memory:// URI."""
         logger.debug(f"Building context for URI {uri}")
         
         # Parse the URI
@@ -60,7 +54,7 @@ class ContextService:
         # Find connected entities through relations
         related = await self.find_connected(
             type_id_pairs,
-            depth=depth,
+            max_depth=depth,
             since=since
         )
         
@@ -97,12 +91,6 @@ class ContextService:
     ):
         """Find items connected through relations.
         
-        This uses a recursive CTE to traverse the knowledge graph:
-        1. Start from a set of seed items (any type)
-        2. Find all paths through relations in a single traversal
-        3. Collect observations for any entities found
-        4. Group by item to take shortest path to each
-        
         Args:
             type_id_pairs: List of (type, id) tuples to start from
             max_depth: How many relation steps to traverse
@@ -117,19 +105,31 @@ class ContextService:
         values = ", ".join([f"('{t}', {i})" for t, i in type_id_pairs])
 
         # Build date condition for timeframe filtering
-        date_filter = ""
+        date_filter = f""
         if since:
-            date_filter = f"AND si.created_at >= {since.timestamp()}" #TODO fix date compare
+            date_filter = f"AND created_at >= '{since.isoformat()}'"
+
+        # Debug: Check what's in the search index
+        debug_query = text("""
+            SELECT type, id, from_id, to_id, relation_type 
+            FROM search_index 
+            ORDER BY type, id
+        """)
+        debug_results = await self.search_repository.execute_query(debug_query)
+        logger.debug("Current search index contents:")
+        for r in debug_results:
+            if r.type == "relation":
+                logger.debug(f"Relation {r.id}: from={r.from_id} to={r.to_id} type={r.relation_type}")
+            else:
+                logger.debug(f"{r.type} {r.id}")
 
         query = text(f"""
             WITH RECURSIVE context_graph AS (
-                -- Base case: Starting points
-                -- These can be entities, relations, or observations
-                -- Each gets depth 0 and its own id as root_id
-                SELECT
+                -- Base case: seed items
+                SELECT 
                     id,
                     type,
-                    title,
+                    title, 
                     permalink,
                     from_id,
                     to_id,
@@ -140,71 +140,53 @@ class ContextService:
                     0 as depth,
                     id as root_id,
                     created_at
-                FROM search_index
+                FROM search_index base
                 WHERE (type, id) IN (VALUES {values})
+                {date_filter}
 
-                UNION ALL
+                UNION 
 
-                -- Relations and connected entities in a single traversal step
-                -- This ensures we always take the shortest path to each item
+                -- Find all connected items (relations + entities) at each depth
                 SELECT
-                    si.id,
-                    si.type,
-                    si.title,
-                    si.permalink,
-                    si.from_id,
-                    si.to_id,
-                    si.relation_type,
-                    si.category,
-                    si.entity_id,
-                    si.content,
+                    related.id,
+                    related.type,
+                    related.title,
+                    related.permalink,
+                    related.from_id,
+                    related.to_id,
+                    related.relation_type,
+                    related.category,
+                    related.entity_id,
+                    related.content,
                     cg.depth + 1,
                     cg.root_id,
-                    si.created_at
+                    related.created_at
                 FROM context_graph cg
-                JOIN search_index si ON (
-                    -- Forward relations (A -> B)
-                    (si.from_id = cg.id AND si.type = 'relation')
-                    OR 
-                    -- Backward relations (B -> A)
-                    (si.to_id = cg.id AND si.type = 'relation')
+                INNER JOIN search_index r1 ON (
+                    -- First find the relations
+                    cg.type = 'entity' AND 
+                    r1.type = 'relation' AND 
+                    (r1.from_id = cg.id OR r1.to_id = cg.id)
+                    {date_filter.replace('created_at', 'r1.created_at')}
+                )
+                -- Then join to ALL related items at the same depth 
+                LEFT JOIN search_index related ON (
+                    -- The found relation 
+                    related.id = r1.id
                     OR
-                    -- Entities connected by relations we've found
-                    -- Note: entity connection only happens after we find a relation
-                    (cg.type = 'relation' AND si.type = 'entity' AND 
-                     (si.id = cg.to_id OR si.id = cg.from_id))
+                    -- The entity it connects to
+                    (related.type = 'entity' AND 
+                     (related.id = r1.from_id OR related.id = r1.to_id))
+                    OR
+                    -- Any observations that are relevant
+                    (related.type = 'observation' AND 
+                     (related.entity_id = r1.from_id OR related.entity_id = r1.to_id))
                 )
                 WHERE cg.depth < {max_depth}
-                {date_filter}
-
-                UNION ALL
-
-                -- Observations for any entities we've found
-                -- These attach to entities but don't continue the traversal
-                SELECT
-                    si.id,
-                    si.type,
-                    si.title,
-                    si.permalink,
-                    si.from_id,
-                    si.to_id,
-                    si.relation_type,
-                    si.category,
-                    si.entity_id,
-                    si.content,
-                    cg.depth + 1,
-                    cg.root_id,
-                    si.created_at
-                FROM context_graph cg
-                JOIN search_index si ON si.entity_id = cg.id
-                WHERE si.type = 'observation'
-                AND cg.depth < {max_depth}
-                {date_filter}
+                {date_filter.replace('created_at', 'related.created_at')}
             )
-            -- Take the shortest path to each item
-            -- Items can be reached multiple ways, but we only want
-            -- to return each one once at its minimum depth from any root
-            SELECT DISTINCT
+            -- Select shortest path to each item
+            SELECT DISTINCT 
                 type,
                 id,
                 title,
@@ -215,14 +197,15 @@ class ContextService:
                 category,
                 entity_id,
                 content,
-                min(depth) as depth,
+                MIN(depth) as depth,
                 root_id,
                 created_at
             FROM context_graph
-            GROUP BY type, id, title, permalink, from_id, to_id, 
-                     relation_type, category, entity_id, content, 
-                     root_id, created_at
-            ORDER BY type, id, depth ASC
+            GROUP BY
+                type, id, title, permalink, from_id, to_id,
+                relation_type, category, entity_id, content,
+                root_id, created_at
+            ORDER BY depth, type
         """)
 
         results = await self.search_repository.execute_query(query)
