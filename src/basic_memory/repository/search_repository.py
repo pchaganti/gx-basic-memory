@@ -1,14 +1,15 @@
 """Repository for search operations."""
 
 import json
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from loguru import logger
-from sqlalchemy import text
+from sqlalchemy import text, Executable, Result
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory import db
 from basic_memory.models.search import CREATE_SEARCH_INDEX
+from basic_memory.repository.repository import Repository
 from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
 
 
@@ -167,3 +168,11 @@ class SearchRepository:
                 {"permalink": permalink},
             )
             await session.commit()
+
+    async def execute_query(self, query: Executable, use_query_options:bool = True) -> Result[Any]:
+        """Execute a query asynchronously."""
+        logger.debug(f"Executing query: {query}")
+        async with db.scoped_session(self.session_maker) as session:
+            result = await session.execute(query)
+            logger.debug("Query executed successfully")
+            return result
