@@ -16,7 +16,7 @@ async def test_entities(entity_repository):
         Entity(
             title="Core Service",
             entity_type="component",
-            permalink="core-service",
+            permalink="components/core-service",  # Updated to use path-style permalinks
             summary="The core service implementation",
             file_path="components/core-service.md",
             content_type="text/markdown",
@@ -24,7 +24,7 @@ async def test_entities(entity_repository):
         Entity(
             title="Service Config",
             entity_type="config",
-            permalink="service-config",
+            permalink="config/service-config",
             summary="Configuration for services",
             file_path="config/service-config.md",
             content_type="text/markdown",
@@ -32,7 +32,7 @@ async def test_entities(entity_repository):
         Entity(
             title="Auth Service",
             entity_type="component",
-            permalink="auth-service",
+            permalink="components/auth/service",  # Nested path
             summary="Authentication service implementation",
             file_path="components/auth/service.md",
             content_type="text/markdown",
@@ -40,7 +40,7 @@ async def test_entities(entity_repository):
         Entity(
             title="Core Features",
             entity_type="specs",
-            permalink="core-features",
+            permalink="specs/features/core",
             summary="Core feature specifications",
             file_path="specs/features/core.md",
             content_type="text/markdown",
@@ -48,7 +48,7 @@ async def test_entities(entity_repository):
         Entity(
             title="API Documentation",
             entity_type="docs",
-            permalink="api-documentation",
+            permalink="docs/api/documentation", 
             summary="API documentation and examples",
             file_path="docs/api/documentation.md",
             content_type="text/markdown",
@@ -143,6 +143,45 @@ async def test_search_filters(indexed_search):
         SearchQuery(text="service", types=[SearchItemType.RELATION])
     )
     assert len(results) == 0
+
+
+@pytest.mark.asyncio
+async def test_path_pattern_search(indexed_search):
+    """Test path pattern matching in permalinks."""
+    # Test exact path match
+    results = await indexed_search.search(
+        SearchQuery(permalink_pattern="components/core-service")
+    )
+    assert len(results) == 1
+    assert results[0].permalink == "components/core-service"
+
+    # Test prefix matching with *
+    results = await indexed_search.search(
+        SearchQuery(permalink_pattern="components/*")
+    )
+    assert len(results) == 2  # Should match both core-service and auth/service
+    permalinks = {r.permalink for r in results}
+    assert "components/core-service" in permalinks
+    assert "components/auth/service" in permalinks
+
+    # Test nested path matching
+    results = await indexed_search.search(
+        SearchQuery(permalink_pattern="components/*/service")
+    )
+    permalinks = [r.permalink for r in results]
+    assert len(permalinks) == 2
+    assert "components/auth/service" in permalinks
+    assert "components/core-service" in permalinks
+
+    # Test top-level pattern
+    results = await indexed_search.search(
+        SearchQuery(permalink_pattern="*/service")
+    )
+    permalinks = [r.permalink for r in results]
+    assert len(permalinks) == 3
+    assert "components/auth/service" in permalinks
+    assert "components/core-service" in permalinks
+    assert "config/service-config" in permalinks
 
 
 @pytest.mark.asyncio

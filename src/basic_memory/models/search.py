@@ -9,18 +9,18 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
     id UNINDEXED,          -- Row ID
     title,                 -- Title for searching
     content,               -- Main searchable content
-    permalink UNINDEXED,   -- Stable identifier
-    file_path UNINDEXED,  -- Physical location
-    type UNINDEXED,       -- entity/relation/observation
+    permalink,             -- Stable identifier (now indexed for path search)
+    file_path UNINDEXED,   -- Physical location
+    type UNINDEXED,        -- entity/relation/observation
     
     -- Relation fields 
-    from_id UNINDEXED,    -- Source entity
-    to_id UNINDEXED,      -- Target entity
+    from_id UNINDEXED,     -- Source entity
+    to_id UNINDEXED,       -- Target entity
     relation_type UNINDEXED, -- Type of relation
     
     -- Observation fields
-    entity_id UNINDEXED,  -- Parent entity
-    category UNINDEXED,   -- Observation category
+    entity_id UNINDEXED,   -- Parent entity
+    category UNINDEXED,    -- Observation category
     
     -- Common fields
     metadata UNINDEXED,    -- JSON metadata
@@ -28,7 +28,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
     updated_at UNINDEXED,  -- Last update
     
     -- Configuration
-    tokenize='porter unicode61',
-    prefix='2,3'
+    tokenize=\"unicode61 separators '/'\",  -- Treat / as part of tokens
+    prefix='1,2,3,4'                    -- Support longer prefixes for paths
 );
 """)

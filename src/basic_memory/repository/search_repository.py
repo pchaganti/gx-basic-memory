@@ -31,6 +31,34 @@ class SearchRepository:
             return f'"{term}"'
         return term
 
+    def _convert_pattern_to_fts(self, pattern: str) -> str:
+        """Convert glob pattern to FTS5 query.
+        
+        Examples:
+            specs/search -> "specs/search"
+            specs/* -> "specs/"*
+            specs/*/doc -> "specs/" AND "service"
+            */doc -> "service"
+        """
+        if not pattern:
+            return ""
+            
+        # Split on * to identify wildcard positions
+        parts = pattern.split('*')
+        
+        # No wildcards - do exact phrase match
+        if len(parts) == 1:
+            return f'"{pattern}"'
+        
+        # Strip empty parts and clean up
+        parts = [p.strip('/') for p in parts if p.strip('/')]
+        
+        # For patterns with wildcards, quote each part
+        quoted = [f'"{p}"' for p in parts]
+        
+        # Join with AND to ensure all parts match
+        return ' AND '.join(quoted)
+
     async def search(self, query: SearchQuery) -> List[SearchResult]:
         """Search across all indexed content with fuzzy matching."""
         conditions = []
@@ -42,10 +70,12 @@ class SearchRepository:
             params["text"] = f"{search_text}*"
             conditions.append("(title MATCH :text OR content MATCH :text)")
 
-        # Handle pattern search on permalink if specified
+        # Handle pattern search on permalink using FTS
         if query.permalink_pattern:
-            params["permalink_pattern"] = query.permalink_pattern
-            conditions.append("permalink LIKE :permalink_pattern")
+            fts_pattern = self._convert_pattern_to_fts(query.permalink_pattern)
+            if fts_pattern:
+                params["permalink_pattern"] = fts_pattern
+                conditions.append("permalink MATCH :permalink_pattern")
 
         # Handle type filter
         if query.types:
