@@ -69,9 +69,9 @@ class MemoryUrl(BaseModel):
         # Parse special patterns
         path_no_slash = path[1:] if path.startswith('/') else path
         
-        # Handle glob patterns
+        # Handle glob patterns - keep * for FTS5
         if '*' in path_no_slash:
-            url.pattern = path_no_slash.replace('*', '%')
+            url.pattern = path_no_slash
             
         # Handle fuzzy search
         if '~' in path_no_slash:
