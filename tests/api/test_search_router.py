@@ -11,38 +11,18 @@ from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.schemas.search import SearchItemType, SearchResponse
 
 
-@pytest.fixture
-def test_entity():
-    """Create a test entity."""
-
-    class Entity:
-        id = 1
-        title = "TestComponent"
-        entity_type = "test"
-        entity_metadata = {"test": "test"}
-        permalink = "component/test_component"
-        file_path = "entities/component/test_component.md"
-        summary = "A test component for search testing"
-        content_type = "text/markdown"
-        created_at = datetime.now(timezone.utc)
-        updated_at = datetime.now(timezone.utc)
-        observations = []
-        relations = []
-
-    return Entity()
-
 
 @pytest_asyncio.fixture
-async def indexed_entity(init_search_index, test_entity, search_service):
+async def indexed_entity(init_search_index, full_entity, search_service):
     """Create an entity and index it."""
-    await search_service.index_entity(test_entity)
-    return test_entity
+    await search_service.index_entity(full_entity)
+    return full_entity
 
 
 @pytest.mark.asyncio
 async def test_search_basic(client, indexed_entity):
     """Test basic text search."""
-    response = await client.post("/search/", json={"text": "test component"})
+    response = await client.post("/search/", json={"text": "searchable"})
     assert response.status_code == 200
     search_results = SearchResponse.model_validate(response.json())
     assert len(search_results.results) == 1
@@ -62,7 +42,7 @@ async def test_search_with_type_filter(client, indexed_entity):
 
     # Should not find with wrong type
     response = await client.post(
-        "/search/", json={"text": "test", "types": [SearchItemType.DOCUMENT.value]}
+        "/search/", json={"text": "test", "types": [SearchItemType.RELATION.value]}
     )
     assert response.status_code == 200
     search_results = SearchResponse.model_validate(response.json())
@@ -138,7 +118,7 @@ async def test_search_empty(search_service, client):
 
 
 @pytest.mark.asyncio
-async def test_reindex(client, search_service, entity_service, test_entity, session_maker):
+async def test_reindex(client, search_service, entity_service, session_maker):
     """Test reindex endpoint."""
     # Create test entity and document
     await entity_service.create_entity(
@@ -168,7 +148,9 @@ async def test_reindex(client, search_service, entity_service, test_entity, sess
     # Verify content is searchable again
     search_response = await client.post("/search/", json={"text": "test"})
     search_results = SearchResponse.model_validate(search_response.json())
-    assert len(search_results.results) == 1
+    assert len(search_results.results) == 2
+    
+    
 
 
 @pytest.mark.asyncio

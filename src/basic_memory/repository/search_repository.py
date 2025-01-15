@@ -26,7 +26,7 @@ class SearchRepository:
 
     def _quote_search_term(self, term: str) -> str:
         """Add quotes if term contains special characters."""
-        if any(c in term for c in '/-'):
+        if any(c in term for c in "/-"):
             return f'"{term}"'
         return term
 
@@ -112,12 +112,18 @@ class SearchRepository:
             # Insert new record
             await session.execute(
                 text("""
-                    INSERT INTO search_index (
-                        id, title, content, permalink, file_path, type, metadata
-                    ) VALUES (
-                        :id, :title, :content, :permalink, :file_path, :type, :metadata
-                    )
-                """),
+                                INSERT INTO search_index (
+                                    id, title, content, permalink, file_path, type, metadata,
+                                    from_id, to_id, relation_type,
+                                    entity_id, category,
+                                    created_at, updated_at
+                                ) VALUES (
+                                    :id, :title, :content, :permalink, :file_path, :type, :metadata,
+                                    :from_id, :to_id, :relation_type,
+                                    :entity_id, :category,
+                                    :created_at, :updated_at
+                                )
+                            """),
                 {
                     "id": id,
                     "title": title,
@@ -126,6 +132,14 @@ class SearchRepository:
                     "file_path": file_path,
                     "type": type.value,
                     "metadata": json.dumps(metadata),
+                    # Optional fields based on type
+                    "from_id": metadata.get("from_id"),
+                    "to_id": metadata.get("to_id"),
+                    "relation_type": metadata.get("relation_type"),
+                    "entity_id": metadata.get("entity_id"),
+                    "category": metadata.get("category"),
+                    "created_at": metadata.get("created_at"),
+                    "updated_at": metadata.get("updated_at")
                 },
             )
             logger.debug(f"indexed {permalink}")

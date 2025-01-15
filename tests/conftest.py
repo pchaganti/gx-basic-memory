@@ -13,7 +13,7 @@ from basic_memory.db import DatabaseType
 from basic_memory.markdown import EntityParser
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.models import Base
-from basic_memory.models.knowledge import Entity
+from basic_memory.models.knowledge import Entity, Observation, ObservationCategory, Relation
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
@@ -226,3 +226,29 @@ async def sample_entity(entity_repository: EntityRepository) -> Entity:
         "content_type": "text/markdown",
     }
     return await entity_repository.create(entity_data)
+
+
+@pytest_asyncio.fixture
+async def full_entity(sample_entity, entity_repository):
+    """Create a search test entity."""
+
+    search_entity = await entity_repository.create({
+        "title": "Search Entity",
+        "entity_type": "test",
+        "summary": "A searchable entity",
+        "permalink": "test/search_entity",
+        "file_path": "test/search_entity.md",
+        "content_type": "text/markdown",
+    })
+
+    observations = [
+        Observation(content="Tech note", category=ObservationCategory.TECH),
+        Observation(content="Design note", category=ObservationCategory.DESIGN),
+    ]
+    relations = [
+        Relation(from_id=search_entity.id, to_id=sample_entity.id, relation_type="out1"),
+        Relation(from_id=search_entity.id, to_id=sample_entity.id, relation_type="out2"),
+    ]
+    search_entity.observations = observations
+    search_entity.outgoing_relations = relations
+    return await entity_repository.add(search_entity)

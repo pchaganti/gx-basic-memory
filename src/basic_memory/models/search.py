@@ -29,15 +29,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
     
     -- Configuration
     tokenize='porter unicode61',
-    prefix='2,3',
-    content='title content'  -- Default searchable columns
+    prefix='2,3'
 );
-
--- Add index for relation traversal
-CREATE INDEX IF NOT EXISTS idx_search_relations 
-ON search_index(from_id, to_id) WHERE type = 'relation';
-
--- Add index for type filtering
-CREATE INDEX IF NOT EXISTS idx_search_type_perm 
-ON search_index(type);
 """)

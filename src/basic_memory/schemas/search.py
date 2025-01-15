@@ -8,10 +8,10 @@ from pydantic import BaseModel, field_validator
 
 class SearchItemType(str, Enum):
     """Types of searchable items."""
-
     ENTITY = "entity"
     OBSERVATION = "observation"
     RELATION = "relation"
+
 
 class SearchQuery(BaseModel):
     """Search query parameters."""
@@ -33,15 +33,15 @@ class SearchQuery(BaseModel):
 
 class SearchResult(BaseModel):
     """Search result item."""
-
     id: int 
     type: SearchItemType
     score: float
+    metadata: dict
 
-    # Entity Observation-specific fields
+    # File-based fields (optional since observations/relations 
+    # don't have their own files)
     permalink: Optional[str] = None
     file_path: Optional[str] = None
-    metadata: dict
     
     # Observation-specific fields
     entity_id: Optional[int] = None
@@ -55,5 +55,4 @@ class SearchResult(BaseModel):
 
 class SearchResponse(BaseModel):
     """Wrapper for search results list."""
-
     results: List[SearchResult]

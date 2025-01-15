@@ -73,11 +73,22 @@ class SearchService:
     async def index_entity(
         self, entity: Entity, background_tasks: Optional[BackgroundTasks] = None
     ) -> None:
-        """Index an entity's content for search.
+        """Index an entity and all its observations and relations.
+        
+        Indexing structure:
+        1. Entities
+           - permalink: direct from entity (e.g., "specs/search")
+           - file_path: physical file location
+        
+        2. Observations
+           - permalink: entity permalink + /observations/id (e.g., "specs/search/observations/123")
+           - file_path: parent entity's file (where observation is defined)
+        
+        3. Relations (only index outgoing relations defined in this file)
+           - permalink: from_entity/relation_type/to_entity (e.g., "specs/search/implements/features/search-ui")
+           - file_path: source entity's file (where relation is defined)
 
-        Each type gets its own row in the search index with appropriate metadata
-        and type-specific fields populated.
-        - Content with context preservation
+        Each type gets its own row in the search index with appropriate metadata.
         """
         content_parts = []
         title_variants = self._generate_variants(entity.title)
@@ -122,15 +133,21 @@ class SearchService:
                 }
             )
 
-        # Index each observation
+        # Index each observation with synthetic permalink
         for obs in entity.observations:
+            # Create synthetic permalink for the observation
+            # We can construct these because observations are always
+            # defined in and owned by a single entity
+            observation_permalink = f"{entity.permalink}/observations/{obs.id}"
+            
+            # Index with parent entity's file path since that's where it's defined
             if background_tasks:
                 background_tasks.add_task(
                     self._do_index,
                     id=obs.id,
                     title=f"{obs.category}: {obs.content[:50]}...",
                     content=obs.content,
-                    permalink=f"{entity.permalink}/observations/{obs.id}",
+                    permalink=observation_permalink,
                     file_path=entity.file_path,
                     type=SearchItemType.OBSERVATION,
                     metadata={
@@ -146,7 +163,7 @@ class SearchService:
                     id=obs.id,
                     title=f"{obs.category}: {obs.content[:50]}...",
                     content=obs.content,
-                    permalink=f"{entity.permalink}/observations/{obs.id}",
+                    permalink=observation_permalink,
                     file_path=entity.file_path,
                     type=SearchItemType.OBSERVATION,
                     metadata={
@@ -158,15 +175,21 @@ class SearchService:
                     }
                 )
 
-        # Index each relation
-        for rel in entity.relations:
+        # Only index outgoing relations (ones defined in this file)
+        # Relations are indexed from the source entity's perspective since
+        # that's where they are defined in the markdown
+        for rel in entity.outgoing_relations:
+            # Create relation permalink showing the semantic connection:
+            # source/relation_type/target
+            # e.g., "specs/search/implements/features/search-ui"
+            relation_permalink = f"{rel.from_entity.permalink}/{rel.relation_type}/{rel.to_entity.permalink}"
             if background_tasks:
                 background_tasks.add_task(
                     self._do_index,
                     id=rel.id,
                     title=f"{rel.relation_type}",
                     content=rel.context or "",
-                    permalink=f"{entity.permalink}/relations/{rel.id}",
+                    permalink=relation_permalink,
                     file_path=entity.file_path,
                     type=SearchItemType.RELATION,
                     metadata={
@@ -181,7 +204,7 @@ class SearchService:
                     id=rel.id,
                     title=f"{rel.relation_type}",
                     content=rel.context or "",
-                    permalink=f"{entity.permalink}/relations/{rel.id}",
+                    permalink=relation_permalink,
                     file_path=entity.file_path,
                     type=SearchItemType.RELATION,
                     metadata={
@@ -191,6 +214,7 @@ class SearchService:
                         "updated_at": rel.updated_at.isoformat()
                     }
                 )
+
     async def _do_index(
         self,
         id: int,
