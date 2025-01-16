@@ -1,6 +1,6 @@
 """Service for building rich context from the knowledge graph."""
 
-from datetime import datetime
+from datetime import datetime, UTC, timezone
 from typing import List, Optional, Tuple
 from loguru import logger
 from sqlalchemy import text
@@ -8,106 +8,112 @@ from sqlalchemy import text
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas.memory_url import MemoryUrl
-from basic_memory.schemas.search import SearchItemType, SearchQuery
+from basic_memory.schemas.search import SearchQuery, SearchItemType
 
 
 class ContextService:
-    """Service for building rich context from memory:// URIs."""
-    
+    """Service for building rich context from memory:// URIs.
+
+    Handles three types of context building:
+    1. Direct permalink lookup - exact match on path
+    2. Pattern matching - using * wildcards
+    3. Special modes via params (e.g., 'related')
+    """
+
     def __init__(
-        self,
-        search_repository: SearchRepository,
-        entity_repository: EntityRepository,
+            self,
+            search_repository: SearchRepository,
+            entity_repository: EntityRepository,
     ):
         self.search_repository = search_repository
         self.entity_repository = entity_repository
 
     async def build_context(
-        self,
-        uri: str,
-        depth: int = 2,
-        since: Optional[datetime] = None,
+            self,
+            uri: str,
+            depth: int = 2,
+            since: Optional[datetime] = None,
     ):
         """Build rich context from a memory:// URI."""
         logger.debug(f"Building context for URI {uri}")
-        
+
         # Parse the URI
         memory_url = MemoryUrl.parse(uri)
-        
-        # Handle different URL types
-        if memory_url.pattern:
-            # Pattern matching (*)
+
+        # Find primary entities based on URL type
+        if memory_url.params.get("type") == "related":
+            # Special mode for finding related content
+            target = memory_url.params["target"]
+            primary = await self.find_related(target)
+        elif memory_url.pattern:
+            # Pattern matching with *
             primary = await self.find_by_pattern(memory_url.pattern)
-        elif memory_url.fuzzy:
-            # Fuzzy search (~)
-            primary = await self.find_by_fuzzy(memory_url.fuzzy)
-        elif memory_url.params.get("type") == "related":
-            # Related content
-            primary = await self.find_related(memory_url.params["target"])
         else:
             # Direct permalink lookup
             primary = await self.find_by_permalink(memory_url.relative_path())
 
-        # Get type_id pairs from primary results
+        # Get type_id pairs for traversal
         type_id_pairs = [(r.type, r.id) for r in primary] if primary else []
 
-        # Find connected entities through relations
+        # Find connected content
         related = await self.find_connected(
             type_id_pairs,
             max_depth=depth,
             since=since
         )
-        
+
+        # Build response
         return {
-            "primary": primary,
-            "related": related
+            "primary_entities": primary,
+            "related_entities": related,
+            "metadata": {
+                "uri": uri,
+                "depth": depth,
+                "timeframe": since.isoformat() if since else None,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "matched_entities": len(primary),
+                "total_entities": len(primary) + len(related),
+                "total_relations": sum(1 for r in related if r.type == SearchItemType.RELATION)
+            }
         }
 
     async def find_by_pattern(self, pattern: str):
-        """Find entities matching a glob pattern."""
-        # Convert glob pattern to SQL LIKE pattern 
-        # Use search with permalink pattern
-        query = SearchQuery(
-            permalink=pattern,
-        )
-        
+        """Find entities matching a pattern with * wildcards."""
+        query = SearchQuery(permalink_pattern=pattern)
         return await self.search_repository.search(query)
-
-    async def find_by_fuzzy(self, search_terms: str):
-        """Find entities using fuzzy text search."""
-        query = SearchQuery(
-            text=search_terms,
-        )
-        return await self.search_repository.search(query)
-
-    async def find_related(self, permalink: str):
-        """Find entities related to a given permalink."""
-        # First find the target entity
-        query = SearchQuery(permalink=permalink)
-        results = await self.search_repository.search(query)
-        
-        if not results:
-            return []
-            
-        # Use find_connected to get related items
-        entity = results[0]
-        return await self.find_connected(
-            [(entity.type, entity.id)],
-            max_depth=1  # Only immediate relations
-        )
 
     async def find_by_permalink(self, permalink: str):
         """Find an entity by exact permalink."""
         query = SearchQuery(permalink=permalink)
         return await self.search_repository.search(query)
 
+    async def find_related(self, permalink: str):
+        """Find entities related to a given permalink."""
+        # First find the target entity
+        target = await self.find_by_permalink(permalink)
+        if not target:
+            return []
+            
+        # Use find_connected to get related items
+        type_id_pairs = [(r.type.value, r.id) for r in target]
+        return await self.find_connected(
+            type_id_pairs,
+            max_depth=1  # Only immediate relations
+        )
+
     async def find_connected(
-        self,
-        type_id_pairs: List[Tuple[str, int]],
-        max_depth: int = 2,
-        since: Optional[datetime] = None,
+            self,
+            type_id_pairs: List[Tuple[str, int]],
+            max_depth: int = 2,
+            since: Optional[datetime] = None,
     ):
-        """Find items connected through relations."""
+        """Find items connected through relations.
+
+        Uses recursive CTE to find:
+        - Connected entities
+        - Their observations
+        - Relations that connect them
+        """
         if not type_id_pairs:
             return []
             

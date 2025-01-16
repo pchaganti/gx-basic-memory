@@ -1,12 +1,13 @@
 """Tests for context service."""
 
-import pytest
-import pytest_asyncio
 from datetime import datetime, timedelta, UTC
 
+import pytest
+import pytest_asyncio
+
 from basic_memory.models import Entity, Relation, Observation, ObservationCategory
-from basic_memory.services.context_service import ContextService
 from basic_memory.schemas.search import SearchItemType
+from basic_memory.services.context_service import ContextService
 
 
 @pytest_asyncio.fixture
@@ -29,7 +30,7 @@ async def test_graph(entity_repository, search_service):
         ),
         Entity(
             title="Connected Entity 1",
-            entity_type="test", 
+            entity_type="test",
             permalink="test/connected1",
             file_path="test/connected1.md",
             content_type="text/markdown",
@@ -37,7 +38,7 @@ async def test_graph(entity_repository, search_service):
         Entity(
             title="Connected Entity 2",
             entity_type="test",
-            permalink="test/connected2", 
+            permalink="test/connected2",
             file_path="test/connected2.md",
             content_type="text/markdown",
         ),
@@ -47,7 +48,7 @@ async def test_graph(entity_repository, search_service):
             permalink="test/deep",
             file_path="test/deep.md",
             content_type="text/markdown",
-        )
+        ),
     ]
     entities = await entity_repository.add_all(entities)
     root, conn1, conn2, deep = entities
@@ -55,7 +56,7 @@ async def test_graph(entity_repository, search_service):
     # Add some observations
     root.observations = [
         Observation(content="Root note 1", category=ObservationCategory.NOTE),
-        Observation(content="Root tech note", category=ObservationCategory.TECH)
+        Observation(content="Root tech note", category=ObservationCategory.TECH),
     ]
 
     conn1.observations = [
@@ -67,9 +68,8 @@ async def test_graph(entity_repository, search_service):
         # Direct connections to root
         Relation(from_id=root.id, to_id=conn1.id, relation_type="connects_to"),
         Relation(from_id=conn2.id, to_id=root.id, relation_type="connected_from"),
-        
         # Deep connection
-        Relation(from_id=conn1.id, to_id=deep.id, relation_type="deep_connection")
+        Relation(from_id=conn1.id, to_id=deep.id, relation_type="deep_connection"),
     ]
 
     root.outgoing_relations = [relations[0]]
@@ -86,13 +86,38 @@ async def test_graph(entity_repository, search_service):
         await search_service.index_entity(entity)
 
     return {
-        'root': root,
-        'connected1': conn1,
-        'connected2': conn2,
-        'deep': deep,
-        'observations': root.observations + conn1.observations,
-        'relations': relations
+        "root": root,
+        "connected1": conn1,
+        "connected2": conn2,
+        "deep": deep,
+        "observations": root.observations + conn1.observations,
+        "relations": relations,
     }
+
+
+@pytest.mark.asyncio
+async def test_find_by_pattern(context_service, test_graph):
+    """Test pattern matching."""
+    results = await context_service.find_by_pattern("test/*")
+    assert len(results) > 0
+    assert all("test/" in r.permalink for r in results)
+
+
+@pytest.mark.asyncio
+async def test_find_by_permalink(context_service, test_graph):
+    """Test exact permalink lookup."""
+    results = await context_service.find_by_permalink("test/root")
+    assert len(results) == 1
+    assert results[0].permalink == "test/root"
+
+
+@pytest.mark.asyncio
+async def test_find_related(context_service, test_graph):
+    """Test finding related content."""
+    results = await context_service.find_related("test/root")
+    # Should get immediate connections
+    assert any("connected1" in r.permalink for r in results)
+    assert any("connected2" in r.permalink for r in results)
 
 
 @pytest.mark.asyncio
@@ -100,28 +125,25 @@ async def test_find_connected_basic(context_service, test_graph, search_service)
     """Test basic connectivity traversal."""
     # Start with root entity and one of its observations
     type_id_pairs = [
-        ('entity', test_graph['root'].id),
-        ('observation', test_graph['observations'][0].id)
+        ("entity", test_graph["root"].id),
+        ("observation", test_graph["observations"][0].id),
     ]
-    
+
     results = await context_service.find_connected(type_id_pairs)
 
     # Verify types
     types_found = {r.type for r in results}
-    assert 'entity' in types_found
-    assert 'relation' in types_found
-    assert 'observation' in types_found
+    assert "entity" in types_found
+    assert "relation" in types_found
+    assert "observation" in types_found
 
     # Verify we found directly connected entities
-    entity_ids = {r.id for r in results if r.type == 'entity'}
-    assert test_graph['connected1'].id in entity_ids
-    assert test_graph['connected2'].id in entity_ids
+    entity_ids = {r.id for r in results if r.type == "entity"}
+    assert test_graph["connected1"].id in entity_ids
+    assert test_graph["connected2"].id in entity_ids
 
     # Verify we found observations
-    assert any(
-        r.type == 'observation' and "Root note 1" in r.content 
-        for r in results
-    )
+    assert any(r.type == "observation" and "Root note 1" in r.content for r in results)
 
 
 @pytest.mark.asyncio
@@ -132,34 +154,22 @@ async def test_find_connected_depth_limit(context_service, test_graph):
     - Depth 1: Relations + directly connected entities (Connected1, Connected2)
     - Depth 2: Relations + next level entities (Deep)
     """
-    type_id_pairs = [('entity', test_graph['root'].id)]
+    type_id_pairs = [("entity", test_graph["root"].id)]
 
     # With depth=1, we get direct connections
-    shallow_results = await context_service.find_connected(
-        type_id_pairs,
-        max_depth=1
-    )
-    shallow_entities = {
-        (r.id, r.type) for r in shallow_results 
-        if r.type == 'entity'
-    }
+    shallow_results = await context_service.find_connected(type_id_pairs, max_depth=1)
+    shallow_entities = {(r.id, r.type) for r in shallow_results if r.type == "entity"}
     # Should find Connected1 and Connected2
-    assert (test_graph['connected1'].id, 'entity') in shallow_entities
-    assert (test_graph['connected2'].id, 'entity') in shallow_entities
+    assert (test_graph["connected1"].id, "entity") in shallow_entities
+    assert (test_graph["connected2"].id, "entity") in shallow_entities
     # But not Deep entity
-    assert (test_graph['deep'].id, 'entity') not in shallow_entities
+    assert (test_graph["deep"].id, "entity") not in shallow_entities
 
     # With depth=2, we get the next level
-    deep_results = await context_service.find_connected(
-        type_id_pairs,
-        max_depth=2
-    )
-    deep_entities = {
-        (r.id, r.type) for r in deep_results 
-        if r.type == 'entity'
-    }
+    deep_results = await context_service.find_connected(type_id_pairs, max_depth=2)
+    deep_entities = {(r.id, r.type) for r in deep_results if r.type == "entity"}
     # Should now include Deep entity
-    assert (test_graph['deep'].id, 'entity') in deep_entities
+    assert (test_graph["deep"].id, "entity") in deep_entities
 
 
 @pytest.mark.asyncio
@@ -176,48 +186,86 @@ async def test_find_connected_timeframe(context_service, test_graph, search_repo
 
     # Index root and its relation as old
     await search_repository.index_item(
-        id=test_graph['root'].id,
-        title=test_graph['root'].title,
+        id=test_graph["root"].id,
+        title=test_graph["root"].title,
         content="Root content",
-        permalink=test_graph['root'].permalink,
-        file_path=test_graph['root'].file_path,
+        permalink=test_graph["root"].permalink,
+        file_path=test_graph["root"].file_path,
         type=SearchItemType.ENTITY,
         metadata={"created_at": old_date.isoformat()},
     )
     await search_repository.index_item(
-        id=test_graph['relations'][0].id,
+        id=test_graph["relations"][0].id,
         title="Root Entity → Connected Entity 1",
         content="",
         permalink=f"{test_graph['root'].permalink}/connects_to/{test_graph['connected1'].permalink}",
-        file_path=test_graph['root'].file_path,
+        file_path=test_graph["root"].file_path,
         type=SearchItemType.RELATION,
-        from_id=test_graph['root'].id,
-        to_id=test_graph['connected1'].id,
-        relation_type='connects_to',
+        from_id=test_graph["root"].id,
+        to_id=test_graph["connected1"].id,
+        relation_type="connects_to",
         metadata={"created_at": old_date.isoformat()},
     )
-    
+
     # Index connected1 as recent
     await search_repository.index_item(
-        id=test_graph['connected1'].id,
-        title=test_graph['connected1'].title,
+        id=test_graph["connected1"].id,
+        title=test_graph["connected1"].title,
         content="Connected 1 content",
-        permalink=test_graph['connected1'].permalink,
-        file_path=test_graph['connected1'].file_path,
+        permalink=test_graph["connected1"].permalink,
+        file_path=test_graph["connected1"].file_path,
         type=SearchItemType.ENTITY,
         metadata={"created_at": recent_date.isoformat()},
     )
 
-    type_id_pairs = [('entity', test_graph['root'].id)]
+    type_id_pairs = [("entity", test_graph["root"].id)]
 
     # Search with a 7-day cutoff
     since_date = now - timedelta(days=7)
-    results = await context_service.find_connected(
-        type_id_pairs,
-        since=since_date
-    )
+    results = await context_service.find_connected(type_id_pairs, since=since_date)
 
-    # Only connected1 is recent, but we can't get to it 
+    # Only connected1 is recent, but we can't get to it
     # because its connecting relation is too old
-    entity_ids = {r.id for r in results if r.type == 'entity'}
+    entity_ids = {r.id for r in results if r.type == "entity"}
     assert len(entity_ids) == 0  # No accessible entities within timeframe
+
+@pytest.mark.asyncio
+async def test_build_context_pattern(context_service, test_graph):
+    """Test building context from pattern."""
+    context = await context_service.build_context("memory://project/test/*")
+    assert len(context["primary_entities"]) > 0
+    assert "uri" in context["metadata"]
+    assert "total_entities" in context["metadata"]
+
+@pytest.mark.asyncio
+async def test_build_context_related(context_service, test_graph):
+    """Test building context from related mode."""
+    context = await context_service.build_context(
+        "memory://project/related/test/root"
+    )
+    assert len(context["primary_entities"]) > 0
+    assert len(context["related_entities"]) > 0
+    
+    
+@pytest.mark.asyncio
+async def test_build_context_not_found(context_service):
+    """Test handling non-existent permalinks."""
+    context = await context_service.build_context(
+        "memory://project/does/not/exist"
+    )
+    assert len(context["primary_entities"]) == 0
+    assert len(context["related_entities"]) == 0
+    
+    
+@pytest.mark.asyncio
+async def test_context_metadata(context_service, test_graph):
+    """Test metadata is correctly populated."""
+    context = await context_service.build_context(
+        "memory://project/test/root",
+        depth=2
+    )
+    metadata = context["metadata"]
+    assert metadata["uri"] == "memory://project/test/root"
+    assert metadata["depth"] == 2
+    assert metadata["generated_at"] is not None
+    assert metadata["matched_entities"] > 0
