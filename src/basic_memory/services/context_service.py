@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.repository.entity_repository import EntityRepository
-from basic_memory.schemas.memory_url import MemoryUrl
+from basic_memory.schemas.memory import MemoryUrl
 from basic_memory.schemas.search import SearchQuery, SearchItemType
 
 
