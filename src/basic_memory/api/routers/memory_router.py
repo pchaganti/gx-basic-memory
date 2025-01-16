@@ -1,13 +1,15 @@
 """Routes for memory:// URI operations."""
-
+from dataclasses import asdict
 from typing import List, Optional
 from datetime import datetime, timedelta
 from fastapi import APIRouter
 
+from basic_memory.config import config
 from basic_memory.schemas.memory import MemoryUrl, GraphContext
 from basic_memory.deps import ContextServiceDep
+from basic_memory.schemas.search import SearchResult, RelatedResult
 
-router = APIRouter(prefix="/memory")
+router = APIRouter(prefix="/memory", tags=["memory"])
 
 
 def parse_timeframe(timeframe: str) -> Optional[datetime]:
@@ -36,8 +38,9 @@ async def get_memory_context(
     timeframe: str = "7d",
 ) -> GraphContext:
     """Get rich context from memory:// URI."""
+    # add the project name from the config to the url as the "host
     # Parse URI
-    memory_url = MemoryUrl.parse(f"memory://{uri}")
+    memory_url = MemoryUrl.parse(f"memory://{config.project}/{uri}")
 
     # Parse timeframe
     since = parse_timeframe(timeframe)
@@ -45,8 +48,11 @@ async def get_memory_context(
     # Build context
     context = await context_service.build_context(str(memory_url), depth=depth, since=since)
 
+    primary_entities = [SearchResult(**asdict(r)) for r in context["primary_entities"]]
+    related_entities = [RelatedResult(**asdict(r)) for r in context["related_entities"]]
+    metadata = context["metadata"]
     # Transform to GraphContext
-    return GraphContext.model_validate(context)
+    return GraphContext(primary_entities=primary_entities, related_entities=related_entities, metadata=metadata)
 
 
 @router.get("/related/{permalink}", response_model=GraphContext)

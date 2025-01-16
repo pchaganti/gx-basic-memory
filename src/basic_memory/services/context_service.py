@@ -1,5 +1,5 @@
 """Service for building rich context from the knowledge graph."""
-
+from dataclasses import dataclass
 from datetime import datetime, UTC, timezone
 from typing import List, Optional, Tuple
 from loguru import logger
@@ -9,6 +9,22 @@ from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas.memory import MemoryUrl
 from basic_memory.schemas.search import SearchQuery, SearchItemType
+
+@dataclass 
+class ContextResultRow:
+    type: str
+    id: int
+    title: str
+    permalink: str
+    depth:int 
+    root_id: int
+    created_at: datetime
+    from_id: Optional[int] = None
+    to_id: Optional[int] = None
+    relation_type: Optional[str] = None
+    category: Optional[str] = None
+    entity_id: Optional[int] = None
+    content: Optional[str] = None
 
 
 class ContextService:
@@ -44,16 +60,24 @@ class ContextService:
         if memory_url.params.get("type") == "related":
             # Special mode for finding related content
             target = memory_url.params["target"]
-            primary = await self.find_related(target)
+            logger.debug(f"Finding related content for '{target}'")
+            primary = await self.find_related_1(target)
         elif memory_url.pattern:
             # Pattern matching with *
+            logger.debug(f"Pattern matching for '{memory_url.pattern}'")
             primary = await self.find_by_pattern(memory_url.pattern)
         else:
             # Direct permalink lookup
+            logger.debug(f"Direct permalink lookup for '{memory_url.relative_path()}'")
             primary = await self.find_by_permalink(memory_url.relative_path())
 
+        logger.debug(f"Found {len(primary)} primary entities")
+        for p in primary:
+            logger.debug(f"Found primary entity: {p}")
+            
         # Get type_id pairs for traversal
         type_id_pairs = [(r.type, r.id) for r in primary] if primary else []
+        logger.debug(f"type_id_pairs: {type_id_pairs}")
 
         # Find connected content
         related = await self.find_connected(
@@ -61,6 +85,10 @@ class ContextService:
             max_depth=depth,
             since=since
         )
+        logger.debug(f"Found {len(related)} related entities")
+        for r in related:
+            logger.debug(f"Found related entity: {r}")
+    
 
         # Build response
         return {
@@ -87,15 +115,15 @@ class ContextService:
         query = SearchQuery(permalink=permalink)
         return await self.search_repository.search(query)
 
-    async def find_related(self, permalink: str):
+    async def find_related_1(self, permalink: str):
         """Find entities related to a given permalink."""
         # First find the target entity
         target = await self.find_by_permalink(permalink)
         if not target:
             return []
             
-        # Use find_connected to get related items
-        type_id_pairs = [(r.type.value, r.id) for r in target]
+        # Use find_connected to get related items at depth=1
+        type_id_pairs = [(r.type, r.id) for r in target]
         return await self.find_connected(
             type_id_pairs,
             max_depth=1  # Only immediate relations
@@ -177,7 +205,7 @@ class ContextService:
                     r1.type = 'relation' AND 
                     (r1.from_id = cg.id OR r1.to_id = cg.id)
                     {r1_date_filter}
-        )
+                )
                 -- Then join to ALL related items at the same depth 
                 JOIN search_index related ON (
                     -- The found relation 
@@ -217,5 +245,25 @@ class ContextService:
             ORDER BY depth, type, id
         """)
         
-        results = await self.search_repository.execute_query(query, params=params)
-        return results.all()
+        result = await self.search_repository.execute_query(query, params=params)
+        rows = result.all()
+
+        context_rows = [
+            ContextResultRow(
+                type=row.type,
+                id=row.id,
+                title=row.title,
+                permalink=row.permalink,
+                from_id=row.from_id,
+                to_id=row.to_id,
+                relation_type=row.relation_type,
+                category=row.category,
+                entity_id=row.entity_id,
+                content=row.content,
+                depth=row.depth,
+                root_id=row.root_id,
+                created_at=row.created_at,
+            )
+            for row in rows
+        ]
+        return context_rows

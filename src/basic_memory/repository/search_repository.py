@@ -1,6 +1,7 @@
 """Repository for search operations."""
 
 import json
+from dataclasses import dataclass
 from typing import List, Optional, Any, Dict
 
 from loguru import logger
@@ -10,7 +11,26 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from basic_memory import db
 from basic_memory.models.search import CREATE_SEARCH_INDEX
 from basic_memory.repository.repository import Repository
-from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
+from basic_memory.schemas.search import SearchQuery, SearchItemType
+
+@dataclass
+class SearchResultRow():
+    """Search result with score and metadata."""
+    id: int
+    type: str
+    score: float
+    metadata: dict
+
+    # Common fields
+    permalink: Optional[str] = None
+    file_path: Optional[str] = None
+
+    # Type-specific fields 
+    entity_id: Optional[int] = None  # For observations
+    category: Optional[str] = None  # For observations
+    from_id: Optional[int] = None  # For relations
+    to_id: Optional[int] = None  # For relations
+    relation_type: Optional[str] = None  # For relations
 
 
 class SearchRepository:
@@ -31,7 +51,7 @@ class SearchRepository:
             return f'"{term}"'
         return term
 
-    async def search(self, query: SearchQuery) -> List[SearchResult]:
+    async def search(self, query: SearchQuery) -> List[SearchResultRow]:
         """Search across all indexed content with fuzzy matching."""
         conditions = []
         params = {}
@@ -88,20 +108,18 @@ class SearchRepository:
             WHERE {where_clause}
             ORDER BY score ASC
         """
-
-        logger.debug(f"Search query: {sql}")
+        
         logger.debug(f"Search params: {params}")
-
         async with db.scoped_session(self.session_maker) as session:
             result = await session.execute(text(sql), params)
             rows = result.fetchall()
 
-            return [
-                SearchResult(
+        results = [
+                SearchResultRow(
                     id=row.id,
                     permalink=row.permalink,
                     file_path=row.file_path,
-                    type=SearchItemType(row.type),
+                    type=row.type,
                     score=row.score,
                     metadata=json.loads(row.metadata),
                     from_id=row.from_id,
@@ -112,6 +130,10 @@ class SearchRepository:
                 )
                 for row in rows
             ]
+        
+        logger.debug(f"Search results: {results}")
+        return results
+        
 
     async def index_item(
         self,
@@ -157,7 +179,7 @@ class SearchRepository:
                     "content": content,
                     "permalink": permalink,
                     "file_path": file_path,
-                    "type": type.value,
+                    "type": type,
                     "metadata": json.dumps(metadata),
                     "from_id": from_id,
                     "to_id": to_id,
@@ -168,7 +190,7 @@ class SearchRepository:
                     "updated_at": metadata.get("updated_at")
                 },
             )
-            logger.debug(f"indexed {permalink}")
+            logger.debug(f"indexed permalink {permalink}")
             await session.commit()
 
     async def delete_by_permalink(self, permalink: str):
@@ -187,7 +209,7 @@ class SearchRepository:
         use_query_options:bool = True
     ) -> Result[Any]:
         """Execute a query asynchronously."""
-        logger.debug(f"Executing query: {query}")
+        #logger.debug(f"Executing query: {query}")
         async with db.scoped_session(self.session_maker) as session:
             if params:
                 result = await session.execute(query, params)

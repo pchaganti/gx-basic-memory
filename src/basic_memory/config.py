@@ -18,13 +18,16 @@ class ProjectConfig(BaseSettings):
         description="Base path for basic-memory files",
     )
 
+    # Name of the project
+    project: str = Field(default="default", description="Project name")
+
+
     model_config = SettingsConfigDict(
         env_prefix="BASIC_MEMORY_",
         extra="ignore",
         env_file=".env",
         env_file_encoding="utf-8",
     )
-
 
     @property
     def database_path(self) -> Path:

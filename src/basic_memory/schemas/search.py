@@ -57,8 +57,8 @@ class SearchResult(BaseModel):
     """Search result with score and metadata."""
     id: int 
     type: SearchItemType
-    score: float
-    metadata: dict
+    score: Optional[float] = None
+    metadata: Optional[dict] = None
     
     # Common fields
     permalink: Optional[str] = None
@@ -70,6 +70,21 @@ class SearchResult(BaseModel):
     from_id: Optional[int] = None    # For relations
     to_id: Optional[int] = None      # For relations
     relation_type: Optional[str] = None  # For relations
+
+class RelatedResult(BaseModel):
+    type: SearchItemType
+    id: int
+    title: str
+    permalink: str
+    depth:int 
+    root_id: int
+    created_at: datetime
+    from_id: Optional[int] = None
+    to_id: Optional[int] = None
+    relation_type: Optional[str] = None
+    category: Optional[str] = None
+    entity_id: Optional[int] = None
+    content: Optional[str] = None
 
 
 class SearchResponse(BaseModel):

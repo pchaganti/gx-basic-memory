@@ -1,4 +1,5 @@
 """Router for search operations."""
+from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, BackgroundTasks
 from typing import List
@@ -17,7 +18,8 @@ async def search(
 ):
     """Search across all knowledge and documents."""
     results = await search_service.search(query)
-    return SearchResponse(results=results)
+    search_results = [SearchResult.model_validate(asdict(r)) for r in results]
+    return SearchResponse(results=search_results)
 
 @router.post("/reindex")
 async def reindex(

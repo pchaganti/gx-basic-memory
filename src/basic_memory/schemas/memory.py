@@ -1,10 +1,11 @@
 """Schemas for memory context."""
 
 from typing import Dict, List, Optional, Any
+
 from pydantic import BaseModel, Field
 from pydantic import field_validator
 
-from basic_memory.schemas.search import SearchResult
+from basic_memory.schemas.search import SearchResult, RelatedResult
 
 """Memory URL schema for knowledge addressing.
 
@@ -101,7 +102,7 @@ class GraphContext(BaseModel):
     primary_entities: List[SearchResult] = Field(description="Entities directly matching URI")
 
     # Related entities
-    related_entities: List[SearchResult] = Field(description="Entities found via relations")
+    related_entities: List[RelatedResult] = Field(description="Entities found via relations")
 
     # Context metadata
     metadata: Dict[str, Any] = Field(

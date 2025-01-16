@@ -1,4 +1,5 @@
 """Tests for search service."""
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -164,6 +165,30 @@ async def test_filters(indexed_search):
     assert all(r.type == SearchItemType.ENTITY for r in results)
     assert all(r.metadata.get("entity_type") == "component" for r in results)
 
+
+@pytest.mark.asyncio
+async def test_after_date(indexed_search):
+    """Test search filters."""
+    
+    # Should find with past date
+    past_date = datetime(2020, 1, 1)
+    results = await indexed_search.search(
+        SearchQuery(
+            text="service",
+            after_date=past_date.isoformat(),
+        )
+    )
+    assert all(datetime.fromisoformat(r.metadata['created_at']) > past_date for r in results)
+
+    # Should not find with future date
+    future_date = datetime(2030, 1, 1)
+    results = await indexed_search.search(
+        SearchQuery(
+            text="service",
+            after_date=future_date.isoformat(),
+        )
+    )
+    assert len(results) == 0
 
 @pytest.mark.asyncio
 async def test_no_criteria(indexed_search):

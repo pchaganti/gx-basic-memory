@@ -155,7 +155,7 @@ class SearchService:
                 content=entity_content,
                 permalink=entity.permalink,
                 file_path=entity.file_path,
-                type=SearchItemType.ENTITY,
+                type=SearchItemType.ENTITY.value,
                 metadata={
                     "entity_type": entity.entity_type,
                     "created_at": entity.created_at.isoformat(),
@@ -169,7 +169,7 @@ class SearchService:
                 content=entity_content,
                 permalink=entity.permalink,
                 file_path=entity.file_path,
-                type=SearchItemType.ENTITY,
+                type=SearchItemType.ENTITY.value,
                 metadata={
                     "entity_type": entity.entity_type,
                     "created_at": entity.created_at.isoformat(),
@@ -193,7 +193,7 @@ class SearchService:
                     content=obs.content,
                     permalink=observation_permalink,
                     file_path=entity.file_path,
-                    type=SearchItemType.OBSERVATION,
+                    type=SearchItemType.OBSERVATION.value,
                     category=obs.category,
                     entity_id=entity.id,
                     metadata={
@@ -209,7 +209,7 @@ class SearchService:
                     content=obs.content,
                     permalink=observation_permalink,
                     file_path=entity.file_path,
-                    type=SearchItemType.OBSERVATION,
+                    type=SearchItemType.OBSERVATION.value,
                     category=obs.category,
                     entity_id=entity.id,
                     metadata={
@@ -237,7 +237,7 @@ class SearchService:
                     content=rel.context or "",
                     permalink=relation_permalink,
                     file_path=entity.file_path,
-                    type=SearchItemType.RELATION,
+                    type=SearchItemType.RELATION.value,
                     from_id=rel.from_id,
                     to_id=rel.to_id,
                     relation_type=rel.relation_type,
@@ -253,7 +253,7 @@ class SearchService:
                     content=rel.context or "",
                     permalink=relation_permalink,
                     file_path=entity.file_path,
-                    type=SearchItemType.RELATION,
+                    type=SearchItemType.RELATION.value,
                     from_id=rel.from_id,
                     to_id=rel.to_id,
                     relation_type=rel.relation_type,

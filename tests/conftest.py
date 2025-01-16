@@ -252,3 +252,81 @@ async def full_entity(sample_entity, entity_repository):
     search_entity.observations = observations
     search_entity.outgoing_relations = relations
     return await entity_repository.add(search_entity)
+
+@pytest_asyncio.fixture
+async def test_graph(entity_repository, search_service):
+    """Create a test knowledge graph with entities, relations and observations."""
+    # Create some test entities
+    entities = [
+        Entity(
+            title="Root Entity",
+            entity_type="test",
+            permalink="test/root",
+            file_path="test/root.md",
+            content_type="text/markdown",
+        ),
+        Entity(
+            title="Connected Entity 1",
+            entity_type="test",
+            permalink="test/connected1",
+            file_path="test/connected1.md",
+            content_type="text/markdown",
+        ),
+        Entity(
+            title="Connected Entity 2",
+            entity_type="test",
+            permalink="test/connected2",
+            file_path="test/connected2.md",
+            content_type="text/markdown",
+        ),
+        Entity(
+            title="Deep Entity",
+            entity_type="test",
+            permalink="test/deep",
+            file_path="test/deep.md",
+            content_type="text/markdown",
+        ),
+    ]
+    entities = await entity_repository.add_all(entities)
+    root, conn1, conn2, deep = entities
+
+    # Add some observations
+    root.observations = [
+        Observation(content="Root note 1", category=ObservationCategory.NOTE),
+        Observation(content="Root tech note", category=ObservationCategory.TECH),
+    ]
+
+    conn1.observations = [
+        Observation(content="Connected 1 note", category=ObservationCategory.NOTE)
+    ]
+
+    # Add relations
+    relations = [
+        # Direct connections to root
+        Relation(from_id=root.id, to_id=conn1.id, relation_type="connects_to"),
+        Relation(from_id=conn2.id, to_id=root.id, relation_type="connected_from"),
+        # Deep connection
+        Relation(from_id=conn1.id, to_id=deep.id, relation_type="deep_connection"),
+    ]
+
+    root.outgoing_relations = [relations[0]]
+    conn1.outgoing_relations = [relations[2]]
+    conn2.outgoing_relations = [relations[1]]
+
+    # Save relations
+    root = await entity_repository.add(root)
+    conn1 = await entity_repository.add(conn1)
+    conn2 = await entity_repository.add(conn2)
+
+    # Index everything for search
+    for entity in entities:
+        await search_service.index_entity(entity)
+
+    return {
+        "root": root,
+        "connected1": conn1,
+        "connected2": conn2,
+        "deep": deep,
+        "observations": root.observations + conn1.observations,
+        "relations": relations,
+    }

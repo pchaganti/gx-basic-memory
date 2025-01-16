@@ -2,7 +2,7 @@
 
 import pytest
 from pydantic import ValidationError
-from basic_memory.schemas.memory_url import MemoryUrl
+from basic_memory.schemas.memory import MemoryUrl
 
 
 def test_basic_permalink():
