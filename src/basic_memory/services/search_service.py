@@ -57,22 +57,21 @@ class SearchService:
         2. Pattern match: handles * wildcards in paths
         3. Text search: full-text search across title/content
         """
+        if query.no_criteria():
+            logger.debug("no criteria passed to query")
+            return []
+        
         logger.debug(f"Searching with query: {query}")
 
-        # Determine search mode based on provided parameters
-        if query.permalink:
-            # Exact permalink lookup
-            results = await self.repository.search(permalink=query.permalink)
-        # elif query.permalink_pattern:
-        #     # Pattern matching with *
-        #     results = await self.repository.search(
-        #         SearchQuery(permalink_pattern=query.permalink_pattern)
-        #     )
-        elif query.text:
-            # Full-text search
-            results = await self.repository.search(search_text=query.text)
-        else:
-            return []  # No search criteria provide
+        # permalink search
+        results = await self.repository.search(
+            search_text=query.text,
+            permalink=query.permalink,
+            permalink_match=query.permalink_match,
+            types=query.types,
+            entity_types=query.entity_types,
+            after_date=query.after_date,
+        )
 
         return results
 
@@ -281,8 +280,8 @@ class SearchService:
                 relation_type=relation_type,
                 entity_id=entity_id,
                 category=category,
-                created_at= metadata.get("created_at"),
-                updated_at= metadata.get("updated_at"),
+                created_at=metadata.get("created_at"),
+                updated_at=metadata.get("updated_at"),
             )
         )
 

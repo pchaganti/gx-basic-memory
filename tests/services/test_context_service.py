@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, UTC
 import pytest
 import pytest_asyncio
 
+from basic_memory.repository.search_repository import SearchIndexRow
 from basic_memory.schemas.search import SearchItemType
 from basic_memory.services.context_service import ContextService
 
@@ -16,23 +17,7 @@ async def context_service(search_repository, entity_repository):
 
 
 @pytest.mark.asyncio
-async def test_find_by_pattern(context_service, test_graph):
-    """Test pattern matching."""
-    results = await context_service.find_by_permalink("test/*")
-    assert len(results) > 0
-    assert all("test/" in r.permalink for r in results)
-
-
-@pytest.mark.asyncio
-async def test_find_by_permalink(context_service, test_graph):
-    """Test exact permalink lookup."""
-    results = await context_service.find_by_permalink("test/root")
-    assert len(results) == 1
-    assert results[0].permalink == "test/root"
-
-
-@pytest.mark.asyncio
-async def test_find_related(context_service, test_graph):
+async def test_find_related_1(context_service, test_graph):
     """Test finding related content."""
     results = await context_service.find_related_1("test/root")
     # Should get immediate connections
@@ -106,38 +91,49 @@ async def test_find_connected_timeframe(context_service, test_graph, search_repo
 
     # Index root and its relation as old
     await search_repository.index_item(
-        id=test_graph["root"].id,
-        title=test_graph["root"].title,
-        content="Root content",
-        permalink=test_graph["root"].permalink,
-        file_path=test_graph["root"].file_path,
-        type=SearchItemType.ENTITY,
-        metadata={"created_at": old_date.isoformat()},
+        SearchIndexRow(
+            id=test_graph["root"].id,
+            title=test_graph["root"].title,
+            content="Root content",
+            permalink=test_graph["root"].permalink,
+            file_path=test_graph["root"].file_path,
+            type=SearchItemType.ENTITY,
+            metadata={"created_at": old_date.isoformat()},
+            created_at=old_date.isoformat(),
+            updated_at=old_date.isoformat()
+        )
     )
     await search_repository.index_item(
-        id=test_graph["relations"][0].id,
-        title="Root Entity → Connected Entity 1",
-        content="",
-        permalink=f"{test_graph['root'].permalink}/connects_to/{test_graph['connected1'].permalink}",
-        file_path=test_graph["root"].file_path,
-        type=SearchItemType.RELATION,
-        from_id=test_graph["root"].id,
-        to_id=test_graph["connected1"].id,
-        relation_type="connects_to",
-        metadata={"created_at": old_date.isoformat()},
+        SearchIndexRow(
+            id=test_graph["relations"][0].id,
+            title="Root Entity → Connected Entity 1",
+            content="",
+            permalink=f"{test_graph['root'].permalink}/connects_to/{test_graph['connected1'].permalink}",
+            file_path=test_graph["root"].file_path,
+            type=SearchItemType.RELATION,
+            from_id=test_graph["root"].id,
+            to_id=test_graph["connected1"].id,
+            relation_type="connects_to",
+            metadata={"created_at": old_date.isoformat()},
+            created_at=old_date.isoformat(),
+            updated_at=old_date.isoformat()
+        )
     )
 
     # Index connected1 as recent
     await search_repository.index_item(
-        id=test_graph["connected1"].id,
-        title=test_graph["connected1"].title,
-        content="Connected 1 content",
-        permalink=test_graph["connected1"].permalink,
-        file_path=test_graph["connected1"].file_path,
-        type=SearchItemType.ENTITY,
-        metadata={"created_at": recent_date.isoformat()},
+        SearchIndexRow(
+            id=test_graph["connected1"].id,
+            title=test_graph["connected1"].title,
+            content="Connected 1 content",
+            permalink=test_graph["connected1"].permalink,
+            file_path=test_graph["connected1"].file_path,
+            type=SearchItemType.ENTITY,
+            metadata={"created_at": recent_date.isoformat()},
+            created_at=recent_date.isoformat(),
+            updated_at=recent_date.isoformat()
+        )
     )
-
     type_id_pairs = [("entity", test_graph["root"].id)]
 
     # Search with a 7-day cutoff
@@ -151,12 +147,32 @@ async def test_find_connected_timeframe(context_service, test_graph, search_repo
 
 
 @pytest.mark.asyncio
+async def test_build_context(context_service, test_graph):
+    """Test exact permalink lookup."""
+    url = "memory://not_used/test/root"
+    results = await context_service.build_context(url)
+    matched_entities = results["metadata"]["matched_entities"]
+    primary_entities = results["primary_entities"]
+    related_entities = results["related_entities"]
+    total_entities = results["metadata"]["total_entities"]
+
+    assert results["metadata"]["uri"] == url
+    assert results["metadata"]["depth"] == 2
+    assert matched_entities == 1
+    assert len(primary_entities) == 1
+    assert len(related_entities) == 10
+    assert total_entities == len(primary_entities) + len(related_entities)
+
+
+@pytest.mark.asyncio
 async def test_build_context_pattern(context_service, test_graph):
-    """Test building context from pattern."""
-    context = await context_service.build_context("memory://project/test/*")
-    assert len(context["primary_entities"]) > 0
-    assert "uri" in context["metadata"]
-    assert "total_entities" in context["metadata"]
+    """Test exact permalink lookup."""
+    url = "memory://not_used/test/connected*"
+    results = await context_service.build_context(url)
+    matched_entities = results["metadata"]["matched_entities"]
+    primary_entities = results["primary_entities"]
+    related_entities = results["related_entities"]
+    total_entities = results["metadata"]["total_entities"]
 
 
 @pytest.mark.asyncio

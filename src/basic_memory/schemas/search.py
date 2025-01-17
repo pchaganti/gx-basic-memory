@@ -14,6 +14,7 @@ from pydantic import BaseModel, field_validator
 
 class SearchItemType(str, Enum):
     """Types of searchable items."""
+
     ENTITY = "entity"
     OBSERVATION = "observation"
     RELATION = "relation"
@@ -21,21 +22,23 @@ class SearchItemType(str, Enum):
 
 class SearchQuery(BaseModel):
     """Search query parameters.
-    
+
     Use ONE of these primary search modes:
     - permalink: Exact permalink match
     - permalink_pattern: Path pattern with *
     - text: Full-text search of title/content
-    
+
     Optionally filter results by:
     - types: Limit to specific item types
     - entity_types: Limit to specific entity types
     - after_date: Only items after date
     """
+
     # Primary search modes (use ONE of these)
     permalink: Optional[str] = None  # Exact permalink match
+    permalink_match: Optional[str] = None  # Exact permalink match
     text: Optional[str] = None  # Full-text search
-    
+
     # Optional filters
     types: Optional[List[SearchItemType]] = None  # Filter by item type
     entity_types: Optional[List[str]] = None  # Filter by entity type
@@ -51,31 +54,43 @@ class SearchQuery(BaseModel):
             return v.isoformat()
         return v
 
+    def no_criteria(self) -> bool:
+        return (
+            self.permalink is None
+            and self.permalink_match is None
+            and self.text is None
+            and self.after_date is None
+            and self.types is None
+            and self.entity_types is None
+        )
+
 
 class SearchResult(BaseModel):
     """Search result with score and metadata."""
-    id: int 
+
+    id: int
     type: SearchItemType
     score: Optional[float] = None
     metadata: Optional[dict] = None
-    
+
     # Common fields
     permalink: Optional[str] = None
     file_path: Optional[str] = None
-    
-    # Type-specific fields 
+
+    # Type-specific fields
     entity_id: Optional[int] = None  # For observations
-    category: Optional[str] = None   # For observations
-    from_id: Optional[int] = None    # For relations
-    to_id: Optional[int] = None      # For relations
+    category: Optional[str] = None  # For observations
+    from_id: Optional[int] = None  # For relations
+    to_id: Optional[int] = None  # For relations
     relation_type: Optional[str] = None  # For relations
+
 
 class RelatedResult(BaseModel):
     type: SearchItemType
     id: int
     title: str
     permalink: str
-    depth:int 
+    depth: int
     root_id: int
     created_at: datetime
     from_id: Optional[int] = None
@@ -88,12 +103,14 @@ class RelatedResult(BaseModel):
 
 class SearchResponse(BaseModel):
     """Wrapper for search results."""
+
     results: List[SearchResult]
 
 
 # Schema for future advanced search endpoint
 class AdvancedSearchQuery(BaseModel):
     """Advanced full-text search with explicit FTS5 syntax."""
+
     query: str  # Raw FTS5 query (e.g., "foo AND bar")
     types: Optional[List[SearchItemType]] = None
     entity_types: Optional[List[str]] = None

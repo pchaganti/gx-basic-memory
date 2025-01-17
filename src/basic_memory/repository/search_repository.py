@@ -74,8 +74,10 @@ class SearchRepository:
             await session.commit()
 
     def _quote_search_term(self, term: str) -> str:
-        """Add quotes if term contains special characters."""
-        if any(c in term for c in "/-"):
+        """Add quotes if term contains special characters or /.
+            For FTS5, phrases with / need to be quoted to be treated as a single token.
+        """
+        if '/' in term or '*' in term or any(c in term for c in "-"):
             return f'"{term}"'
         return term
 
@@ -83,6 +85,7 @@ class SearchRepository:
         self,
         search_text: Optional[str] = None,
         permalink: Optional[str] = None,
+        permalink_match: Optional[str] = None,
         types: List[SearchItemType] = None,
         after_date: datetime = None,
         entity_types: List[str] = None,
@@ -97,9 +100,14 @@ class SearchRepository:
             params["text"] = f"{search_text}*"
             conditions.append("(title MATCH :text OR content MATCH :text)")
 
-        # Handle permalink search
+        # Handle permalink exact search
         if permalink:
             params["permalink"] = permalink
+            conditions.append("permalink = :permalink")
+
+        # Handle permalink match search, supports *
+        if permalink_match:
+            params["permalink"] = self._quote_search_term(permalink_match)
             conditions.append("permalink MATCH :permalink")
             
         # Handle type filter

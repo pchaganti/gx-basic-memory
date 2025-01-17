@@ -281,7 +281,7 @@ async def test_graph(entity_repository, search_service):
         ),
         Entity(
             title="Deep Entity",
-            entity_type="test",
+            entity_type="deep",
             permalink="test/deep",
             file_path="test/deep.md",
             content_type="text/markdown",

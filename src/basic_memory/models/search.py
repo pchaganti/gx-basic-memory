@@ -28,7 +28,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
     updated_at UNINDEXED,  -- Last update
     
     -- Configuration
-    tokenize=\"unicode61 separators '/'\",  -- Treat / as part of tokens
+    tokenize='unicode61 tokenchars 0x2F',  -- Hex code for /
     prefix='1,2,3,4'                    -- Support longer prefixes for paths
 );
 """)
