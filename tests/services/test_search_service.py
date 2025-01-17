@@ -1,12 +1,12 @@
 """Tests for search service."""
-from datetime import datetime, timezone
+from datetime import datetime
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import text
 
 from basic_memory import db
-from basic_memory.models import Entity, Observation, ObservationCategory, Relation
+from basic_memory.models import Entity
 from basic_memory.schemas.search import SearchQuery, SearchItemType
 
 
@@ -69,21 +69,24 @@ async def indexed_search(search_service, test_entities):
 
 
 @pytest.mark.asyncio
-async def test_search_modes(indexed_search):
-    """Test all three search modes work correctly."""
-    # 1. Exact permalink
+async def test_search_permalink(indexed_search):
+    """Exact permalink"""
     results = await indexed_search.search(SearchQuery(permalink="components/core-service"))
     assert len(results) == 1
     assert results[0].permalink == "components/core-service"
 
-    # 2. Pattern matching
-    results = await indexed_search.search(SearchQuery(permalink_pattern="components/*"))
+@pytest.mark.asyncio
+async def test_search_wildcard(indexed_search):
+    """Pattern matching"""
+    results = await indexed_search.search(SearchQuery(permalink="components/*"))
     assert len(results) == 2
     permalinks = {r.permalink for r in results}
     assert "components/core-service" in permalinks
     assert "components/auth/service" in permalinks
 
-    # 3. Full-text search
+@pytest.mark.asyncio
+async def test_search_text(indexed_search):
+    """Full-text search"""
     results = await indexed_search.search(SearchQuery(text="implementation"))
     assert len(results) >= 1
     assert any("service" in r.permalink for r in results)
@@ -142,7 +145,8 @@ async def test_filters(indexed_search):
             types=[SearchItemType.ENTITY]
         )
     )
-    assert all(r.type == SearchItemType.ENTITY for r in results)
+    for r in results:
+        assert r.type == SearchItemType.ENTITY
 
     # Filter by entity type
     results = await indexed_search.search(

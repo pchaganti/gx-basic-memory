@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from typing import List, Optional, Any, Dict
 
 from loguru import logger
@@ -10,27 +11,54 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory import db
 from basic_memory.models.search import CREATE_SEARCH_INDEX
-from basic_memory.repository.repository import Repository
-from basic_memory.schemas.search import SearchQuery, SearchItemType
+from basic_memory.schemas.search import SearchItemType
+
 
 @dataclass
-class SearchResultRow():
+class SearchIndexRow:
     """Search result with score and metadata."""
+
     id: int
     type: str
-    score: float
     metadata: dict
+
+    # date values
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
+
+    # assigned in result
+    score: Optional[float] = None
 
     # Common fields
     permalink: Optional[str] = None
     file_path: Optional[str] = None
 
-    # Type-specific fields 
-    entity_id: Optional[int] = None  # For observations
-    category: Optional[str] = None  # For observations
-    from_id: Optional[int] = None  # For relations
-    to_id: Optional[int] = None  # For relations
-    relation_type: Optional[str] = None  # For relations
+    # Type-specific fields
+    title: Optional[int] = None  # entity
+    content: Optional[int] = None  # entity
+    entity_id: Optional[int] = None  # observations
+    category: Optional[str] = None  # observations
+    from_id: Optional[int] = None  # relations
+    to_id: Optional[int] = None  # relations
+    relation_type: Optional[str] = None  # relations
+
+    def to_insert(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "content": self.content,
+            "permalink": self.permalink,
+            "file_path": self.file_path,
+            "type": self.type,
+            "metadata": json.dumps(self.metadata),
+            "from_id": self.from_id,
+            "to_id": self.to_id,
+            "relation_type": self.relation_type,
+            "entity_id": self.entity_id,
+            "category": self.category,
+            "created_at": self.metadata.get("created_at"),
+            "updated_at": self.metadata.get("updated_at"),
+        }
 
 
 class SearchRepository:
@@ -51,42 +79,43 @@ class SearchRepository:
             return f'"{term}"'
         return term
 
-    async def search(self, query: SearchQuery) -> List[SearchResultRow]:
+    async def search(
+        self,
+        search_text: Optional[str] = None,
+        permalink: Optional[str] = None,
+        types: List[SearchItemType] = None,
+        after_date: datetime = None,
+        entity_types: List[str] = None,
+    ) -> List[SearchIndexRow]:
         """Search across all indexed content with fuzzy matching."""
         conditions = []
         params = {}
 
-        # Handle text search
-        if query.text:
-            search_text = self._quote_search_term(query.text.lower().strip())
+        # Handle text search for title and content
+        if search_text:
+            search_text = self._quote_search_term(search_text.lower().strip())
             params["text"] = f"{search_text}*"
             conditions.append("(title MATCH :text OR content MATCH :text)")
 
         # Handle permalink search
-        if query.permalink:
-            params["permalink"] = query.permalink
-            conditions.append("permalink = :permalink")
+        if permalink:
+            params["permalink"] = permalink
+            conditions.append("permalink MATCH :permalink")
             
-        elif query.permalink_pattern:
-            # Use LIKE for pattern matching - convert * to %
-            sql_pattern = query.permalink_pattern.replace('*', '%')
-            params["permalink_pattern"] = sql_pattern
-            conditions.append("permalink LIKE :permalink_pattern")
-
         # Handle type filter
-        if query.types:
-            type_list = ", ".join(f"'{t.value}'" for t in query.types)
+        if types:
+            type_list = ", ".join(f"'{t.value}'" for t in types)
             conditions.append(f"type IN ({type_list})")
 
         # Handle entity type filter
-        if query.entity_types:
-            entity_type_list = ", ".join(f"'{t}'" for t in query.entity_types)
+        if entity_types:
+            entity_type_list = ", ".join(f"'{t}'" for t in entity_types)
             conditions.append(f"json_extract(metadata, '$.entity_type') IN ({entity_type_list})")
 
-        # Handle date filter
-        if query.after_date:
-            params["after_date"] = query.after_date
-            conditions.append("json_extract(metadata, '$.created_at') > :after_date")
+        # Handle date filter using datetime() for proper comparison
+        if after_date:
+            params["after_date"] = after_date
+            conditions.append("datetime(created_at) > datetime(:after_date)")
 
         # Build WHERE clause
         where_clause = " AND ".join(conditions) if conditions else "1=1"
@@ -103,59 +132,51 @@ class SearchRepository:
                 relation_type,
                 entity_id,
                 category,
+                created_at,
+                updated_at,
                 bm25(search_index) as score
             FROM search_index 
             WHERE {where_clause}
             ORDER BY score ASC
         """
-        
-        logger.debug(f"Search params: {params}")
+
+        logger.debug(f"Search {sql} params: {params}")
         async with db.scoped_session(self.session_maker) as session:
             result = await session.execute(text(sql), params)
             rows = result.fetchall()
 
         results = [
-                SearchResultRow(
-                    id=row.id,
-                    permalink=row.permalink,
-                    file_path=row.file_path,
-                    type=row.type,
-                    score=row.score,
-                    metadata=json.loads(row.metadata),
-                    from_id=row.from_id,
-                    to_id=row.to_id,
-                    relation_type=row.relation_type,
-                    entity_id=row.entity_id,
-                    category=row.category
-                )
-                for row in rows
-            ]
-        
+            SearchIndexRow(
+                id=row.id,
+                permalink=row.permalink,
+                file_path=row.file_path,
+                type=row.type,
+                score=row.score,
+                metadata=json.loads(row.metadata),
+                from_id=row.from_id,
+                to_id=row.to_id,
+                relation_type=row.relation_type,
+                entity_id=row.entity_id,
+                category=row.category,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+            )
+            for row in rows
+        ]
+
         logger.debug(f"Search results: {results}")
         return results
-        
 
     async def index_item(
         self,
-        id: int,
-        title: str,
-        content: str,
-        permalink: str,
-        file_path: str,
-        type: SearchItemType,
-        metadata: dict,
-        from_id: Optional[int] = None,
-        to_id: Optional[int] = None,
-        relation_type: Optional[str] = None,
-        entity_id: Optional[int] = None,
-        category: Optional[str] = None,
+        search_index_row: SearchIndexRow,
     ):
         """Index or update a single item."""
         async with db.scoped_session(self.session_maker) as session:
             # Delete existing record if any
             await session.execute(
                 text("DELETE FROM search_index WHERE permalink = :permalink"),
-                {"permalink": permalink},
+                {"permalink": search_index_row.permalink},
             )
 
             # Insert new record
@@ -173,24 +194,9 @@ class SearchRepository:
                         :created_at, :updated_at
                     )
                 """),
-                {
-                    "id": id,
-                    "title": title,
-                    "content": content,
-                    "permalink": permalink,
-                    "file_path": file_path,
-                    "type": type,
-                    "metadata": json.dumps(metadata),
-                    "from_id": from_id,
-                    "to_id": to_id,
-                    "relation_type": relation_type,
-                    "entity_id": entity_id,
-                    "category": category,
-                    "created_at": metadata.get("created_at"),
-                    "updated_at": metadata.get("updated_at")
-                },
+                search_index_row.to_insert(),
             )
-            logger.debug(f"indexed permalink {permalink}")
+            logger.debug(f"indexed permalink {search_index_row.permalink}")
             await session.commit()
 
     async def delete_by_permalink(self, permalink: str):
@@ -203,13 +209,12 @@ class SearchRepository:
             await session.commit()
 
     async def execute_query(
-        self, 
-        query: Executable, 
-        params: Optional[Dict[str, Any]] = None, 
-        use_query_options:bool = True
+        self,
+        query: Executable,
+        params: Optional[Dict[str, Any]] = None,
     ) -> Result[Any]:
         """Execute a query asynchronously."""
-        #logger.debug(f"Executing query: {query}")
+        logger.debug(f"Executing query: {query}")
         async with db.scoped_session(self.session_maker) as session:
             if params:
                 result = await session.execute(query, params)

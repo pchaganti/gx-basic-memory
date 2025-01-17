@@ -34,7 +34,6 @@ class SearchQuery(BaseModel):
     """
     # Primary search modes (use ONE of these)
     permalink: Optional[str] = None  # Exact permalink match
-    permalink_pattern: Optional[str] = None  # Path pattern with *
     text: Optional[str] = None  # Full-text search
     
     # Optional filters

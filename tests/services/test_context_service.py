@@ -18,7 +18,7 @@ async def context_service(search_repository, entity_repository):
 @pytest.mark.asyncio
 async def test_find_by_pattern(context_service, test_graph):
     """Test pattern matching."""
-    results = await context_service.find_by_pattern("test/*")
+    results = await context_service.find_by_permalink("test/*")
     assert len(results) > 0
     assert all("test/" in r.permalink for r in results)
 

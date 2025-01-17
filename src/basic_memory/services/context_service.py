@@ -1,22 +1,25 @@
 """Service for building rich context from the knowledge graph."""
+
 from dataclasses import dataclass
-from datetime import datetime, UTC, timezone
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
+
 from loguru import logger
 from sqlalchemy import text
 
-from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.repository.entity_repository import EntityRepository
+from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.schemas.memory import MemoryUrl
 from basic_memory.schemas.search import SearchQuery, SearchItemType
 
-@dataclass 
+
+@dataclass
 class ContextResultRow:
     type: str
     id: int
     title: str
     permalink: str
-    depth:int 
+    depth: int
     root_id: int
     created_at: datetime
     from_id: Optional[int] = None
@@ -37,18 +40,18 @@ class ContextService:
     """
 
     def __init__(
-            self,
-            search_repository: SearchRepository,
-            entity_repository: EntityRepository,
+        self,
+        search_repository: SearchRepository,
+        entity_repository: EntityRepository,
     ):
         self.search_repository = search_repository
         self.entity_repository = entity_repository
 
     async def build_context(
-            self,
-            uri: str,
-            depth: int = 2,
-            since: Optional[datetime] = None,
+        self,
+        uri: str,
+        depth: int = 2,
+        since: Optional[datetime] = None,
     ):
         """Build rich context from a memory:// URI."""
         logger.debug(f"Building context for URI {uri}")
@@ -62,10 +65,6 @@ class ContextService:
             target = memory_url.params["target"]
             logger.debug(f"Finding related content for '{target}'")
             primary = await self.find_related_1(target)
-        elif memory_url.pattern:
-            # Pattern matching with *
-            logger.debug(f"Pattern matching for '{memory_url.pattern}'")
-            primary = await self.find_by_pattern(memory_url.pattern)
         else:
             # Direct permalink lookup
             logger.debug(f"Direct permalink lookup for '{memory_url.relative_path()}'")
@@ -74,21 +73,16 @@ class ContextService:
         logger.debug(f"Found {len(primary)} primary entities")
         for p in primary:
             logger.debug(f"Found primary entity: {p}")
-            
+
         # Get type_id pairs for traversal
         type_id_pairs = [(r.type, r.id) for r in primary] if primary else []
         logger.debug(f"type_id_pairs: {type_id_pairs}")
 
         # Find connected content
-        related = await self.find_connected(
-            type_id_pairs,
-            max_depth=depth,
-            since=since
-        )
+        related = await self.find_connected(type_id_pairs, max_depth=depth, since=since)
         logger.debug(f"Found {len(related)} related entities")
         for r in related:
             logger.debug(f"Found related entity: {r}")
-    
 
         # Build response
         return {
@@ -101,19 +95,13 @@ class ContextService:
                 "generated_at": datetime.now(timezone.utc).isoformat(),
                 "matched_entities": len(primary),
                 "total_entities": len(primary) + len(related),
-                "total_relations": sum(1 for r in related if r.type == SearchItemType.RELATION)
-            }
+                "total_relations": sum(1 for r in related if r.type == SearchItemType.RELATION),
+            },
         }
-
-    async def find_by_pattern(self, pattern: str):
-        """Find entities matching a pattern with * wildcards."""
-        query = SearchQuery(permalink_pattern=pattern)
-        return await self.search_repository.search(query)
 
     async def find_by_permalink(self, permalink: str):
         """Find an entity by exact permalink."""
-        query = SearchQuery(permalink=permalink)
-        return await self.search_repository.search(query)
+        return await self.search_repository.search(permalink=permalink)
 
     async def find_related_1(self, permalink: str):
         """Find entities related to a given permalink."""
@@ -121,19 +109,19 @@ class ContextService:
         target = await self.find_by_permalink(permalink)
         if not target:
             return []
-            
+
         # Use find_connected to get related items at depth=1
         type_id_pairs = [(r.type, r.id) for r in target]
         return await self.find_connected(
             type_id_pairs,
-            max_depth=1  # Only immediate relations
+            max_depth=1,  # Only immediate relations
         )
 
     async def find_connected(
-            self,
-            type_id_pairs: List[Tuple[str, int]],
-            max_depth: int = 2,
-            since: Optional[datetime] = None,
+        self,
+        type_id_pairs: List[Tuple[str, int]],
+        max_depth: int = 2,
+        since: Optional[datetime] = None,
     ):
         """Find items connected through relations.
 
@@ -144,7 +132,7 @@ class ContextService:
         """
         if not type_id_pairs:
             return []
-            
+
         logger.debug(f"Finding connected items for {type_id_pairs} with depth {max_depth}")
 
         # Build the VALUES clause directly since SQLite doesn't handle parameterized IN well
@@ -156,9 +144,9 @@ class ContextService:
             params["since_date"] = since.isoformat()
 
         # Build date filter
-        date_filter = f"AND base.created_at >= :since_date" if since else ""
-        r1_date_filter = f"AND r1.created_at >= :since_date" if since else ""
-        related_date_filter = f"AND related.created_at >= :since_date" if since else ""
+        date_filter = "AND base.created_at >= :since_date" if since else ""
+        r1_date_filter = "AND r1.created_at >= :since_date" if since else ""
+        related_date_filter = "AND related.created_at >= :since_date" if since else ""
 
         query = text(f"""
             WITH RECURSIVE context_graph AS (
@@ -244,7 +232,7 @@ class ContextService:
                 root_id, created_at
             ORDER BY depth, type, id
         """)
-        
+
         result = await self.search_repository.execute_query(query, params=params)
         rows = result.all()
 

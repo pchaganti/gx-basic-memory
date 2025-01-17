@@ -27,7 +27,6 @@ class MemoryUrl(BaseModel):
     path: str  # Full path
 
     # Query params
-    pattern: Optional[str] = None  # Path pattern if * present
     params: Dict[str, Any] = Field(default_factory=dict)  # For special modes like 'related'
 
     @field_validator("scheme")
@@ -68,10 +67,6 @@ class MemoryUrl(BaseModel):
 
         # Parse special patterns
         path_no_slash = path[1:] if path.startswith("/") else path
-
-        # Handle glob patterns - preserve * for FTS
-        if "*" in path_no_slash:
-            url.pattern = path_no_slash
 
         # Extract special prefixes
         segments = path_no_slash.split("/")
