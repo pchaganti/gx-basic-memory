@@ -19,19 +19,16 @@ def test_search_modes():
     query = SearchQuery(permalink="specs/search")
     assert query.permalink == "specs/search"
     assert query.text is None
-    assert query.permalink_pattern is None
 
     # Pattern match
-    query = SearchQuery(permalink_pattern="specs/*")
-    assert query.permalink_pattern == "specs/*"
+    query = SearchQuery(permalink="specs/*")
+    assert query.permalink == "specs/*"
     assert query.text is None
-    assert query.permalink is None
 
     # Text search
     query = SearchQuery(text="search implementation")
     assert query.text == "search implementation"
     assert query.permalink is None
-    assert query.permalink_pattern is None
 
 
 def test_search_filters():

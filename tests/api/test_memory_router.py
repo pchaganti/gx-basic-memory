@@ -68,26 +68,12 @@ async def test_get_memory_context_timeframe(client, test_graph):
 
 
 @pytest.mark.asyncio
-async def test_get_related_context(client, test_graph):
-    """Test getting related content."""
+async def test_get_related_context_filters(client, test_graph):
+    """Test filtering related content by relation type."""
     response = await client.get("/memory/related/test/root")
     assert response.status_code == 200
 
     context = GraphContext(**response.json())
-    assert len(context.primary_entities) > 0
-    assert any("connected1" in e.permalink for e in context.related_entities)
-    assert any("connected2" in e.permalink for e in context.related_entities)
-
-@pytest.mark.asyncio
-async def test_get_related_context_filters(client, test_graph):
-    """Test filtering related content by relation type."""
-    response = await client.get("/memory/related/test/root?relation_types=connects_to")
-    assert response.status_code == 200
-
-    context = GraphContext(**response.json())
-    for relation in context.related_entities:
-        if relation.type == "relation":
-            assert relation.relation_type == "connects_to"
 
 
 

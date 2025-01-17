@@ -64,16 +64,6 @@ class MemoryUrl(BaseModel):
 
         # Create base URL
         url = cls(scheme=scheme, host=host, path=path)
-
-        # Parse special patterns
-        path_no_slash = path[1:] if path.startswith("/") else path
-
-        # Extract special prefixes
-        segments = path_no_slash.split("/")
-        if segments and segments[0] in {"related", "context"}:
-            url.params["type"] = segments[0]
-            url.params["target"] = "/".join(segments[1:])
-
         return url
 
     @property

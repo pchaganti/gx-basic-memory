@@ -15,16 +15,6 @@ async def context_service(search_repository, entity_repository):
     """Create context service for testing."""
     return ContextService(search_repository, entity_repository)
 
-
-@pytest.mark.asyncio
-async def test_find_related_1(context_service, test_graph):
-    """Test finding related content."""
-    results = await context_service.find_related_1("test/root")
-    # Should get immediate connections
-    assert any("connected1" in r.permalink for r in results)
-    assert any("connected2" in r.permalink for r in results)
-
-
 @pytest.mark.asyncio
 async def test_find_connected_basic(context_service, test_graph, search_service):
     """Test basic connectivity traversal."""
@@ -174,13 +164,6 @@ async def test_build_context_pattern(context_service, test_graph):
     related_entities = results["related_entities"]
     total_entities = results["metadata"]["total_entities"]
 
-
-@pytest.mark.asyncio
-async def test_build_context_related(context_service, test_graph):
-    """Test building context from related mode."""
-    context = await context_service.build_context("memory://project/related/test/root")
-    assert len(context["primary_entities"]) > 0
-    assert len(context["related_entities"]) > 0
 
 
 @pytest.mark.asyncio

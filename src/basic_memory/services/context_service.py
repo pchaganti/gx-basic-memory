@@ -58,18 +58,9 @@ class ContextService:
 
         # Parse the URI
         memory_url = MemoryUrl.parse(uri)
-
-        # Find primary entities based on URL type
-        if memory_url.params.get("type") == "related":
-            # Special mode for finding related content
-            target = memory_url.params["target"]
-            logger.debug(f"Finding related content for '{target}'")
-            
-            # start by looking at direct relations
-            primary = await self.find_related_1(target)
             
         # Pattern matching - use search
-        elif '*' in memory_url.relative_path():
+        if '*' in memory_url.relative_path():
             logger.debug(f"Pattern search for '{memory_url.relative_path()}'")
             primary = await self.search_repository.search(permalink_match=memory_url.relative_path())
         
@@ -103,20 +94,6 @@ class ContextService:
                 "total_relations": sum(1 for r in related if r.type == SearchItemType.RELATION),
             },
         }
-
-    async def find_related_1(self, permalink: str):
-        """Find entities related to a given permalink."""
-        # First find the target entity
-        target = await self.search_repository.search(permalink=permalink)
-        if not target:
-            return []
-
-        # Use find_connected to get related items at depth=1
-        type_id_pairs = [(r.type, r.id) for r in target]
-        return await self.find_connected(
-            type_id_pairs,
-            max_depth=1,  # Only immediate relations
-        )
 
     async def find_connected(
         self,

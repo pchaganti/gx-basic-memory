@@ -2,6 +2,7 @@
 
 import pytest
 from pydantic import ValidationError
+
 from basic_memory.schemas.memory import MemoryUrl
 
 
@@ -11,7 +12,6 @@ def test_basic_permalink():
     assert url.scheme == "memory"
     assert url.host == "basic-memory"
     assert url.path == "/specs/search"
-    assert url.pattern is None
     assert url.params == {}
 
 
@@ -20,7 +20,6 @@ def test_glob_pattern():
     url = MemoryUrl.parse("memory://basic-memory/specs/search/*")
     assert url.host == "basic-memory"
     assert url.path == "/specs/search/*"
-    assert url.pattern == "specs/search/*"
 
 
 def test_related_prefix():
@@ -28,10 +27,6 @@ def test_related_prefix():
     url = MemoryUrl.parse("memory://basic-memory/related/specs/search")
     assert url.host == "basic-memory"
     assert url.path == "/related/specs/search"
-    assert url.params == {
-        "type": "related",
-        "target": "specs/search"
-    }
 
 
 def test_context_prefix():
@@ -39,10 +34,6 @@ def test_context_prefix():
     url = MemoryUrl.parse("memory://basic-memory/context/current")
     assert url.host == "basic-memory"
     assert url.path == "/context/current"
-    assert url.params == {
-        "type": "context",
-        "target": "current"
-    }
 
 
 def test_invalid_scheme():
@@ -62,7 +53,6 @@ def test_complex_pattern():
     url = MemoryUrl.parse("memory://basic-memory/specs/*/search/*")
     assert url.host == "basic-memory"
     assert url.path == "/specs/*/search/*"
-    assert url.pattern == "specs/*/search/*"
 
 
 def test_url_reconstruction():
