@@ -54,24 +54,3 @@ async def get_memory_context(
     # Transform to GraphContext
     return GraphContext(primary_entities=primary_entities, related_entities=related_entities, metadata=metadata)
 
-
-@router.get("/related/{permalink}", response_model=GraphContext)
-async def get_related_context(
-    context_service: ContextServiceDep,
-    permalink: str,
-    relation_types: Optional[List[str]] = None,
-    depth: int = 1,
-) -> GraphContext:
-    """Get context for related entities."""
-    # Build special related URI with params
-    memory_url = MemoryUrl.parse(f"memory://related/{permalink}")
-    memory_url.params["type"] = "related"
-    memory_url.params["target"] = permalink
-    if relation_types:
-        memory_url.params["relation_types"] = relation_types
-
-    # Build context
-    context = await context_service.build_context(str(memory_url), depth=depth)
-
-    # Transform to GraphContext
-    return GraphContext.model_validate(context)
