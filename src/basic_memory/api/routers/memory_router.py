@@ -40,13 +40,13 @@ async def get_memory_context(
     """Get rich context from memory:// URI."""
     # add the project name from the config to the url as the "host
     # Parse URI
-    memory_url = MemoryUrl.parse(f"memory://{config.project}/{uri}")
+    memory_url = MemoryUrl(f"memory://{config.project}/{uri}")
 
     # Parse timeframe
     since = parse_timeframe(timeframe)
 
     # Build context
-    context = await context_service.build_context(str(memory_url), depth=depth, since=since)
+    context = await context_service.build_context(memory_url, depth=depth, since=since)
 
     primary_entities = [SearchResult(**asdict(r)) for r in context["primary_entities"]]
     related_entities = [RelatedResult(**asdict(r)) for r in context["related_entities"]]

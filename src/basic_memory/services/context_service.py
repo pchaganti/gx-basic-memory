@@ -49,15 +49,12 @@ class ContextService:
 
     async def build_context(
         self,
-        uri: str,
+        memory_url: MemoryUrl,
         depth: int = 2,
         since: Optional[datetime] = None,
     ):
         """Build rich context from a memory:// URI."""
-        logger.debug(f"Building context for URI {uri}")
-
-        # Parse the URI
-        memory_url = MemoryUrl.parse(uri)
+        logger.debug(f"Building context for URI {memory_url}")
             
         # Pattern matching - use search
         if '*' in memory_url.relative_path():
@@ -85,7 +82,7 @@ class ContextService:
             "primary_entities": primary,
             "related_entities": related,
             "metadata": {
-                "uri": uri,
+                "uri": memory_url.relative_path(),
                 "depth": depth,
                 "timeframe": since.isoformat() if since else None,
                 "generated_at": datetime.now(timezone.utc).isoformat(),

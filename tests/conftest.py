@@ -41,7 +41,7 @@ def anyio_backend():
 def test_config(tmp_path) -> ProjectConfig:
     """Test configuration using in-memory DB."""
     config = ProjectConfig(
-        name="test",
+        project="test-project",
     )
     config.home = tmp_path
 

@@ -1,79 +1,45 @@
 """Schemas for memory context."""
 
 from typing import Dict, List, Optional, Any
-
-from pydantic import BaseModel, Field
-from pydantic import field_validator
+from pydantic import AnyUrl, Field, BaseModel
 
 from basic_memory.schemas.search import SearchResult, RelatedResult
+from basic_memory.config import config
 
 """Memory URL schema for knowledge addressing.
 
-The memory:// URL scheme provides a unified way to address knowledge across projects:
-memory://project-name/path/to/content
+The memory:// URL scheme provides a unified way to address knowledge:
 
 Examples:
-    memory://basic-memory/specs/search/*      # Pattern matching
-    memory://basic-memory/specs/xyz           # Exact permalink
-    memory://basic-memory/related/sync        # Related content
+    memory://specs/search/*         # Pattern matching 
+    memory://specs/xyz              # direct reference
 """
 
 
-class MemoryUrl(BaseModel):
+class MemoryUrl(AnyUrl):
     """memory:// URL scheme for knowledge addressing."""
-
-    scheme: str = Field(default="memory", frozen=True)
-    host: str  # Project identifier
-    path: str  # Full path
+    
+    allowed_schemes = {'memory'}
 
     # Query params
     params: Dict[str, Any] = Field(default_factory=dict)  # For special modes like 'related'
 
-    @field_validator("scheme")
     @classmethod
-    def validate_scheme(cls, v: str) -> str:
-        """Validate URL scheme."""
-        if v != "memory":
-            raise ValueError("URL must use memory:// scheme")
-        return v
+    def validate(cls, url: str) -> "MemoryUrl":
+        """Validate and construct a MemoryUrl."""
 
-    @field_validator("host")
-    @classmethod
-    def validate_host(cls, v: Optional[str]) -> str:
-        """Validate host (project identifier)."""
-        if not v:
-            raise ValueError("URL must include project/context identifier")
-        return v
+        memory_url = cls(url)
+        
+        # if the url host value is not the project name, assume the default project
+        if memory_url.host != config.project:
+            memory_url = cls(f"memory://{config.project}/{memory_url.host}{memory_url.path}")
 
-    @classmethod
-    def parse(cls, url_str: str) -> "MemoryUrl":
-        """Parse a memory:// URL string."""
-        # Split scheme and rest
-        if "://" not in url_str:
-            raise ValueError("URL must include scheme (memory://)")
-
-        scheme, rest = url_str.split("://", 1)
-
-        # Split host and path
-        parts = rest.split("/", 1)
-        if len(parts) != 2:
-            raise ValueError("URL must include both host and path")
-
-        host, path = parts
-        path = "/" + path  # Add leading slash
-
-        # Create base URL
-        url = cls(scheme=scheme, host=host, path=path)
-        return url
-
-    @property
-    def project(self) -> str:
-        """Get the project/context identifier."""
-        return self.host
+        return memory_url
 
     def relative_path(self) -> str:
         """Get the path without leading slash."""
-        return self.path[1:] if self.path.startswith("/") else self.path
+        path = self.path
+        return path[1:] if path.startswith("/") else path
 
     def __str__(self) -> str:
         """Convert back to URL string."""

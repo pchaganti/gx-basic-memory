@@ -10,6 +10,7 @@ from basic_memory.mcp.tools import knowledge  # noqa: F401
 from basic_memory.mcp.tools import search     # noqa: F401
 from basic_memory.mcp.tools import discovery  # noqa: F401
 from basic_memory.mcp.tools import activity   # noqa: F401
+from basic_memory.mcp.tools.discussion import get_discussion_context
 
 # Export the tools
 from basic_memory.mcp.tools.knowledge import (
@@ -55,4 +56,7 @@ __all__ = [
     
     # Activity tools
     "get_recent_activity",
+    
+    # memory tools
+    "get_discussion_context"
 ]

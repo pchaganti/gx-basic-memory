@@ -5,7 +5,9 @@ from datetime import datetime, timedelta, UTC
 import pytest
 import pytest_asyncio
 
+from basic_memory.config import config
 from basic_memory.repository.search_repository import SearchIndexRow
+from basic_memory.schemas.memory import MemoryUrl
 from basic_memory.schemas.search import SearchItemType
 from basic_memory.services.context_service import ContextService
 
@@ -139,14 +141,14 @@ async def test_find_connected_timeframe(context_service, test_graph, search_repo
 @pytest.mark.asyncio
 async def test_build_context(context_service, test_graph):
     """Test exact permalink lookup."""
-    url = "memory://not_used/test/root"
+    url = MemoryUrl(f"memory://{config.project}/test/root")
     results = await context_service.build_context(url)
     matched_entities = results["metadata"]["matched_entities"]
     primary_entities = results["primary_entities"]
     related_entities = results["related_entities"]
     total_entities = results["metadata"]["total_entities"]
 
-    assert results["metadata"]["uri"] == url
+    assert results["metadata"]["uri"] == url.relative_path()
     assert results["metadata"]["depth"] == 2
     assert matched_entities == 1
     assert len(primary_entities) == 1
@@ -157,19 +159,21 @@ async def test_build_context(context_service, test_graph):
 @pytest.mark.asyncio
 async def test_build_context_pattern(context_service, test_graph):
     """Test exact permalink lookup."""
-    url = "memory://not_used/test/connected*"
+    url = MemoryUrl("memory://not_used/test/connected*")
     results = await context_service.build_context(url)
     matched_entities = results["metadata"]["matched_entities"]
     primary_entities = results["primary_entities"]
     related_entities = results["related_entities"]
     total_entities = results["metadata"]["total_entities"]
+    
+    #TODO assert pattern found 
 
 
 
 @pytest.mark.asyncio
 async def test_build_context_not_found(context_service):
     """Test handling non-existent permalinks."""
-    context = await context_service.build_context("memory://project/does/not/exist")
+    context = await context_service.build_context(MemoryUrl("memory://project/does/not/exist"))
     assert len(context["primary_entities"]) == 0
     assert len(context["related_entities"]) == 0
 
@@ -177,9 +181,9 @@ async def test_build_context_not_found(context_service):
 @pytest.mark.asyncio
 async def test_context_metadata(context_service, test_graph):
     """Test metadata is correctly populated."""
-    context = await context_service.build_context("memory://project/test/root", depth=2)
+    context = await context_service.build_context(MemoryUrl("memory://project/test/root"), depth=2)
     metadata = context["metadata"]
-    assert metadata["uri"] == "memory://project/test/root"
+    assert metadata["uri"] == "test/root"
     assert metadata["depth"] == 2
     assert metadata["generated_at"] is not None
     assert metadata["matched_entities"] > 0
