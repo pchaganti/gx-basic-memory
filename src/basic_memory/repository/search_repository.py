@@ -148,7 +148,7 @@ class SearchRepository:
             ORDER BY score ASC
         """
 
-        logger.debug(f"Search {sql} params: {params}")
+        #logger.debug(f"Search {sql} params: {params}")
         async with db.scoped_session(self.session_maker) as session:
             result = await session.execute(text(sql), params)
             rows = result.fetchall()
@@ -222,7 +222,7 @@ class SearchRepository:
         params: Optional[Dict[str, Any]] = None,
     ) -> Result[Any]:
         """Execute a query asynchronously."""
-        logger.debug(f"Executing query: {query}")
+        #logger.debug(f"Executing query: {query}")
         async with db.scoped_session(self.session_maker) as session:
             if params:
                 result = await session.execute(query, params)
