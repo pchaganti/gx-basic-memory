@@ -80,7 +80,7 @@ class SearchNodesRequest(BaseModel):
     category: Optional[ObservationCategory] = None
 
 
-class OpenNodesRequest(BaseModel):
+class GetEntitiesRequest(BaseModel):
     """Retrieve specific entities by their IDs.
 
     Used to load complete entity details including all observations

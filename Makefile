@@ -28,6 +28,6 @@ clean:
 	find . -type f -name '*.pyc' -delete
 	find . -type d -name '__pycache__' -exec rm -r {} +
 
-
+# run inspector tool
 run-dev:
-	uv run fastmcp dev src/basic_memory/mcp/main.py
+	uv run mcp dev src/basic_memory/mcp/main.py

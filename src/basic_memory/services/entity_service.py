@@ -188,9 +188,9 @@ class EntityService(BaseService[EntityModel]):
         logger.debug(f"Listing entities: type={entity_type} sort={sort_by}")
         return await self.repository.list_entities(entity_type=entity_type, sort_by=sort_by)
 
-    async def open_nodes(self, permalinks: List[str]) -> Sequence[EntityModel]:
+    async def get_entities_by_permalinks(self, permalinks: List[str]) -> Sequence[EntityModel]:
         """Get specific nodes and their relationships."""
-        logger.debug(f"Opening nodes permalinks: {permalinks}")
+        logger.debug(f"Getting entities permalinks: {permalinks}")
         return await self.repository.find_by_permalinks(permalinks)
 
     async def delete_entity_by_file_path(self, file_path):

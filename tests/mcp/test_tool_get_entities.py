@@ -1,16 +1,20 @@
 """Tests for open_nodes MCP tool."""
 
 import pytest
+from httpx import AsyncClient
+from mcp.server import FastMCP
+from mcp.server.fastmcp import Context
+from mcp.types import TextContent
 
+from basic_memory.mcp.tools import get_entities
 from basic_memory.mcp.tools.knowledge import create_entities
-from basic_memory.mcp.tools.search import open_nodes
 from basic_memory.schemas import EntityListResponse
 from basic_memory.schemas.base import Entity
-from basic_memory.schemas.request import CreateEntityRequest, OpenNodesRequest
+from basic_memory.schemas.request import CreateEntityRequest, GetEntitiesRequest
 
 
 @pytest.mark.asyncio
-async def test_open_multiple_entities(client):
+async def test_open_multiple_entities(mcp: FastMCP, client: AsyncClient):
     """Test opening multiple entities."""
     # Create some test entities
     entity_request = CreateEntityRequest(
@@ -19,12 +23,17 @@ async def test_open_multiple_entities(client):
             Entity(title="Entity2", entity_type="test", summary="Second test entity"),
         ]
     )
-    create_result = await create_entities(entity_request)
+    result = await mcp.call_tool("create_entities",{ "request": entity_request})
+
+    assert len(result) == 1
+    assert isinstance(result[0], TextContent)
+    text_result = TextContent.model_validate(result[0]).text
+    create_result = EntityListResponse.model_validate_json(text_result)
     permalinks = [e.permalink for e in create_result.entities]
 
     # Open the nodes
-    request = OpenNodesRequest(permalinks=permalinks)
-    result = await open_nodes(request)
+    request = GetEntitiesRequest(permalinks=permalinks)
+    result = await get_entities(request)
     assert isinstance(result, EntityListResponse)
     response = EntityListResponse.model_validate(result)
 
@@ -54,8 +63,8 @@ async def test_open_nodes_with_details(client):
     permalink = create_result.entities[0].permalink
 
     # Open the node
-    request = OpenNodesRequest(permalinks=[permalink])
-    result = await open_nodes(request)
+    request = GetEntitiesRequest(permalinks=[permalink])
+    result = await get_entities(request)
     response = EntityListResponse.model_validate(result)
 
     # Verify all details are present
@@ -90,8 +99,8 @@ async def test_open_nodes_with_relations(client):
     await create_relations(relation_request)
 
     # Open both nodes
-    request = OpenNodesRequest(permalinks=permalinks)
-    result = await open_nodes(request)
+    request = GetEntitiesRequest(permalinks=permalinks)
+    result = await get_entities(request)
     response = EntityListResponse.model_validate(result)
 
     # Verify relations are present
@@ -108,8 +117,8 @@ async def test_open_nonexistent_nodes(client):
     real_permalink = create_result.entities[0].permalink
 
     # Try to open both real and non-existent
-    request = OpenNodesRequest(permalinks=[real_permalink, "nonexistent"])
-    result = await open_nodes(request)
+    request = GetEntitiesRequest(permalinks=[real_permalink, "nonexistent"])
+    result = await get_entities(request)
     response = EntityListResponse.model_validate(result)
 
     # Should only get the real entity back
@@ -118,7 +127,7 @@ async def test_open_nonexistent_nodes(client):
 
 
 @pytest.mark.asyncio
-async def test_open_single_node(client):
+async def test_open_single_entity(client):
     """Test behavior with single permalink."""
     # Create an entity
     entity_request = CreateEntityRequest(
@@ -128,8 +137,8 @@ async def test_open_single_node(client):
     permalink = create_result.entities[0].permalink
 
     # Open just one node
-    request = OpenNodesRequest(permalinks=[permalink])
-    result = await open_nodes(request)
+    request = GetEntitiesRequest(permalinks=[permalink])
+    result = await get_entities(request)
     response = EntityListResponse.model_validate(result)
 
     # Should get just that entity

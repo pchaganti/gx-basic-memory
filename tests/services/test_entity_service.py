@@ -267,7 +267,7 @@ async def test_open_nodes_by_permalinks(entity_service: EntityService):
 
     # Open nodes by path IDs
     permalinks = [entity1_data.permalink, entity2_data.permalink]
-    found = await entity_service.open_nodes(permalinks)
+    found = await entity_service.get_entities_by_permalinks(permalinks)
 
     assert len(found) == 2
     names = {e.title for e in found}
@@ -276,7 +276,7 @@ async def test_open_nodes_by_permalinks(entity_service: EntityService):
 
 async def test_open_nodes_empty_input(entity_service: EntityService):
     """Test opening nodes with empty path ID list."""
-    found = await entity_service.open_nodes([])
+    found = await entity_service.get_entities_by_permalinks([])
     assert len(found) == 0
 
 
@@ -293,7 +293,7 @@ async def test_open_nodes_some_not_found(entity_service: EntityService):
 
     # Try to open two nodes, one exists, one doesn't
     permalinks = [entity_data.permalink, "type1/non_existent"]
-    found = await entity_service.open_nodes(permalinks)
+    found = await entity_service.get_entities_by_permalinks(permalinks)
 
     assert len(found) == 1
     assert found[0].title == "Entity1"

@@ -1,13 +1,13 @@
 """Tests for discussion context MCP tool."""
 
 import pytest
-from basic_memory.mcp.tools.discussion import get_discussion_context
+from basic_memory.mcp.tools.discussion import build_context
 from basic_memory.schemas.memory import GraphContext
 
 @pytest.mark.asyncio
 async def test_get_basic_discussion_context(client, test_graph):
     """Test getting basic discussion context."""
-    context = await get_discussion_context(
+    context = await build_context(
         url="memory://test/root"
     )
     
@@ -26,7 +26,7 @@ async def test_get_basic_discussion_context(client, test_graph):
 @pytest.mark.asyncio
 async def test_get_discussion_context_pattern(client, test_graph):
     """Test getting context with pattern matching."""
-    context = await get_discussion_context(
+    context = await build_context(
         url="memory://test/*",
         depth=1
     )
@@ -40,13 +40,13 @@ async def test_get_discussion_context_pattern(client, test_graph):
 async def test_get_discussion_context_timeframe(client, test_graph):
     """Test timeframe parameter filtering."""
     # Get recent context
-    recent_context = await get_discussion_context(
+    recent_context = await build_context(
         url="memory://test/root",
         timeframe="1d"  # Last 24 hours
     )
     
     # Get older context
-    older_context = await get_discussion_context(
+    older_context = await build_context(
         url="memory://test/root",
         timeframe="30d"  # Last 30 days
     )
@@ -56,7 +56,7 @@ async def test_get_discussion_context_timeframe(client, test_graph):
 @pytest.mark.asyncio
 async def test_get_discussion_context_not_found(client):
     """Test handling of non-existent URIs."""
-    context = await get_discussion_context(
+    context = await build_context(
         url="memory://test/does-not-exist"
     )
     

@@ -8,9 +8,8 @@ all tools with the MCP server.
 # Import tools to register them with MCP
 from basic_memory.mcp.tools import knowledge  # noqa: F401
 from basic_memory.mcp.tools import search     # noqa: F401
-from basic_memory.mcp.tools import discovery  # noqa: F401
 from basic_memory.mcp.tools import activity   # noqa: F401
-from basic_memory.mcp.tools.discussion import get_discussion_context
+from basic_memory.mcp.tools.discussion import build_context
 
 # Export the tools
 from basic_memory.mcp.tools.knowledge import (
@@ -20,17 +19,10 @@ from basic_memory.mcp.tools.knowledge import (
     delete_entities,
     delete_observations,
     delete_relations,
-    get_entity,
+    get_entity, 
+    get_entities,
 )
 
-from basic_memory.mcp.tools.search import (
-    search,
-    open_nodes,
-)
-
-from basic_memory.mcp.tools.discovery import (
-    get_observation_categories,
-)
 
 from basic_memory.mcp.tools.activity import (
     get_recent_activity,
@@ -45,18 +37,15 @@ __all__ = [
     "delete_entities",
     "delete_observations",
     "delete_relations",
+    "get_entity",
+    "get_entities",
 
     # Search tools
     "search",
-    "get_entity",
-    "open_nodes",
-
-    # Discovery tools
-    "get_observation_categories",
     
     # Activity tools
     "get_recent_activity",
     
     # memory tools
-    "get_discussion_context"
+    "build_context"
 ]

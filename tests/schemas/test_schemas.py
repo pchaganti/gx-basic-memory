@@ -9,7 +9,7 @@ from basic_memory.schemas import (
     Relation,
     CreateEntityRequest,
     SearchNodesRequest,
-    OpenNodesRequest,
+    GetEntitiesRequest,
     RelationResponse,
 )
 from basic_memory.schemas.base import to_snake_case
@@ -170,12 +170,12 @@ def test_search_nodes_input():
 
 def test_open_nodes_input():
     """Test OpenNodesInput validation."""
-    open_input = OpenNodesRequest.model_validate({"permalinks": ["test/test", "test/test2"]})
+    open_input = GetEntitiesRequest.model_validate({"permalinks": ["test/test", "test/test2"]})
     assert len(open_input.permalinks) == 2
 
     # Empty names list should fail
     with pytest.raises(ValidationError):
-        OpenNodesRequest.model_validate({"permalinks": []})
+        GetEntitiesRequest.model_validate({"permalinks": []})
 
 
 def test_path_sanitization():

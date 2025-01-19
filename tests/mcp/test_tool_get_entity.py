@@ -41,36 +41,6 @@ async def test_get_basic_entity(client):
     assert obs.category == ObservationCategory.NOTE
 
 
-@pytest.mark.asyncio
-async def test_get_entity_with_content(client):
-    """Test retrieving a basic entity."""
-    # First create an entity
-    entity_request = CreateEntityRequest(
-        entities=[
-            Entity(
-                title="TestEntity",
-                entity_type="test",
-                content="A test entity",
-                observations=["First observation"],
-            )
-        ]
-    )
-    create_result = await create_entities(entity_request)
-    permalink = create_result.entities[0].permalink
-
-    # Get entity with content
-    entity = await get_entity(permalink, content=True)
-    assert entity.content is not None
-
-    # if we passed in content, it should just be the
-    assert "A test entity" in entity.content
-
-    # Check observations
-    assert len(entity.observations) == 1
-    obs = entity.observations[0]
-    assert obs.content == "First observation"
-    assert obs.category == ObservationCategory.NOTE
-
 
 @pytest.mark.asyncio
 async def test_get_entity_with_relations(client):

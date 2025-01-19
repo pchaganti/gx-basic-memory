@@ -26,7 +26,7 @@ from basic_memory.schemas.request import (
     AddObservationsRequest,
     CreateEntityRequest,
     SearchNodesRequest,
-    OpenNodesRequest,
+    GetEntitiesRequest,
     CreateRelationsRequest, UpdateEntityRequest,
 )
 
@@ -59,7 +59,7 @@ __all__ = [
     "AddObservationsRequest",
     "CreateEntityRequest",
     "SearchNodesRequest",
-    "OpenNodesRequest",
+    "GetEntitiesRequest",
     "CreateRelationsRequest",
     "UpdateEntityRequest",
     # Responses

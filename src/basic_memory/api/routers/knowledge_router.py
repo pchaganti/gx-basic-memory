@@ -1,6 +1,8 @@
 """Router for knowledge graph operations."""
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query
 from loguru import logger
 
 from basic_memory.deps import (
@@ -8,7 +10,6 @@ from basic_memory.deps import (
     get_search_service,
     RelationServiceDep,
     ObservationServiceDep,
-    FileServiceDep,
 )
 from basic_memory.schemas import (
     CreateEntityRequest,
@@ -16,7 +17,6 @@ from basic_memory.schemas import (
     CreateRelationsRequest,
     EntityResponse,
     AddObservationsRequest,
-    OpenNodesRequest,
     DeleteEntitiesResponse,
     DeleteObservationsRequest,
     DeleteRelationsRequest,
@@ -119,9 +119,7 @@ async def add_observations(
 @router.get("/entities/{permalink:path}", response_model=EntityResponse)
 async def get_entity(
     entity_service: EntityServiceDep,
-    file_service: FileServiceDep,
     permalink: PathId,
-    content: bool = False,  # New parameter
 ) -> EntityResponse:
     """Get a specific entity by ID.
 
@@ -133,22 +131,19 @@ async def get_entity(
     try:
         entity = await entity_service.get_by_permalink(permalink)
         entity_response = EntityResponse.model_validate(entity)
-
-        if content:  # Load content if requested
-            content = await file_service.read_entity_content(entity)
-            entity_response.content = content
-
         return entity_response
     except EntityNotFoundError:
         raise HTTPException(status_code=404, detail=f"Entity with {permalink} not found")
 
 
-@router.post("/nodes", response_model=EntityListResponse)
-async def open_nodes(
-    data: OpenNodesRequest, entity_service: EntityServiceDep
+@router.get("/entities", response_model=EntityListResponse)
+async def get_entities(
+    entity_service: EntityServiceDep,
+    permalink: Annotated[list[str] | None, Query()] = None,
 ) -> EntityListResponse:
-    """Open specific nodes"""
-    entities = await entity_service.open_nodes(data.permalinks)
+    """Open specific entities"""
+    # permalink is a list of parameters on the request ?permalink=foo
+    entities = await entity_service.get_entities_by_permalinks(permalink)
     return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )

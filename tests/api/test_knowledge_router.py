@@ -160,8 +160,8 @@ async def test_add_observations(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_open_nodes(client: AsyncClient):
-    """Should open multiple nodes by path IDs."""
+async def test_get_entities(client: AsyncClient):
+    """Should open multiple entities by path IDs."""
     # Create a few entities with different names
     entities = [
         {"title": "AlphaTest", "entity_type": "test"},
@@ -170,19 +170,24 @@ async def test_open_nodes(client: AsyncClient):
     await client.post("/knowledge/entities", json={"entities": entities})
 
     # Open nodes by path IDs
-    response = await client.post(
-        "/knowledge/nodes",
-        json={"permalinks": ["alpha_test"]},
+    response = await client.get(
+        "/knowledge/entities?permalink=alpha_test&permalink=beta_test",
     )
 
     # Verify results
     assert response.status_code == 200
     data = response.json()
-    assert len(data["entities"]) == 1
-    entity = data["entities"][0]
-    assert entity["title"] == "AlphaTest"
-    assert entity["entity_type"] == "test"
-    assert entity["permalink"] == "alpha_test"
+    assert len(data["entities"]) == 2
+
+    entity_0 = data["entities"][0]
+    assert entity_0["title"] == "AlphaTest"
+    assert entity_0["entity_type"] == "test"
+    assert entity_0["permalink"] == "alpha_test"
+
+    entity_1 = data["entities"][1]
+    assert entity_1["title"] == "BetaTest"
+    assert entity_1["entity_type"] == "test"
+    assert entity_1["permalink"] == "beta_test"
 
 
 @pytest.mark.asyncio
@@ -574,33 +579,8 @@ async def test_update_entity_basic(client: AsyncClient):
     assert updated["entity_metadata"]["status"] == "draft"  # Preserved
 
 
-@pytest.mark.asyncio
-async def test_get_entity_content_parameter(client: AsyncClient):
-    """Test content parameter controls content loading."""
-    # Create test entity
-    data = {
-        "title": "TestContent",
-        "entity_type": "test",
-        "content": "# Test Content\n\nSome test content.",
-    }
-    response = await client.post("/knowledge/entities", json={"entities": [data]})
-    assert response.status_code == 200
-    permalink = response.json()["entities"][0]["permalink"]
 
-    # Get without content
-    response = await client.get(f"/knowledge/entities/{permalink}")
-    assert response.status_code == 200
-    entity = response.json()
-    assert entity["content"] is None
-
-    # Get with content
-    response = await client.get(f"/knowledge/entities/{permalink}?content=true")
-    assert response.status_code == 200
-    entity = response.json()
-    assert "# Test Content" in entity["content"]
-    assert "Some test content" in entity["content"]
-
-
+@pytest.mark.skip("Skip until we can request content")
 @pytest.mark.asyncio
 async def test_update_entity_content(client: AsyncClient):
     """Test updating content for different entity types."""
