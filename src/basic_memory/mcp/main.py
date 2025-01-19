@@ -11,9 +11,9 @@ from basic_memory.config import config
 from basic_memory.mcp.server import mcp
 
 # Import tools to register them
-from basic_memory.mcp.tools import knowledge, search, discussion, activity
+from basic_memory.mcp.tools import knowledge, search, discussion, activity, ai_edit
 
-__all__ = ["knowledge", "search", "discussion", "activity"]
+__all__ = ["knowledge", "search", "discussion", "activity", "ai_edit"]
 
 
 if __name__ == "__main__":
