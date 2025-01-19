@@ -1,6 +1,7 @@
 """Common test fixtures."""
 
 from typing import AsyncGenerator
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -304,43 +305,76 @@ async def test_graph(entity_repository, search_service):
 
     # Add some observations
     root.observations = [
-        Observation(content="Root note 1", category=ObservationCategory.NOTE),
-        Observation(content="Root tech note", category=ObservationCategory.TECH),
+        Observation(
+            content="Root note 1",
+            category=ObservationCategory.NOTE,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
+        Observation(
+            content="Root tech note",
+            category=ObservationCategory.TECH,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
     ]
 
     conn1.observations = [
-        Observation(content="Connected 1 note", category=ObservationCategory.NOTE)
+        Observation(
+            content="Connected 1 note",
+            category=ObservationCategory.NOTE,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
     ]
 
     # Add relations
     relations = [
         # Direct connections to root
-        Relation(from_id=root.id, to_id=conn1.id, relation_type="connects_to"),
-        Relation(from_id=conn2.id, to_id=root.id, relation_type="connected_from"),
+        Relation(
+            from_id=root.id,
+            to_id=conn1.id,
+            relation_type="connects_to",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
+        Relation(
+            from_id=conn2.id,
+            to_id=root.id,
+            relation_type="connected_from",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
         # Deep connection
-        Relation(from_id=conn2.id, to_id=deep.id, relation_type="deep_connection"),
+        Relation(
+            from_id=conn1.id,
+            to_id=deep.id,
+            relation_type="deep_connection",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
         # Deep connection
-        Relation(from_id=deep.id, to_id=deeper.id, relation_type="deep_connection"),
+        Relation(
+            from_id=deep.id,
+            to_id=deeper.id,
+            relation_type="deep_connection",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
     ]
 
-    root.outgoing_relations = [relations[0]]
-    conn1.outgoing_relations = [relations[2]]
-    conn2.outgoing_relations = [relations[1]]
-
     # Save relations
-    root = await entity_repository.add(root)
-    conn1 = await entity_repository.add(conn1)
-    conn2 = await entity_repository.add(conn2)
+    root = await entity_repository.add_all(relations)
 
     # Index everything for search
     for entity in entities:
         await search_service.index_entity(entity)
 
     return {
-        "root": root,
+        "root": entities[0],
         "connected1": conn1,
         "connected2": conn2,
         "deep": deep,
-        "observations": root.observations + conn1.observations,
+        "observations": [e.observations for e in entities],
         "relations": relations,
     }

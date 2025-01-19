@@ -7,7 +7,6 @@ import pytest_asyncio
 
 from basic_memory.models.knowledge import Entity
 from basic_memory.services.link_resolver import LinkResolver
-from basic_memory.schemas.search import SearchQuery, SearchItemType
 
 
 @pytest_asyncio.fixture
@@ -22,7 +21,7 @@ async def test_entities(entity_repository):
             file_path="components/core-service.md",
             content_type="text/markdown",
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.now(timezone.utc),
         ),
         Entity(
             title="Service Config",
@@ -32,7 +31,7 @@ async def test_entities(entity_repository):
             file_path="config/service-config.md",
             content_type="text/markdown",
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.now(timezone.utc),
         ),
         Entity(
             title="Auth Service",
@@ -42,7 +41,7 @@ async def test_entities(entity_repository):
             file_path="components/auth/service.md",
             content_type="text/markdown",
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.now(timezone.utc),
         ),
         Entity(
             title="Core Features",
@@ -52,10 +51,10 @@ async def test_entities(entity_repository):
             file_path="specs/features/core.md",
             content_type="text/markdown",
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
-        )
+            updated_at=datetime.now(timezone.utc),
+        ),
     ]
-    
+
     # Add to repository
     return await entity_repository.add_all(entities)
 
@@ -66,7 +65,7 @@ async def link_resolver(entity_repository, search_service, test_entities):
     # Index all test entities
     for entity in test_entities:
         await search_service.index_entity(entity)
-    
+
     return LinkResolver(entity_repository, search_service)
 
 
@@ -90,6 +89,7 @@ async def test_fuzzy_title_match_misspelling(link_resolver):
     # Test slight misspelling
     result = await link_resolver.resolve_link("Core Servise")
     assert result.permalink == "components/core-service"
+
 
 @pytest.mark.asyncio
 async def test_fuzzy_title_partial_match(link_resolver):
@@ -121,8 +121,7 @@ async def test_link_text_normalization(link_resolver):
 async def test_resolve_none(link_resolver):
     """Test resolving non-existent entity."""
     # Basic new entity
-    assert await link_resolver.resolve_link("New Feature") is None 
-        
+    assert await link_resolver.resolve_link("New Feature") is None
 
 
 @pytest.mark.skip("Advanced relevance scoring not yet implemented")
@@ -133,18 +132,18 @@ async def test_multiple_matches_resolution(link_resolver):
     test_cases = [
         {
             "link": "Service",  # Ambiguous
-            "expected_prefix": "components/"  # Should prefer component directory match
+            "expected_prefix": "components/",  # Should prefer component directory match
         },
         {
             "link": "Core",  # Ambiguous
-            "expected_prefix": "specs/"  # Should prefer specs directory match
+            "expected_prefix": "specs/",  # Should prefer specs directory match
         },
         {
             "link": "Service",
-            "expected": "components/core-service"  # Should pick shortest/highest scored
-        }
+            "expected": "components/core-service",  # Should pick shortest/highest scored
+        },
     ]
-    
+
     for case in test_cases:
         result = await link_resolver.resolve_link(case["link"])
         if "expected_prefix" in case:

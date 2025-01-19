@@ -128,7 +128,7 @@ class ContextService:
         # Build date filter
         date_filter = "AND base.created_at >= :since_date" if since else ""
         r1_date_filter = "AND r.created_at >= :since_date" if since else ""
-        related_date_filter = "AND r.created_at >= :since_date" if since else ""
+        related_date_filter = "AND e.created_at >= :since_date" if since else ""
 
         query = text(f"""
 WITH RECURSIVE context_graph AS (
@@ -152,10 +152,10 @@ WITH RECURSIVE context_graph AS (
     WHERE (base.type, base.id) IN ({values})
     {date_filter}
 
-    UNION ALL
+    UNION  -- Changed from UNION ALL
 
-    -- Get relations
-    SELECT
+    -- Get relations from current entities 
+    SELECT DISTINCT
         r.id,
         r.type,
         r.title,
@@ -172,17 +172,17 @@ WITH RECURSIVE context_graph AS (
         CASE WHEN r.from_id = cg.id THEN 0 ELSE 1 END as is_incoming
     FROM context_graph cg
     JOIN search_index r ON (
-        cg.type = 'entity' AND 
+        cg.type = 'entity' AND
         r.type = 'relation' AND 
         (r.from_id = cg.id OR r.to_id = cg.id)
         {r1_date_filter}
     )
     WHERE cg.depth < :max_depth
 
-    UNION ALL
+    UNION  -- Changed from UNION ALL
 
-    -- Get connected entities 
-    SELECT
+    -- Get entities connected by relations
+    SELECT DISTINCT
         e.id,
         e.type,
         e.title,
@@ -192,19 +192,20 @@ WITH RECURSIVE context_graph AS (
         e.relation_type,
         e.category,
         e.entity_id,
-        cg.depth + 1,
+        cg.depth,
         cg.root_id,
         e.created_at,
-        cg.created_at as relation_date,  -- Use same date as relation
-        cg.is_incoming                   -- Keep same direction
+        cg.relation_date,
+        cg.is_incoming
     FROM context_graph cg
     JOIN search_index e ON (
-        cg.type = 'relation' AND         -- Only look for entities from relations
+        cg.type = 'relation' AND 
         e.type = 'entity' AND
         e.id = CASE 
-            WHEN cg.from_id = cg.root_id THEN cg.to_id  -- Outgoing relation
-            ELSE cg.from_id                             -- Incoming relation
+            WHEN cg.from_id = cg.root_id THEN cg.to_id  
+            ELSE cg.from_id                             
         END
+        {related_date_filter}
     )
     WHERE cg.depth < :max_depth
 )
