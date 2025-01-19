@@ -36,6 +36,7 @@ async def get_memory_context(
     uri: str,
     depth: int = 1,
     timeframe: str = "7d",
+    max_results: int = 10
 ) -> GraphContext:
     """Get rich context from memory:// URI."""
     # add the project name from the config to the url as the "host
@@ -46,7 +47,7 @@ async def get_memory_context(
     since = parse_timeframe(timeframe)
 
     # Build context
-    context = await context_service.build_context(memory_url, depth=depth, since=since)
+    context = await context_service.build_context(memory_url, depth=depth, since=since, max_results=max_results)
 
     primary_entities = [SearchResult(**asdict(r)) for r in context["primary_entities"]]
     related_entities = [RelatedResult(**asdict(r)) for r in context["related_entities"]]

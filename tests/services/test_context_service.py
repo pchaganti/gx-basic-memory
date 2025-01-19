@@ -40,7 +40,7 @@ async def test_find_connected_basic(context_service, test_graph, search_service)
     assert test_graph["connected2"].id in entity_ids
 
     # Verify we found observations
-    assert any(r.type == "observation" and "Root note 1" in r.content for r in results)
+    assert any(r.type == "observation" and "Root" in r.title for r in results)
 
 
 @pytest.mark.asyncio
@@ -149,10 +149,10 @@ async def test_build_context(context_service, test_graph):
     total_entities = results["metadata"]["total_entities"]
 
     assert results["metadata"]["uri"] == url.relative_path()
-    assert results["metadata"]["depth"] == 2
+    assert results["metadata"]["depth"] == 1
     assert matched_entities == 1
     assert len(primary_entities) == 1
-    assert len(related_entities) == 10
+    assert len(related_entities) == 8
     assert total_entities == len(primary_entities) + len(related_entities)
 
 

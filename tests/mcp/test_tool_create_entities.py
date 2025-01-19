@@ -30,7 +30,7 @@ async def test_create_basic_entity(client):
     entity = result.entities[0]
     assert entity.title == "TestEntity"
     assert entity.entity_type == "test"
-    assert entity.permalink == "test_entity"
+    assert entity.permalink == "test-entity"
     assert entity.summary == "A test entity"
 
     # Check observations
@@ -122,7 +122,7 @@ async def test_create_minimal_entity(client):
     entity = result.entities[0]
     assert entity.title == "MinimalEntity"
     assert entity.entity_type == "test"
-    assert entity.permalink == "minimal_entity"
+    assert entity.permalink == "minimal-entity"
     assert entity.summary is None
     assert len(entity.observations) == 0
     assert len(entity.relations) == 0

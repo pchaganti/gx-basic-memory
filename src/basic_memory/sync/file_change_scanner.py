@@ -6,10 +6,10 @@ from typing import Dict, Sequence
 
 from loguru import logger
 
+from basic_memory.file_utils import compute_checksum
 from basic_memory.models import Entity
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.sync.utils import SyncReport
-from basic_memory.utils.file_utils import compute_checksum
 
 
 @dataclass
@@ -87,7 +87,7 @@ class FileChangeScanner:
         return result
 
     async def find_changes(
-            self, directory: Path, db_file_state: Dict[str, FileState]
+        self, directory: Path, db_file_state: Dict[str, FileState]
     ) -> SyncReport:
         """Find changes between filesystem and database."""
         # Get current files and checksums

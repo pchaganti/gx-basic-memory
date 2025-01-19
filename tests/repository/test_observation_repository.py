@@ -91,7 +91,7 @@ async def test_delete_observations(session_maker: async_sessionmaker, repo):
             title="test_entity",
             entity_type="test",
             summary="Test entity",
-            permalink="test/test_entity",
+            permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
         )
@@ -121,7 +121,7 @@ async def test_delete_observation_by_id(session_maker: async_sessionmaker, repo)
             title="test_entity",
             entity_type="test",
             summary="Test entity",
-            permalink="test/test_entity",
+            permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
         )
@@ -150,7 +150,7 @@ async def test_delete_observation_by_content(session_maker: async_sessionmaker, 
             title="test_entity",
             entity_type="test",
             summary="Test entity",
-            permalink="test/test_entity",
+            permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
         )
@@ -181,7 +181,7 @@ async def test_find_by_category(session_maker: async_sessionmaker, repo):
             title="test_entity",
             entity_type="test",
             summary="Test entity",
-            permalink="test/test_entity",
+            permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
         )
@@ -223,7 +223,7 @@ async def test_observation_categories(session_maker: async_sessionmaker, repo):
             title="test_entity",
             entity_type="test",
             summary="Test entity",
-            permalink="test/test_entity",
+            permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
         )
@@ -271,7 +271,7 @@ async def test_find_by_category_case_sensitivity(session_maker: async_sessionmak
             title="test_entity",
             entity_type="test",
             summary="Test entity",
-            permalink="test/test_entity",
+            permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
         )

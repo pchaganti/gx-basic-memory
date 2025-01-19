@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 
 from basic_memory.models import Entity as EntityModel, Observation, Relation, ObservationCategory
 from basic_memory.markdown.schemas import EntityMarkdown
-from basic_memory.models.knowledge import generate_permalink
+from basic_memory.utils import generate_permalink
 from basic_memory.repository import EntityRepository, ObservationRepository, RelationRepository
 from basic_memory.services.exceptions import EntityNotFoundError
 from basic_memory.services.link_resolver import LinkResolver

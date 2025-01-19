@@ -1,7 +1,7 @@
 """Tests for discussion context MCP tool."""
 
 import pytest
-from basic_memory.mcp.tools.discussion import build_context
+from basic_memory.mcp.tools.memory import build_context
 from basic_memory.schemas.memory import GraphContext
 
 @pytest.mark.asyncio
@@ -18,7 +18,7 @@ async def test_get_basic_discussion_context(client, test_graph):
     
     # Verify metadata
     assert context.metadata["uri"] == "test/root"
-    assert context.metadata["depth"] == 2  # default depth
+    assert context.metadata["depth"] == 1  # default depth
     assert context.metadata["timeframe"] is not None
     assert isinstance(context.metadata["generated_at"], str)
     assert context.metadata["matched_entities"] == 1

@@ -29,7 +29,7 @@ async def test_sync_knowledge(
     new_content = """
 ---
 type: knowledge
-permalink: concept/test_concept
+permalink: concept/test-concept
 created: 2023-01-01
 modified: 2023-01-01
 ---
@@ -65,7 +65,7 @@ A test concept.
     assert len(entities) == 1
 
     # Find new entity
-    test_concept = next(e for e in entities if e.permalink == "concept/test_concept")
+    test_concept = next(e for e in entities if e.permalink == "concept/test-concept")
     assert test_concept.entity_type == "knowledge"
 
     # Verify relation was not created
@@ -86,7 +86,7 @@ async def test_sync_entity_with_nonexistent_relations(
     content = """
 ---
 type: knowledge
-permalink: concept/depends_on_future
+permalink: concept/depends-on-future
 created: 2024-01-01
 modified: 2024-01-01
 ---
@@ -106,7 +106,7 @@ modified: 2024-01-01
 
     # Verify entity created but no relations
     entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
-        "concept/depends_on_future"
+        "concept/depends-on-future"
     )
     assert entity is not None
     assert len(entity.relations) == 0  # Relations to nonexistent entities should be skipped
@@ -123,7 +123,7 @@ async def test_sync_entity_circular_relations(
     content_a = """
 ---
 type: knowledge
-permalink: concept/entity_a
+permalink: concept/entity-a
 created: 2024-01-01
 modified: 2024-01-01
 ---
@@ -133,7 +133,7 @@ modified: 2024-01-01
 - First entity in circular reference
 
 ## Relations
-- depends_on [[concept/entity_b]]
+- depends_on [[concept/entity-b]]
 """
     await create_test_file(project_dir / "concept/entity_a.md", content_a)
 
@@ -141,7 +141,7 @@ modified: 2024-01-01
     content_b = """
 ---
 type: knowledge
-permalink: concept/entity_b
+permalink: concept/entity-b
 created: 2024-01-01
 modified: 2024-01-01
 ---
@@ -151,7 +151,7 @@ modified: 2024-01-01
 - Second entity in circular reference
 
 ## Relations
-- depends_on [[concept/entity_a]]
+- depends_on [[concept/entity-a]]
 """
     await create_test_file(project_dir / "concept/entity_b.md", content_b)
 
@@ -160,10 +160,10 @@ modified: 2024-01-01
 
     # Verify both entities and their relations
     entity_a = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
-        "concept/entity_a"
+        "concept/entity-a"
     )
     entity_b = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
-        "concept/entity_b"
+        "concept/entity-b"
     )
 
     # outgoing relations
@@ -213,7 +213,7 @@ modified: 2024-01-01
     content = """
 ---
 type: knowledge
-permalink: concept/duplicate_relations
+permalink: concept/duplicate-relations
 created: 2024-01-01
 modified: 2024-01-01
 ---
@@ -235,7 +235,7 @@ modified: 2024-01-01
 
     # Verify duplicates are handled
     entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
-        "concept/duplicate_relations"
+        "concept/duplicate-relations"
     )
 
     # Count relations by type
@@ -258,7 +258,7 @@ async def test_sync_entity_with_invalid_category(
     content = """
 ---
 type: knowledge
-permalink: concept/invalid_category
+permalink: concept/invalid-category
 created: 2024-01-01
 modified: 2024-01-01
 ---
@@ -277,7 +277,7 @@ modified: 2024-01-01
 
     # Verify observations
     entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
-        "concept/invalid_category"
+        "concept/invalid-category"
     )
 
     assert len(entity.observations) == 3
@@ -301,7 +301,7 @@ async def test_sync_entity_with_order_dependent_relations(
         "a": """
 ---
 type: knowledge
-permalink: concept/entity_a
+permalink: concept/entity-a
 created: 2024-01-01
 modified: 2024-01-01
 ---
@@ -312,13 +312,13 @@ modified: 2024-01-01
 - depends on c
 
 ## Relations
-- depends_on [[concept/entity_b]]
-- depends_on [[concept/entity_c]]
+- depends_on [[concept/entity-b]]
+- depends_on [[concept/entity-c]]
 """,
         "b": """
 ---
 type: knowledge
-permalink: concept/entity_b
+permalink: concept/entity-b
 created: 2024-01-01
 modified: 2024-01-01
 ---
@@ -328,12 +328,12 @@ modified: 2024-01-01
 - depends on c
 
 ## Relations
-- depends_on [[concept/entity_c]]
+- depends_on [[concept/entity-c]]
 """,
         "c": """
 ---
 type: knowledge
-permalink: concept/entity_c
+permalink: concept/entity-c
 created: 2024-01-01
 modified: 2024-01-01
 ---
@@ -343,7 +343,7 @@ modified: 2024-01-01
 - depends on a
 
 ## Relations
-- depends_on [[concept/entity_a]]
+- depends_on [[concept/entity-a]]
 """,
     }
 
@@ -356,13 +356,13 @@ modified: 2024-01-01
 
     # Verify all relations are created correctly regardless of order
     entity_a = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
-        "concept/entity_a"
+        "concept/entity-a"
     )
     entity_b = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
-        "concept/entity_b"
+        "concept/entity-b"
     )
     entity_c = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
-        "concept/entity_c"
+        "concept/entity-c"
     )
 
     assert len(entity_a.outgoing_relations) == 2  # Should depend on B and C

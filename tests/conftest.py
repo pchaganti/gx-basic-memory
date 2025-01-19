@@ -171,7 +171,9 @@ async def entity_sync_service(
     link_resolver: LinkResolver,
 ) -> EntitySyncService:
     """Create EntitySyncService with repository."""
-    return EntitySyncService(entity_repository, observation_repository, relation_repository, link_resolver)
+    return EntitySyncService(
+        entity_repository, observation_repository, relation_repository, link_resolver
+    )
 
 
 @pytest_asyncio.fixture
@@ -221,7 +223,7 @@ async def sample_entity(entity_repository: EntityRepository) -> Entity:
         "title": "Test Entity",
         "entity_type": "test",
         "summary": "A test entity",
-        "permalink": "test/test_entity",
+        "permalink": "test/test-entity",
         "file_path": "test/test_entity.md",
         "content_type": "text/markdown",
     }
@@ -232,14 +234,16 @@ async def sample_entity(entity_repository: EntityRepository) -> Entity:
 async def full_entity(sample_entity, entity_repository):
     """Create a search test entity."""
 
-    search_entity = await entity_repository.create({
-        "title": "Search Entity",
-        "entity_type": "test",
-        "summary": "A searchable entity",
-        "permalink": "test/search_entity",
-        "file_path": "test/search_entity.md",
-        "content_type": "text/markdown",
-    })
+    search_entity = await entity_repository.create(
+        {
+            "title": "Search Entity",
+            "entity_type": "test",
+            "summary": "A searchable entity",
+            "permalink": "test/search-entity",
+            "file_path": "test/search_entity.md",
+            "content_type": "text/markdown",
+        }
+    )
 
     observations = [
         Observation(content="Tech note", category=ObservationCategory.TECH),
@@ -252,6 +256,7 @@ async def full_entity(sample_entity, entity_repository):
     search_entity.observations = observations
     search_entity.outgoing_relations = relations
     return await entity_repository.add(search_entity)
+
 
 @pytest_asyncio.fixture
 async def test_graph(entity_repository, search_service):

@@ -15,7 +15,7 @@ async def source_entity(session_maker):
     entity = Entity(
         title="test_source",
         entity_type="test",
-        permalink="source/test_source",
+        permalink="source/test-source",
         file_path="source/test_source.md",
         summary="Source entity",
         content_type="text/markdown",
@@ -32,7 +32,7 @@ async def target_entity(session_maker):
     entity = Entity(
         title="test_target",
         entity_type="test",
-        permalink="target/test_target",
+        permalink="target/test-target",
         file_path="target/test_target.md",
         summary="Target entity",
         content_type="text/markdown",
@@ -62,7 +62,7 @@ async def related_entity(entity_repository):
     entity_data = {
         "title": "Related Entity",
         "entity_type": "test",
-        "permalink": "test/related_entity",
+        "permalink": "test/related-entity",
         "file_path": "test/related_entity.md",
         "summary": "A related test entity",
         "content_type": "text/markdown",

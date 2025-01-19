@@ -19,7 +19,7 @@ async def test_entities(
         entity1 = EntityModel(
             title="test_entity_1",
             entity_type="test",
-            permalink="test/test_entity_1",
+            permalink="test/test-entity-1",
             file_path="test/test_entity_1.md",
             summary="Test entity 1",
             content_type="text/markdown",
@@ -27,7 +27,7 @@ async def test_entities(
         entity2 = EntityModel(
             title="test_entity_2",
             entity_type="test",
-            permalink="test/test_entity_2",
+            permalink="test/test-entity-2",
             file_path="test/test_entity_2.md",
             summary="Test entity 2",
             content_type="text/markdown",

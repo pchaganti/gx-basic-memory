@@ -119,7 +119,7 @@ async def add_observations(
 @router.get("/entities/{permalink:path}", response_model=EntityResponse)
 async def get_entity(
     entity_service: EntityServiceDep,
-    permalink: PathId,
+    permalink: str,
 ) -> EntityResponse:
     """Get a specific entity by ID.
 

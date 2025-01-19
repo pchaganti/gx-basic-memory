@@ -31,7 +31,7 @@ async def test_get_basic_entity(client):
     # Verify entity details
     assert entity.title == "TestEntity"
     assert entity.entity_type == "test"
-    assert entity.permalink == "test_entity"
+    assert entity.permalink == "test-entity"
     assert entity.summary == "A test entity"
 
     # Check observations
@@ -61,16 +61,16 @@ async def test_get_entity_with_relations(client):
 
     relation_request = CreateRelationsRequest(
         relations=[
-            Relation(from_id="source_entity", to_id="target_entity", relation_type="depends_on")
+            Relation(from_id="source-entity", to_id="target-entity", relation_type="depends_on")
         ]
     )
     await create_relations(relation_request)
 
     # Get and verify source entity without content
-    source = await get_entity("source_entity")
+    source = await get_entity("source-entity")
     assert len(source.relations) == 1
     relation = source.relations[0]
-    assert relation.to_id == "target_entity"
+    assert relation.to_id == "target-entity"
     assert relation.relation_type == "depends_on"
 
 

@@ -98,7 +98,6 @@ class RelatedResult(BaseModel):
     relation_type: Optional[str] = None
     category: Optional[str] = None
     entity_id: Optional[int] = None
-    content: Optional[str] = None
 
 
 class SearchResponse(BaseModel):

@@ -4,10 +4,8 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
-from markdown_it import MarkdownIt
 
 from basic_memory.markdown.entity_parser import EntityParser
-from basic_memory.utils.file_utils import FileError
 
 
 @pytest.mark.asyncio
@@ -34,22 +32,22 @@ async def test_unicode_content(tmp_path):
         - tested_by [[测试组件]] (Unicode test)
         - depends_on [[компонент]] (Another test)
         """)
-    
+
     test_file = tmp_path / "unicode.md"
     test_file.write_text(content, encoding="utf-8")
-    
+
     parser = EntityParser(tmp_path)
     entity = await parser.parse_file(test_file)
-    
+
     assert "测试" in entity.frontmatter.tags
     assert "chinese" not in entity.frontmatter.tags
     assert "🧪" in entity.content.content
-    
+
     # Verify Unicode in observations
     assert any(o.content == "Emoji test 👍" for o in entity.content.observations)
     assert any(o.category == "中文" for o in entity.content.observations)
     assert any(o.category == "русский" for o in entity.content.observations)
-    
+
     # Verify Unicode in relations
     assert any(r.target == "测试组件" for r in entity.content.relations)
     assert any(r.target == "компонент" for r in entity.content.relations)
@@ -60,7 +58,7 @@ async def test_empty_file(tmp_path):
     """Test handling of empty files."""
     empty_file = tmp_path / "empty.md"
     empty_file.write_text("")
-    
+
     parser = EntityParser(tmp_path)
     entity = await parser.parse_file(empty_file)
     assert entity.content.observations == []
@@ -82,10 +80,10 @@ async def test_missing_sections(tmp_path):
         Just some content
         with [[links]] but no sections
         """)
-    
+
     test_file = tmp_path / "missing.md"
     test_file.write_text(content)
-    
+
     parser = EntityParser(tmp_path)
     entity = await parser.parse_file(test_file)
     assert len(entity.content.relations) == 1
@@ -145,13 +143,13 @@ async def test_nested_content(tmp_path):
                 - [test] Level 3 #test (Third level)
                 - needs [[Three]]
         """)
-    
+
     test_file = tmp_path / "nested.md"
     test_file.write_text(content)
-    
+
     parser = EntityParser(tmp_path)
     entity = await parser.parse_file(test_file)
-    
+
     # Should find all observations and relations regardless of nesting
     assert len(entity.content.observations) == 3
     assert len(entity.content.relations) == 3
@@ -169,14 +167,14 @@ async def test_malformed_frontmatter(tmp_path):
         
         # Test
         """)
-    
+
     test_file = tmp_path / "malformed.md"
     test_file.write_text(content)
-    
+
     parser = EntityParser(tmp_path)
     entity = await parser.parse_file(test_file)
     assert entity.frontmatter.permalink is None
-    
+
 
 @pytest.mark.asyncio
 async def test_file_not_found():

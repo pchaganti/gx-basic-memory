@@ -13,7 +13,7 @@ from basic_memory.mcp.tools import search  # noqa: F401
 from basic_memory.mcp.tools.activity import (
     get_recent_activity,
 )
-from basic_memory.mcp.tools.discussion import build_context
+from basic_memory.mcp.tools.memory import build_context
 from basic_memory.mcp.tools.ai_edit import ai_edit
 
 # Export the tools

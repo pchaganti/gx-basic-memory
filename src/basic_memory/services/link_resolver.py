@@ -4,15 +4,13 @@ from typing import Optional, Tuple, List
 
 from loguru import logger
 
-from basic_memory.services.service import BaseService
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.services.search_service import SearchService
 from basic_memory.models import Entity
-from basic_memory.models.knowledge import generate_permalink
 from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
 
 
-class LinkResolver():
+class LinkResolver:
     """Service for resolving markdown links to permalinks.
 
     Uses a combination of exact matching and search-based resolution:
@@ -31,8 +29,7 @@ class LinkResolver():
         self,
         link_text: str,
     ) -> Entity:
-        """Resolve a markdown link to a permalink.
-        """
+        """Resolve a markdown link to a permalink."""
         logger.debug(f"Resolving link: {link_text}")
 
         # Clean link text and extract any alias
@@ -60,7 +57,6 @@ class LinkResolver():
             best_match = self._select_best_match(clean_text, results)
             logger.debug(f"Selected best match from {len(results)} results: {best_match.permalink}")
             return await self.entity_repository.get_by_permalink(best_match.permalink)
-        
 
     def _normalize_link_text(self, link_text: str) -> Tuple[str, Optional[str]]:
         """Normalize link text and extract alias if present.

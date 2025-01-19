@@ -14,8 +14,9 @@ from basic_memory.schemas.memory import GraphContext, MemoryUrl
 )
 async def build_context(
     url: MemoryUrl,
-    depth: Optional[int] = 2,
+    depth: Optional[int] = 1,
     timeframe: Optional[str] = "7d",
+    max_results: int = 10
 ) -> GraphContext:
     """Get context needed to continue a discussion.
 
@@ -28,6 +29,7 @@ async def build_context(
         url: memory:// URI pointing to discussion content (e.g. memory://specs/search)
         depth: How many relation hops to traverse (default: 2)
         timeframe: How far back to look, e.g. "7d", "24h" (default: "7d")
+        max_results: The maximum number of results to return (default: 10)
 
     Returns:
         GraphContext containing:
@@ -39,6 +41,6 @@ async def build_context(
     # Map directly to the memory endpoint
     memory_url = MemoryUrl.validate(url)
     response = await client.get(
-        f"/memory/{memory_url.relative_path()}", params={"depth": depth, "timeframe": timeframe}
+        f"/memory/{memory_url.relative_path()}", params={"depth": depth, "timeframe": timeframe, "max_results": max_results}
     )
     return GraphContext.model_validate(response.json())

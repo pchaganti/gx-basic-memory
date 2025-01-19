@@ -5,9 +5,9 @@ from typing import Optional, Dict, Any, Tuple
 
 from loguru import logger
 
+from basic_memory import file_utils
 from basic_memory.markdown.knowledge_writer import KnowledgeWriter
 from basic_memory.services.exceptions import FileOperationError
-from basic_memory.utils import file_utils
 from basic_memory.models import Entity as EntityModel
 
 

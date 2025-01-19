@@ -201,10 +201,10 @@ def test_path_sanitization():
 def test_permalink_generation():
     """Test permalink property generates correct paths."""
     test_cases = [
-        ({"title": "BasicMemory", "entity_type": "knowledge"}, "basic_memory"),
-        ({"title": "Memory Service", "entity_type": "knowledge"}, "memory_service"),
-        ({"title": "API Gateway", "entity_type": "knowledge"}, "api_gateway"),
-        ({"title": "TestCase1", "entity_type": "knowledge"}, "test_case1"),
+        ({"title": "BasicMemory", "entity_type": "knowledge"}, "basic-memory"),
+        ({"title": "Memory Service", "entity_type": "knowledge"}, "memory-service"),
+        ({"title": "API Gateway", "entity_type": "knowledge"}, "api-gateway"),
+        ({"title": "TestCase1", "entity_type": "knowledge"}, "test-case1"),
     ]
 
     for input_data, expected_path in test_cases:

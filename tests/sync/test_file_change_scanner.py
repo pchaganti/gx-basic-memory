@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
+from basic_memory.file_utils import compute_checksum
 from basic_memory.models import Entity
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.file_change_scanner import FileState
-from basic_memory.utils.file_utils import compute_checksum
 
 
 @pytest.fixture
@@ -158,11 +158,7 @@ async def test_detect_moved_file(file_change_scanner: FileChangeScanner, temp_di
 
     # Set up DB state with original location
     db_records = {
-        old_path: FileState(
-            file_path=old_path,
-            permalink="test",
-            checksum=original_checksum
-        )
+        old_path: FileState(file_path=old_path, permalink="test", checksum=original_checksum)
     }
 
     # Move file to new location
@@ -172,10 +168,7 @@ async def test_detect_moved_file(file_change_scanner: FileChangeScanner, temp_di
     old_file.rename(new_file)
 
     # Check changes
-    changes = await file_change_scanner.find_changes(
-        directory=temp_dir,
-        db_file_state=db_records
-    )
+    changes = await file_change_scanner.find_changes(directory=temp_dir, db_file_state=db_records)
 
     # Should detect as move
     assert len(changes.moves) == 1
@@ -199,11 +192,7 @@ async def test_move_with_content_change(file_change_scanner: FileChangeScanner, 
 
     # Set up DB state with original location
     db_records = {
-        old_path: FileState(
-            file_path=old_path,
-            permalink="test",
-            checksum=original_checksum
-        )
+        old_path: FileState(file_path=old_path, permalink="test", checksum=original_checksum)
     }
 
     # Move file and change content
@@ -214,10 +203,7 @@ async def test_move_with_content_change(file_change_scanner: FileChangeScanner, 
     old_file.unlink()
 
     # Check changes
-    changes = await file_change_scanner.find_changes(
-        directory=temp_dir,
-        db_file_state=db_records
-    )
+    changes = await file_change_scanner.find_changes(directory=temp_dir, db_file_state=db_records)
 
     # Should be treated as delete + new, not move
     assert old_path in changes.deleted
@@ -229,14 +215,8 @@ async def test_move_with_content_change(file_change_scanner: FileChangeScanner, 
 async def test_multiple_moves(file_change_scanner: FileChangeScanner, temp_dir: Path):
     """Test detecting multiple file moves at once."""
     # Create original files
-    files = {
-        "a/test1.md": "content1",
-        "b/test2.md": "content2"
-    }
-    new_locations = {
-        "a/test1.md": "new/test1.md",
-        "b/test2.md": "new/nested/test2.md"
-    }
+    files = {"a/test1.md": "content1", "b/test2.md": "content2"}
+    new_locations = {"a/test1.md": "new/test1.md", "b/test2.md": "new/nested/test2.md"}
 
     db_records = {}
     # Create files and DB state
@@ -244,9 +224,7 @@ async def test_multiple_moves(file_change_scanner: FileChangeScanner, temp_dir: 
         await create_test_file(temp_dir / old_path, content)
         checksum = await compute_checksum(content)
         db_records[old_path] = FileState(
-            file_path=old_path,
-            permalink=old_path.replace(".md", ""),
-            checksum=checksum
+            file_path=old_path, permalink=old_path.replace(".md", ""), checksum=checksum
         )
 
     # Move all files
@@ -257,10 +235,7 @@ async def test_multiple_moves(file_change_scanner: FileChangeScanner, temp_dir: 
         old_file.rename(new_file)
 
     # Check changes
-    changes = await file_change_scanner.find_changes(
-        directory=temp_dir,
-        db_file_state=db_records
-    )
+    changes = await file_change_scanner.find_changes(directory=temp_dir, db_file_state=db_records)
 
     # Should detect both moves
     assert len(changes.moves) == 2

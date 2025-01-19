@@ -8,7 +8,7 @@
 # from basic_memory.cli.commands.status import display_changes, run_status
 # from basic_memory.sync.file_change_scanner import FileState
 # from basic_memory.sync.utils import SyncReport
-# from basic_memory.utils.file_utils import compute_checksum
+# from basic_memory.file_utils import compute_checksum
 #
 #
 # @pytest.fixture

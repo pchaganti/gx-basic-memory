@@ -69,8 +69,8 @@ async def create_related_entities(client) -> List[RelationResponse]:  # pyright:
     create_response = await client.post("/knowledge/entities", json={"entities": entities})
     assert create_response.status_code == 200
     created = create_response.json()["entities"]
-    source_permalink = "source_entity"
-    target_permalink = "target_entity"
+    source_permalink = "source-entity"
+    target_permalink = "target-entity"
 
     # Create relation between them
     response = await client.post(
@@ -133,7 +133,7 @@ async def test_get_entity(client: AsyncClient):
     entity = response.json()
     assert entity["title"] == "TestEntity"
     assert entity["entity_type"] == "test"
-    assert entity["permalink"] == "test_entity"
+    assert entity["permalink"] == "test-entity"
 
 
 @pytest.mark.asyncio
@@ -149,7 +149,7 @@ async def test_add_observations(client: AsyncClient):
     data = {"title": "TestEntity", "entity_type": "test"}
     response = await client.post("/knowledge/entities", json={"entities": [data]})
 
-    permalink = "test_entity"
+    permalink = "test-entity"
     # Add observations
     await add_observations(client, permalink)
 
@@ -171,7 +171,7 @@ async def test_get_entities(client: AsyncClient):
 
     # Open nodes by path IDs
     response = await client.get(
-        "/knowledge/entities?permalink=alpha_test&permalink=beta_test",
+        "/knowledge/entities?permalink=alpha-test&permalink=beta-test",
     )
 
     # Verify results
@@ -182,12 +182,12 @@ async def test_get_entities(client: AsyncClient):
     entity_0 = data["entities"][0]
     assert entity_0["title"] == "AlphaTest"
     assert entity_0["entity_type"] == "test"
-    assert entity_0["permalink"] == "alpha_test"
+    assert entity_0["permalink"] == "alpha-test"
 
     entity_1 = data["entities"][1]
     assert entity_1["title"] == "BetaTest"
     assert entity_1["entity_type"] == "test"
-    assert entity_1["permalink"] == "beta_test"
+    assert entity_1["permalink"] == "beta-test"
 
 
 @pytest.mark.asyncio
@@ -240,10 +240,10 @@ async def test_delete_entity_with_observations(client, observation_repository):
     # Create test entity and add observations
     entity_data = {"title": "TestEntity", "entity_type": "test"}
     await client.post("/knowledge/entities", json={"entities": [entity_data]})
-    await add_observations(client, "TestEntity")
+    await add_observations(client, "test-entity")
 
     # Delete entity
-    response = await client.post("/knowledge/entities/delete", json={"permalinks": ["TestEntity"]})
+    response = await client.post("/knowledge/entities/delete", json={"permalinks": ["test-entity"]})
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
 
@@ -258,10 +258,10 @@ async def test_delete_observations(client, observation_repository):
     # Create entity and add observations
     entity_data = {"title": "TestEntity", "entity_type": "test"}
     await client.post("/knowledge/entities", json={"entities": [entity_data]})
-    observations = await add_observations(client, "TestEntity")  # adds 2
+    observations = await add_observations(client, "test-entity")  # adds 2
 
     # Delete specific observations
-    request_data = {"permalink": "TestEntity", "observations": [observations[0].content]}
+    request_data = {"permalink": "test-entity", "observations": [observations[0].content]}
     response = await client.post("/knowledge/observations/delete", json=request_data)
     assert response.status_code == 200
     data = response.json()
@@ -314,7 +314,7 @@ async def test_delete_nonexistent_observations(client: AsyncClient):
     entity_data = {"title": "TestEntity", "entity_type": "test"}
     await client.post("/knowledge/entities", json={"entities": [entity_data]})
 
-    request_data = {"permalink": "TestEntity", "observations": ["Nonexistent observation"]}
+    request_data = {"permalink": "test-entity", "observations": ["Nonexistent observation"]}
     response = await client.post("/knowledge/observations/delete", json=request_data)
     assert response.status_code == 200
 
@@ -366,13 +366,13 @@ async def test_full_knowledge_flow(client: AsyncClient):
         json={
             "relations": [
                 {
-                    "from_id": "main_entity",
-                    "to_id": "related_one",
+                    "from_id": "main-entity",
+                    "to_id": "related-one",
                     "relation_type": "connects_to",
                 },
                 {
-                    "from_id": "main_entity",
-                    "to_id": "related_two",
+                    "from_id": "main-entity",
+                    "to_id": "related-two",
                     "relation_type": "connects_to",
                 },
             ]
@@ -386,7 +386,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     await client.post(
         "/knowledge/observations",
         json={
-            "permalink": "main_entity",
+            "permalink": "main-entity",
             "observations": [
                 {"content": "Connected to first related entity", "category": "tech"},
                 {"content": "Connected to second related entity", "category": "note"},
@@ -396,7 +396,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     )
 
     # 5. Verify full graph structure
-    permalink = "MainEntity"
+    permalink = "main-entity"
     main_get = await client.get(f"/knowledge/entities/{permalink}")
     main_entity = main_get.json()
 
@@ -412,13 +412,13 @@ async def test_full_knowledge_flow(client: AsyncClient):
 
     # 7. Delete main entity
     response = await client.post(
-        "/knowledge/entities/delete", json={"permalinks": ["MainEntity", "NonEntity"]}
+        "/knowledge/entities/delete", json={"permalinks": ["main-entity", "non-entity"]}
     )
     assert response.status_code == 200
     assert response.json() == {"deleted": True}
 
     # Verify deletion
-    permalink = "MainEntity"
+    permalink = "main-entity"
     response = await client.get(f"/knowledge/entities/{permalink}")
     assert response.status_code == 404
 
@@ -443,7 +443,7 @@ async def test_entity_indexing(client: AsyncClient):
     assert search_response.status_code == 200
     search_result = SearchResponse.model_validate(search_response.json())
     assert len(search_result.results) == 1
-    assert search_result.results[0].permalink == "search_test"
+    assert search_result.results[0].permalink == "search-test"
     assert search_result.results[0].type == SearchItemType.ENTITY.value
 
 
@@ -513,6 +513,7 @@ async def test_entity_delete_indexing(client: AsyncClient):
     search_result = SearchResponse.model_validate(search_response.json())
     assert len(search_result.results) == 0
 
+
 @pytest.mark.skip("relation info is not indexed yet")
 @pytest.mark.asyncio
 async def test_relation_indexing(client: AsyncClient):
@@ -577,7 +578,6 @@ async def test_update_entity_basic(client: AsyncClient):
     assert updated["title"] == "updated-test"
     assert updated["summary"] == "Updated description"
     assert updated["entity_metadata"]["status"] == "draft"  # Preserved
-
 
 
 @pytest.mark.skip("Skip until we can request content")

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from basic_memory.utils.file_utils import (
+from basic_memory.file_utils import (
     compute_checksum,
     ensure_directory,
     write_file_atomic,
@@ -86,7 +86,7 @@ async def test_add_frontmatter():
     assert "- a\n- b" in result or "['a', 'b']" in result
 
     # Should preserve content
-    assert result.endswith(f"test content")
+    assert result.endswith("test content")
 
 
 def test_has_frontmatter():
@@ -127,7 +127,7 @@ tags:
   - b
 ---
 content"""
-    
+
     result = parse_frontmatter(content)
     assert result == {"title": "Test", "tags": ["a", "b"]}
 
@@ -177,9 +177,12 @@ title: Test
     assert remove_frontmatter(content) == ""
 
     # frontmatter missing some fields
-    assert remove_frontmatter("""---
+    assert (
+        remove_frontmatter("""---
 title: Test
-content""") == "---\ntitle: Test\ncontent"
+content""")
+        == "---\ntitle: Test\ncontent"
+    )
 
 
 @pytest.mark.asyncio

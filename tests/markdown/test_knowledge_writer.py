@@ -20,7 +20,7 @@ def sample_entity() -> Entity:
         id=1,
         title="test_entity",
         entity_type="test",
-        permalink="knowledge/test_entity",
+        permalink="knowledge/test-entity",
         file_path="knowledge/test_entity.md",
         summary="Test description",
         created_at=datetime(2025, 1, 1, tzinfo=UTC),
@@ -44,7 +44,7 @@ def entity_with_observations(sample_entity: Entity) -> Entity:
 def entity_with_relations(sample_entity: Entity) -> Entity:
     """Create an entity with relations."""
     target = Entity(
-        id=2, title="target_entity", entity_type="test", permalink="knowledge/target_entity"
+        id=2, title="target_entity", entity_type="test", permalink="knowledge/target-entity"
     )
     sample_entity.outgoing_relations = [
         Relation(from_id=1, to_id=2, relation_type="connects_to", to_entity=target)
@@ -57,7 +57,7 @@ async def test_format_frontmatter_basic(knowledge_writer: KnowledgeWriter, sampl
     """Test basic frontmatter formatting."""
     frontmatter = await knowledge_writer.format_frontmatter(sample_entity)
 
-    assert frontmatter["id"] == "knowledge/test_entity"
+    assert frontmatter["id"] == "knowledge/test-entity"
     assert frontmatter["type"] == "test"
     assert frontmatter["created"] == "2025-01-01T00:00:00+00:00"
     assert frontmatter["modified"] == "2025-01-02T00:00:00+00:00"
@@ -74,7 +74,7 @@ async def test_format_frontmatter_with_metadata(
 
     assert frontmatter["status"] == "active"
     assert frontmatter["priority"] == "high"
-    assert frontmatter["id"] == "knowledge/test_entity"
+    assert frontmatter["id"] == "knowledge/test-entity"
 
 
 @pytest.mark.asyncio

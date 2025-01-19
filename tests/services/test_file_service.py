@@ -78,7 +78,7 @@ async def test_write_atomic(tmp_path: Path, file_service: FileService):
     temp_path = test_path.with_suffix(".tmp")
 
     # Mock write_file_atomic to raise an error
-    with patch("basic_memory.utils.file_utils.write_file_atomic") as mock_write:
+    with patch("basic_memory.file_utils.write_file_atomic") as mock_write:
         mock_write.side_effect = Exception("Write failed")
 
         # Attempt write that will fail
@@ -195,7 +195,7 @@ async def test_frontmatter_invalid_metadata(file_service: FileService):
     bad_metadata = {"bad": NonSerializable()}
 
     # Attempting to add frontmatter with non-serializable content
-    with patch("basic_memory.utils.file_utils.add_frontmatter") as mock_add:
+    with patch("basic_memory.file_utils.add_frontmatter") as mock_add:
         mock_add.side_effect = FileOperationError("Failed to serialize metadata")
         with pytest.raises(FileOperationError):
             await file_service.add_frontmatter(frontmatter=frontmatter, content="content", metadata=bad_metadata)

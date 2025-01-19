@@ -19,6 +19,8 @@ from typing import List, Optional, Annotated, Dict
 from annotated_types import MinLen, MaxLen
 from pydantic import BaseModel, BeforeValidator, Field, model_validator, ValidationError
 
+from basic_memory.utils import generate_permalink
+
 
 def to_snake_case(name: str) -> str:
     """Convert a string to snake_case.
@@ -79,7 +81,7 @@ class ObservationCategory(str, Enum):
             return None
 
 
-PathId = Annotated[str, BeforeValidator(to_snake_case), BeforeValidator(validate_path_format)]
+PathId = Annotated[str, BeforeValidator(validate_path_format)]
 """Unique identifier in format '{path}/{normalized_name}'."""
 
 Observation = Annotated[
@@ -154,8 +156,7 @@ class Entity(BaseModel):
     @property
     def permalink(self) -> PathId:
         """Get the path ID in format {snake_case_title}."""
-        normalized_name = to_snake_case(self.title)
-        return normalized_name
+        return generate_permalink(self.title)
 
     @property
     def file_path(self):

@@ -22,7 +22,7 @@ async def test_create_basic_relation(client):
     # Create relation between them
     relation_request = CreateRelationsRequest(
         relations=[
-            Relation(from_id="source_entity", to_id="target_entity", relation_type="depends_on")
+            Relation(from_id="source-entity", to_id="target-entity", relation_type="depends_on")
         ]
     )
     result = await create_relations(relation_request)
@@ -30,8 +30,8 @@ async def test_create_basic_relation(client):
     assert len(result.entities) == 2
 
     # Find source and target entities
-    source = next(e for e in result.entities if e.permalink == "source_entity")
-    target = next(e for e in result.entities if e.permalink == "target_entity")
+    source = next(e for e in result.entities if e.permalink == "source-entity")
+    target = next(e for e in result.entities if e.permalink == "target-entity")
 
     # Both entities should have the relation for bi-directional navigation
     assert len(source.relations) == 1
@@ -39,14 +39,14 @@ async def test_create_basic_relation(client):
 
     # Source's relation shows it depends_on target
     source_relation = source.relations[0]
-    assert source_relation.from_id == "source_entity"
-    assert source_relation.to_id == "target_entity"
+    assert source_relation.from_id == "source-entity"
+    assert source_relation.to_id == "target-entity"
     assert source_relation.relation_type == "depends_on"
 
     # Target's relation is the same, allowing backwards traversal
     target_relation = target.relations[0]
-    assert target_relation.from_id == "source_entity"
-    assert target_relation.to_id == "target_entity"
+    assert target_relation.from_id == "source-entity"
+    assert target_relation.to_id == "target-entity"
     assert target_relation.relation_type == "depends_on"
 
 

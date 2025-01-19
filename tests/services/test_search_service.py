@@ -61,7 +61,7 @@ async def test_text_search_features(search_service, test_graph):
     assert any(r.file_path == "test/connected2.md" for r in results)
 
     # Multiple terms
-    results = await search_service.search(SearchQuery(text="root connected"))
+    results = await search_service.search(SearchQuery(text="root note"))
     assert any("test/root" in r.permalink for r in results)
 
 

@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from basic_memory import db
 from basic_memory.models import Entity, Observation, Relation
-from basic_memory.models.knowledge import generate_permalink
+from basic_memory.utils import generate_permalink
 from basic_memory.repository.entity_repository import EntityRepository
 
 
@@ -94,7 +94,7 @@ async def test_create_all(entity_repository: EntityRepository):
         {
             "title": "Test_1",
             "entity_type": "test",
-            "permalink": "test/test_1",
+            "permalink": "test/test-1",
             "file_path": "test/test_1.md",
             "summary": "Test description",
             "content_type": "text/markdown",
@@ -102,7 +102,7 @@ async def test_create_all(entity_repository: EntityRepository):
         {
             "title": "Test-2",
             "entity_type": "test",
-            "permalink": "test/test_2",
+            "permalink": "test/test-2",
             "file_path": "test/test_2.md",
             "summary": "Test description",
             "content_type": "text/markdown",
@@ -471,7 +471,7 @@ async def test_generate_permalink_from_file_path():
         ("specs/API (v2).md", "specs/api-v2"),
         ("notes/2024/Q1 Planning!!!.md", "notes/2024/q1-planning"),
         ("test/Über File.md", "test/uber-file"),
-        ("docs/my_feature_name.md", "docs/my_feature_name"),
+        ("docs/my_feature_name.md", "docs/my-feature-name"),
         ("specs/multiple--dashes.md", "specs/multiple-dashes"),
         ("notes/trailing/space/ file.md", "notes/trailing/space/file"),
     ]

@@ -22,7 +22,7 @@ def test_frontmatter() -> EntityFrontmatter:
     return EntityFrontmatter(
         title="Test Entity",
         type="knowledge",
-        permalink="concept/test_entity",
+        permalink="concept/test-entity",
         created=datetime.now(),
         modified=datetime.now(),
         tags=["test", "sync"],
@@ -39,8 +39,8 @@ def test_content() -> EntityContent:
             MarkdownObservation(content="Second observation"),
         ],
         relations=[
-            MarkdownRelation(type="depends_on", target="concept/other_entity"),
-            MarkdownRelation(type="related_to", target="concept/another_entity"),
+            MarkdownRelation(type="depends_on", target="concept/other-entity"),
+            MarkdownRelation(type="related_to", target="concept/another-entity"),
         ],
     )
 
@@ -62,7 +62,7 @@ async def test_create_entity_without_relations(
     # Check basic fields
     assert entity.title == "Test Entity"
     assert entity.entity_type == "knowledge"
-    assert entity.permalink == "concept/test_entity"
+    assert entity.permalink == "concept/test-entity"
     assert entity.summary == "A test entity description"
 
     # Check observations
@@ -117,14 +117,14 @@ async def test_update_entity_relations(
     other_entity = EntityModel(
         title="Other Entity",
         entity_type="test",
-        permalink="concept/other_entity",
+        permalink="concept/other-entity",
         file_path="concept/other_entity.md",
         content_type="text/markdown",
     )
     another_entity = EntityModel(
         title="Another Entity",
         entity_type="test",
-        permalink="concept/another_entity",
+        permalink="concept/another-entity",
         file_path="concept/another_entity.md",
         content_type="text/markdown",
     )
@@ -159,14 +159,14 @@ async def test_two_pass_sync_flow(
     other_entity = EntityModel(
         title="Other Entity",
         entity_type="test",
-        permalink="concept/other_entity",
+        permalink="concept/other-entity",
         file_path="concept/other_entity.md",
         content_type="text/markdown",
     )
     another_entity = EntityModel(
         title="Another Entity",
         entity_type="test",
-        permalink="concept/another_entity",
+        permalink="concept/another-entity",
         file_path="concept/another_entity.md",
         content_type="text/markdown",
     )

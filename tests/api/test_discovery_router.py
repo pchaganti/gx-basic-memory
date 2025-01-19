@@ -20,7 +20,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             entity_type="test",
             content_type="text/markdown",
             summary="Core memory service",
-            permalink="component/memory_service",
+            permalink="component/memory-service",
             file_path="component/memory_service.md",
             observations=[
                 Observation(category="tech", content="Using SQLite for storage"),
@@ -32,7 +32,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             entity_type="test",
             content_type="text/markdown",
             summary="File format spec",
-            permalink="spec/file_format",
+            permalink="spec/file-format",
             file_path="spec/file_format.md",
             observations=[
                 Observation(category="feature", content="Support for frontmatter"),
@@ -44,7 +44,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             entity_type="test",
             content_type="text/markdown",
             summary="Architecture decision",
-            permalink="decision/tech_choice",
+            permalink="decision/tech-choice",
             file_path="decision/tech_choice.md",
             observations=[
                 Observation(category="note", content="Team discussed options"),
@@ -57,7 +57,7 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             entity_type="test",
             content_type="text/markdown",
             summary="API layer",
-            permalink="component/api_service",
+            permalink="component/api-service",
             file_path="component/api_service.md",
             observations=[
                 Observation(category="tech", content="FastAPI based"),

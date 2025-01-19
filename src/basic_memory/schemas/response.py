@@ -56,7 +56,7 @@ class RelationResponse(Relation, SQLAlchemyModel):
     Example Response:
     {
         "from_id": "test/memory_test",
-        "to_id": "component/memory_service",
+        "to_id": "component/memory-service",
         "relation_type": "validates",
         "context": "Comprehensive test suite"
     }
@@ -91,7 +91,7 @@ class EntityResponse(SQLAlchemyModel):
 
     Example Response:
     {
-        "permalink": "component/memory_service",
+        "permalink": "component/memory-service",
         "title": "MemoryService",
         "entity_type": "component",
         "description": "Core persistence service",
@@ -109,8 +109,8 @@ class EntityResponse(SQLAlchemyModel):
         ],
         "relations": [
             {
-                "from_id": "test/memory_test",
-                "to_id": "component/memory_service",
+                "from_id": "test/memory-test",
+                "to_id": "component/memory-service",
                 "relation_type": "validates",
                 "context": "Main test suite"
             }
@@ -181,7 +181,7 @@ class SearchNodesResponse(SQLAlchemyModel):
     {
         "matches": [
             {
-                "permalink": "component/memory_service",
+                "permalink": "component/memory-service",
                 "title": "MemoryService",
                 "entity_type": "component",
                 "description": "Core service",

@@ -27,7 +27,7 @@ class ContextResultRow:
     relation_type: Optional[str] = None
     category: Optional[str] = None
     entity_id: Optional[int] = None
-    content: Optional[str] = None
+
 
 
 class ContextService:
@@ -50,8 +50,9 @@ class ContextService:
     async def build_context(
         self,
         memory_url: MemoryUrl,
-        depth: int = 2,
+        depth: int = 1,
         since: Optional[datetime] = None,
+        max_results: int = 10
     ):
         """Build rich context from a memory:// URI."""
         logger.debug(f"Building context for URI {memory_url}")
@@ -136,7 +137,6 @@ class ContextService:
                     relation_type,
                     category,
                     entity_id,
-                    content,
                     0 as depth,
                     id as root_id,
                     created_at
@@ -157,7 +157,6 @@ class ContextService:
                     related.relation_type,
                     related.category,
                     related.entity_id,
-                    related.content,
                     cg.depth + 1,
                     cg.root_id,
                     related.created_at
@@ -196,14 +195,13 @@ class ContextService:
                 relation_type,
                 category,
                 entity_id,
-                content,
                 MIN(depth) as depth,
                 root_id,
                 created_at
             FROM context_graph
             GROUP BY
                 type, id, title, permalink, from_id, to_id,
-                relation_type, category, entity_id, content,
+                relation_type, category, entity_id,
                 root_id, created_at
             ORDER BY depth, type, id
         """)
@@ -222,7 +220,6 @@ class ContextService:
                 relation_type=row.relation_type,
                 category=row.category,
                 entity_id=row.entity_id,
-                content=row.content,
                 depth=row.depth,
                 root_id=row.root_id,
                 created_at=row.created_at,
