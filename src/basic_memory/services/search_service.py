@@ -9,6 +9,7 @@ from basic_memory.models import Entity
 from basic_memory.repository import EntityRepository
 from basic_memory.repository.search_repository import SearchRepository, SearchIndexRow
 from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
+from basic_memory.utils import generate_permalink
 
 
 class SearchService:
@@ -60,7 +61,7 @@ class SearchService:
         if query.no_criteria():
             logger.debug("no criteria passed to query")
             return []
-        
+
         logger.debug(f"Searching with query: {query}")
 
         # permalink search
@@ -131,53 +132,42 @@ class SearchService:
         entity_content = "\n".join(p for p in content_parts if p and p.strip())
 
         # Index entity
-        if background_tasks:
-            background_tasks.add_task(
-                self._do_index,
+        await self._do_index(
+            SearchIndexRow(
                 id=entity.id,
+                type=SearchItemType.ENTITY.value,
                 title=entity.title,
                 content=entity_content,
                 permalink=entity.permalink,
                 file_path=entity.file_path,
-                type=SearchItemType.ENTITY.value,
                 metadata={
                     "entity_type": entity.entity_type,
                     "created_at": entity.created_at.isoformat(),
                     "updated_at": entity.updated_at.isoformat(),
                 },
+                created_at=entity.created_at.isoformat(),
+                updated_at=entity.updated_at.isoformat(),
             )
-        else:
-            await self._do_index(
-                id=entity.id,
-                title=entity.title,
-                content=entity_content,
-                permalink=entity.permalink,
-                file_path=entity.file_path,
-                type=SearchItemType.ENTITY.value,
-                metadata={
-                    "entity_type": entity.entity_type,
-                    "created_at": entity.created_at.isoformat(),
-                    "updated_at": entity.updated_at.isoformat(),
-                },
-            )
+        )
 
         # Index each observation with synthetic permalink
         for obs in entity.observations:
             # Create synthetic permalink for the observation
             # We can construct these because observations are always
             # defined in and owned by a single entity
-            observation_permalink = f"{entity.permalink}/observations/{obs.id}"
+            observation_permalink = (
+                f"{entity.permalink}/observations/{obs.category}/{generate_permalink(obs.content)}"
+            )
 
             # Index with parent entity's file path since that's where it's defined
-            if background_tasks:
-                background_tasks.add_task(
-                    self._do_index,
+            await self._do_index(
+                SearchIndexRow(
                     id=obs.id,
+                    type=SearchItemType.OBSERVATION.value,
                     title=f"{obs.category}: {obs.content[:50]}...",
                     content=obs.content,
                     permalink=observation_permalink,
                     file_path=entity.file_path,
-                    type=SearchItemType.OBSERVATION.value,
                     category=obs.category,
                     entity_id=entity.id,
                     metadata={
@@ -185,23 +175,10 @@ class SearchService:
                         "updated_at": obs.updated_at.isoformat(),
                         "tags": obs.tags,
                     },
+                    created_at=obs.created_at.isoformat(),
+                    updated_at=obs.updated_at.isoformat(),
                 )
-            else:
-                await self._do_index(
-                    id=obs.id,
-                    title=f"{obs.category}: {obs.content[:50]}...",
-                    content=obs.content,
-                    permalink=observation_permalink,
-                    file_path=entity.file_path,
-                    type=SearchItemType.OBSERVATION.value,
-                    category=obs.category,
-                    entity_id=entity.id,
-                    metadata={
-                        "created_at": obs.created_at.isoformat(),
-                        "updated_at": obs.updated_at.isoformat(),
-                        "tags": obs.tags,
-                    },
-                )
+            )
 
         # Only index outgoing relations (ones defined in this file)
         for rel in entity.outgoing_relations:
@@ -215,9 +192,8 @@ class SearchService:
             # Create descriptive title showing the relationship
             relation_title = f"{rel.from_entity.title} → {rel.to_entity.title}"
 
-            if background_tasks:
-                background_tasks.add_task(
-                    self._do_index,
+            await self._do_index(
+                SearchIndexRow(
                     id=rel.id,
                     title=relation_title,
                     content=rel.context or "",
@@ -231,59 +207,19 @@ class SearchService:
                         "created_at": rel.created_at.isoformat(),
                         "updated_at": rel.updated_at.isoformat(),
                     },
+                    created_at=rel.created_at.isoformat(),
+                    updated_at=rel.updated_at.isoformat(),
                 )
-            else:
-                await self._do_index(
-                    id=rel.id,
-                    title=relation_title,
-                    content=rel.context or "",
-                    permalink=relation_permalink,
-                    file_path=entity.file_path,
-                    type=SearchItemType.RELATION.value,
-                    from_id=rel.from_id,
-                    to_id=rel.to_id,
-                    relation_type=rel.relation_type,
-                    metadata={
-                        "created_at": rel.created_at.isoformat(),
-                        "updated_at": rel.updated_at.isoformat(),
-                    },
-                )
+            )
 
     async def _do_index(
-        self,
-        id: int,
-        title: str,
-        content: str,
-        permalink: str,
-        file_path: str,
-        type: SearchItemType,
-        metadata: dict,
-        from_id: Optional[int] = None,
-        to_id: Optional[int] = None,
-        relation_type: Optional[str] = None,
-        entity_id: Optional[int] = None,
-        category: Optional[str] = None,
+        self, index_row: SearchIndexRow, background_tasks: Optional[BackgroundTasks] = None
     ) -> None:
         """Actually perform the indexing."""
-
-        await self.repository.index_item(
-            SearchIndexRow(
-                id=id,
-                title=title,
-                content=content,
-                permalink=permalink,
-                file_path=file_path,
-                type=type,
-                metadata=metadata,
-                from_id=from_id,
-                to_id=to_id,
-                relation_type=relation_type,
-                entity_id=entity_id,
-                category=category,
-                created_at=metadata.get("created_at"),
-                updated_at=metadata.get("updated_at"),
-            )
-        )
+        if background_tasks:
+            background_tasks.add_task(self.repository.index_item, index_row)
+        else:
+            await self.repository.index_item(index_row)
 
     async def delete_by_permalink(self, path_id: str):
         """Delete an item from the search index."""
