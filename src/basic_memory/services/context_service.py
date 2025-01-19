@@ -202,7 +202,7 @@ WITH RECURSIVE context_graph AS (
         cg.type = 'relation' AND 
         e.type = 'entity' AND
         e.id = CASE 
-            WHEN cg.from_id = cg.root_id THEN cg.to_id  
+            WHEN cg.from_id = cg.id THEN cg.to_id  
             ELSE cg.from_id                             
         END
         {related_date_filter}

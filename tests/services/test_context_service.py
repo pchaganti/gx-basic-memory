@@ -58,8 +58,8 @@ async def test_find_connected_depth_limit(context_service, test_graph):
     
     assert (test_graph["deep"].id, "entity") not in shallow_entities
 
-    # With depth=2, we get the next level
-    deep_results = await context_service.find_related(type_id_pairs, max_depth=4, max_results=10)
+    # search deeper
+    deep_results = await context_service.find_related(type_id_pairs, max_depth=4, max_results=100)
     deep_entities = {(r.id, r.type) for r in deep_results if r.type == "entity"}
     # Should now include Deep entity
     assert (test_graph["deep"].id, "entity") in deep_entities
@@ -148,7 +148,7 @@ async def test_build_context(context_service, test_graph):
     assert results["metadata"]["depth"] == 1
     assert matched_results == 1
     assert len(primary_results) == 1
-    assert len(related_results) == 8
+    assert len(related_results) == 2
     assert total_results == len(primary_results) + len(related_results)
 
 

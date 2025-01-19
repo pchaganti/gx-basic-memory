@@ -260,7 +260,7 @@ async def full_entity(sample_entity, entity_repository):
 
 
 @pytest_asyncio.fixture
-async def test_graph(entity_repository, search_service):
+async def test_graph(entity_repository, relation_repository, observation_repository, search_service):
     """Create a test knowledge graph with entities, relations and observations."""
     # Create some test entities
     entities = [
@@ -327,6 +327,8 @@ async def test_graph(entity_repository, search_service):
             updated_at=datetime.now(timezone.utc),
         )
     ]
+    await observation_repository.add_all(root.observations)
+    await observation_repository.add_all(conn1.observations)
 
     # Add relations
     relations = [
@@ -339,33 +341,35 @@ async def test_graph(entity_repository, search_service):
             updated_at=datetime.now(timezone.utc),
         ),
         Relation(
-            from_id=conn2.id,
-            to_id=root.id,
-            relation_type="connected_from",
+            from_id=conn1.id,
+            to_id=conn2.id,
+            relation_type="connected_to",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         ),
         # Deep connection
         Relation(
-            from_id=conn1.id,
+            from_id=conn2.id,
             to_id=deep.id,
             relation_type="deep_connection",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         ),
-        # Deep connection
+        # Deeper connection
         Relation(
             from_id=deep.id,
             to_id=deeper.id,
-            relation_type="deep_connection",
+            relation_type="deeper_connection",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         ),
     ]
 
     # Save relations
-    root = await entity_repository.add_all(relations)
-
+    related_entities = await relation_repository.add_all(relations)
+    
+    # get latest 
+    entities = await entity_repository.find_all()
     # Index everything for search
     for entity in entities:
         await search_service.index_entity(entity)
