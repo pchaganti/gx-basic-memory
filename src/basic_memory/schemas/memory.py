@@ -1,10 +1,11 @@
 """Schemas for memory context."""
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
+
 from pydantic import AnyUrl, Field, BaseModel
 
-from basic_memory.schemas.search import SearchResult, RelatedResult
 from basic_memory.config import config
+from basic_memory.schemas.search import SearchResult, RelatedResult
 
 """Memory URL schema for knowledge addressing.
 
@@ -18,8 +19,8 @@ Examples:
 
 class MemoryUrl(AnyUrl):
     """memory:// URL scheme for knowledge addressing."""
-    
-    allowed_schemes = {'memory'}
+
+    allowed_schemes = {"memory"}
 
     # Query params
     params: Dict[str, Any] = Field(default_factory=dict)  # For special modes like 'related'
@@ -29,7 +30,7 @@ class MemoryUrl(AnyUrl):
         """Validate and construct a MemoryUrl."""
 
         memory_url = cls(url)
-        
+
         # if the url host value is not the project name, assume the default project
         if memory_url.host != config.project:
             memory_url = cls(f"memory://{config.project}/{memory_url.host}{memory_url.path}")
@@ -50,10 +51,10 @@ class GraphContext(BaseModel):
     """Complete context response."""
 
     # Direct matches
-    primary_entities: List[SearchResult] = Field(description="Entities directly matching URI")
+    primary_results: List[SearchResult] = Field(description="Entities directly matching URI")
 
     # Related entities
-    related_entities: List[RelatedResult] = Field(description="Entities found via relations")
+    related_results: List[RelatedResult] = Field(description="Entities found via relations")
 
     # Context metadata
     metadata: Dict[str, Any] = Field(
@@ -63,8 +64,8 @@ class GraphContext(BaseModel):
             "depth": 2,
             "timeframe": "7d",
             "generated_at": "2024-01-14T12:00:00Z",
-            "matched_entities": 3,
-            "total_entities": 8,
+            "matched_results": 3,
+            "total_results": 8,
             "total_relations": 12,
         },
     )

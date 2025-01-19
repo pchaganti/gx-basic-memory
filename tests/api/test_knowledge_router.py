@@ -60,7 +60,7 @@ async def add_observations(client, permalink: str) -> List[ObservationResponse]:
     return obs_response.observations
 
 
-async def create_related_entities(client) -> List[RelationResponse]:  # pyright: ignore [reportReturnType]
+async def create_related_results(client) -> List[RelationResponse]:  # pyright: ignore [reportReturnType]
     # Create two entities to relate
     entities = [
         {"title": "SourceEntity", "entity_type": "test"},
@@ -139,7 +139,7 @@ async def test_get_entity(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_create_relations(client: AsyncClient):
     """Should create relations between entities."""
-    await create_related_entities(client)
+    await create_related_results(client)
 
 
 @pytest.mark.asyncio
@@ -274,7 +274,7 @@ async def test_delete_observations(client, observation_repository):
 @pytest.mark.asyncio
 async def test_delete_relations(client, relation_repository):
     """Test deleting relations between entities."""
-    relations = await create_related_entities(client)
+    relations = await create_related_results(client)
     assert len(relations) == 2
     relation = relations[0]
 
@@ -354,11 +354,11 @@ async def test_full_knowledge_flow(client: AsyncClient):
     await client.post("/knowledge/entities", json={"entities": main_entities})
 
     # 2. Create related entities
-    related_entities = [
+    related_results = [
         {"title": "RelatedOne", "entity_type": "test"},
         {"title": "RelatedTwo", "entity_type": "test"},
     ]
-    await client.post("/knowledge/entities", json={"entities": related_entities})
+    await client.post("/knowledge/entities", json={"entities": related_results})
 
     # 3. Add relations
     relations_response = await client.post(

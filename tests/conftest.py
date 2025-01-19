@@ -291,9 +291,16 @@ async def test_graph(entity_repository, search_service):
             file_path="test/deep.md",
             content_type="text/markdown",
         ),
+        Entity(
+            title="Deeper Entity",
+            entity_type="deeper",
+            permalink="test/deeper",
+            file_path="test/deeper.md",
+            content_type="text/markdown",
+        ),
     ]
     entities = await entity_repository.add_all(entities)
-    root, conn1, conn2, deep = entities
+    root, conn1, conn2, deep, deeper = entities
 
     # Add some observations
     root.observations = [
@@ -311,7 +318,9 @@ async def test_graph(entity_repository, search_service):
         Relation(from_id=root.id, to_id=conn1.id, relation_type="connects_to"),
         Relation(from_id=conn2.id, to_id=root.id, relation_type="connected_from"),
         # Deep connection
-        Relation(from_id=conn1.id, to_id=deep.id, relation_type="deep_connection"),
+        Relation(from_id=conn2.id, to_id=deep.id, relation_type="deep_connection"),
+        # Deep connection
+        Relation(from_id=deep.id, to_id=deeper.id, relation_type="deep_connection"),
     ]
 
     root.outgoing_relations = [relations[0]]

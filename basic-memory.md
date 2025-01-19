@@ -394,9 +394,10 @@ def generate_context(self, previous_conversations):
 """Create a quick summary of relevant past discussions"""
 recent_decisions = self.extract_key_decisions(previous_conversations)
 return f"""Previous context:
+
 - Last discussed: {recent_decisions}
 - Open questions: {self.get_open_questions()}
-"""
+  """
 
 Practical Index Views
 
@@ -619,7 +620,7 @@ continues_from: memory://basic-memory/20241210-previous-chat
 key_decisions:
   - adopt_memory_uri_scheme
   - enhance_frontmatter
-related_entities:
+related_results:
   - memory://basic-memory/markdown-service
   - memory://basic-memory/schema-design
 tags: [ technical, design, architecture ]
@@ -655,7 +656,7 @@ Examples:
 
 ```yaml
 continues_from: memory://basic-memory/previous-chat
-related_entities:
+related_results:
   - memory://basic-memory/feature-x
   - memory://basic-memory/decision-y
 ```
@@ -866,7 +867,7 @@ async def analyze_feature(uri: str) -> Analysis:
     feature = await load_entity(uri)
 
     # Follow relevant links
-    related = await load_related_entities(feature.related_features)
+    related = await load_related_results(feature.related_features)
     decisions = await load_entities(feature.key_decisions)
 
     # Load broader context
@@ -1073,7 +1074,7 @@ context = await tools.build_context(
 # Gets back structured context
 Context(
     primary=entity,  # The main entity
-    related_entities=[...],  # Related entities
+    related_results=[...],  # Related entities
     discussions=[...],  # Relevant chats/discussions
     summary="..."  # AI-friendly summary
 )
@@ -1168,7 +1169,7 @@ class ContextBuilder:
         # Build and cache result 
         context = Context(
             primary=entity,
-            related_entities=related,
+            related_results=related,
             discussions=discussions,
             summary=summary
         )
@@ -1276,7 +1277,7 @@ async def merge_contexts(
     all_discussions = set()
 
     for ctx in contexts:
-        all_entities.update(ctx.related_entities)
+        all_entities.update(ctx.related_results)
         all_discussions.update(ctx.discussions)
 
     return Context(

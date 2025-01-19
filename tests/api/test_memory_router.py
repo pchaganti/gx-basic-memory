@@ -12,16 +12,16 @@ async def test_get_memory_context(client, test_graph):
     assert response.status_code == 200
 
     context = GraphContext(**response.json())
-    assert len(context.primary_entities) == 1
-    assert context.primary_entities[0].permalink == "test/root"
-    assert len(context.related_entities) > 0
+    assert len(context.primary_results) == 1
+    assert context.primary_results[0].permalink == "test/root"
+    assert len(context.related_results) > 0
 
     # Verify metadata
     assert context.metadata["uri"] == "test/root"
     assert context.metadata["depth"] == 1  # default depth
-    #assert context.metadata["timeframe"] == "7d"  # default timeframe
+    # assert context.metadata["timeframe"] == "7d"  # default timeframe
     assert isinstance(context.metadata["generated_at"], str)
-    assert context.metadata["matched_entities"] == 1
+    assert context.metadata["matched_results"] == 1
 
 
 @pytest.mark.asyncio
@@ -31,24 +31,24 @@ async def test_get_memory_context_pattern(client, test_graph):
     assert response.status_code == 200
 
     context = GraphContext(**response.json())
-    assert len(context.primary_entities) > 1  # Should match multiple test/* paths
-    assert all("test/" in e.permalink for e in context.primary_entities)
+    assert len(context.primary_results) > 1  # Should match multiple test/* paths
+    assert all("test/" in e.permalink for e in context.primary_results)
 
 
 @pytest.mark.asyncio
 async def test_get_memory_context_depth(client, test_graph):
     """Test depth parameter affects relation traversal."""
     # With depth=1, should only get immediate connections
-    response = await client.get("/memory/test/root?depth=1")
+    response = await client.get("/memory/test/root?depth=1&max_results=20")
     assert response.status_code == 200
     context1 = GraphContext(**response.json())
 
     # With depth=2, should get deeper connections
-    response = await client.get("/memory/test/root?depth=2")
+    response = await client.get("/memory/test/root?depth=3&max_results=20")
     assert response.status_code == 200
     context2 = GraphContext(**response.json())
 
-    assert len(context2.related_entities) > len(context1.related_entities)
+    assert len(context2.related_results) > len(context1.related_results)
 
 
 @pytest.mark.asyncio
@@ -64,7 +64,7 @@ async def test_get_memory_context_timeframe(client, test_graph):
     assert response.status_code == 200
     older = GraphContext(**response.json())
 
-    assert len(older.related_entities) >= len(recent.related_entities)
+    assert len(older.related_results) >= len(recent.related_results)
 
 
 @pytest.mark.asyncio
@@ -76,8 +76,6 @@ async def test_get_related_context_filters(client, test_graph):
     context = GraphContext(**response.json())
 
 
-
-
 @pytest.mark.asyncio
 async def test_not_found(client):
     """Test handling of non-existent paths."""
@@ -85,5 +83,5 @@ async def test_not_found(client):
     assert response.status_code == 200
 
     context = GraphContext(**response.json())
-    assert len(context.primary_entities) == 0
-    assert len(context.related_entities) == 0
+    assert len(context.primary_results) == 0
+    assert len(context.related_results) == 0

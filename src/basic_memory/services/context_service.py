@@ -54,7 +54,9 @@ class ContextService:
         max_results: int = 10,
     ):
         """Build rich context from a memory:// URI."""
-        logger.debug(f"Building context for URI {memory_url}")
+        logger.debug(
+            f"Building context for URI: '{memory_url}' depth: '{depth}' since: '{since}' max_results: '{max_results}'"
+        )
 
         # Pattern matching - use search
         if "*" in memory_url.relative_path():
@@ -73,30 +75,30 @@ class ContextService:
         type_id_pairs = [(r.type, r.id) for r in primary] if primary else []
         logger.debug(f"primary type_id_pairs: {type_id_pairs}")
 
-        # Find connected content
-        related = await self.find_connected(
+        # Find related content
+        related = await self.find_related(
             type_id_pairs, max_depth=depth, since=since, max_results=max_results
         )
-        logger.debug(f"Found {len(related)} related entities")
+        logger.debug(f"Found {len(related)} related results")
         for r in related:
-            logger.debug(f"Found related entity: {r}")
+            logger.debug(f"Found related result: {r}")
 
         # Build response
         return {
-            "primary_entities": primary,
-            "related_entities": related,
+            "primary_results": primary,
+            "related_results": related,
             "metadata": {
                 "uri": memory_url.relative_path(),
                 "depth": depth,
                 "timeframe": since.isoformat() if since else None,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
-                "matched_entities": len(primary),
-                "total_entities": len(primary) + len(related),
+                "matched_results": len(primary),
+                "total_results": len(primary) + len(related),
                 "total_relations": sum(1 for r in related if r.type == SearchItemType.RELATION),
             },
         }
 
-    async def find_connected(
+    async def find_related(
         self,
         type_id_pairs: List[Tuple[str, int]],
         max_depth: int = 1,
@@ -125,11 +127,11 @@ class ContextService:
 
         # Build date filter
         date_filter = "AND base.created_at >= :since_date" if since else ""
-        r1_date_filter = "AND r1.created_at >= :since_date" if since else ""
+        r1_date_filter = "AND related.created_at >= :since_date" if since else ""
         related_date_filter = "AND related.created_at >= :since_date" if since else ""
 
         query = text(f"""
-                    WITH RECURSIVE context_graph AS MATERIALIZED (
+                    WITH RECURSIVE context_graph AS (
                         -- Base case: seed items
                         SELECT 
                             id,
@@ -165,27 +167,17 @@ class ContextService:
                             cg.depth + 1,
                             cg.root_id,
                             related.created_at,
-                            r1.created_at as relation_date,
+                            related.created_at as relation_date,
                             CASE 
-                                WHEN r1.from_id = cg.id THEN 0  -- Outgoing
+                                WHEN related.from_id = cg.id THEN 0  -- Outgoing
                                 ELSE 1                          -- Incoming
                             END as is_incoming
                         FROM context_graph cg
-                        JOIN search_index r1 ON (
-                            cg.type = 'entity' AND 
-                            r1.type = 'relation' AND 
-                            (r1.from_id = cg.id OR r1.to_id = cg.id)
-                            {r1_date_filter}
-                        )
                         JOIN search_index related ON (
-                            related.id = r1.id
-                            OR
-                            (related.type = 'entity' AND 
-                             (related.id = r1.from_id OR related.id = r1.to_id))
-                            OR
-                            (related.type = 'observation' AND 
-                             (related.entity_id = r1.from_id OR related.entity_id = r1.to_id))
-                            {related_date_filter}
+                            cg.type = 'entity' AND 
+                            related.type = 'relation' AND 
+                            (related.from_id = cg.id OR related.to_id = cg.id)
+                            {r1_date_filter}
                         )
                         WHERE cg.depth < :max_depth
                         ORDER BY 

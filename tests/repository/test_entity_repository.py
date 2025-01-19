@@ -8,8 +8,8 @@ from sqlalchemy import select
 
 from basic_memory import db
 from basic_memory.models import Entity, Observation, Relation
-from basic_memory.utils import generate_permalink
 from basic_memory.repository.entity_repository import EntityRepository
+from basic_memory.utils import generate_permalink
 
 
 @pytest_asyncio.fixture
@@ -25,7 +25,7 @@ async def entity_with_observations(session_maker, sample_entity):
 
 
 @pytest_asyncio.fixture
-async def related_entities(session_maker):
+async def related_results(session_maker):
     """Create entities with relations between them."""
     async with db.scoped_session(session_maker) as session:
         source = Entity(
@@ -245,9 +245,9 @@ async def test_delete_entities_by_type(entity_repository: EntityRepository, samp
 
 
 @pytest.mark.asyncio
-async def test_delete_entity_with_relations(entity_repository: EntityRepository, related_entities):
+async def test_delete_entity_with_relations(entity_repository: EntityRepository, related_results):
     """Test deleting an entity cascades to its relations."""
-    source, target, relation = related_entities
+    source, target, relation = related_results
 
     # Delete source entity
     result = await entity_repository.delete(source.id)
@@ -454,13 +454,15 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
 async def test_create_entity_with_invalid_permalink(entity_repository: EntityRepository):
     """Test that creating an entity with invalid permalink raises error."""
     with pytest.raises(ValueError, match="Invalid permalink format"):
-        await entity_repository.create({
-            "title": "Test",
-            "entity_type": "test",
-            "permalink": "Test/Invalid!!",  # Invalid permalink
-            "file_path": "test/test.md",
-            "content_type": "text/markdown",
-        })
+        await entity_repository.create(
+            {
+                "title": "Test",
+                "entity_type": "test",
+                "permalink": "Test/Invalid!!",  # Invalid permalink
+                "file_path": "test/test.md",
+                "content_type": "text/markdown",
+            }
+        )
 
 
 @pytest.mark.asyncio
@@ -485,7 +487,7 @@ async def test_generate_permalink_from_file_path():
             entity_type="test",
             permalink=result,
             file_path=input_path,
-            content_type="text/markdown"
+            content_type="text/markdown",
         )  # This will raise ValueError if invalid
 
 

@@ -13,10 +13,7 @@ from basic_memory.schemas.memory import GraphContext, MemoryUrl
     description="Build context from a memory:// URI to continue conversations naturally.",
 )
 async def build_context(
-    url: MemoryUrl,
-    depth: Optional[int] = 1,
-    timeframe: Optional[str] = "7d",
-    max_results: int = 10
+    url: MemoryUrl, depth: Optional[int] = 1, timeframe: Optional[str] = "7d", max_results: int = 10
 ) -> GraphContext:
     """Get context needed to continue a discussion.
 
@@ -33,14 +30,15 @@ async def build_context(
 
     Returns:
         GraphContext containing:
-            - primary_entities: Directly matched content
-            - related_entities: Connected content via relations
+            - primary_results: Directly matched content
+            - related_results: Connected content via relations
             - metadata: Context building info
     """
     logger.info(f"Building context from {url}")
     # Map directly to the memory endpoint
     memory_url = MemoryUrl.validate(url)
     response = await client.get(
-        f"/memory/{memory_url.relative_path()}", params={"depth": depth, "timeframe": timeframe, "max_results": max_results}
+        f"/memory/{memory_url.relative_path()}",
+        params={"depth": depth, "timeframe": timeframe, "max_results": max_results},
     )
     return GraphContext.model_validate(response.json())
