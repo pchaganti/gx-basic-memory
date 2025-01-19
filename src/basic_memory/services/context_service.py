@@ -8,9 +8,9 @@ from loguru import logger
 from sqlalchemy import text
 
 from basic_memory.repository.entity_repository import EntityRepository
-from basic_memory.repository.search_repository import SearchRepository, SearchIndexRow
+from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.schemas.memory import MemoryUrl
-from basic_memory.schemas.search import SearchQuery, SearchItemType
+from basic_memory.schemas.search import SearchItemType
 
 
 @dataclass
@@ -27,7 +27,6 @@ class ContextResultRow:
     relation_type: Optional[str] = None
     category: Optional[str] = None
     entity_id: Optional[int] = None
-
 
 
 class ContextService:
@@ -52,28 +51,32 @@ class ContextService:
         memory_url: MemoryUrl,
         depth: int = 1,
         since: Optional[datetime] = None,
-        max_results: int = 10
+        max_results: int = 10,
     ):
         """Build rich context from a memory:// URI."""
         logger.debug(f"Building context for URI {memory_url}")
-            
+
         # Pattern matching - use search
-        if '*' in memory_url.relative_path():
+        if "*" in memory_url.relative_path():
             logger.debug(f"Pattern search for '{memory_url.relative_path()}'")
-            primary = await self.search_repository.search(permalink_match=memory_url.relative_path())
-        
+            primary = await self.search_repository.search(
+                permalink_match=memory_url.relative_path()
+            )
+
         # Direct lookup for exact path
         else:
             logger.debug(f"Direct lookup for '{memory_url.relative_path()}'")
             primary = await self.search_repository.search(permalink=memory_url.relative_path())
-        
+
         # Get type_id pairs for traversal
-        
+
         type_id_pairs = [(r.type, r.id) for r in primary] if primary else []
         logger.debug(f"primary type_id_pairs: {type_id_pairs}")
 
         # Find connected content
-        related = await self.find_connected(type_id_pairs, max_depth=depth, since=since)
+        related = await self.find_connected(
+            type_id_pairs, max_depth=depth, since=since, max_results=max_results
+        )
         logger.debug(f"Found {len(related)} related entities")
         for r in related:
             logger.debug(f"Found related entity: {r}")
@@ -96,8 +99,9 @@ class ContextService:
     async def find_connected(
         self,
         type_id_pairs: List[Tuple[str, int]],
-        max_depth: int = 2,
+        max_depth: int = 1,
         since: Optional[datetime] = None,
+        max_results: int = 10,
     ):
         """Find items connected through relations.
 
@@ -115,7 +119,7 @@ class ContextService:
         values = ", ".join([f"('{t}', {i})" for t, i in type_id_pairs])
 
         # Parameters for bindings
-        params = {"max_depth": max_depth}
+        params = {"max_depth": max_depth, "max_results": max_results}
         if since:
             params["since_date"] = since.isoformat()
 
@@ -125,86 +129,91 @@ class ContextService:
         related_date_filter = "AND related.created_at >= :since_date" if since else ""
 
         query = text(f"""
-            WITH RECURSIVE context_graph AS (
-                -- Base case: seed items
-                SELECT 
-                    id,
-                    type,
-                    title, 
-                    permalink,
-                    from_id,
-                    to_id,
-                    relation_type,
-                    category,
-                    entity_id,
-                    0 as depth,
-                    id as root_id,
-                    created_at
-                FROM search_index base
-                WHERE (base.type, base.id) IN ({values})
-                {date_filter}
-
-                UNION 
-
-                -- Find relations and their connected items at each depth
-                SELECT
-                    related.id,
-                    related.type,
-                    related.title,
-                    related.permalink,
-                    related.from_id,
-                    related.to_id,
-                    related.relation_type,
-                    related.category,
-                    related.entity_id,
-                    cg.depth + 1,
-                    cg.root_id,
-                    related.created_at
-                FROM context_graph cg
-                JOIN search_index r1 ON (
-                    -- First find the relations
-                    cg.type = 'entity' AND 
-                    r1.type = 'relation' AND 
-                    (r1.from_id = cg.id OR r1.to_id = cg.id)
-                    {r1_date_filter}
-                )
-                -- Then join to ALL related items at the same depth 
-                JOIN search_index related ON (
-                    -- The found relation 
-                    related.id = r1.id
-                    OR
-                    -- The entity it connects to
-                    (related.type = 'entity' AND 
-                     (related.id = r1.from_id OR related.id = r1.to_id))
-                    OR
-                    -- Any observations that are relevant
-                    (related.type = 'observation' AND 
-                     (related.entity_id = r1.from_id OR related.entity_id = r1.to_id))
-                    {related_date_filter}
-                )
-                WHERE cg.depth < :max_depth
-            )
-            -- Select shortest path to each item
-            SELECT DISTINCT 
-                type,
-                id,
-                title,
-                permalink,
-                from_id,
-                to_id,
-                relation_type,
-                category,
-                entity_id,
-                MIN(depth) as depth,
-                root_id,
-                created_at
-            FROM context_graph
-            GROUP BY
-                type, id, title, permalink, from_id, to_id,
-                relation_type, category, entity_id,
-                root_id, created_at
-            ORDER BY depth, type, id
-        """)
+                    WITH RECURSIVE context_graph AS MATERIALIZED (
+                        -- Base case: seed items
+                        SELECT 
+                            id,
+                            type,
+                            title, 
+                            permalink,
+                            from_id,
+                            to_id,
+                            relation_type,
+                            category,
+                            entity_id,
+                            0 as depth,
+                            id as root_id,
+                            created_at,
+                            created_at as relation_date,
+                            0 as is_incoming
+                        FROM search_index base
+                        WHERE (base.type, base.id) IN ({values})
+                        {date_filter}
+                    
+                        UNION 
+                    
+                        SELECT
+                            related.id,
+                            related.type,
+                            related.title,
+                            related.permalink,
+                            related.from_id,
+                            related.to_id,
+                            related.relation_type,
+                            related.category,
+                            related.entity_id,
+                            cg.depth + 1,
+                            cg.root_id,
+                            related.created_at,
+                            r1.created_at as relation_date,
+                            CASE 
+                                WHEN r1.from_id = cg.id THEN 0  -- Outgoing
+                                ELSE 1                          -- Incoming
+                            END as is_incoming
+                        FROM context_graph cg
+                        JOIN search_index r1 ON (
+                            cg.type = 'entity' AND 
+                            r1.type = 'relation' AND 
+                            (r1.from_id = cg.id OR r1.to_id = cg.id)
+                            {r1_date_filter}
+                        )
+                        JOIN search_index related ON (
+                            related.id = r1.id
+                            OR
+                            (related.type = 'entity' AND 
+                             (related.id = r1.from_id OR related.id = r1.to_id))
+                            OR
+                            (related.type = 'observation' AND 
+                             (related.entity_id = r1.from_id OR related.entity_id = r1.to_id))
+                            {related_date_filter}
+                        )
+                        WHERE cg.depth < :max_depth
+                        ORDER BY 
+                            relation_date DESC,
+                            is_incoming
+                        LIMIT :max_results
+                    )
+                    SELECT DISTINCT 
+                        type,
+                        id,
+                        title,
+                        permalink,
+                        from_id,
+                        to_id,
+                        relation_type,
+                        category,
+                        entity_id,
+                        MIN(depth) as depth,
+                        root_id,
+                        created_at
+                    FROM context_graph
+                    GROUP BY
+                        type, id, title, permalink, from_id, to_id,
+                        relation_type, category, entity_id,
+                        root_id, created_at
+                    ORDER BY depth, type, id
+                    LIMIT :max_results
+       """)
 
         result = await self.search_repository.execute_query(query, params=params)
         rows = result.all()
