@@ -74,10 +74,16 @@ class SearchRepository:
             await session.commit()
 
     def _quote_search_term(self, term: str) -> str:
-        """Add quotes if term contains special characters or /.
-            For FTS5, phrases with / need to be quoted to be treated as a single token.
+        """Add quotes if term contains special characters.
+        For FTS5, special characters and phrases need to be quoted to be treated as a single token.
         """
-        if '/' in term or '*' in term or any(c in term for c in "-"):
+        # List of special characters that need quoting
+        special_chars = ['/', '*', '-', '.', ' ', '(', ')', '[', ']', '"', "'"]
+        
+        # Check if term contains any special characters
+        if any(c in term for c in special_chars):
+            # If the term already contains quotes, escape them
+            term = term.replace('"', '""')
             return f'"{term}"'
         return term
 

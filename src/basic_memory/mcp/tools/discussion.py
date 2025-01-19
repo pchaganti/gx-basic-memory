@@ -10,7 +10,6 @@ from basic_memory.schemas.memory import GraphContext, MemoryUrl
 
 
 @mcp.tool(
-    name="Build Context",
     description="Build context from a memory:// URI to continue conversations naturally.",
 )
 async def build_context(

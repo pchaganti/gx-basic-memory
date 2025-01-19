@@ -123,5 +123,5 @@ class LinkResolver():
             scored_results.append((score, result))
 
         # Sort by score (lowest first) and return best
-        scored_results.sort()
+        scored_results.sort(key=lambda x: x[0], reverse=True)
         return scored_results[0][1]

@@ -30,13 +30,16 @@ def generate_permalink(file_path: str) -> str:
         file_path: Original file path
         
     Returns:
-        Normalized permalink that matches validation rules
+        Normalized permalink that matches validation rules. Converts spaces and underscores
+        to hyphens for consistency.
         
     Examples:
         >>> generate_permalink("docs/My Feature.md")
         'docs/my-feature'
         >>> generate_permalink("specs/API (v2).md")
         'specs/api-v2'
+        >>> generate_permalink("design/unified_model_refactor.md")
+        'design/unified-model-refactor'
     """
     # Remove extension
     base = os.path.splitext(file_path)[0]
@@ -47,8 +50,11 @@ def generate_permalink(file_path: str) -> str:
     # Convert to lowercase
     lower_text = ascii_text.lower()
     
-    # Replace spaces and invalid chars with hyphens
-    clean_text = re.sub(r'[^a-z0-9/\-_]', '-', lower_text)
+    # First replace underscores with hyphens
+    text_with_hyphens = lower_text.replace('_', '-')
+    
+    # Replace remaining invalid chars with hyphens
+    clean_text = re.sub(r'[^a-z0-9/\-]', '-', text_with_hyphens)
     
     # Collapse multiple hyphens
     clean_text = re.sub(r'-+', '-', clean_text)
@@ -130,17 +136,17 @@ class Entity(Base):
         
         Requirements:
         1. Must be valid URI path component
-        2. Only lowercase letters, numbers, hyphens, and underscores
+        2. Only lowercase letters, numbers, and hyphens (no underscores)
         3. Path segments separated by forward slashes
         4. No leading/trailing hyphens in segments
         """
         if not value:
             raise ValueError("Permalink must not be None")
         
-        if not re.match(r'^[a-z0-9][a-z0-9\-_/]*[a-z0-9]$', value):
+        if not re.match(r'^[a-z0-9][a-z0-9\-/]*[a-z0-9]$', value):
             raise ValueError(
                 f"Invalid permalink format: {value}. "
-                "Use only lowercase letters, numbers, hyphens, and underscores."
+                "Use only lowercase letters, numbers, and hyphens."
             )
         return value
 
