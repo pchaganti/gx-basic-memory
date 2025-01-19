@@ -35,7 +35,7 @@ class SearchIndexRow:
 
     # Type-specific fields
     title: Optional[int] = None  # entity
-    content: Optional[int] = None  # entity
+    content: Optional[int] = None  # entity, observation
     entity_id: Optional[int] = None  # observations
     category: Optional[str] = None  # observations
     from_id: Optional[int] = None  # relations
@@ -146,6 +146,7 @@ class SearchRepository:
                 to_id,
                 relation_type,
                 entity_id,
+                content,
                 category,
                 created_at,
                 updated_at,
@@ -173,6 +174,7 @@ class SearchRepository:
                 to_id=row.to_id,
                 relation_type=row.relation_type,
                 entity_id=row.entity_id,
+                content=row.content,
                 category=row.category,
                 created_at=row.created_at,
                 updated_at=row.updated_at,

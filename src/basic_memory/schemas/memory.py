@@ -77,7 +77,7 @@ class ObservationSummary(BaseModel):
 class MemoryMetadata(BaseModel):
     """Simplified response metadata."""
 
-    url: str
+    uri: str
     depth: int
     timeframe: str
     generated_at: datetime

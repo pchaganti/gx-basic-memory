@@ -26,6 +26,7 @@ class ContextResultRow:
     from_id: Optional[int] = None
     to_id: Optional[int] = None
     relation_type: Optional[str] = None
+    content: Optional[str] = None
     category: Optional[str] = None
     entity_id: Optional[int] = None
 
@@ -89,7 +90,7 @@ class ContextService:
             "primary_results": primary,
             "related_results": related,
             "metadata": {
-                "url": memory_url.relative_path(),
+                "uri": memory_url.relative_path(),
                 "depth": depth,
                 "timeframe": since.isoformat() if since else None,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -143,6 +144,7 @@ WITH RECURSIVE context_graph AS (
         from_id,
         to_id,
         relation_type,
+        content,
         category,
         entity_id,
         0 as depth,
@@ -166,6 +168,7 @@ WITH RECURSIVE context_graph AS (
         r.from_id,
         r.to_id,
         r.relation_type,
+        r.content,
         r.category,
         r.entity_id,
         cg.depth + 1,
@@ -194,6 +197,7 @@ WITH RECURSIVE context_graph AS (
         e.from_id,
         e.to_id,
         e.relation_type,
+        e.content,
         e.category,
         e.entity_id,
         cg.depth,
@@ -222,6 +226,7 @@ SELECT DISTINCT
     from_id,
     to_id,
     relation_type,
+    content,
     category,
     entity_id,
     MIN(depth) as depth,
@@ -250,6 +255,7 @@ LIMIT :max_results
                 from_id=row.from_id,
                 to_id=row.to_id,
                 relation_type=row.relation_type,
+                content=row.content,
                 category=row.category,
                 entity_id=row.entity_id,
                 depth=row.depth,

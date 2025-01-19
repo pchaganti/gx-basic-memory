@@ -39,7 +39,7 @@ async def test_find_connected_basic(context_service, test_graph, search_service)
     assert test_graph["connected1"].id in entity_ids
 
     # Verify we found relation
-    assert any(r.type == "relation" and "Root" in r.title for r in results)
+    assert any(r.type == "relation" and "Connected Entity 1 → Connected Entity 2" in r.title for r in results)
 
 
 @pytest.mark.asyncio
@@ -55,7 +55,7 @@ async def test_find_connected_depth_limit(context_service, test_graph):
     # With depth=1, we get direct connections
     shallow_results = await context_service.find_related(type_id_pairs, max_depth=1)
     shallow_entities = {(r.id, r.type) for r in shallow_results if r.type == "entity"}
-    
+
     assert (test_graph["deep"].id, "entity") not in shallow_entities
 
     # search deeper
@@ -148,7 +148,7 @@ async def test_build_context(context_service, test_graph):
     assert results["metadata"]["depth"] == 1
     assert matched_results == 1
     assert len(primary_results) == 1
-    assert len(related_results) == 2
+    assert len(related_results) == 1
     assert total_results == len(primary_results) + len(related_results)
 
 

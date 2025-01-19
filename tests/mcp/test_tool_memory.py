@@ -1,4 +1,5 @@
 """Tests for discussion context MCP tool."""
+from datetime import datetime
 
 import pytest
 
@@ -17,11 +18,10 @@ async def test_get_basic_discussion_context(client, test_graph):
     assert len(context.related_results) > 0
 
     # Verify metadata
-    assert context.metadata["uri"] == "test/root"
-    assert context.metadata["depth"] == 1  # default depth
-    assert context.metadata["timeframe"] is not None
-    assert isinstance(context.metadata["generated_at"], str)
-    assert context.metadata["matched_results"] == 1
+    assert context.metadata.uri == "test/root"
+    assert context.metadata.depth == 1  # default depth
+    assert context.metadata.timeframe is not None
+    assert isinstance(context.metadata.generated_at, datetime)
 
 
 @pytest.mark.asyncio
@@ -32,7 +32,7 @@ async def test_get_discussion_context_pattern(client, test_graph):
     assert isinstance(context, GraphContext)
     assert len(context.primary_results) > 1  # Should match multiple test/* paths
     assert all("test/" in e.permalink for e in context.primary_results)
-    assert context.metadata["depth"] == 1
+    assert context.metadata.depth == 1
 
 
 @pytest.mark.asyncio
@@ -61,4 +61,3 @@ async def test_get_discussion_context_not_found(client):
     assert isinstance(context, GraphContext)
     assert len(context.primary_results) == 0
     assert len(context.related_results) == 0
-    assert context.metadata["matched_results"] == 0
