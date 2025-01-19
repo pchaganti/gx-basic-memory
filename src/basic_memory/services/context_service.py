@@ -127,84 +127,107 @@ class ContextService:
 
         # Build date filter
         date_filter = "AND base.created_at >= :since_date" if since else ""
-        r1_date_filter = "AND related.created_at >= :since_date" if since else ""
-        related_date_filter = "AND related.created_at >= :since_date" if since else ""
+        r1_date_filter = "AND r.created_at >= :since_date" if since else ""
+        related_date_filter = "AND r.created_at >= :since_date" if since else ""
 
         query = text(f"""
-                    WITH RECURSIVE context_graph AS (
-                        -- Base case: seed items
-                        SELECT 
-                            id,
-                            type,
-                            title, 
-                            permalink,
-                            from_id,
-                            to_id,
-                            relation_type,
-                            category,
-                            entity_id,
-                            0 as depth,
-                            id as root_id,
-                            created_at,
-                            created_at as relation_date,
-                            0 as is_incoming
-                        FROM search_index base
-                        WHERE (base.type, base.id) IN ({values})
-                        {date_filter}
-                    
-                        UNION 
-                    
-                        SELECT
-                            related.id,
-                            related.type,
-                            related.title,
-                            related.permalink,
-                            related.from_id,
-                            related.to_id,
-                            related.relation_type,
-                            related.category,
-                            related.entity_id,
-                            cg.depth + 1,
-                            cg.root_id,
-                            related.created_at,
-                            related.created_at as relation_date,
-                            CASE 
-                                WHEN related.from_id = cg.id THEN 0  -- Outgoing
-                                ELSE 1                          -- Incoming
-                            END as is_incoming
-                        FROM context_graph cg
-                        JOIN search_index related ON (
-                            cg.type = 'entity' AND 
-                            related.type = 'relation' AND 
-                            (related.from_id = cg.id OR related.to_id = cg.id)
-                            {r1_date_filter}
-                        )
-                        WHERE cg.depth < :max_depth
-                        ORDER BY 
-                            relation_date DESC,
-                            is_incoming
-                        LIMIT :max_results
-                    )
-                    SELECT DISTINCT 
-                        type,
-                        id,
-                        title,
-                        permalink,
-                        from_id,
-                        to_id,
-                        relation_type,
-                        category,
-                        entity_id,
-                        MIN(depth) as depth,
-                        root_id,
-                        created_at
-                    FROM context_graph
-                    GROUP BY
-                        type, id, title, permalink, from_id, to_id,
-                        relation_type, category, entity_id,
-                        root_id, created_at
-                    ORDER BY depth, type, id
-                    LIMIT :max_results
+WITH RECURSIVE context_graph AS (
+    -- Base case: seed items (unchanged)
+    SELECT 
+        id,
+        type,
+        title, 
+        permalink,
+        from_id,
+        to_id,
+        relation_type,
+        category,
+        entity_id,
+        0 as depth,
+        id as root_id,
+        created_at,
+        created_at as relation_date,
+        0 as is_incoming
+    FROM search_index base
+    WHERE (base.type, base.id) IN ({values})
+    {date_filter}
+
+    UNION ALL
+
+    -- Get relations
+    SELECT
+        r.id,
+        r.type,
+        r.title,
+        r.permalink,
+        r.from_id,
+        r.to_id,
+        r.relation_type,
+        r.category,
+        r.entity_id,
+        cg.depth + 1,
+        cg.root_id,
+        r.created_at,
+        r.created_at as relation_date,
+        CASE WHEN r.from_id = cg.id THEN 0 ELSE 1 END as is_incoming
+    FROM context_graph cg
+    JOIN search_index r ON (
+        cg.type = 'entity' AND 
+        r.type = 'relation' AND 
+        (r.from_id = cg.id OR r.to_id = cg.id)
+        {r1_date_filter}
+    )
+    WHERE cg.depth < :max_depth
+
+    UNION ALL
+
+    -- Get connected entities 
+    SELECT
+        e.id,
+        e.type,
+        e.title,
+        e.permalink,
+        e.from_id,
+        e.to_id,
+        e.relation_type,
+        e.category,
+        e.entity_id,
+        cg.depth + 1,
+        cg.root_id,
+        e.created_at,
+        cg.created_at as relation_date,  -- Use same date as relation
+        cg.is_incoming                   -- Keep same direction
+    FROM context_graph cg
+    JOIN search_index e ON (
+        cg.type = 'relation' AND         -- Only look for entities from relations
+        e.type = 'entity' AND
+        e.id = CASE 
+            WHEN cg.from_id = cg.root_id THEN cg.to_id  -- Outgoing relation
+            ELSE cg.from_id                             -- Incoming relation
+        END
+    )
+    WHERE cg.depth < :max_depth
+)
+SELECT DISTINCT 
+    type,
+    id,
+    title,
+    permalink,
+    from_id,
+    to_id,
+    relation_type,
+    category,
+    entity_id,
+    MIN(depth) as depth,
+    root_id,
+    created_at
+FROM context_graph
+GROUP BY
+    type, id, title, permalink, from_id, to_id,
+    relation_type, category, entity_id,
+    root_id, created_at
+ORDER BY depth, type, id
+LIMIT :max_results
        """)
 
         result = await self.search_repository.execute_query(query, params=params)
