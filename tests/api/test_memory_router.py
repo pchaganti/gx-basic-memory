@@ -1,4 +1,5 @@
 """Tests for memory router endpoints."""
+from datetime import datetime
 
 import pytest
 
@@ -17,11 +18,11 @@ async def test_get_memory_context(client, test_graph):
     assert len(context.related_results) > 0
 
     # Verify metadata
-    assert context.metadata["uri"] == "test/root"
-    assert context.metadata["depth"] == 1  # default depth
+    assert context.metadata.url == "test/root"
+    assert context.metadata.depth == 1  # default depth
     # assert context.metadata["timeframe"] == "7d"  # default timeframe
-    assert isinstance(context.metadata["generated_at"], str)
-    assert context.metadata["matched_results"] == 1
+    assert isinstance(context.metadata.generated_at, datetime)
+    assert context.metadata.total_results == 3
 
 
 @pytest.mark.asyncio

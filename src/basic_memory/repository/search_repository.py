@@ -137,6 +137,7 @@ class SearchRepository:
         sql = f"""
             SELECT 
                 id, 
+                title, 
                 permalink,
                 file_path,
                 type,
@@ -162,6 +163,7 @@ class SearchRepository:
         results = [
             SearchIndexRow(
                 id=row.id,
+                title=row.title,
                 permalink=row.permalink,
                 file_path=row.file_path,
                 type=row.type,

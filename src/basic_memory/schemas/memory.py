@@ -1,11 +1,11 @@
 """Schemas for memory context."""
 
+from datetime import datetime
 from typing import Dict, List, Any
 
 from pydantic import AnyUrl, Field, BaseModel
 
 from basic_memory.config import config
-from basic_memory.schemas.search import SearchResult, RelatedResult
 
 """Memory URL schema for knowledge addressing.
 
@@ -47,25 +47,56 @@ class MemoryUrl(AnyUrl):
         return f"memory://{self.host}{self.path}"
 
 
+class EntitySummary(BaseModel):
+    """Simplified entity representation."""
+
+    permalink: str
+    title: str
+    file_path: str
+    created_at: datetime
+
+
+class RelationSummary(BaseModel):
+    """Simplified relation representation."""
+
+    permalink: str
+    type: str
+    from_id: str
+    to_id: str
+    created_at: datetime
+
+
+class ObservationSummary(BaseModel):
+    """Simplified observation representation."""
+
+    permalink: str
+    category: str
+    content: str
+
+
+class MemoryMetadata(BaseModel):
+    """Simplified response metadata."""
+
+    url: str
+    depth: int
+    timeframe: str
+    generated_at: datetime
+    total_results: int
+    total_relations: int
+
+
 class GraphContext(BaseModel):
     """Complete context response."""
 
     # Direct matches
-    primary_results: List[SearchResult] = Field(description="Entities directly matching URI")
+    primary_results: List[EntitySummary | RelationSummary | ObservationSummary] = Field(
+        description="results directly matching URI"
+    )
 
     # Related entities
-    related_results: List[RelatedResult] = Field(description="Entities found via relations")
+    related_results: List[EntitySummary | RelationSummary | ObservationSummary] = Field(
+        description="related results"
+    )
 
     # Context metadata
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict,
-        example={
-            "uri": "memory://specs/search/*",
-            "depth": 2,
-            "timeframe": "7d",
-            "generated_at": "2024-01-14T12:00:00Z",
-            "matched_results": 3,
-            "total_results": 8,
-            "total_relations": 12,
-        },
-    )
+    metadata: MemoryMetadata

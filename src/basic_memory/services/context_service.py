@@ -19,6 +19,7 @@ class ContextResultRow:
     id: int
     title: str
     permalink: str
+    file_path: str
     depth: int
     root_id: int
     created_at: datetime
@@ -88,7 +89,7 @@ class ContextService:
             "primary_results": primary,
             "related_results": related,
             "metadata": {
-                "uri": memory_url.relative_path(),
+                "url": memory_url.relative_path(),
                 "depth": depth,
                 "timeframe": since.isoformat() if since else None,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -104,7 +105,7 @@ class ContextService:
         max_depth: int = 1,
         since: Optional[datetime] = None,
         max_results: int = 10,
-    ):
+    ) -> List[ContextResultRow]:
         """Find items connected through relations.
 
         Uses recursive CTE to find:
@@ -138,6 +139,7 @@ WITH RECURSIVE context_graph AS (
         type,
         title, 
         permalink,
+        file_path,
         from_id,
         to_id,
         relation_type,
@@ -160,6 +162,7 @@ WITH RECURSIVE context_graph AS (
         r.type,
         r.title,
         r.permalink,
+        r.file_path,
         r.from_id,
         r.to_id,
         r.relation_type,
@@ -187,6 +190,7 @@ WITH RECURSIVE context_graph AS (
         e.type,
         e.title,
         e.permalink,
+        e.file_path,
         e.from_id,
         e.to_id,
         e.relation_type,
@@ -214,6 +218,7 @@ SELECT DISTINCT
     id,
     title,
     permalink,
+    file_path,
     from_id,
     to_id,
     relation_type,
@@ -240,6 +245,7 @@ LIMIT :max_results
                 id=row.id,
                 title=row.title,
                 permalink=row.permalink,
+                file_path=row.file_path,
                 from_id=row.from_id,
                 to_id=row.to_id,
                 relation_type=row.relation_type,
