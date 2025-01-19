@@ -228,6 +228,7 @@ SELECT DISTINCT
     root_id,
     created_at
 FROM context_graph
+WHERE (type, id) NOT IN ({values})
 GROUP BY
     type, id, title, permalink, from_id, to_id,
     relation_type, category, entity_id,
