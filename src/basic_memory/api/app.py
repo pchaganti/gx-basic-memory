@@ -6,11 +6,7 @@ from fastapi import FastAPI
 from loguru import logger
 
 from basic_memory import db
-from .routers import knowledge
-from .routers import discovery
-from .routers import memory
-from .routers.activity_router import router as activity_router
-from .routers.search_router import router as search_router
+from .routers import knowledge, discovery, search, activity, memory, resource
 
 
 @asynccontextmanager
@@ -33,7 +29,7 @@ app = FastAPI(
 # Include routers
 app.include_router(knowledge.router)
 app.include_router(discovery.router)
-app.include_router(activity_router)
-app.include_router(search_router)
-
+app.include_router(activity.router)
+app.include_router(search.router)
 app.include_router(memory.router)
+app.include_router(resource.router)

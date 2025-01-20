@@ -156,7 +156,7 @@ class SearchService:
             # We can construct these because observations are always
             # defined in and owned by a single entity
             observation_permalink = (
-                f"{entity.permalink}/observations/{obs.category}/{generate_permalink(obs.content)}"
+                generate_permalink(f"{entity.permalink}/observations/{obs.category}/{obs.content}")
             )
 
             # Index with parent entity's file path since that's where it's defined
@@ -186,7 +186,7 @@ class SearchService:
             # source/relation_type/target
             # e.g., "specs/search/implements/features/search-ui"
             relation_permalink = (
-                f"{rel.from_entity.permalink}/{rel.relation_type}/{rel.to_entity.permalink}"
+                generate_permalink(f"{rel.from_entity.permalink}/{rel.relation_type}/{rel.to_entity.permalink}")
             )
 
             # Create descriptive title showing the relationship
