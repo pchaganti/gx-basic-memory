@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 
-from basic_memory.schemas.memory import GraphContext
+from basic_memory.schemas.memory import GraphContext, RelationSummary, EntitySummary, ObservationSummary
 
 
 @pytest.mark.asyncio
@@ -86,3 +86,29 @@ async def test_not_found(client):
     context = GraphContext(**response.json())
     assert len(context.primary_results) == 0
     assert len(context.related_results) == 0
+
+
+@pytest.mark.asyncio
+async def test_recent_activity(client, test_graph):
+    """Test handling of non-existent paths."""
+    response = await client.get("/memory/recent")
+    assert response.status_code == 200
+
+    context = GraphContext(**response.json())
+    assert len(context.primary_results) > 0
+    assert len(context.related_results) > 0
+
+
+@pytest.mark.asyncio
+async def test_recent_activity_by_type(client, test_graph):
+    """Test handling of non-existent paths."""
+    response = await client.get("/memory/recent?type=relation&type=observation")
+    assert response.status_code == 200
+
+    context = GraphContext(**response.json())
+    assert len(context.primary_results) > 0
+
+    for r in context.primary_results:
+        assert isinstance(r, RelationSummary | ObservationSummary)
+
+    assert len(context.related_results) > 0

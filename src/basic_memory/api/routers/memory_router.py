@@ -68,7 +68,7 @@ async def to_graph_context(context, entity_repository: EntityRepository):
 async def recent(
     context_service: ContextServiceDep,
     entity_repository: EntityRepositoryDep,
-    types: Annotated[list[SearchItemType] | None, Query()] = None,
+    type: Annotated[list[SearchItemType] | None, Query()] = None,
     depth: int = 1,
     timeframe: TimeFrame = "7d",
     max_results: int = 10,
@@ -76,8 +76,8 @@ async def recent(
     # return all types by default
     types = (
         [SearchItemType.ENTITY, SearchItemType.RELATION, SearchItemType.OBSERVATION]
-        if not types
-        else types
+        if not type
+        else type
     )
 
     logger.debug(

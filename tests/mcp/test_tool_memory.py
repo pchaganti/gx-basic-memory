@@ -86,7 +86,7 @@ async def test_recent_activity_timeframe_formats(client, test_graph):
     for timeframe in valid_timeframes:
         try:
             result = await recent_activity(
-                types=["entity"],
+                type=["entity"],
                 timeframe=timeframe,
                 max_results=1
             )
@@ -96,7 +96,7 @@ async def test_recent_activity_timeframe_formats(client, test_graph):
 
     # Test invalid timeframes should raise ValidationError
     for timeframe in invalid_timeframes:
-        with pytest.raises(ValueError):
+        with pytest.raises(ToolError):
             await recent_activity(timeframe=timeframe)
 
 

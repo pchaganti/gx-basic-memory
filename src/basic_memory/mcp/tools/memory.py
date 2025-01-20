@@ -6,7 +6,6 @@ from loguru import logger
 
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
-from basic_memory.mcp.tools.utils import call_get
 from basic_memory.schemas.memory import GraphContext, MemoryUrl
 from basic_memory.schemas.search import SearchItemType
 from basic_memory.schemas.base import TimeFrame
@@ -16,7 +15,7 @@ from basic_memory.schemas.base import TimeFrame
     description="""Build context from a memory:// URI to continue conversations naturally.
     
     Use this to follow up on previous discussions or explore related topics.
-    Timeframes use natural language support - examples:
+    Timeframes support natural language like:
     - "2 days ago"
     - "last week" 
     - "today"
@@ -25,10 +24,10 @@ from basic_memory.schemas.base import TimeFrame
     """,
 )
 async def build_context(
-    url: MemoryUrl,
-    depth: Optional[int] = 1,
-    timeframe: Optional[TimeFrame] = "7d",
-    max_results: int = 10,
+    url: MemoryUrl, 
+    depth: Optional[int] = 1, 
+    timeframe: Optional[TimeFrame] = "7d", 
+    max_results: int = 10
 ) -> GraphContext:
     """Get context needed to continue a discussion.
 
@@ -45,7 +44,7 @@ async def build_context(
     Returns:
         GraphContext containing:
             - primary_results: Content matching the memory:// URI
-            - related_results: Connected content via relations
+            - related_results: Connected content via relations 
             - metadata: Context building details
 
     Examples:
@@ -62,10 +61,8 @@ async def build_context(
         build_context("memory://features/knowledge-graph", timeframe="3 months ago")
     """
     logger.info(f"Building context from {url}")
-    # Map directly to the memory endpoint
     memory_url = MemoryUrl.validate(url)
-    response = await call_get(
-        client,
+    response = await client.get(
         f"/memory/{memory_url.relative_path()}",
         params={"depth": depth, "timeframe": timeframe, "max_results": max_results},
     )
@@ -76,27 +73,33 @@ async def build_context(
     description="""Get recent activity from across the knowledge base.
     
     Timeframe supports natural language formats like:
-    - "2 days ago"
+    - "2 days ago"  
     - "last week"
-    - "3 weeks"
-    - "2 months"
-    - "yesterday"
+    - "yesterday" 
     - "today"
-    Or standard formats like "7d", "24h"
+    - "3 weeks ago"
+    Or standard formats like "7d"
     """,
 )
 async def recent_activity(
-    types: List[SearchItemType] = None,
-    depth: Optional[int] = 1,
-    timeframe: Optional[TimeFrame] = "7d",
-    max_results: int = 10,
+    type: List[SearchItemType] = None, 
+    depth: Optional[int] = 1, 
+    timeframe: Optional[TimeFrame] = "7d", 
+    max_results: int = 10
 ) -> GraphContext:
     """Get recent activity across the knowledge base.
 
     Args:
-        types: Filter by entity types (["entity", "relation", "observation"]). If None, returns all types.
-        depth: How many relation hops to traverse when building context (1-3 recommended)
-        timeframe: How far back to look. Supports natural language like "2 days ago", "last week"
+        type: Filter by content type(s). Valid options:
+            - ["entity"] for knowledge entities
+            - ["relation"] for connections between entities
+            - ["observation"] for notes and observations 
+            Multiple types can be combined: ["entity", "relation"]
+        depth: How many relation hops to traverse (1-3 recommended)
+        timeframe: Time window to search. Supports natural language:
+            - Relative: "2 days ago", "last week", "yesterday"
+            - Points in time: "2024-01-01", "January 1st"
+            - Standard format: "7d", "24h"
         max_results: Maximum number of results to return (default: 10)
 
     Returns:
@@ -106,28 +109,23 @@ async def recent_activity(
             - metadata: Query details and statistics
 
     Examples:
-        # Get all activity from last week
-        recent_activity(timeframe="last week")
+        # Get all entities from yesterday
+        recent_activity(type=["entity"], timeframe="yesterday")
 
-        # Get only entity changes from yesterday
-        recent_activity(types=["entity"], timeframe="yesterday")
+        # Get recent relations and observations
+        recent_activity(type=["relation", "observation"], timeframe="today")
 
-        # Track recent specification changes
-        recent_activity(types=["entity"], depth=2, timeframe="3 days ago")
-
-        # Follow recent relation changes
-        recent_activity(types=["relation"], timeframe="today")
+        # Look back further with more context
+        recent_activity(type=["entity"], depth=2, timeframe="2 weeks ago")
 
     Notes:
         - Higher depth values (>3) may impact performance with large result sets
         - For focused queries, consider using build_context with a specific URI
         - Max timeframe is 1 year in the past
     """
-    logger.info(
-        f"Getting recent activity from {types}, depth={depth}, timeframe={timeframe}, max_results={max_results}"
-    )
+    logger.info(f"Getting recent activity from {type}, depth={depth}, timeframe={timeframe}, max_results={max_results}")
     response = await client.get(
-        "/memory/recent",
-        params={"depth": depth, "timeframe": timeframe, "max_results": max_results, "types": types},
+        f"/memory/recent",
+        params={"depth": depth, "timeframe": timeframe, "max_results": max_results, "type": type},
     )
     return GraphContext.model_validate(response.json())

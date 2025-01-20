@@ -29,6 +29,8 @@ async def call_get(
     timeout: TimeoutTypes | UseClientDefault = USE_CLIENT_DEFAULT,
     extensions: RequestExtensions | None = None,
 ) -> Response:
+    
+    logger.debug(f"Calling GET '{url}' params: '{params}'")
     try:
         response = await client.get(
             url,
@@ -44,7 +46,7 @@ async def call_get(
         return response
     except HTTPStatusError as e:
         logger.error(f"Error calling GET {url}: {e}")
-        raise ToolError(f"Error calling tool: {e}") from e
+        raise ToolError(f"Error calling tool: {e}. Response: {response.text}") from e
 
 
 async def call_put(
