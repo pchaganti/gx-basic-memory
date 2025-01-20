@@ -24,7 +24,6 @@ from basic_memory.services import (
     ObservationService,
     RelationService,
 )
-from basic_memory.services.activity_service import ActivityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
@@ -157,11 +156,6 @@ def file_change_scanner(entity_repository) -> FileChangeScanner:
     """Create FileChangeScanner instance."""
     return FileChangeScanner(entity_repository)
 
-
-@pytest_asyncio.fixture
-async def activity_service(entity_service, relation_service):
-    """Create activity service with real dependencies."""
-    return ActivityService(entity_service, relation_service)
 
 
 @pytest_asyncio.fixture

@@ -1,14 +1,17 @@
 """Routes for memory:// URI operations."""
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List, Annotated
 
-from fastapi import APIRouter
+from dateparser import parse
+from fastapi import APIRouter, Query
 from loguru import logger
 
 from basic_memory.config import config
 from basic_memory.deps import ContextServiceDep, EntityRepositoryDep
+from basic_memory.repository import EntityRepository
 from basic_memory.repository.search_repository import SearchIndexRow
+from basic_memory.schemas.base import TimeFrame
 from basic_memory.schemas.memory import (
     MemoryUrl,
     GraphContext,
@@ -23,49 +26,8 @@ from basic_memory.services.context_service import ContextResultRow
 router = APIRouter(prefix="/memory", tags=["memory"])
 
 
-def parse_timeframe(timeframe: str) -> Optional[datetime]:
-    """Convert timeframe string to datetime.
 
-    Formats:
-    - 7d: 7 days ago
-    - 30d: 30 days ago
-    - None: no time limit
-    """
-    if not timeframe:
-        return None
-
-    if not timeframe.endswith("d"):
-        raise ValueError("Timeframe must be in days (e.g., '7d')")
-
-    days = int(timeframe[:-1])
-    return datetime.utcnow() - timedelta(days=days)
-
-
-@router.get("/{uri:path}", response_model=GraphContext)
-async def get_memory_context(
-    context_service: ContextServiceDep,
-    entity_repository: EntityRepositoryDep,
-    uri: str,
-    depth: int = 1,
-    timeframe: str = "7d",
-    max_results: int = 10,
-) -> GraphContext:
-    """Get rich context from memory:// URI."""
-    # add the project name from the config to the url as the "host
-    # Parse URI
-    logger.debug(
-        f"Getting context for URI: `{uri}` depth: `{depth}` timeframe: `{timeframe}` max_results: `{max_results}`"
-    )
-    memory_url = MemoryUrl(f"memory://{config.project}/{uri}")
-
-    # Parse timeframe
-    since = parse_timeframe(timeframe)
-
-    # Build context
-    context = await context_service.build_context(
-        memory_url, depth=depth, since=since, max_results=max_results
-    )
-
+async def to_graph_context(context, entity_repository: EntityRepository):
     # return results
     async def to_summary(item: SearchIndexRow | ContextResultRow):
         match item.type:
@@ -81,10 +43,9 @@ async def get_memory_context(
                     category=item.category, content=item.content, permalink=item.permalink
                 )
             case SearchItemType.RELATION:
-                
                 from_entity = await entity_repository.find_by_id(item.from_id)
                 to_entity = await entity_repository.find_by_id(item.to_id)
-                
+
                 return RelationSummary(
                     permalink=item.permalink,
                     type=item.type,
@@ -96,9 +57,69 @@ async def get_memory_context(
     primary_results = [await to_summary(r) for r in context["primary_results"]]
     related_results = [await to_summary(r) for r in context["related_results"]]
     metadata = MemoryMetadata.model_validate(context["metadata"])
-    
     # Transform to GraphContext
     return GraphContext(
         primary_results=primary_results, related_results=related_results, metadata=metadata
     )
+
+
+
+@router.get("/recent", response_model=GraphContext)
+async def recent(
+    context_service: ContextServiceDep,
+    entity_repository: EntityRepositoryDep,
+    types: Annotated[list[SearchItemType] | None, Query()] = None,
+    depth: int = 1,
+    timeframe: TimeFrame = "7d",
+    max_results: int = 10,
+) -> GraphContext:
+    # return all types by default
+    types = (
+        [SearchItemType.ENTITY, SearchItemType.RELATION, SearchItemType.OBSERVATION]
+        if not types
+        else types
+    )
+
+    logger.debug(
+        f"Getting recent context: `{types}` depth: `{depth}` timeframe: `{timeframe}` max_results: `{max_results}`"
+    )
+    # Parse timeframe
+    since = parse(timeframe)
+
+    # Build context
+    context = await context_service.build_context(
+        types=types, depth=depth, since=since, max_results=max_results
+    )
+    return await to_graph_context(context, entity_repository=entity_repository)
+
+
+# get_memory_context needs to be declared last so other paths can match 
+
+@router.get("/{uri:path}", response_model=GraphContext)
+async def get_memory_context(
+    context_service: ContextServiceDep,
+    entity_repository: EntityRepositoryDep,
+    uri: str,
+    depth: int = 1,
+    timeframe: TimeFrame = "7d",
+    max_results: int = 10,
+) -> GraphContext:
+    """Get rich context from memory:// URI."""
+    # add the project name from the config to the url as the "host
+    # Parse URI
+    logger.debug(
+        f"Getting context for URI: `{uri}` depth: `{depth}` timeframe: `{timeframe}` max_results: `{max_results}`"
+    )
+    memory_url = MemoryUrl(f"memory://{config.project}/{uri}")
+
+    # Parse timeframe
+    since = parse(timeframe)
+
+    # Build context
+    context = await context_service.build_context(
+        memory_url, depth=depth, since=since, max_results=max_results
+    )
+    return await to_graph_context(context, entity_repository=entity_repository)
+
+
 

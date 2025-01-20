@@ -39,3 +39,4 @@ projects/*.db-journal
 **/.DS_Store
 
 *.log
+/.coverage.*

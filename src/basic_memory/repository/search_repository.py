@@ -1,6 +1,7 @@
 """Repository for search operations."""
 
 import json
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional, Any, Dict
@@ -95,6 +96,7 @@ class SearchRepository:
         types: List[SearchItemType] = None,
         after_date: datetime = None,
         entity_types: List[str] = None,
+        limit: int = 10,
     ) -> List[SearchIndexRow]:
         """Search across all indexed content with fuzzy matching."""
         conditions = []
@@ -131,6 +133,9 @@ class SearchRepository:
             params["after_date"] = after_date
             conditions.append("datetime(created_at) > datetime(:after_date)")
 
+        # set limit on search query
+        params["limit"] = limit
+        
         # Build WHERE clause
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
@@ -154,6 +159,7 @@ class SearchRepository:
             FROM search_index 
             WHERE {where_clause}
             ORDER BY score ASC
+            LIMIT :limit
         """
 
         #logger.debug(f"Search {sql} params: {params}")
@@ -182,7 +188,7 @@ class SearchRepository:
             for row in rows
         ]
 
-        logger.debug(f"Search results: {results}")
+        #logger.debug(f"Search results: {results}")
         return results
 
     async def index_item(
@@ -234,9 +240,12 @@ class SearchRepository:
         """Execute a query asynchronously."""
         #logger.debug(f"Executing query: {query}")
         async with db.scoped_session(self.session_maker) as session:
+            start_time = time.perf_counter()
             if params:
                 result = await session.execute(query, params)
             else:
                 result = await session.execute(query)
-            logger.debug("Query executed successfully")
+            end_time = time.perf_counter()
+            elapsed_time = end_time - start_time
+            logger.debug(f"Query executed successfully in {elapsed_time:.2f}s.")
             return result

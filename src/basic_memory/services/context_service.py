@@ -50,7 +50,8 @@ class ContextService:
 
     async def build_context(
         self,
-        memory_url: MemoryUrl,
+        memory_url: MemoryUrl = None,
+        types: List[SearchItemType] = None,
         depth: int = 1,
         since: Optional[datetime] = None,
         max_results: int = 10,
@@ -60,22 +61,26 @@ class ContextService:
             f"Building context for URI: '{memory_url}' depth: '{depth}' since: '{since}' max_results: '{max_results}'"
         )
 
-        # Pattern matching - use search
-        if "*" in memory_url.relative_path():
-            logger.debug(f"Pattern search for '{memory_url.relative_path()}'")
-            primary = await self.search_repository.search(
-                permalink_match=memory_url.relative_path()
-            )
-
-        # Direct lookup for exact path
+        if memory_url:
+            # Pattern matching - use search
+            if "*" in memory_url.relative_path():
+                logger.debug(f"Pattern search for '{memory_url.relative_path()}'")
+                primary = await self.search_repository.search(
+                    permalink_match=memory_url.relative_path()
+                )
+    
+            # Direct lookup for exact path
+            else:
+                logger.debug(f"Direct lookup for '{memory_url.relative_path()}'")
+                primary = await self.search_repository.search(permalink=memory_url.relative_path())
         else:
-            logger.debug(f"Direct lookup for '{memory_url.relative_path()}'")
-            primary = await self.search_repository.search(permalink=memory_url.relative_path())
+            logger.debug(f"Build context for '{types}'")
+            primary = await self.search_repository.search(types=types)
 
         # Get type_id pairs for traversal
 
         type_id_pairs = [(r.type, r.id) for r in primary] if primary else []
-        logger.debug(f"primary type_id_pairs: {type_id_pairs}")
+        logger.debug(f"found primary type_id_pairs: {len(type_id_pairs)}")
 
         # Find related content
         related = await self.find_related(
@@ -83,14 +88,15 @@ class ContextService:
         )
         logger.debug(f"Found {len(related)} related results")
         for r in related:
-            logger.debug(f"Found related result: {r}")
+            logger.debug(f"Found related {r.type}: {r.permalink}")
 
         # Build response
         return {
             "primary_results": primary,
             "related_results": related,
             "metadata": {
-                "uri": memory_url.relative_path(),
+                "uri": memory_url.relative_path() if memory_url else None,
+                "types": types if types else None,
                 "depth": depth,
                 "timeframe": since.isoformat() if since else None,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -117,7 +123,7 @@ class ContextService:
         if not type_id_pairs:
             return []
 
-        logger.debug(f"Finding connected items for {type_id_pairs} with depth {max_depth}")
+        logger.debug(f"Finding connected items for {len(type_id_pairs)} with depth {max_depth}")
 
         # Build the VALUES clause directly since SQLite doesn't handle parameterized IN well
         values = ", ".join([f"('{t}', {i})" for t, i in type_id_pairs])

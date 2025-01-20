@@ -1,7 +1,7 @@
 """Tests for Pydantic schema validation and conversion."""
 
 import pytest
-from pydantic import ValidationError
+from pydantic import ValidationError, BaseModel
 
 from basic_memory.schemas import (
     Entity,
@@ -12,7 +12,7 @@ from basic_memory.schemas import (
     GetEntitiesRequest,
     RelationResponse,
 )
-from basic_memory.schemas.base import to_snake_case
+from basic_memory.schemas.base import to_snake_case, TimeFrame
 
 
 def test_entity_in_minimal():
@@ -210,3 +210,35 @@ def test_permalink_generation():
     for input_data, expected_path in test_cases:
         entity = Entity.model_validate(input_data)
         assert entity.permalink == expected_path, f"Failed for input: {input_data}"
+
+
+@pytest.mark.parametrize(
+    "timeframe,expected_valid",
+    [
+        ("7d", True),
+        ("yesterday", True),
+        ("2 days ago", True),
+        ("last week", True),
+        ("3 weeks ago", True),
+        ("invalid", False),
+        ("tomorrow", False),
+        ("next week", False),
+        ("", False),
+        ("0d", True),
+    ],
+)
+def test_timeframe_validation(timeframe: str, expected_valid: bool):
+    """Test TimeFrame validation directly."""
+
+    class TimeFrameModel(BaseModel):
+        timeframe: TimeFrame
+
+    if expected_valid:
+        try:
+            tf = TimeFrameModel.model_validate({"timeframe": timeframe})
+            assert isinstance(tf.timeframe, str)
+        except ValueError as e:
+            pytest.fail(f"TimeFrame failed to validate '{timeframe}' with error: {e}")
+    else:
+        with pytest.raises(ValueError):
+            tf = TimeFrameModel.model_validate({"timeframe": timeframe})

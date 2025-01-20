@@ -1,11 +1,12 @@
 """Schemas for memory context."""
 
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from pydantic import AnyUrl, Field, BaseModel
 
 from basic_memory.config import config
+from basic_memory.schemas.search import SearchItemType
 
 """Memory URL schema for knowledge addressing.
 
@@ -77,7 +78,8 @@ class ObservationSummary(BaseModel):
 class MemoryMetadata(BaseModel):
     """Simplified response metadata."""
 
-    uri: str
+    uri: Optional[str] = None
+    types: Optional[List[SearchItemType]] = None
     depth: int
     timeframe: str
     generated_at: datetime

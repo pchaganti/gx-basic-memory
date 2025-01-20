@@ -1,10 +1,13 @@
 """Tests for discussion context MCP tool."""
+import pytest
 from datetime import datetime
 
-import pytest
+from httpx import HTTPStatusError
+from mcp.server.fastmcp.exceptions import ToolError
 
-from basic_memory.mcp.tools.memory import build_context
-from basic_memory.schemas.memory import GraphContext
+from basic_memory.mcp.tools.memory import build_context, recent_activity
+from basic_memory.schemas.base import TimeFrame
+from basic_memory.schemas.memory import GraphContext, MemoryUrl
 
 
 @pytest.mark.asyncio
@@ -61,3 +64,62 @@ async def test_get_discussion_context_not_found(client):
     assert isinstance(context, GraphContext)
     assert len(context.primary_results) == 0
     assert len(context.related_results) == 0
+
+
+# Test data for different timeframe formats
+valid_timeframes = [
+    "7d",  # Standard format
+    "yesterday",  # Natural language
+    "0d",  # Zero duration
+]
+
+invalid_timeframes = [
+    "invalid",  # Nonsense string
+    "tomorrow",  # Future date
+]
+
+
+@pytest.mark.asyncio
+async def test_recent_activity_timeframe_formats(client, test_graph):
+    """Test that recent_activity accepts various timeframe formats."""
+    # Test each valid timeframe
+    for timeframe in valid_timeframes:
+        try:
+            result = await recent_activity(
+                types=["entity"],
+                timeframe=timeframe,
+                max_results=1
+            )
+            assert result is not None
+        except Exception as e:
+            pytest.fail(f"Failed with valid timeframe '{timeframe}': {str(e)}")
+
+    # Test invalid timeframes should raise ValidationError
+    for timeframe in invalid_timeframes:
+        with pytest.raises(ValueError):
+            await recent_activity(timeframe=timeframe)
+
+
+@pytest.mark.asyncio
+async def test_build_context_timeframe_formats(client, test_graph):
+    """Test that build_context accepts various timeframe formats."""
+    test_url = MemoryUrl.validate("memory://specs/test")
+
+    # Test each valid timeframe
+    for timeframe in valid_timeframes:
+        try:
+            result = await build_context(
+                url=test_url,
+                timeframe=timeframe,
+                max_results=1
+            )
+            assert result is not None
+        except Exception as e:
+            pytest.fail(f"Failed with valid timeframe '{timeframe}': {str(e)}")
+
+    # Test invalid timeframes should raise ValidationError
+    for timeframe in invalid_timeframes:
+        with pytest.raises(ToolError):
+            await build_context(url=test_url, timeframe=timeframe)
+
+

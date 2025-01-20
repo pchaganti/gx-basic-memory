@@ -5,15 +5,8 @@ Basic Memory through the MCP protocol. Importing this module registers
 all tools with the MCP server.
 """
 
-from basic_memory.mcp.tools import activity  # noqa: F401
-
 # Import tools to register them with MCP
-from basic_memory.mcp.tools import knowledge  # noqa: F401
-from basic_memory.mcp.tools import search  # noqa: F401
-from basic_memory.mcp.tools.activity import (
-    get_recent_activity,
-)
-from basic_memory.mcp.tools.memory import build_context
+from basic_memory.mcp.tools.memory import build_context, recent_activity
 from basic_memory.mcp.tools.ai_edit import ai_edit
 
 # Export the tools
@@ -40,10 +33,9 @@ __all__ = [
     "get_entities",
     # Search tools
     "search",
-    # Activity tools
-    "get_recent_activity",
     # memory tools
     "build_context",
+    "recent_activity",
     # file edit
     "ai_edit",
 ]

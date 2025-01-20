@@ -13,10 +13,13 @@ Key Concepts:
 
 import mimetypes
 import re
+from datetime import datetime
 from enum import Enum
 from typing import List, Optional, Annotated, Dict
 
 from annotated_types import MinLen, MaxLen
+from dateparser import parse
+
 from pydantic import BaseModel, BeforeValidator, Field, model_validator, ValidationError
 
 from basic_memory.utils import generate_permalink
@@ -80,6 +83,36 @@ class ObservationCategory(str, Enum):
         except ValueError:
             return None
 
+
+def validate_timeframe(timeframe: str) -> str:
+    """Convert human readable timeframes to a duration relative to the current time."""
+    if not isinstance(timeframe, str):
+        raise ValueError("Timeframe must be a string")
+
+    # Parse relative time expression
+    parsed = parse(timeframe)
+    if not parsed:
+        raise ValueError(f"Could not parse timeframe: {timeframe}")
+
+    # Convert to duration
+    now = datetime.now()
+    if parsed > now:
+        raise ValueError("Timeframe cannot be in the future")
+
+    # Could format the duration back to our standard format
+    days = (now - parsed).days
+
+    # Could enforce reasonable limits
+    if days > 365:
+        raise ValueError("Timeframe should be <= 1 year")
+
+    return f"{days}d"
+
+
+TimeFrame = Annotated[
+    str,
+    BeforeValidator(validate_timeframe)
+]
 
 PathId = Annotated[str, BeforeValidator(validate_path_format)]
 """Unique identifier in format '{path}/{normalized_name}'."""
