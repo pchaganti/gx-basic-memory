@@ -110,7 +110,7 @@ async def get_memory_context(
     logger.debug(
         f"Getting context for URI: `{uri}` depth: `{depth}` timeframe: `{timeframe}` max_results: `{max_results}`"
     )
-    memory_url = MemoryUrl(f"memory://{config.project}/{uri}")
+    memory_url = MemoryUrl(f"memory://{uri}")
 
     # Parse timeframe
     since = parse(timeframe)

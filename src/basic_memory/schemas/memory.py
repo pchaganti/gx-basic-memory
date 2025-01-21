@@ -3,49 +3,52 @@
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
-from pydantic import AnyUrl, Field, BaseModel
+from pydantic import BaseModel, field_validator, Field
 
-from basic_memory.config import config
 from basic_memory.schemas.search import SearchItemType
 
-"""Memory URL schema for knowledge addressing.
 
-The memory:// URL scheme provides a unified way to address knowledge:
-
-Examples:
-    memory://specs/search/*         # Pattern matching 
-    memory://specs/xyz              # direct reference
-"""
-
-
-class MemoryUrl(AnyUrl):
-    """memory:// URL scheme for knowledge addressing."""
-
-    allowed_schemes = {"memory"}
-
-    # Query params
-    params: Dict[str, Any] = Field(default_factory=dict)  # For special modes like 'related'
-
+class MemoryUrl(BaseModel):
+    """memory:// URL scheme for knowledge addressing.
+    
+    Example URLs:
+        memory://specs/search         # Direct reference
+        memory://specs/search/*      # Pattern matching
+        memory://related/xyz         # Special lookup
+    """
+    url: str
+    path: str = ""
+    
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        """Validate the URL starts with memory://."""
+        if isinstance(v, MemoryUrl):
+            return v.url
+        if not isinstance(v, str):
+            raise ValueError(f"URL must be a string, got {type(v)}")
+        if not v.startswith("memory://"):
+            raise ValueError(f"Invalid memory URL: {v}. Must start with memory://")
+        return v
+        
+    def __init__(self, url: str, **data):
+        if isinstance(url, MemoryUrl):
+            url = url.url
+        super().__init__(url=url, **data)
+        self.path = url.removeprefix("memory://")
+        
     @classmethod
     def validate(cls, url: str) -> "MemoryUrl":
         """Validate and construct a MemoryUrl."""
-
-        memory_url = cls(url)
-
-        # if the url host value is not the project name, assume the default project
-        if memory_url.host != config.project:
-            memory_url = cls(f"memory://{config.project}/{memory_url.host}{memory_url.path}")
-
-        return memory_url
+        return cls(url=url)
 
     def relative_path(self) -> str:
-        """Get the path without leading slash."""
-        path = self.path
-        return path[1:] if path.startswith("/") else path
+        """Get the path."""
+        return self.path
 
     def __str__(self) -> str:
         """Convert back to URL string."""
-        return f"memory://{self.host}{self.path}"
+        return self.url
 
 
 class EntitySummary(BaseModel):

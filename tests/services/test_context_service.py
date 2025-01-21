@@ -137,7 +137,7 @@ async def test_find_connected_timeframe(context_service, test_graph, search_repo
 @pytest.mark.asyncio
 async def test_build_context(context_service, test_graph):
     """Test exact permalink lookup."""
-    url = MemoryUrl(f"memory://{config.project}/test/root")
+    url = MemoryUrl(f"memory://test/root")
     results = await context_service.build_context(url)
     matched_results = results["metadata"]["matched_results"]
     primary_results = results["primary_results"]
@@ -155,7 +155,7 @@ async def test_build_context(context_service, test_graph):
 @pytest.mark.asyncio
 async def test_build_context_pattern(context_service, test_graph):
     """Test exact permalink lookup."""
-    url = MemoryUrl("memory://not_used/test/connected*")
+    url = MemoryUrl("memory://test/connected*")
     results = await context_service.build_context(url)
     matched_results = results["metadata"]["matched_results"]
     primary_results = results["primary_results"]
@@ -168,7 +168,7 @@ async def test_build_context_pattern(context_service, test_graph):
 @pytest.mark.asyncio
 async def test_build_context_not_found(context_service):
     """Test handling non-existent permalinks."""
-    context = await context_service.build_context(MemoryUrl("memory://project/does/not/exist"))
+    context = await context_service.build_context(MemoryUrl("memory://does/not/exist"))
     assert len(context["primary_results"]) == 0
     assert len(context["related_results"]) == 0
 
@@ -176,7 +176,7 @@ async def test_build_context_not_found(context_service):
 @pytest.mark.asyncio
 async def test_context_metadata(context_service, test_graph):
     """Test metadata is correctly populated."""
-    context = await context_service.build_context(MemoryUrl("memory://project/test/root"), depth=2)
+    context = await context_service.build_context(MemoryUrl("memory://test/root"), depth=2)
     metadata = context["metadata"]
     assert metadata["uri"] == "test/root"
     assert metadata["depth"] == 2
