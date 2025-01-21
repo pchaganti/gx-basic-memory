@@ -7,17 +7,14 @@ while leveraging the underlying knowledge graph structure.
 from typing import Optional, List
 
 from loguru import logger
-from mcp.server.fastmcp.exceptions import ToolError
 
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.async_client import client
-from basic_memory.mcp.tools.search import search
 from basic_memory.schemas.request import CreateEntityRequest
 from basic_memory.schemas.base import Entity, Relation
 from basic_memory.schemas.request import CreateRelationsRequest
 from basic_memory.mcp.tools.knowledge import create_entities, create_relations
 from basic_memory.mcp.tools.utils import call_get
-from basic_memory.schemas.search import SearchQuery
 
 
 @mcp.tool(
@@ -95,25 +92,8 @@ async def read_note(identifier: str) -> str:
     Raises:
         ValueError: If the note cannot be found
     """
-    try:
-        # Try as permalink first
-        response = await call_get(client, f"/resource/{identifier}")
-        return response.text
-    except ToolError as e:
-        if "404" in str(e):
-            # If not found, try searching by title
-            search_response = await search(SearchQuery(text=identifier, entity_types=["note"]))
-
-            if not search_response.results:
-                raise ValueError(f"Note not found: {identifier}")
-
-            # if we found results, return the first one
-            response = await call_get(client, f"/resource/{search_response.results[0].permalink}")
-            return response.text
-
-        raise ValueError(f"Error reading note: {e}")
-    except Exception as e:
-        raise ValueError(f"Unexpected error reading note: {e}")
+    response = await call_get(client, f"/resource/{identifier}")
+    return response.text
 
 
 @mcp.tool(description="Create a semantic link between two notes")
@@ -122,7 +102,7 @@ async def link_notes(
     to_note: str,
     relationship: str = "relates_to",
     context: Optional[str] = None,
-) -> None:
+) -> str:
     """Create a semantic link between two notes.
 
     Args:
@@ -156,4 +136,5 @@ async def link_notes(
             )
         ]
     )
-    await create_relations(request)
+    response = await create_relations(request)
+    return response.entities[0].permalink

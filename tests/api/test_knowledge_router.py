@@ -91,22 +91,16 @@ async def create_related_results(client) -> List[RelationResponse]:  # pyright: 
     data = response.json()
 
     relation_response = EntityListResponse.model_validate(data)
-    assert len(relation_response.entities) == 2
+    assert len(relation_response.entities) == 1
 
     source_entity = relation_response.entities[0]
-    target_entity = relation_response.entities[1]
 
     assert len(source_entity.relations) == 1
     source_relation = source_entity.relations[0]
     assert source_relation.from_id == source_permalink
     assert source_relation.to_id == target_permalink
 
-    assert len(target_entity.relations) == 1
-    target_relation = target_entity.relations[0]
-    assert target_relation.from_id == source_permalink
-    assert target_relation.to_id == target_permalink
-
-    return source_entity.relations + target_entity.relations
+    return source_entity.relations
 
 
 @pytest.mark.asyncio
@@ -275,7 +269,7 @@ async def test_delete_observations(client, observation_repository):
 async def test_delete_relations(client, relation_repository):
     """Test deleting relations between entities."""
     relations = await create_related_results(client)
-    assert len(relations) == 2
+    assert len(relations) == 1
     relation = relations[0]
 
     # Delete relation
@@ -380,7 +374,7 @@ async def test_full_knowledge_flow(client: AsyncClient):
     )
     assert relations_response.status_code == 200
     relations_entities = relations_response.json()
-    assert len(relations_entities["entities"]) == 3
+    assert len(relations_entities["entities"]) == 1
 
     # 4. Add observations to main entity
     await client.post(

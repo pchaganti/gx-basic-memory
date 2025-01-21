@@ -23,6 +23,7 @@ from basic_memory.services import (
 )
 from basic_memory.services.context_service import ContextService
 from basic_memory.services.file_service import FileService
+from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
 
 
@@ -105,7 +106,6 @@ SearchRepositoryDep = Annotated[SearchRepository, Depends(get_search_repository)
 
 ## services
 
-
 async def get_file_service(project_config: ProjectConfigDep) -> FileService:
     return FileService(project_config.home, KnowledgeWriter())
 
@@ -143,12 +143,14 @@ async def get_relation_service(
     relation_repository: RelationRepositoryDep,
     entity_repository: EntityRepositoryDep,
     file_service: FileServiceDep,
+    link_resolver: "LinkResolverDep",
 ) -> RelationService:
     """Create RelationService with repository."""
     return RelationService(
         relation_repository=relation_repository,
         entity_repository=entity_repository,
         file_service=file_service,
+        link_resolver=link_resolver,
     )
 
 
@@ -171,6 +173,12 @@ async def get_knowledge_writer() -> KnowledgeWriter:
 
 KnowledgeWriterDep = Annotated[KnowledgeWriter, Depends(get_knowledge_writer)]
 
+async def get_link_resolver(entity_repository: EntityRepositoryDep, 
+                            search_service: SearchServiceDep) -> LinkResolver:
+    return LinkResolver(entity_repository=entity_repository, 
+                        search_service=search_service)
+
+LinkResolverDep = Annotated[LinkResolver, Depends(get_link_resolver)]
 
 async def get_context_service(
     search_repository: SearchRepositoryDep, entity_repository: EntityRepositoryDep

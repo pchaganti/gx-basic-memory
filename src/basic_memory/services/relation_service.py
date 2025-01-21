@@ -9,6 +9,7 @@ from basic_memory.models import Entity as EntityModel, Relation as RelationModel
 from basic_memory.repository.relation_repository import RelationRepository
 from . import FileService
 from .exceptions import EntityNotFoundError
+from .link_resolver import LinkResolver
 from .service import BaseService
 from ..repository import EntityRepository
 
@@ -24,10 +25,12 @@ class RelationService(BaseService[RelationRepository]):
         relation_repository: RelationRepository,
         entity_repository: EntityRepository,
         file_service: FileService,
+        link_resolver: LinkResolver,
     ):
         super().__init__(relation_repository)
         self.entity_repository = entity_repository
         self.file_service = file_service
+        self.link_resolver = link_resolver
 
     async def create_relations(self, relations: List[RelationSchema]) -> Sequence[EntityModel]:
         """Create relations and return updated entities."""
@@ -37,9 +40,10 @@ class RelationService(BaseService[RelationRepository]):
 
         for rs in relations:
             try:
-                from_entity = await self.entity_repository.get_by_permalink(rs.from_id)
-                to_entity = await self.entity_repository.get_by_permalink(rs.to_id)
-
+                # Use link resolver instead of direct permalink lookup
+                from_entity = await self.link_resolver.resolve_link(rs.from_id)
+                to_entity = await self.link_resolver.resolve_link(rs.to_id)
+                
                 relation = RelationModel(
                     from_id=from_entity.id,
                     to_id=to_entity.id,
@@ -50,8 +54,7 @@ class RelationService(BaseService[RelationRepository]):
                 await self.repository.add(relation)
 
                 # Keep track of entities we need to update
-                entities_to_update.add(rs.from_id)
-                entities_to_update.add(rs.to_id)
+                entities_to_update.add(from_entity.permalink)
 
             except Exception as e:
                 logger.error(f"Failed to create relation: {e}")

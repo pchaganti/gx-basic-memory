@@ -27,27 +27,19 @@ async def test_create_basic_relation(client):
     )
     result = await create_relations(relation_request)
 
-    assert len(result.entities) == 2
+    assert len(result.entities) == 1
 
     # Find source and target entities
-    source = next(e for e in result.entities if e.permalink == "source-entity")
-    target = next(e for e in result.entities if e.permalink == "target-entity")
+    source = result.entities[0]
 
     # Both entities should have the relation for bi-directional navigation
     assert len(source.relations) == 1
-    assert len(target.relations) == 1
 
     # Source's relation shows it depends_on target
     source_relation = source.relations[0]
     assert source_relation.from_id == "source-entity"
     assert source_relation.to_id == "target-entity"
     assert source_relation.relation_type == "depends_on"
-
-    # Target's relation is the same, allowing backwards traversal
-    target_relation = target.relations[0]
-    assert target_relation.from_id == "source-entity"
-    assert target_relation.to_id == "target-entity"
-    assert target_relation.relation_type == "depends_on"
 
 
 @pytest.mark.asyncio
@@ -74,14 +66,11 @@ async def test_create_relation_with_context(client):
     )
     result = await create_relations(relation_request)
 
-    source = next(e for e in result.entities if e.permalink == "source")
-    target = next(e for e in result.entities if e.permalink == "target")
+    source = result.entities[0]
 
     # Both entities should have the relation with context
     assert len(source.relations) == 1
-    assert len(target.relations) == 1
     assert source.relations[0].context == "Implementation details"
-    assert target.relations[0].context == "Implementation details"
 
 
 @pytest.mark.asyncio
@@ -105,24 +94,21 @@ async def test_create_multiple_relations(client):
     )
     result = await create_relations(relation_request)
 
-    # Should return all involved entities
-    assert len(result.entities) == 3
+    # Should return all source entities
+    assert len(result.entities) == 2
 
     # Get entities
     entity1 = next(e for e in result.entities if e.permalink == "entity1")
     entity2 = next(e for e in result.entities if e.permalink == "entity2")
-    entity3 = next(e for e in result.entities if e.permalink == "entity3")
 
     # Entity1 and Entity2 should share the connects_to relation
     assert len(entity1.relations) == 1
     assert len(entity2.relations) == 2  # Has both relations
-    assert len(entity3.relations) == 1
 
     # Verify relation types
     assert any(r.relation_type == "connects_to" for r in entity1.relations)
     assert any(r.relation_type == "connects_to" for r in entity2.relations)
     assert any(r.relation_type == "depends_on" for r in entity2.relations)
-    assert any(r.relation_type == "depends_on" for r in entity3.relations)
 
 
 @pytest.mark.asyncio
@@ -198,7 +184,7 @@ async def test_create_duplicate_relation(client):
 
     # Create first relation
     first_result = await create_relations(relation_request)
-    assert len(first_result.entities) == 2
+    assert len(first_result.entities) == 1
     assert len(first_result.entities[0].relations) == 1
 
     # Attempt to create same relation again

@@ -108,12 +108,14 @@ async def relation_service(
     relation_repository: RelationRepository,
     entity_repository: EntityRepository,
     file_service: FileService,
+    link_resolver: LinkResolver,
 ) -> RelationService:
     """Create RelationService with repository."""
     return RelationService(
         relation_repository=relation_repository,
         entity_repository=entity_repository,
         file_service=file_service,
+        link_resolver=link_resolver,
     )
 
 
@@ -155,7 +157,6 @@ def entity_parser(test_config):
 def file_change_scanner(entity_repository) -> FileChangeScanner:
     """Create FileChangeScanner instance."""
     return FileChangeScanner(entity_repository)
-
 
 
 @pytest_asyncio.fixture
@@ -254,7 +255,9 @@ async def full_entity(sample_entity, entity_repository):
 
 
 @pytest_asyncio.fixture
-async def test_graph(entity_repository, relation_repository, observation_repository, search_service):
+async def test_graph(
+    entity_repository, relation_repository, observation_repository, search_service
+):
     """Create a test knowledge graph with entities, relations and observations."""
     # Create some test entities
     entities = [
@@ -361,8 +364,8 @@ async def test_graph(entity_repository, relation_repository, observation_reposit
 
     # Save relations
     related_entities = await relation_repository.add_all(relations)
-    
-    # get latest 
+
+    # get latest
     entities = await entity_repository.find_all()
     # Index everything for search
     for entity in entities:

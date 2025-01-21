@@ -1,6 +1,7 @@
 """Tests for note tools that exercise the full stack with SQLite."""
 
 import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 
 from basic_memory.mcp.tools import notes
 
@@ -48,7 +49,7 @@ async def test_write_note_no_tags(app):
 @pytest.mark.asyncio
 async def test_read_note_not_found(app):
     """Test trying to read a non-existent note."""
-    with pytest.raises(ValueError, match="Note not found"):
+    with pytest.raises(ToolError, match="Error calling tool: Client error '404 Not Found'"):
         await notes.read_note("notes/does-not-exist")
 
 
@@ -81,16 +82,15 @@ async def test_link_notes(app):
     )
     
     # Link them
-    await notes.link_notes(
+    permalink = await notes.link_notes(
         from_note=note1,
         to_note=note2,
         relationship="inspires",
         context="Design informs implementation"
     )
     
-    # TODO: Add verification of the link
-    # We might want to add a get_note_links() tool
-    # or use the existing knowledge tools to verify
+    content = await notes.read_note(permalink)
+    assert "- inspires [[Implementation]] (Design informs implementation)" in content
 
 
 @pytest.mark.asyncio

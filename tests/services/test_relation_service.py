@@ -64,7 +64,7 @@ async def test_create_relations(
 
     entities = await relation_service.create_relations(relation_data)
 
-    assert len(entities) == 2
+    assert len(entities) == 1
 
     # verify relations on e0
     relations_e0 = entities[0].outgoing_relations
@@ -78,17 +78,18 @@ async def test_create_relations(
     assert relations_e0[1].to_id == entity2.id
     assert relations_e0[1].relation_type == "type_1"
 
-    # verify relations on e1
-    relations_e1 = entities[1].incoming_relations
-    assert len(relations_e1) == 2
+    # verify relations on entity2
+    e2 = await entity_service.get_by_permalink(entity2.permalink)
+    relations_e2 = e2.incoming_relations
+    assert len(relations_e2) == 2
 
-    assert relations_e1[0].from_id == entity1.id
-    assert relations_e1[0].to_id == entity2.id
-    assert relations_e1[0].relation_type == "type_0"
+    assert relations_e2[0].from_id == entity1.id
+    assert relations_e2[0].to_id == entity2.id
+    assert relations_e2[0].relation_type == "type_0"
 
-    assert relations_e1[1].from_id == entity1.id
-    assert relations_e1[1].to_id == entity2.id
-    assert relations_e1[1].relation_type == "type_1"
+    assert relations_e2[1].from_id == entity1.id
+    assert relations_e2[1].to_id == entity2.id
+    assert relations_e2[1].relation_type == "type_1"
 
     # Verify outgoing relation is updated
     found = await entity_service.get_by_permalink(entity1.permalink)
@@ -99,11 +100,31 @@ async def test_create_relations(
     assert f"- type_0 [[{entity2.title}]] (context_0)" in content
     assert f"- type_1 [[{entity2.title}]] (context_1)" in content
 
-    # Verify other entity file is not updated
-    found = await entity_service.get_by_permalink(entity2.permalink)
-    file_path = file_service.get_entity_path(found)
-    content, _ = await file_service.read_file(file_path)
-    assert "type_0" not in content
+
+@pytest.mark.asyncio
+async def test_create_relations_resolve_links(
+    relation_service: RelationService,
+    entity_service: EntityService,
+    file_service: FileService,
+    test_entities: tuple[EntityModel, EntityModel],
+):
+    """Test creating a basic relation between two entities."""
+    entity1, entity2 = test_entities
+
+    relation_data = [
+        RelationSchema(
+            from_id=entity1.title,
+            to_id=entity2.title,
+            relation_type="type_0",
+            context="context_0",
+        ),
+    ]
+
+    entities = await relation_service.create_relations(relation_data)
+    assert len(entities) == 1
+
+    assert entities[0].outgoing_relations[0].from_id == entity1.id
+    assert entities[0].outgoing_relations[0].to_id == entity2.id
 
 
 @pytest.mark.asyncio

@@ -6,24 +6,24 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from loguru import logger
 
-from basic_memory.deps import EntityRepositoryDep, ProjectConfigDep
+from basic_memory.deps import EntityRepositoryDep, ProjectConfigDep, LinkResolverDep
 
 router = APIRouter(prefix="/resource", tags=["resources"])
 
 
-@router.get("/{permalink:path}")
+@router.get("/{identifier:path}")
 async def get_resource_content(
     config: ProjectConfigDep,
-    entity_repository: EntityRepositoryDep,
-    permalink: str,
+    link_resolver: LinkResolverDep,
+    identifier: str,
 ) -> FileResponse:
-    """Get resource content by permalink."""
-    logger.debug(f"Getting content for permalink: {permalink}")
+    """Get resource content by identifier: name or permalink."""
+    logger.debug(f"Getting content for permalink: {identifier}")
 
     # Find entity by permalink
-    entity = await entity_repository.get_by_permalink(permalink)
+    entity = await link_resolver.resolve_link(identifier)
     if not entity:
-        raise HTTPException(status_code=404, detail=f"Entity not found: {permalink}")
+        raise HTTPException(status_code=404, detail=f"Entity not found: {identifier}")
 
     file_path = Path(f"{config.home}/{entity.file_path}")
     if not file_path.exists():

@@ -30,6 +30,29 @@ async def test_get_resource_content(client, test_config, entity_repository):
     assert response.headers["content-type"] == "text/markdown; charset=utf-8"
     assert response.text == content
 
+async def test_get_resource_by_title(client, test_config, entity_repository):
+    """Test getting content by permalink."""
+    # Create a test file
+    content = "# Test Content\n\nThis is a test file."
+    test_file = Path(test_config.home) / "test" / "test.md"
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text(content)
+
+    # Create entity referencing the file
+    entity = await entity_repository.create(
+        {
+            "title": "Test Entity",
+            "entity_type": "test",
+            "permalink": "test/test",
+            "file_path": "test/test.md",  # Relative to config.home
+            "content_type": "text/markdown",
+        }
+    )
+
+    # Test getting the content
+    response = await client.get(f"/resource/{entity.title}")
+    assert response.status_code == 200
+
 
 @pytest.mark.asyncio
 async def test_get_resource_missing_entity(client):
