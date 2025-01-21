@@ -25,7 +25,7 @@ class SearchQuery(BaseModel):
 
     Use ONE of these primary search modes:
     - permalink: Exact permalink match
-    - permalink_pattern: Path pattern with *
+    - permalink_match: Path pattern with *
     - text: Full-text search of title/content
 
     Optionally filter results by:

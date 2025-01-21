@@ -2,6 +2,7 @@
 from loguru import logger
 
 from basic_memory.mcp.server import mcp
+from basic_memory.mcp.tools.utils import call_post
 from basic_memory.schemas.search import SearchQuery, SearchResponse
 from basic_memory.mcp.async_client import client
 
@@ -23,5 +24,5 @@ async def search(query: SearchQuery) -> SearchResponse:
         SearchResponse with search results and metadata
     """
     logger.info(f"Searching for {query.text}")
-    response = await client.post("/search/", json=query.model_dump())
+    response = await call_post(client,"/search/", json=query.model_dump())
     return SearchResponse.model_validate(response.json())

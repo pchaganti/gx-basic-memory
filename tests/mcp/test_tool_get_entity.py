@@ -1,6 +1,7 @@
 """Tests for get_entity MCP tool."""
 
 import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 
 from basic_memory.mcp.tools.knowledge import get_entity, create_entities
 from basic_memory.schemas.base import Entity, ObservationCategory
@@ -112,5 +113,5 @@ async def test_get_entity_with_categorized_observations(client):
 @pytest.mark.asyncio
 async def test_get_nonexistent_entity(client):
     """Test attempting to get a non-existent entity."""
-    with pytest.raises(EntityNotFoundError):
+    with pytest.raises(ToolError):
         await get_entity("test/nonexistent")

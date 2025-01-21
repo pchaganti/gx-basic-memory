@@ -131,7 +131,7 @@ class FileService:
 
             # Compute and return checksum
             checksum = await file_utils.compute_checksum(content)
-            logger.debug(f"wrote file: {path}, checksum: {checksum}")
+            logger.debug(f"wrote file: {path}, checksum: {checksum} content: \n{content}")
             return checksum
 
         except Exception as e:

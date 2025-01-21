@@ -8,8 +8,8 @@ all tools with the MCP server.
 # Import tools to register them with MCP
 from basic_memory.mcp.tools.memory import build_context, recent_activity
 from basic_memory.mcp.tools.ai_edit import ai_edit
+from basic_memory.mcp.tools.notes import read_note, link_notes, write_note
 
-# Export the tools
 from basic_memory.mcp.tools.knowledge import (
     create_entities,
     create_relations,
@@ -36,6 +36,8 @@ __all__ = [
     # memory tools
     "build_context",
     "recent_activity",
+    #notes
+    "notes"
     # file edit
     "ai_edit",
 ]

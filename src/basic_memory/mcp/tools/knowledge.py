@@ -1,10 +1,9 @@
 """Knowledge graph management tools for Basic Memory MCP server."""
 
-import httpx
 from loguru import logger
 
 from basic_memory.mcp.server import mcp
-from basic_memory.mcp.tools.utils import call_get
+from basic_memory.mcp.tools.utils import call_get, call_post
 from basic_memory.schemas.base import PathId
 from basic_memory.schemas.request import (
     CreateEntityRequest,
@@ -19,7 +18,6 @@ from basic_memory.schemas.delete import (
 )
 from basic_memory.schemas.response import EntityListResponse, EntityResponse, DeleteEntitiesResponse
 from basic_memory.mcp.async_client import client
-from basic_memory.services.exceptions import EntityNotFoundError
 
 
 @mcp.tool(
@@ -29,7 +27,7 @@ async def create_entities(request: CreateEntityRequest) -> EntityListResponse:
     """Create new entities in the knowledge graph."""
     logger.info(f"Creating {len(request.entities)} entities")
     url = "/knowledge/entities"
-    response = await client.post(url, json=request.model_dump())
+    response = await call_post(client, url, json=request.model_dump())
     return EntityListResponse.model_validate(response.json())
 
 
@@ -40,7 +38,7 @@ async def create_relations(request: CreateRelationsRequest) -> EntityListRespons
     """Create relations between existing entities."""
     logger.info(f"Creating {len(request.relations)} relations")
     url = "/knowledge/relations"
-    response = await client.post(url, json=request.model_dump())
+    response = await call_post(client, url, json=request.model_dump())
     return EntityListResponse.model_validate(response.json())
 
 
@@ -53,17 +51,9 @@ async def get_entity(permalink: PathId) -> EntityResponse:
     Args:
         permalink: Path identifier for the entity
     """
-    try:
-        url = f"/knowledge/entities/{permalink}"
-        response = await client.get(url)
-        if response.status_code == 404:
-            raise EntityNotFoundError(f"Entity not found: {permalink}")
-        response.raise_for_status()
-        return EntityResponse.model_validate(response.json())
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            raise EntityNotFoundError(f"Entity not found: {permalink}")
-        raise
+    url = f"/knowledge/entities/{permalink}"
+    response = await call_get(client, url)
+    return EntityResponse.model_validate(response.json())
 
 
 @mcp.tool(
@@ -92,7 +82,7 @@ async def add_observations(request: AddObservationsRequest) -> EntityResponse:
     """Add observations to an existing entity."""
     logger.info(f"Adding {len(request.observations)} observations to {request.permalink}")
     url = "/knowledge/observations"
-    response = await client.post(url, json=request.model_dump())
+    response = await call_post(client,url, json=request.model_dump())
     return EntityResponse.model_validate(response.json())
 
 
@@ -102,7 +92,7 @@ async def add_observations(request: AddObservationsRequest) -> EntityResponse:
 async def delete_observations(request: DeleteObservationsRequest) -> EntityResponse:
     """Delete specific observations from an entity."""
     url = "/knowledge/observations/delete"
-    response = await client.post(url, json=request.model_dump())
+    response = await call_post(client,url, json=request.model_dump())
     return EntityResponse.model_validate(response.json())
 
 
@@ -112,7 +102,7 @@ async def delete_observations(request: DeleteObservationsRequest) -> EntityRespo
 async def delete_relations(request: DeleteRelationsRequest) -> EntityListResponse:
     """Delete relations between entities."""
     url = "/knowledge/relations/delete"
-    response = await client.post(url, json=request.model_dump())
+    response = await call_post(client,url, json=request.model_dump())
     return EntityListResponse.model_validate(response.json())
 
 
@@ -122,5 +112,5 @@ async def delete_relations(request: DeleteRelationsRequest) -> EntityListRespons
 async def delete_entities(request: DeleteEntitiesRequest) -> DeleteEntitiesResponse:
     """Delete entities from the knowledge graph."""
     url = "/knowledge/entities/delete"
-    response = await client.post(url, json=request.model_dump())
+    response = await call_post(client,url, json=request.model_dump())
     return DeleteEntitiesResponse.model_validate(response.json())

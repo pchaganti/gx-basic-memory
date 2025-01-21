@@ -1,6 +1,8 @@
 """Writer for knowledge entity markdown files."""
 from typing import Optional
 
+from loguru import logger
+
 from basic_memory.models import Entity as EntityModel, Observation
 
 
@@ -51,6 +53,7 @@ class KnowledgeWriter:
         """
         # If raw content provided, use it directly
         if content is not None:
+            logger.debug("Content supplied to entity writer, using it directly")
             return content
 
         # Otherwise, build structured content from entity data

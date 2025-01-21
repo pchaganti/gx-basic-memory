@@ -6,6 +6,7 @@ from loguru import logger
 
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
+from basic_memory.mcp.tools.utils import call_get
 from basic_memory.schemas.memory import GraphContext, MemoryUrl
 from basic_memory.schemas.search import SearchItemType
 from basic_memory.schemas.base import TimeFrame
@@ -24,10 +25,10 @@ from basic_memory.schemas.base import TimeFrame
     """,
 )
 async def build_context(
-    url: MemoryUrl, 
-    depth: Optional[int] = 1, 
-    timeframe: Optional[TimeFrame] = "7d", 
-    max_results: int = 10
+    url: MemoryUrl,
+    depth: Optional[int] = 1,
+    timeframe: Optional[TimeFrame] = "7d",
+    max_results: int = 10,
 ) -> GraphContext:
     """Get context needed to continue a discussion.
 
@@ -44,7 +45,7 @@ async def build_context(
     Returns:
         GraphContext containing:
             - primary_results: Content matching the memory:// URI
-            - related_results: Connected content via relations 
+            - related_results: Connected content via relations
             - metadata: Context building details
 
     Examples:
@@ -62,7 +63,8 @@ async def build_context(
     """
     logger.info(f"Building context from {url}")
     memory_url = MemoryUrl.validate(url)
-    response = await client.get(
+    response = await call_get(
+        client,
         f"/memory/{memory_url.relative_path()}",
         params={"depth": depth, "timeframe": timeframe, "max_results": max_results},
     )
@@ -82,10 +84,10 @@ async def build_context(
     """,
 )
 async def recent_activity(
-    type: List[SearchItemType] = None, 
-    depth: Optional[int] = 1, 
-    timeframe: Optional[TimeFrame] = "7d", 
-    max_results: int = 10
+    type: List[SearchItemType] = None,
+    depth: Optional[int] = 1,
+    timeframe: Optional[TimeFrame] = "7d",
+    max_results: int = 10,
 ) -> GraphContext:
     """Get recent activity across the knowledge base.
 
@@ -93,7 +95,7 @@ async def recent_activity(
         type: Filter by content type(s). Valid options:
             - ["entity"] for knowledge entities
             - ["relation"] for connections between entities
-            - ["observation"] for notes and observations 
+            - ["observation"] for notes and observations
             Multiple types can be combined: ["entity", "relation"]
         depth: How many relation hops to traverse (1-3 recommended)
         timeframe: Time window to search. Supports natural language:
@@ -123,9 +125,12 @@ async def recent_activity(
         - For focused queries, consider using build_context with a specific URI
         - Max timeframe is 1 year in the past
     """
-    logger.info(f"Getting recent activity from {type}, depth={depth}, timeframe={timeframe}, max_results={max_results}")
-    response = await client.get(
-        f"/memory/recent",
+    logger.info(
+        f"Getting recent activity from {type}, depth={depth}, timeframe={timeframe}, max_results={max_results}"
+    )
+    response = await call_get(
+        client,
+        "/memory/recent",
         params={"depth": depth, "timeframe": timeframe, "max_results": max_results, "type": type},
     )
     return GraphContext.model_validate(response.json())
