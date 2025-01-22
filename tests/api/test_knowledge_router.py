@@ -204,6 +204,55 @@ async def test_delete_entity(client: AsyncClient):
     response = await client.get(f"/knowledge/entities/{permalink}")
     assert response.status_code == 404
 
+@pytest.mark.asyncio
+async def test_delete_single_entity(client: AsyncClient):
+    """Test DELETE /knowledge/entities with path ID."""
+    # Create test entity
+    entity_data = {"title": "TestEntity", "entity_type": "test"}
+    await client.post("/knowledge/entities", json={"entities": [entity_data]})
+
+    # Test deletion
+    response = await client.delete(
+        "/knowledge/entities/test-entity"
+    )
+    assert response.status_code == 200
+    assert response.json() == {"deleted": True}
+
+    # Verify entity is gone
+    permalink = quote("test/TestEntity")
+    response = await client.get(f"/knowledge/entities/{permalink}")
+    assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_delete_single_entity_by_title(client: AsyncClient):
+    """Test DELETE /knowledge/entities with path ID."""
+    # Create test entity
+    entity_data = {"title": "TestEntity", "entity_type": "test"}
+    await client.post("/knowledge/entities", json={"entities": [entity_data]})
+
+    # Test deletion
+    response = await client.delete(
+        "/knowledge/entities/TestEntity"
+    )
+    assert response.status_code == 200
+    assert response.json() == {"deleted": True}
+
+    # Verify entity is gone
+    permalink = quote("test/TestEntity")
+    response = await client.get(f"/knowledge/entities/{permalink}")
+    assert response.status_code == 404
+
+@pytest.mark.asyncio
+async def test_delete_single_entity_not_found(client: AsyncClient):
+    """Test DELETE /knowledge/entities with path ID."""
+
+    # Test deletion
+    response = await client.delete(
+        "/knowledge/entities/test-not-found"
+    )
+    assert response.status_code == 200
+    assert response.json() == {"deleted": False}
+
 
 @pytest.mark.asyncio
 async def test_delete_entity_bulk(client: AsyncClient):

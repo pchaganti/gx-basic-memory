@@ -10,12 +10,11 @@ from loguru import logger
 
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.async_client import client
-from basic_memory.schemas import EntityResponse
-from basic_memory.schemas.request import CreateEntityRequest
+from basic_memory.schemas import EntityResponse, DeleteEntitiesResponse
 from basic_memory.schemas.base import Entity, Relation
 from basic_memory.schemas.request import CreateRelationsRequest
-from basic_memory.mcp.tools.knowledge import create_entities, create_relations
-from basic_memory.mcp.tools.utils import call_get, call_put
+from basic_memory.mcp.tools.knowledge import create_relations
+from basic_memory.mcp.tools.utils import call_get, call_put, call_delete
 
 
 @mcp.tool(
@@ -55,18 +54,18 @@ async def write_note(
     # Create the entity request
     metadata = {"tags": [f"#{tag}" for tag in tags]} if tags else None
     entity = Entity(
-                title=title,
-                entity_type="note",
-                content_type="text/markdown",
-                content=content,
-                entity_metadata=metadata,
-            )
+        title=title,
+        entity_type="note",
+        content_type="text/markdown",
+        content=content,
+        entity_metadata=metadata,
+    )
 
     # Use existing knowledge tool
     logger.info(f"Creating {entity.permalink}")
     url = f"/knowledge/entities/{entity.permalink}"
     response = await call_put(client, url, json=entity.model_dump())
-    result =  EntityResponse.model_validate(response.json())
+    result = EntityResponse.model_validate(response.json())
     return result.permalink
 
 
@@ -137,3 +136,25 @@ async def link_notes(
     )
     response = await create_relations(request)
     return response.entities[0].permalink
+
+
+@mcp.tool(description="Delete a note by title or permalink")
+async def delete_note(identifier: str) -> bool:
+    """Delete a note from the knowledge base.
+
+    Args:
+        identifier: Note title or permalink
+
+    Returns:
+        True if note was deleted, False otherwise
+
+    Examples:
+        # Delete by title
+        delete_note("Meeting Notes: Project Planning")
+
+        # Delete by permalink
+        delete_note("notes/project-planning")
+    """
+    response = await call_delete(client, f"/knowledge/entities/{identifier}")
+    result = DeleteEntitiesResponse.model_validate(response.json())
+    return result.deleted

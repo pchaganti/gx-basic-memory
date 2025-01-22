@@ -9,7 +9,8 @@ from basic_memory.deps import (
     EntityServiceDep,
     get_search_service,
     RelationServiceDep,
-    ObservationServiceDep, SearchServiceDep,
+    ObservationServiceDep,
+    SearchServiceDep, LinkResolverDep,
 )
 from basic_memory.schemas import (
     CreateEntityRequest,
@@ -21,7 +22,6 @@ from basic_memory.schemas import (
     DeleteObservationsRequest,
     DeleteRelationsRequest,
     DeleteEntitiesRequest,
-    UpdateEntityRequest,
 )
 from basic_memory.schemas.base import PathId, Entity
 from basic_memory.services.exceptions import EntityNotFoundError
@@ -30,33 +30,31 @@ router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 ## Create endpoints
 
+
 @router.put("/entities/{permalink:path}", response_model=EntityResponse)
 async def create_or_update_entity(
-        permalink: PathId,
-        data: Entity,
-        response: Response,
-        background_tasks: BackgroundTasks,
-        entity_service: EntityServiceDep,
-        search_service: SearchServiceDep,
+    permalink: PathId,
+    data: Entity,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    entity_service: EntityServiceDep,
+    search_service: SearchServiceDep,
 ) -> EntityResponse:
     """Create or update an entity. If entity exists, it will be updated, otherwise created."""
     # Validate permalink matches
     if data.permalink != permalink:
-        raise HTTPException(
-            status_code=400,
-            detail="Entity permalink must match URL path"
-        )
+        raise HTTPException(status_code=400, detail="Entity permalink must match URL path")
 
     # Try create_or_update operation
     entity, created = await entity_service.create_or_update_entity(data)
     response.status_code = 201 if created else 200
-    
+
     # Always reindex since content has changed
     await search_service.index_entity(entity, background_tasks=background_tasks)
 
     return EntityResponse.model_validate(entity)
 
-    
+
 @router.post("/entities", response_model=EntityListResponse)
 async def create_entities(
     data: CreateEntityRequest,
@@ -74,7 +72,6 @@ async def create_entities(
     return EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )
-
 
 
 @router.post("/relations", response_model=EntityListResponse)
@@ -152,6 +149,29 @@ async def get_entities(
 
 
 ## Delete endpoints
+
+
+@router.delete("/entities/{identifier:path}", response_model=DeleteEntitiesResponse)
+async def delete_entity(
+    identifier: str,
+    background_tasks: BackgroundTasks,
+    entity_service: EntityServiceDep,
+    link_resolver: LinkResolverDep,
+    search_service=Depends(get_search_service),
+) -> DeleteEntitiesResponse:
+    """Delete a single entity and remove from search index."""
+    
+    entity = await link_resolver.resolve_link(identifier)
+    if entity is None:
+        return DeleteEntitiesResponse(deleted=False)
+    
+    # Delete the entity
+    deleted = await entity_service.delete_entity(entity.permalink)
+
+    # Remove from search index
+    background_tasks.add_task(search_service.delete_by_permalink, entity.permalink)
+
+    return DeleteEntitiesResponse(deleted=deleted)
 
 
 @router.post("/entities/delete", response_model=DeleteEntitiesResponse)

@@ -159,3 +159,35 @@ async def test_multiple_notes(app):
     for i, permalink in enumerate(permalinks):
         content = await notes.read_note(permalink)
         assert f"Content {i+1}" in content
+
+
+@pytest.mark.asyncio
+async def test_delete_note_existing(app):
+    """Test deleting a new note.
+
+    Should:
+    - Create entity with correct type and content
+    - Return valid permalink
+    - Delete the note
+    """
+    permalink = await notes.write_note(
+        title="Test Note",
+        content="# Test\nThis is a test note",
+        tags=["test", "documentation"]
+    )
+
+    assert permalink  # Got a valid permalink
+
+    deleted = await notes.delete_note(permalink)
+    assert deleted is True
+
+@pytest.mark.asyncio
+async def test_delete_note_doesnt_exist(app):
+    """Test deleting a new note.
+
+    Should:
+    - Delete the note
+    - verify returns false
+    """
+    deleted = await notes.delete_note("doesnt-exist")
+    assert deleted is False
