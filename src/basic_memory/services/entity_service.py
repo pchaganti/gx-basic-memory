@@ -10,6 +10,7 @@ from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.services.exceptions import EntityNotFoundError
 from . import FileService
 from . import BaseService
+from .link_resolver import LinkResolver
 
 
 def entity_model(entity: EntitySchema):
@@ -29,9 +30,43 @@ def entity_model(entity: EntitySchema):
 class EntityService(BaseService[EntityModel]):
     """Service for managing entities in the database."""
 
-    def __init__(self, entity_repository: EntityRepository, file_service: FileService):
+    def __init__(
+        self,
+        entity_repository: EntityRepository,
+        file_service: FileService,
+        link_resolver: LinkResolver,
+    ):
         super().__init__(entity_repository)
         self.file_service = file_service
+        self.link_resolver = link_resolver
+
+    async def create_or_update_entity(self, schema: EntitySchema) -> (EntityModel, bool):
+        """Create new entity or update existing one.
+        if a new entity is created, the return value is (entity, True)
+        """
+
+        logger.debug(f"Creating or updating entity: {schema}")
+
+        # Try to find existing entity using smart resolution
+        existing = await self.link_resolver.resolve_link(schema.permalink)
+
+        if existing:
+            logger.debug(f"Found existing entity: {existing.permalink}")
+            # Entity exists - update it
+            update_data = {
+                "title": schema.title,
+                "entity_type": schema.entity_type,
+                "entity_metadata": schema.entity_metadata,
+                "content_type": schema.content_type,
+                "summary": schema.summary,
+            }
+
+            return await self.update_entity(
+                permalink=existing.permalink, content=schema.content, **update_data
+            ), False
+        else:
+            # Create new entity
+            return await self.create_entity(schema), True
 
     async def create_entity(self, schema: EntitySchema) -> EntityModel:
         """Create a new entity and write to filesystem."""

@@ -118,14 +118,15 @@ class EntityResponse(SQLAlchemyModel):
     }
     """
 
-    # Note this Class does not inherit form Entity because of the Entity.permalink semantics
     permalink: PathId
     title: str
     entity_type: EntityType
     entity_metadata: Optional[Dict] = None
     content_type: ContentType
+    # TODO figure out better option for entity summary
     summary: Optional[str] = None
-    content: Optional[str] = None
+    # TODO remove content
+    content: Optional[str] = None 
     observations: List[ObservationResponse] = []
     relations: List[RelationResponse] = []
 

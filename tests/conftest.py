@@ -97,10 +97,10 @@ async def relation_repository(
 
 @pytest_asyncio.fixture
 async def entity_service(
-    entity_repository: EntityRepository, file_service: FileService
+    entity_repository: EntityRepository, file_service: FileService, link_resolver: LinkResolver,
 ) -> EntityService:
     """Create EntityService with repository."""
-    return EntityService(entity_repository=entity_repository, file_service=file_service)
+    return EntityService(entity_repository=entity_repository, file_service=file_service, link_resolver=link_resolver)
 
 
 @pytest_asyncio.fixture

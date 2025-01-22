@@ -97,7 +97,7 @@ class CreateRelationsRequest(BaseModel):
 
 ## update
 
-
+# TODO remove UpdateEntityRequest
 class UpdateEntityRequest(BaseModel):
     """Request to update an existing entity."""
 

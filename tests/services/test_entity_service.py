@@ -444,3 +444,43 @@ async def test_update_entity_name(entity_service: EntityService, file_service: F
 
     # And verify content uses new name for title
     assert "# new-name" in content
+
+
+@pytest.mark.asyncio
+async def test_create_or_update_new(entity_service: EntityService, file_service: FileService):
+    """Should create a new entity."""
+    # Create test entity
+    entity, created = await entity_service.create_or_update_entity(
+        EntitySchema(
+            title="test",
+            entity_type="test",
+            summary="Test entity",
+            entity_metadata={"status": "draft"},
+        )
+    )
+    assert entity.title == "test"
+    assert created is True
+    
+
+@pytest.mark.asyncio
+async def test_create_or_update_existing(entity_service: EntityService, file_service: FileService):
+    """Should update entity name in both DB and frontmatter."""
+    # Create test entity
+    entity = await entity_service.create_entity(
+        EntitySchema(
+            title="test",
+            entity_type="test",
+            content="Test entity",
+            entity_metadata={"status": "final"},
+        )
+    )
+    
+    entity.content = "Updated content"
+
+    # Update name
+    updated, created = await entity_service.create_or_update_entity(entity)
+    
+    assert updated.title == "test"
+    assert updated.entity_metadata["status"] == "final"
+    assert created is False
+    

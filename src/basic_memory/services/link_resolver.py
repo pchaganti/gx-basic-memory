@@ -5,6 +5,7 @@ from typing import Optional, Tuple, List
 from loguru import logger
 
 from basic_memory.repository.entity_repository import EntityRepository
+from basic_memory.services.exceptions import EntityNotFoundError
 from basic_memory.services.search_service import SearchService
 from basic_memory.models import Entity
 from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
@@ -57,6 +58,9 @@ class LinkResolver:
             best_match = self._select_best_match(clean_text, results)
             logger.debug(f"Selected best match from {len(results)} results: {best_match.permalink}")
             return await self.entity_repository.get_by_permalink(best_match.permalink)
+        
+        # if we couldn't find anything then return None
+        return None
 
     def _normalize_link_text(self, link_text: str) -> Tuple[str, Optional[str]]:
         """Normalize link text and extract alias if present.

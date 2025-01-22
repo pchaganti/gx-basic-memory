@@ -54,6 +54,39 @@ async def test_read_note_not_found(app):
 
 
 @pytest.mark.asyncio
+async def test_write_note_update_existing(app):
+    """Test creating a new note.
+
+    Should:
+    - Create entity with correct type and content
+    - Save markdown content
+    - Handle tags correctly
+    - Return valid permalink
+    """
+    permalink = await notes.write_note(
+        title="Test Note",
+        content="# Test\nThis is a test note",
+        tags=["test", "documentation"]
+    )
+
+    assert permalink  # Got a valid permalink
+
+    permalink = await notes.write_note(
+        title="Test Note",
+        content="# Test\nThis is an updated note",
+        tags=["test", "documentation"]
+    )
+
+
+    # Try reading it back
+    content = await notes.read_note(permalink)
+    assert "# Test\nThis is an updated note" in content
+    assert "tags:" in content
+    assert "- '#test'" in content
+    assert "- '#documentation'" in content
+
+
+@pytest.mark.asyncio
 async def test_read_note_by_title(app):
     """Test reading a note by its title."""
     # First create a note

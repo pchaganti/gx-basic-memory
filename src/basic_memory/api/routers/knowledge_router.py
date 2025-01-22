@@ -2,14 +2,14 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query, Response
 from loguru import logger
 
 from basic_memory.deps import (
     EntityServiceDep,
     get_search_service,
     RelationServiceDep,
-    ObservationServiceDep,
+    ObservationServiceDep, SearchServiceDep,
 )
 from basic_memory.schemas import (
     CreateEntityRequest,
@@ -23,14 +23,40 @@ from basic_memory.schemas import (
     DeleteEntitiesRequest,
     UpdateEntityRequest,
 )
-from basic_memory.schemas.base import PathId
+from basic_memory.schemas.base import PathId, Entity
 from basic_memory.services.exceptions import EntityNotFoundError
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 ## Create endpoints
 
+@router.put("/entities/{permalink:path}", response_model=EntityResponse)
+async def create_or_update_entity(
+        permalink: PathId,
+        data: Entity,
+        response: Response,
+        background_tasks: BackgroundTasks,
+        entity_service: EntityServiceDep,
+        search_service: SearchServiceDep,
+) -> EntityResponse:
+    """Create or update an entity. If entity exists, it will be updated, otherwise created."""
+    # Validate permalink matches
+    if data.permalink != permalink:
+        raise HTTPException(
+            status_code=400,
+            detail="Entity permalink must match URL path"
+        )
 
+    # Try create_or_update operation
+    entity, created = await entity_service.create_or_update_entity(data)
+    response.status_code = 201 if created else 200
+    
+    # Always reindex since content has changed
+    await search_service.index_entity(entity, background_tasks=background_tasks)
+
+    return EntityResponse.model_validate(entity)
+
+    
 @router.post("/entities", response_model=EntityListResponse)
 async def create_entities(
     data: CreateEntityRequest,
@@ -49,30 +75,6 @@ async def create_entities(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )
 
-
-@router.put("/entities/{permalink:path}", response_model=EntityResponse)
-async def update_entity(
-    permalink: PathId,
-    data: UpdateEntityRequest,
-    background_tasks: BackgroundTasks,
-    entity_service: EntityServiceDep,
-    search_service=Depends(get_search_service),
-) -> EntityResponse:
-    """Update an existing entity and reindex it."""
-    try:
-        # Convert request to dict, excluding None values
-        update_data = data.model_dump(exclude_none=True)
-
-        # Update the entity
-        updated_entity = await entity_service.update_entity(permalink, **update_data)
-
-        # Reindex since content changed
-        await search_service.index_entity(updated_entity, background_tasks=background_tasks)
-
-        return EntityResponse.model_validate(updated_entity)
-
-    except EntityNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Entity with {permalink} not found")
 
 
 @router.post("/relations", response_model=EntityListResponse)

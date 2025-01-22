@@ -114,10 +114,10 @@ FileServiceDep = Annotated[FileService, Depends(get_file_service)]
 
 
 async def get_entity_service(
-    entity_repository: EntityRepositoryDep, file_service: FileServiceDep
+    entity_repository: EntityRepositoryDep, file_service: FileServiceDep, link_resolver: "LinkResolverDep"
 ) -> EntityService:
     """Create EntityService with repository."""
-    return EntityService(entity_repository=entity_repository, file_service=file_service)
+    return EntityService(entity_repository=entity_repository, file_service=file_service, link_resolver=link_resolver)
 
 
 EntityServiceDep = Annotated[EntityService, Depends(get_entity_service)]

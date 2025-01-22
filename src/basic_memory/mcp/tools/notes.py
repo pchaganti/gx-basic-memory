@@ -10,11 +10,12 @@ from loguru import logger
 
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.async_client import client
+from basic_memory.schemas import EntityResponse
 from basic_memory.schemas.request import CreateEntityRequest
 from basic_memory.schemas.base import Entity, Relation
 from basic_memory.schemas.request import CreateRelationsRequest
 from basic_memory.mcp.tools.knowledge import create_entities, create_relations
-from basic_memory.mcp.tools.utils import call_get
+from basic_memory.mcp.tools.utils import call_get, call_put
 
 
 @mcp.tool(
@@ -53,22 +54,20 @@ async def write_note(
 
     # Create the entity request
     metadata = {"tags": [f"#{tag}" for tag in tags]} if tags else None
-    request = CreateEntityRequest(
-        entities=[
-            Entity(
+    entity = Entity(
                 title=title,
                 entity_type="note",
                 content_type="text/markdown",
                 content=content,
-                # Convert tags to observations if provided
                 entity_metadata=metadata,
             )
-        ]
-    )
 
     # Use existing knowledge tool
-    result = await create_entities(request)
-    return result.entities[0].permalink
+    logger.info(f"Creating {entity.permalink}")
+    url = f"/knowledge/entities/{entity.permalink}"
+    response = await call_put(client, url, json=entity.model_dump())
+    result =  EntityResponse.model_validate(response.json())
+    return result.permalink
 
 
 @mcp.tool(description="Read a note's content by its title or permalink")
