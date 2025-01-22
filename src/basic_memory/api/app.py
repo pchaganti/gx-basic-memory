@@ -2,7 +2,8 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.exception_handlers import http_exception_handler
 from loguru import logger
 
 from basic_memory import db
@@ -32,3 +33,11 @@ app.include_router(discovery.router)
 app.include_router(search.router)
 app.include_router(memory.router)
 app.include_router(resource.router)
+
+
+@app.exception_handler(Exception)
+async def exception_handler(request, exc):
+    logger.exception(
+        f"An unhandled exception occurred for request '{request.url}', exception: {exc}"
+    )
+    return await http_exception_handler(request, HTTPException(status_code=500, detail=exc.args[0]))
