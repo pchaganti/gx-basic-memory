@@ -1,4 +1,5 @@
 """Tests for RelationService."""
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -23,6 +24,9 @@ async def test_entities(
             file_path="test/test_entity_1.md",
             summary="Test entity 1",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+
         )
         entity2 = EntityModel(
             title="test_entity_2",
@@ -31,6 +35,9 @@ async def test_entities(
             file_path="test/test_entity_2.md",
             summary="Test entity 2",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+
         )
         session.add_all([entity1, entity2])
         await session.commit()

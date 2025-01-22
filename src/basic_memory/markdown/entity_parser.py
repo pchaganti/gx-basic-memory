@@ -6,6 +6,7 @@ Uses markdown-it with plugins to parse structured data from markdown content.
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Optional
+from dateparser import parse
 
 from markdown_it import MarkdownIt
 import frontmatter
@@ -43,13 +44,23 @@ class EntityParser:
         return str(rel_path)
 
     def parse_date(self, value: Any) -> Optional[datetime]:
-        """Parse various date formats into datetime."""
+        """Parse date strings using dateparser for maximum flexibility.
+        
+        Supports human friendly formats like:
+        - 2024-01-15
+        - Jan 15, 2024
+        - 2024-01-15 10:00 AM
+        - yesterday
+        - 2 days ago
+        """
         if isinstance(value, datetime):
             return value
         if isinstance(value, str):
             try:
-                return datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except (ValueError, TypeError):
+                parsed = parse(value)
+                if parsed:
+                    return parsed
+            except Exception:
                 pass
         return None
 

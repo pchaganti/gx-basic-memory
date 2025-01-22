@@ -1,5 +1,7 @@
 """Tests for the ObservationRepository."""
 
+from datetime import datetime, timezone
+
 import pytest
 import pytest_asyncio
 import sqlalchemy
@@ -94,13 +96,25 @@ async def test_delete_observations(session_maker: async_sessionmaker, repo):
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add(entity)
         await session.flush()
 
         # Create test observations
-        obs1 = Observation(entity_id=entity.id, content="Test observation 1")
-        obs2 = Observation(entity_id=entity.id, content="Test observation 2")
+        obs1 = Observation(
+            entity_id=entity.id,
+            content="Test observation 1",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        obs2 = Observation(
+            entity_id=entity.id,
+            content="Test observation 2",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
         session.add_all([obs1, obs2])
 
     # Test deletion by entity_id
@@ -124,12 +138,19 @@ async def test_delete_observation_by_id(session_maker: async_sessionmaker, repo)
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add(entity)
         await session.flush()
 
         # Create test observation
-        obs = Observation(entity_id=entity.id, content="Test observation")
+        obs = Observation(
+            entity_id=entity.id,
+            content="Test observation",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
         session.add(obs)
 
     # Test deletion by ID
@@ -153,13 +174,17 @@ async def test_delete_observation_by_content(session_maker: async_sessionmaker, 
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add(entity)
         await session.flush()
 
         # Create test observations
-        obs1 = Observation(entity_id=entity.id, content="Delete this observation")
-        obs2 = Observation(entity_id=entity.id, content="Keep this observation")
+        obs1 = Observation(entity_id=entity.id, content="Delete this observation", created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),)
+        obs2 = Observation(entity_id=entity.id, content="Keep this observation", created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),)
         session.add_all([obs1, obs2])
 
     # Test deletion by content
@@ -184,15 +209,35 @@ async def test_find_by_category(session_maker: async_sessionmaker, repo):
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add(entity)
         await session.flush()
 
         # Create test observations with different categories
         observations = [
-            Observation(entity_id=entity.id, content="Tech observation", category="tech"),
-            Observation(entity_id=entity.id, content="Design observation", category="design"),
-            Observation(entity_id=entity.id, content="Another tech observation", category="tech"),
+            Observation(
+                entity_id=entity.id,
+                content="Tech observation",
+                category="tech",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
+            Observation(
+                entity_id=entity.id,
+                content="Design observation",
+                category="design",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
+            Observation(
+                entity_id=entity.id,
+                content="Another tech observation",
+                category="tech",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
         ]
         session.add_all(observations)
         await session.commit()
@@ -226,20 +271,42 @@ async def test_observation_categories(session_maker: async_sessionmaker, repo):
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add(entity)
         await session.flush()
 
         # Create observations with various categories
         observations = [
-            Observation(entity_id=entity.id, content="First tech note", category="tech"),
+            Observation(
+                entity_id=entity.id,
+                content="First tech note",
+                category="tech",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
             Observation(
                 entity_id=entity.id,
                 content="Second tech note",
                 category="tech",  # Duplicate category
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
-            Observation(entity_id=entity.id, content="Design note", category="design"),
-            Observation(entity_id=entity.id, content="Feature note", category="feature"),
+            Observation(
+                entity_id=entity.id,
+                content="Design note",
+                category="design",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
+            Observation(
+                entity_id=entity.id,
+                content="Feature note",
+                category="feature",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
         ]
         session.add_all(observations)
         await session.commit()
@@ -274,6 +341,8 @@ async def test_find_by_category_case_sensitivity(session_maker: async_sessionmak
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add(entity)
         await session.flush()
@@ -283,6 +352,8 @@ async def test_find_by_category_case_sensitivity(session_maker: async_sessionmak
             entity_id=entity.id,
             content="Tech note",
             category="tech",  # lowercase in database
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add(obs)
         await session.commit()

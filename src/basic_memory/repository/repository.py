@@ -1,6 +1,6 @@
 """Base repository implementation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Type, Optional, Any, Sequence, TypeVar, List
 
 from loguru import logger
@@ -54,9 +54,7 @@ class Repository[T: Base]:
     async def select_by_ids(self, session: AsyncSession, ids: List[int]) -> Sequence[T]:
         """Select multiple entities by IDs using an existing session."""
         query = (
-            select(self.Model)
-            .where(self.primary_key.in_(ids))
-            .options(*self.get_load_options())
+            select(self.Model).where(self.primary_key.in_(ids)).options(*self.get_load_options())
         )
         result = await session.execute(query)
         return result.scalars().all()
@@ -68,6 +66,10 @@ class Repository[T: Base]:
         :return: the added model instance
         """
         async with db.scoped_session(self.session_maker) as session:
+            
+            # set timestamps only if not already set
+            model.created_at = model.created_at or datetime.now(timezone.utc)
+            model.updated_at = model.updated_at or datetime.now(timezone.utc)
             session.add(model)
             await session.flush()
 
@@ -83,9 +85,14 @@ class Repository[T: Base]:
         :return: the added models instances
         """
         async with db.scoped_session(self.session_maker) as session:
+            # set timestamps only if not already set
+            for m in models:
+                m.created_at = m.created_at or datetime.now(timezone.utc)
+                m.updated_at = m.updated_at or datetime.now(timezone.utc)
+                
             session.add_all(models)
             await session.flush()
-            
+
             # Query within same session
             return await self.select_by_ids(session, [m.id for m in models])  # pyright: ignore [reportAttributeAccessIssue]
 
@@ -107,12 +114,11 @@ class Repository[T: Base]:
             await session.refresh(instance, relationships or [])
             logger.debug(f"Refreshed relationships: {relationships}")
 
-    async def find_all(self, skip: int = 0, limit: Optional[int] = 0 ) -> Sequence[T]:
+    async def find_all(self, skip: int = 0, limit: Optional[int] = 0) -> Sequence[T]:
         """Fetch records from the database with pagination."""
         logger.debug(f"Finding all {self.Model.__name__} (skip={skip}, limit={limit})")
 
         async with db.scoped_session(self.session_maker) as session:
-            
             query = select(self.Model).offset(skip).options(*self.get_load_options())
             if limit:
                 query = query.limit(limit)
@@ -154,27 +160,27 @@ class Repository[T: Base]:
 
     async def find_modified_since(self, since: datetime) -> Sequence[T]:
         """Find all records modified since the given timestamp.
-        
+
         This method assumes the model has an updated_at column. Override
         in subclasses if a different column should be used.
-        
+
         Args:
             since: Datetime to search from
-            
+
         Returns:
             Sequence of records modified since the timestamp
         """
         logger.debug(f"Finding {self.Model.__name__} modified since: {since}")
-        
-        if not hasattr(self.Model, 'updated_at'):
+
+        if not hasattr(self.Model, "updated_at"):
             raise AttributeError(f"{self.Model.__name__} does not have updated_at column")
-            
+
         query = (
             select(self.Model)
             .filter(self.Model.updated_at >= since)
             .options(*self.get_load_options())
         )
-        
+
         async with db.scoped_session(self.session_maker) as session:
             result = await session.execute(query)
             items = result.scalars().all()
@@ -188,6 +194,13 @@ class Repository[T: Base]:
             # Only include valid columns that are provided in entity_data
             model_data = self.get_model_data(data)
             model = self.Model(**model_data)
+            
+            # set timestamps only if not already set
+            if not model.created_at:
+                model.created_at = datetime.now(timezone.utc)
+            if not model.updated_at:
+                model.updated_at = datetime.now(timezone.utc)
+            
             session.add(model)
             await session.flush()
 
@@ -201,7 +214,14 @@ class Repository[T: Base]:
 
         async with db.scoped_session(self.session_maker) as session:
             # Only include valid columns that are provided in entity_data
-            model_list = [self.Model(**self.get_model_data(d)) for d in data_list]
+            model_list = [
+                self.Model(
+                    **self.get_model_data(d),
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                )
+                for d in data_list
+            ]
             session.add_all(model_list)
             await session.flush()
 
@@ -220,7 +240,7 @@ class Repository[T: Base]:
                 for key, value in entity_data.items():
                     if key in self.valid_columns:
                         setattr(entity, key, value)
-
+                
                 await session.flush()  # Make sure changes are flushed
                 await session.refresh(entity)  # Refresh
 
@@ -279,7 +299,7 @@ class Repository[T: Base]:
             logger.debug(f"Counted {count} {self.Model.__name__} records")
             return count
 
-    async def execute_query(self, query: Executable, use_query_options:bool = True) -> Result[Any]:
+    async def execute_query(self, query: Executable, use_query_options: bool = True) -> Result[Any]:
         """Execute a query asynchronously."""
 
         query = query.options(*self.get_load_options()) if use_query_options else query

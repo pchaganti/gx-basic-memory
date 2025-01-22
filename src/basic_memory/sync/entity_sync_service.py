@@ -34,6 +34,8 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
         file_path=file_path,
         content_type="text/markdown",
         summary=markdown.content.content,
+        created_at=markdown.frontmatter.created,
+        updated_at=markdown.frontmatter.modified,
         observations=[
             Observation(content=obs.content, category=get_valid_category(obs), context=obs.context)
             for obs in markdown.content.observations
@@ -73,6 +75,21 @@ class EntitySyncService:
 
         # Mark as incomplete sync
         model.checksum = None
+        # Set timestamps from frontmatter
+        created_at = markdown.frontmatter.created
+        updated_at = markdown.frontmatter.modified
+        
+        model.created_at = created_at
+        model.updated_at = updated_at
+        
+        for obs in model.observations:
+            obs.created_at = created_at
+            obs.updated_at = updated_at
+        
+        for rel in model.relations:
+            rel.created_at = created_at
+            rel.updated_at = updated_at
+        
         return await self.entity_repository.add(model)
 
     async def update_entity_and_observations(
@@ -116,6 +133,8 @@ class EntitySyncService:
                 "title": db_entity.title,
                 "entity_type": db_entity.entity_type,
                 "summary": db_entity.summary,
+                "created_at": markdown.frontmatter.created,
+                "updated_at": markdown.frontmatter.modified,
                 # Mark as incomplete
                 "checksum": None,
             },

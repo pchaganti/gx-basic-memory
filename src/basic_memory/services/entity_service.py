@@ -1,5 +1,5 @@
 """Service for managing entities in the database."""
-
+from datetime import datetime, timezone
 from typing import Dict, Any, Sequence, List, Optional
 
 from loguru import logger
@@ -75,7 +75,13 @@ class EntityService(BaseService[EntityModel]):
         db_entity = None
         try:
             # 1. Create entity in DB
-            model = entity_model(schema)
+            model = entity_model(schema)    
+            
+            # set timestamps for observations if present
+            for observation in model.observations:
+                observation.created_at = observation.created_at or datetime.now(timezone.utc)
+                observation.updated_at = observation.updated_at or datetime.now(timezone.utc)
+            
             db_entity = await self.repository.add(model)
 
             # if content is provided use that, otherwise write the entity info
@@ -147,6 +153,7 @@ class EntityService(BaseService[EntityModel]):
 
             # Update entity in database if we have changes
             if update_data:
+                update_data["updated_at"] = datetime.now(timezone.utc)
                 entity = await self.repository.update(entity.id, update_data)
 
             # Always write file if we have any updates

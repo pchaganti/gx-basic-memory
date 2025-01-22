@@ -1,6 +1,6 @@
 """Tests for the EntityRepository."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -17,8 +17,18 @@ async def entity_with_observations(session_maker, sample_entity):
     """Create an entity with observations."""
     async with db.scoped_session(session_maker) as session:
         observations = [
-            Observation(entity_id=sample_entity.id, content="First observation"),
-            Observation(entity_id=sample_entity.id, content="Second observation"),
+            Observation(
+                entity_id=sample_entity.id,
+                content="First observation",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
+            Observation(
+                entity_id=sample_entity.id,
+                content="Second observation",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
         ]
         session.add_all(observations)
         return sample_entity
@@ -35,6 +45,8 @@ async def related_results(session_maker):
             file_path="source/source.md",
             summary="Source entity",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         target = Entity(
             title="target",
@@ -43,12 +55,20 @@ async def related_results(session_maker):
             file_path="target/target.md",
             summary="Target entity",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add(source)
         session.add(target)
         await session.flush()
 
-        relation = Relation(from_id=source.id, to_id=target.id, relation_type="connects_to")
+        relation = Relation(
+            from_id=source.id,
+            to_id=target.id,
+            relation_type="connects_to",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
         session.add(relation)
 
         return source, target, relation
@@ -284,6 +304,8 @@ async def test_entities(session_maker):
                 permalink="type1/entity1",
                 file_path="type1/entity1.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
             Entity(
                 title="entity2",
@@ -292,6 +314,8 @@ async def test_entities(session_maker):
                 permalink="type1/entity2",
                 file_path="type1/entity2.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
             Entity(
                 title="entity3",
@@ -300,6 +324,8 @@ async def test_entities(session_maker):
                 permalink="type2/entity3",
                 file_path="type2/entity3.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
         ]
         session.add_all(entities)
@@ -365,8 +391,18 @@ async def test_delete_by_permalinks_with_observations(
     # Add observations
     async with db.scoped_session(session_maker) as session:
         observations = [
-            Observation(entity_id=test_entities[0].id, content="First observation"),
-            Observation(entity_id=test_entities[1].id, content="Second observation"),
+            Observation(
+                entity_id=test_entities[0].id,
+                content="First observation",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
+            Observation(
+                entity_id=test_entities[1].id,
+                content="Second observation",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
         ]
         session.add_all(observations)
 
@@ -399,6 +435,8 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
             file_path="service/core.md",
             summary="Core service",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         dbe = Entity(
             title="db_service",
@@ -407,6 +445,8 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
             file_path="service/db.md",
             summary="Database service",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         # Related entity of different type
         config = Entity(
@@ -416,6 +456,8 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
             file_path="config/service.md",
             summary="Service configuration",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add_all([core, dbe, config])
         await session.flush()
@@ -423,9 +465,11 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
         # Create relations in both directions
         relations = [
             # core -> db (depends_on)
-            Relation(from_id=core.id, to_id=dbe.id, relation_type="depends_on"),
+            Relation(from_id=core.id, to_id=dbe.id, relation_type="depends_on", created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),),
             # config -> core (configures)
-            Relation(from_id=config.id, to_id=core.id, relation_type="configures"),
+            Relation(from_id=config.id, to_id=core.id, relation_type="configures", created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),),
         ]
         session.add_all(relations)
 
@@ -503,6 +547,8 @@ async def test_get_by_title(entity_repository: EntityRepository, session_maker):
                 permalink="test/unique-title",
                 file_path="test/unique-title.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
             Entity(
                 title="Another Title",
@@ -510,6 +556,8 @@ async def test_get_by_title(entity_repository: EntityRepository, session_maker):
                 permalink="test/another-title",
                 file_path="test/another-title.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
         ]
         session.add_all(entities)
@@ -541,6 +589,8 @@ async def test_get_by_file_path(entity_repository: EntityRepository, session_mak
                 permalink="test/unique-title",
                 file_path="test/unique-title.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
         ]
         session.add_all(entities)

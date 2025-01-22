@@ -1,5 +1,7 @@
 """Tests for the ObservationService."""
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -116,7 +118,11 @@ async def test_get_observations_by_context(
     # Create observation with context
     async with session_maker() as session:
         obs = Observation(
-            entity_id=sample_entity.id, content="Contextual observation", context="test_context"
+            entity_id=sample_entity.id,
+            content="Contextual observation",
+            context="test_context",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add(obs)
         await session.commit()

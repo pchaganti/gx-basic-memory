@@ -97,10 +97,14 @@ async def relation_repository(
 
 @pytest_asyncio.fixture
 async def entity_service(
-    entity_repository: EntityRepository, file_service: FileService, link_resolver: LinkResolver,
+    entity_repository: EntityRepository,
+    file_service: FileService,
+    link_resolver: LinkResolver,
 ) -> EntityService:
     """Create EntityService with repository."""
-    return EntityService(entity_repository=entity_repository, file_service=file_service, link_resolver=link_resolver)
+    return EntityService(
+        entity_repository=entity_repository, file_service=file_service, link_resolver=link_resolver
+    )
 
 
 @pytest_asyncio.fixture
@@ -242,12 +246,34 @@ async def full_entity(sample_entity, entity_repository):
     )
 
     observations = [
-        Observation(content="Tech note", category=ObservationCategory.TECH),
-        Observation(content="Design note", category=ObservationCategory.DESIGN),
+        Observation(
+            content="Tech note",
+            category=ObservationCategory.TECH,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
+        Observation(
+            content="Design note",
+            category=ObservationCategory.DESIGN,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
     ]
     relations = [
-        Relation(from_id=search_entity.id, to_id=sample_entity.id, relation_type="out1"),
-        Relation(from_id=search_entity.id, to_id=sample_entity.id, relation_type="out2"),
+        Relation(
+            from_id=search_entity.id,
+            to_id=sample_entity.id,
+            relation_type="out1",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
+        Relation(
+            from_id=search_entity.id,
+            to_id=sample_entity.id,
+            relation_type="out2",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        ),
     ]
     search_entity.observations = observations
     search_entity.outgoing_relations = relations

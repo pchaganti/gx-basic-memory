@@ -1,4 +1,5 @@
 """Tests for the RelationRepository."""
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -19,6 +20,8 @@ async def source_entity(session_maker):
         file_path="source/test_source.md",
         summary="Source entity",
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     async with db.scoped_session(session_maker) as session:
         session.add(entity)
@@ -36,6 +39,8 @@ async def target_entity(session_maker):
         file_path="target/test_target.md",
         summary="Target entity",
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     async with db.scoped_session(session_maker) as session:
         session.add(entity)
@@ -47,8 +52,10 @@ async def target_entity(session_maker):
 async def test_relations(session_maker, source_entity, target_entity):
     """Create test relations."""
     relations = [
-        Relation(from_id=source_entity.id, to_id=target_entity.id, relation_type="connects_to"),
-        Relation(from_id=source_entity.id, to_id=target_entity.id, relation_type="depends_on"),
+        Relation(from_id=source_entity.id, to_id=target_entity.id, relation_type="connects_to", created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),),
+        Relation(from_id=source_entity.id, to_id=target_entity.id, relation_type="depends_on", created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),),
     ]
     async with db.scoped_session(session_maker) as session:
         session.add_all(relations)

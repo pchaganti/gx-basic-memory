@@ -1,5 +1,7 @@
 """Tests for discovery router endpoints."""
 
+from datetime import datetime, timezone
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
@@ -23,8 +25,18 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             permalink="component/memory-service",
             file_path="component/memory_service.md",
             observations=[
-                Observation(category="tech", content="Using SQLite for storage"),
-                Observation(category="design", content="Local-first architecture"),
+                Observation(
+                    category="tech",
+                    content="Using SQLite for storage",
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                ),
+                Observation(
+                    category="design",
+                    content="Local-first architecture",
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                ),
             ],
         ),
         Entity(
@@ -35,8 +47,18 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             permalink="spec/file-format",
             file_path="spec/file_format.md",
             observations=[
-                Observation(category="feature", content="Support for frontmatter"),
-                Observation(category="tech", content="UTF-8 encoding"),
+                Observation(
+                    category="feature",
+                    content="Support for frontmatter",
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                ),
+                Observation(
+                    category="tech",
+                    content="UTF-8 encoding",
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                ),
             ],
         ),
         Entity(
@@ -47,8 +69,18 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             permalink="decision/tech-choice",
             file_path="decision/tech_choice.md",
             observations=[
-                Observation(category="note", content="Team discussed options"),
-                Observation(category="design", content="Selected for scalability"),
+                Observation(
+                    category="note",
+                    content="Team discussed options",
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                ),
+                Observation(
+                    category="design",
+                    content="Selected for scalability",
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                ),
             ],
         ),
         # Add another technical component for sorting tests
@@ -60,7 +92,12 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             permalink="component/api-service",
             file_path="component/api_service.md",
             observations=[
-                Observation(category="tech", content="FastAPI based"),
+                Observation(
+                    category="tech",
+                    content="FastAPI based",
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                ),
             ],
         ),
     ]

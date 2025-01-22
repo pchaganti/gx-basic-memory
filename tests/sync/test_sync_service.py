@@ -497,6 +497,53 @@ async def test_handle_entity_deletion(
     assert len(rel_results) == 0
 
 
+
+@pytest.mark.asyncio
+async def test_sync_preserves_timestamps(
+    sync_service: SyncService,
+    test_config: ProjectConfig,
+    entity_service: EntityService,
+):
+    """Test that sync preserves file timestamps and frontmatter dates."""
+    project_dir = test_config.home
+
+    # Create a file with explicit frontmatter dates
+    frontmatter_content = """
+---
+type: knowledge
+created: Jan 15, 2024 10:00 AM
+modified: Jan 15, 2024 11:00 AM
+---
+# Explicit Dates
+Testing frontmatter dates
+"""
+    await create_test_file(project_dir / "explicit_dates.md", frontmatter_content)
+
+    # Create a file without dates (will use file timestamps)
+    file_dates_content = """
+---
+type: knowledge
+---
+# File Dates
+Testing file timestamps
+"""
+    file_path = project_dir / "file_dates.md"
+    await create_test_file(file_path, file_dates_content)
+
+    # Run sync
+    await sync_service.sync(test_config.home)
+
+    # Check explicit frontmatter dates
+    explicit_entity = await entity_service.get_by_permalink("explicit-dates")
+    assert explicit_entity.created_at.isoformat().startswith("2024-01-15T10:00:00")
+    assert explicit_entity.updated_at.isoformat().startswith("2024-01-15T11:00:00")
+
+    # Check file timestamps
+    file_entity = await entity_service.get_by_permalink("file-dates")
+    file_stats = file_path.stat()
+    assert abs((file_entity.created_at.timestamp() - file_stats.st_ctime)) < 1  # Allow 1s difference
+    assert abs((file_entity.updated_at.timestamp() - file_stats.st_mtime)) < 1  # Allow 1s difference
+
 @pytest.mark.asyncio
 async def test_sync_null_checksum_cleanup(
     sync_service: SyncService, test_config: ProjectConfig, entity_service: EntityService
