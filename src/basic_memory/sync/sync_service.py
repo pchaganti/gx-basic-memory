@@ -69,9 +69,11 @@ class SyncService:
             entity = await self.entity_repository.get_by_file_path(old_path)
             if entity:
                 # Update file_path but keep the same permalink for link stability
-                await self.entity_repository.update(
+                updated = await self.entity_repository.update(
                     entity.id, {"file_path": new_path, "checksum": changes.checksums[new_path]}
                 )
+                # update search index
+                await self.search_service.index_entity(updated)
 
         # Handle deletions next
         # remove rows from db for files no longer present

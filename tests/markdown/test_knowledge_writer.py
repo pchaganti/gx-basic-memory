@@ -57,7 +57,7 @@ async def test_format_frontmatter_basic(knowledge_writer: KnowledgeWriter, sampl
     """Test basic frontmatter formatting."""
     frontmatter = await knowledge_writer.format_frontmatter(sample_entity)
 
-    assert frontmatter["id"] == "knowledge/test-entity"
+    assert frontmatter["permalink"] == "knowledge/test-entity"
     assert frontmatter["type"] == "test"
     assert frontmatter["created"] == "2025-01-01T00:00:00+00:00"
     assert frontmatter["modified"] == "2025-01-02T00:00:00+00:00"
@@ -74,7 +74,7 @@ async def test_format_frontmatter_with_metadata(
 
     assert frontmatter["status"] == "active"
     assert frontmatter["priority"] == "high"
-    assert frontmatter["id"] == "knowledge/test-entity"
+    assert frontmatter["permalink"] == "knowledge/test-entity"
 
 
 @pytest.mark.asyncio

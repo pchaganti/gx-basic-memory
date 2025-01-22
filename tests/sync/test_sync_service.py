@@ -545,6 +545,44 @@ Testing file timestamps
     assert abs((file_entity.updated_at.timestamp() - file_stats.st_mtime)) < 1  # Allow 1s difference
 
 @pytest.mark.asyncio
+async def test_file_move_updates_search_index(
+    sync_service: SyncService,
+    test_config: ProjectConfig,
+    search_service: SearchService,
+):
+    """Test that moving a file updates its path in the search index."""
+    project_dir = test_config.home
+
+    # Create initial file
+    content = """
+---
+type: knowledge
+---
+# Test Move
+Content for move test
+"""
+    old_path = project_dir / "old" / "test_move.md"
+    old_path.parent.mkdir(parents=True)
+    await create_test_file(old_path, content)
+
+    # Initial sync
+    await sync_service.sync(test_config.home)
+
+    # Move the file
+    new_path = project_dir / "new" / "moved_file.md"
+    new_path.parent.mkdir(parents=True)
+    old_path.rename(new_path)
+
+    # Sync again
+    await sync_service.sync(test_config.home)
+
+    # Check search index has updated path
+    results = await search_service.search(SearchQuery(text="Content for move test"))
+    assert len(results) == 1
+    assert results[0].file_path == str(new_path.relative_to(project_dir))
+
+
+@pytest.mark.asyncio
 async def test_sync_null_checksum_cleanup(
     sync_service: SyncService, test_config: ProjectConfig, entity_service: EntityService
 ):

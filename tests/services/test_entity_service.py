@@ -55,7 +55,7 @@ async def test_create_entity(entity_service: EntityService, file_service: FileSe
     metadata = yaml.safe_load(frontmatter)
 
     # Verify frontmatter contents
-    assert metadata["id"] == entity.permalink
+    assert metadata["permalink"] == entity.permalink
     assert metadata["type"] == entity.entity_type
     assert "created" in metadata
     assert "modified" in metadata
@@ -440,7 +440,7 @@ async def test_update_entity_name(entity_service: EntityService, file_service: F
 
     _, frontmatter, _ = content.split("---", 2)
     metadata = yaml.safe_load(frontmatter)
-    assert metadata["id"] == entity.permalink
+    assert metadata["permalink"] == entity.permalink
 
     # And verify content uses new name for title
     assert "# new-name" in content
