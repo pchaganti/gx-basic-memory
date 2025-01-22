@@ -35,6 +35,29 @@ class SyncService:
         self.entity_repository = entity_repository
         self.search_service = search_service
 
+    async def handle_entity_deletion(self, file_path: str):
+        """Handle complete entity deletion including search index cleanup."""
+        # First get entity to get permalink before deletion
+        entity = await self.entity_repository.get_by_file_path(file_path)
+        if entity:
+            logger.debug(f"Deleting entity and cleaning up search index: {file_path}")
+
+            # Delete from db (this cascades to observations/relations)
+            await self.entity_sync_service.delete_entity_by_file_path(file_path)
+
+            # Clean up search index
+            permalinks = (
+                [entity.permalink]
+                + [o.permalink for o in entity.observations]
+                + [r.permalink for r in entity.relations]
+            )
+            logger.debug(f"Deleting from search index: {permalinks}")
+            for permalink in permalinks:
+                await self.search_service.delete_by_permalink(permalink)
+
+        else:
+            logger.debug(f"No entity found to delete: {file_path}")
+
     async def sync(self, directory: Path) -> SyncReport:
         """Sync knowledge files with database."""
         changes = await self.scanner.find_knowledge_changes(directory)
@@ -47,15 +70,13 @@ class SyncService:
             if entity:
                 # Update file_path but keep the same permalink for link stability
                 await self.entity_repository.update(
-                    entity.id,
-                    {"file_path": new_path, "checksum": changes.checksums[new_path]}
+                    entity.id, {"file_path": new_path, "checksum": changes.checksums[new_path]}
                 )
-                
+
         # Handle deletions next
         # remove rows from db for files no longer present
         for file_path in changes.deleted:
-            logger.debug(f"Deleting entity from db: {file_path}")
-            await self.entity_sync_service.delete_entity_by_file_path(file_path)
+            await self.handle_entity_deletion(file_path)
 
         # Parse files that need updating
         parsed_entities: Dict[str, EntityMarkdown] = {}
@@ -83,11 +104,13 @@ class SyncService:
         # Second pass
         for file_path, entity_markdown in parsed_entities.items():
             logger.debug(f"Updating relations for: {file_path}")
-            
+
             # Process relations
             checksum = changes.checksums[file_path]
-            entity = await self.entity_sync_service.update_entity_relations(file_path, entity_markdown)
-            
+            entity = await self.entity_sync_service.update_entity_relations(
+                file_path, entity_markdown
+            )
+
             # add to search index
             await self.search_service.index_entity(entity)
 

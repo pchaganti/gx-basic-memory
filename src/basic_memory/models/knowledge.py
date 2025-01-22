@@ -1,10 +1,8 @@
 """Knowledge graph models."""
 
 import re
-import os
 from datetime import datetime
 from typing import Optional
-from unidecode import unidecode
 
 from sqlalchemy import (
     Integer,
@@ -22,7 +20,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from basic_memory.models.base import Base
 from enum import Enum
 
-
+from basic_memory.utils import generate_permalink
 
 
 class Entity(Base):
@@ -89,10 +87,10 @@ class Entity(Base):
     def relations(self):
         return self.incoming_relations + self.outgoing_relations
 
-    @validates('permalink')
+    @validates("permalink")
     def validate_permalink(self, key, value):
         """Validate permalink format.
-        
+
         Requirements:
         1. Must be valid URI path component
         2. Only lowercase letters, numbers, and hyphens (no underscores)
@@ -101,8 +99,8 @@ class Entity(Base):
         """
         if not value:
             raise ValueError("Permalink must not be None")
-        
-        if not re.match(r'^[a-z0-9][a-z0-9\-/]*[a-z0-9]$', value):
+
+        if not re.match(r"^[a-z0-9][a-z0-9\-/]*[a-z0-9]$", value):
             raise ValueError(
                 f"Invalid permalink format: {value}. "
                 "Use only lowercase letters, numbers, and hyphens."
@@ -159,6 +157,17 @@ class Observation(Base):
     # Relationships
     entity = relationship("Entity", back_populates="observations")
 
+    @property
+    def permalink(self) -> str:
+        """
+        Create synthetic permalink for the observation
+            We can construct these because observations are always
+            defined in and owned by a single entity
+        """
+        return generate_permalink(
+            f"{self.entity.permalink}/observations/{self.category}/{self.content}"
+        )
+
     def __repr__(self) -> str:
         return f"Observation(id={self.id}, entity_id={self.entity_id}, content='{self.content}')"
 
@@ -193,6 +202,17 @@ class Relation(Base):
         "Entity", foreign_keys=[from_id], back_populates="outgoing_relations"
     )
     to_entity = relationship("Entity", foreign_keys=[to_id], back_populates="incoming_relations")
+
+    @property
+    def permalink(self) -> str:
+        """Create relation permalink showing the semantic connection:
+        source/relation_type/target
+        e.g., "specs/search/implements/features/search-ui"
+        """
+
+        return generate_permalink(
+            f"{self.from_entity.permalink}/{self.relation_type}/{self.to_entity.permalink}"
+        )
 
     def __repr__(self) -> str:
         return f"Relation(id={self.id}, from_id={self.from_id}, to_id={self.to_id}, type='{self.relation_type}')"

@@ -152,12 +152,6 @@ class SearchService:
 
         # Index each observation with synthetic permalink
         for obs in entity.observations:
-            # Create synthetic permalink for the observation
-            # We can construct these because observations are always
-            # defined in and owned by a single entity
-            observation_permalink = (
-                generate_permalink(f"{entity.permalink}/observations/{obs.category}/{obs.content}")
-            )
 
             # Index with parent entity's file path since that's where it's defined
             await self._do_index(
@@ -166,7 +160,7 @@ class SearchService:
                     type=SearchItemType.OBSERVATION.value,
                     title=f"{obs.category}: {obs.content[:50]}...",
                     content=obs.content,
-                    permalink=observation_permalink,
+                    permalink=obs.permalink,
                     file_path=entity.file_path,
                     category=obs.category,
                     entity_id=entity.id,
@@ -182,13 +176,6 @@ class SearchService:
 
         # Only index outgoing relations (ones defined in this file)
         for rel in entity.outgoing_relations:
-            # Create relation permalink showing the semantic connection:
-            # source/relation_type/target
-            # e.g., "specs/search/implements/features/search-ui"
-            relation_permalink = (
-                generate_permalink(f"{rel.from_entity.permalink}/{rel.relation_type}/{rel.to_entity.permalink}")
-            )
-
             # Create descriptive title showing the relationship
             relation_title = f"{rel.from_entity.title} → {rel.to_entity.title}"
 
@@ -197,7 +184,7 @@ class SearchService:
                     id=rel.id,
                     title=relation_title,
                     content=rel.context or "",
-                    permalink=relation_permalink,
+                    permalink=rel.permalink,
                     file_path=entity.file_path,
                     type=SearchItemType.RELATION.value,
                     from_id=rel.from_id,

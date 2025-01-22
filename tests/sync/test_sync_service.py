@@ -7,7 +7,10 @@ import pytest
 
 from basic_memory.config import ProjectConfig
 from basic_memory.models import Entity
-from basic_memory.services import EntityService
+from basic_memory.repository import EntityRepository
+from basic_memory.schemas.search import SearchQuery
+from basic_memory.services import EntityService, ObservationService
+from basic_memory.services.search_service import SearchService
 from basic_memory.sync.sync_service import SyncService
 
 
@@ -420,21 +423,24 @@ modified: 2024-01-01
     assert doc is not None
     # File should have a checksum, even if it's from either version
     assert doc.checksum is not None
-    
+
+
 @pytest.mark.asyncio
-async def test_permalink_formatting(sync_service: SyncService, test_config: ProjectConfig, entity_service: EntityService):
+async def test_permalink_formatting(
+    sync_service: SyncService, test_config: ProjectConfig, entity_service: EntityService
+):
     """Test that permalinks are properly formatted during sync."""
-    
+
     # Test cases with different filename formats
     test_files = {
-    # filename -> expected permalink
-    "my_awesome_feature.md": "my-awesome-feature",
-    "MIXED_CASE_NAME.md": "mixed-case-name",
-    "spaces and_underscores.md": "spaces-and-underscores",
-    "design/model_refactor.md": "design/model-refactor",
-    "test/multiple_word_directory/feature_name.md": "test/multiple-word-directory/feature-name",
+        # filename -> expected permalink
+        "my_awesome_feature.md": "my-awesome-feature",
+        "MIXED_CASE_NAME.md": "mixed-case-name",
+        "spaces and_underscores.md": "spaces-and-underscores",
+        "design/model_refactor.md": "design/model-refactor",
+        "test/multiple_word_directory/feature_name.md": "test/multiple-word-directory/feature-name",
     }
-    
+
     # Create test files
     for filename, _ in test_files.items():
         content: str = """
@@ -448,16 +454,48 @@ modified: 2024-01-01
 Testing permalink generation.
 """
         await create_test_file(test_config.home / filename, content)
-        
+
         # Run sync
         await sync_service.sync(test_config.home)
-        
+
     # Verify permalinks
     entities = await entity_service.repository.find_all()
     for filename, expected_permalink in test_files.items():
         # Find entity for this file
         entity = next(e for e in entities if e.file_path == filename)
-        assert entity.permalink == expected_permalink, f"File {filename} should have permalink {expected_permalink}"
+        assert (
+            entity.permalink == expected_permalink
+        ), f"File {filename} should have permalink {expected_permalink}"
+
+
+@pytest.mark.asyncio
+async def test_handle_entity_deletion(
+    test_graph,
+    sync_service: SyncService,
+    test_config: ProjectConfig,
+    entity_repository: EntityRepository,
+    observation_service: ObservationService,
+    search_service: SearchService,
+):
+    """Test deletion of entity cleans up search index."""
+    
+    root_entity = test_graph["root"]
+    # Delete the entity
+    await sync_service.handle_entity_deletion(root_entity.file_path)
+
+    # Verify entity is gone from db
+    assert await entity_repository.get_by_permalink(root_entity.permalink) is None
+
+    # Verify entity is gone from search index
+    entity_results = await search_service.search(SearchQuery(text=root_entity.title))
+    assert len(entity_results) == 0
+
+    obs_results = await search_service.search(SearchQuery(text="Root note 1"))
+    assert len(obs_results) == 0
+
+    rel_results = await search_service.search(SearchQuery(text="connects_to"))
+    assert len(rel_results) == 0
+
 
 @pytest.mark.asyncio
 async def test_sync_null_checksum_cleanup(
