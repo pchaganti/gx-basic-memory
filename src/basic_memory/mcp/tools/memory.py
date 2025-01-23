@@ -1,6 +1,6 @@
 """Discussion context tools for Basic Memory MCP server."""
 
-from typing import Optional, List
+from typing import Optional, Literal
 
 from loguru import logger
 
@@ -8,7 +8,6 @@ from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_get
 from basic_memory.schemas.memory import GraphContext, MemoryUrl
-from basic_memory.schemas.search import SearchItemType
 from basic_memory.schemas.base import TimeFrame
 
 
@@ -84,7 +83,7 @@ async def build_context(
     """,
 )
 async def recent_activity(
-    type: List[SearchItemType] = None,
+    type: Literal["entity", "observation", "relation"] = None,
     depth: Optional[int] = 1,
     timeframe: Optional[TimeFrame] = "7d",
     max_results: int = 10,
@@ -128,9 +127,16 @@ async def recent_activity(
     logger.info(
         f"Getting recent activity from {type}, depth={depth}, timeframe={timeframe}, max_results={max_results}"
     )
+    params = {
+        "depth": depth,
+        "timeframe": timeframe,
+        "max_results": max_results,
+        "type": type if type else None,
+    }
+
     response = await call_get(
         client,
         "/memory/recent",
-        params={"depth": depth, "timeframe": timeframe, "max_results": max_results, "type": type},
+        params=params,
     )
     return GraphContext.model_validate(response.json())
