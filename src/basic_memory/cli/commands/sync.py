@@ -70,6 +70,7 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
             entity_sync_service=knowledge_sync_service,
             entity_parser=entity_parser,
             entity_repository=entity_repository,
+            relation_repository=relation_repository,
             search_service=search_service,
         )
 

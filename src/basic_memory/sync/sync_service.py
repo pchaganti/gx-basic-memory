@@ -6,7 +6,7 @@ from typing import Dict
 from loguru import logger
 
 from basic_memory.markdown import EntityParser, EntityMarkdown
-from basic_memory.repository import EntityRepository
+from basic_memory.repository import EntityRepository, RelationRepository
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.entity_sync_service import EntitySyncService
@@ -27,12 +27,14 @@ class SyncService:
         entity_sync_service: EntitySyncService,
         entity_parser: EntityParser,
         entity_repository: EntityRepository,
+        relation_repository: RelationRepository,
         search_service: SearchService,
     ):
         self.scanner = scanner
         self.entity_sync_service = entity_sync_service
         self.entity_parser = entity_parser
         self.entity_repository = entity_repository
+        self.relation_repository = relation_repository
         self.search_service = search_service
 
     async def handle_entity_deletion(self, file_path: str):
@@ -118,5 +120,21 @@ class SyncService:
 
             # Set final checksum to mark sync complete
             await self.entity_repository.update(entity.id, {"checksum": checksum})
+
+        # Third pass: Try to resolve any forward references
+        logger.debug("Attempting to resolve forward references")
+        for relation in await self.relation_repository.find_unresolved_relations():
+            target_entity = await self.entity_sync_service.link_resolver.resolve_link(relation.to_name)
+            # check we found a link that is not the source
+            if target_entity and target_entity.id != relation.from_id:
+                logger.debug(f"Resolved forward reference: {relation.to_name} -> {target_entity.permalink}")
+                await self.relation_repository.update(relation.id, {
+                    "to_id": target_entity.id,
+                    "to_name": target_entity.title  # Update to actual title
+                })
+
+            # update search index
+            await self.search_service.index_entity(target_entity)
+
 
         return changes

@@ -182,6 +182,7 @@ async def sync_service(
     file_change_scanner: FileChangeScanner,
     entity_parser: EntityParser,
     entity_repository: EntityRepository,
+    relation_repository: RelationRepository,
     search_service: SearchService,
 ) -> SyncService:
     """Create sync service for testing."""
@@ -189,6 +190,7 @@ async def sync_service(
         scanner=file_change_scanner,
         entity_sync_service=entity_sync_service,
         entity_repository=entity_repository,
+        relation_repository=relation_repository,
         entity_parser=entity_parser,
         search_service=search_service,
     )
@@ -263,6 +265,7 @@ async def full_entity(sample_entity, entity_repository):
         Relation(
             from_id=search_entity.id,
             to_id=sample_entity.id,
+            to_name=sample_entity.title,
             relation_type="out1",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -270,6 +273,7 @@ async def full_entity(sample_entity, entity_repository):
         Relation(
             from_id=search_entity.id,
             to_id=sample_entity.id,
+            to_name=sample_entity.title,
             relation_type="out2",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -359,6 +363,7 @@ async def test_graph(
         Relation(
             from_id=root.id,
             to_id=conn1.id,
+            to_name = conn1.title,
             relation_type="connects_to",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -366,6 +371,7 @@ async def test_graph(
         Relation(
             from_id=conn1.id,
             to_id=conn2.id,
+            to_name=conn2.title,
             relation_type="connected_to",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -374,6 +380,7 @@ async def test_graph(
         Relation(
             from_id=conn2.id,
             to_id=deep.id,
+            to_name=deep.title,
             relation_type="deep_connection",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -382,6 +389,7 @@ async def test_graph(
         Relation(
             from_id=deep.id,
             to_id=deeper.id,
+            to_name=deeper.title,
             relation_type="deeper_connection",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),

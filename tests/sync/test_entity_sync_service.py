@@ -110,6 +110,10 @@ async def test_update_entity_relations(
         entity_sync_service: EntitySyncService, test_markdown: EntityMarkdown
 ):
     """Test second pass relation updates."""
+
+    # add a forward link to the markdown (entity does not exist)
+    test_markdown.content.relations.append(MarkdownRelation(type="depends_on", target="concept/doesnt-exist"))
+        
     # Create main entity first
     entity = await entity_sync_service.create_entity_from_markdown("test.md", test_markdown)
 
@@ -136,10 +140,10 @@ async def test_update_entity_relations(
 
     # Check relations
     assert updated is not None, "Entity should be updated"
-    assert len(updated.relations) == 2
+    assert len(updated.relations) == 3
 
     # Check relation details
-    relations = sorted(updated.relations, key=lambda r: r.relation_type)
+    relations = sorted(updated.relations, key=lambda r: r.id)
 
     assert relations[0].relation_type == "depends_on"
     assert relations[0].from_id == entity.id
@@ -148,6 +152,11 @@ async def test_update_entity_relations(
     assert relations[1].relation_type == "related_to"
     assert relations[1].from_id == entity.id
     assert relations[1].to_id == another_entity.id
+
+    assert relations[2].relation_type == "depends_on"
+    assert relations[2].from_id == entity.id
+    assert relations[2].to_id is None
+    assert relations[2].to_name == "concept/doesnt-exist"
 
 
 @pytest.mark.asyncio

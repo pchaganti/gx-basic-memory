@@ -177,7 +177,7 @@ class SearchService:
         # Only index outgoing relations (ones defined in this file)
         for rel in entity.outgoing_relations:
             # Create descriptive title showing the relationship
-            relation_title = f"{rel.from_entity.title} → {rel.to_entity.title}"
+            relation_title = f"{rel.from_entity.title} → {rel.to_entity.title}" if rel.to_entity else f"{rel.from_entity.title}"
 
             await self._do_index(
                 SearchIndexRow(

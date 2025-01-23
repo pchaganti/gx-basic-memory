@@ -159,15 +159,16 @@ class EntitySyncService:
                 rel.target,
             )
 
-            # Look up target entity
-            if not target_entity:
-                logger.warning(f"Skipping relation in {file_path}: target not found: {rel.target}")
-                continue
+            # if the target is found, store the id            
+            target_id = target_entity.id if target_entity else None
+            # if the target is found, store the title, otherwise add the target for a "forward link"
+            target_name = target_entity.title if target_entity else rel.target
 
             # Create the relation
             relation = Relation(
                 from_id=db_entity.id,
-                to_id=target_entity.id,
+                to_id=target_id,
+                to_name=target_name,
                 relation_type=rel.type,
                 context=rel.context,
             )

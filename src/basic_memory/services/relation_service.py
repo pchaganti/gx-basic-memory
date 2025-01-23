@@ -47,6 +47,7 @@ class RelationService(BaseService[RelationRepository]):
                 relation = RelationModel(
                     from_id=from_entity.id,
                     to_id=to_entity.id,
+                    to_name=to_entity.title,
                     relation_type=rs.relation_type,
                     context=rs.context,
                 )

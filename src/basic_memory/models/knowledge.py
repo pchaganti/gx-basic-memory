@@ -10,7 +10,6 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     UniqueConstraint,
-    text,
     DateTime,
     Index,
     JSON,
@@ -185,7 +184,10 @@ class Relation(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     from_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
-    to_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
+    to_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("entity.id", ondelete="CASCADE"), nullable=True
+    )
+    to_name: Mapped[str] = mapped_column(String)
     relation_type: Mapped[str] = mapped_column(String)
     context: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime)
@@ -206,6 +208,8 @@ class Relation(Base):
 
         return generate_permalink(
             f"{self.from_entity.permalink}/{self.relation_type}/{self.to_entity.permalink}"
+            if self.to_entity
+            else f"{self.from_entity.permalink}/{self.relation_type}"
         )
 
     def __repr__(self) -> str:

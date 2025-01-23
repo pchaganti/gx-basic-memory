@@ -67,5 +67,12 @@ class RelationRepository(Repository[Relation]):
         async with db.scoped_session(self.session_maker) as session:
             await session.execute(delete(Relation).where(Relation.from_id == entity_id))
 
+    async def find_unresolved_relations(self) -> Sequence[Relation]:
+        """Find all unresolved relations, where to_id is null."""
+        query = select(Relation).filter(Relation.to_id.is_(None))
+        result = await self.execute_query(query)
+        return result.scalars().all()
+
+
     def get_load_options(self) -> List[LoaderOption]:
         return [selectinload(Relation.from_entity), selectinload(Relation.to_entity)]

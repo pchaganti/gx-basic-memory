@@ -65,6 +65,7 @@ async def related_results(session_maker):
         relation = Relation(
             from_id=source.id,
             to_id=target.id,
+            to_name=target.title,
             relation_type="connects_to",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -465,11 +466,23 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
         # Create relations in both directions
         relations = [
             # core -> db (depends_on)
-            Relation(from_id=core.id, to_id=dbe.id, relation_type="depends_on", created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),),
+            Relation(
+                from_id=core.id,
+                to_id=dbe.id,
+                to_name="db_service",
+                relation_type="depends_on",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
             # config -> core (configures)
-            Relation(from_id=config.id, to_id=core.id, relation_type="configures", created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),),
+            Relation(
+                from_id=config.id,
+                to_id=core.id,
+                to_name="core_service",
+                relation_type="configures",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ),
         ]
         session.add_all(relations)
 
