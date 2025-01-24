@@ -31,7 +31,7 @@ class EntityFrontmatter(BaseModel):
     permalink: Optional[str] = None
     created: datetime
     modified: datetime
-    tags: List[str]
+    tags: Optional[List[str]] = None
 
 
 class EntityContent(BaseModel):
