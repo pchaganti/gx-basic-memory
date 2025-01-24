@@ -41,8 +41,14 @@ class FileService:
         entity: EntityModel,
         content: Optional[str] = None,
     ) -> Tuple[Path, str]:
-        """Write entity to filesystem and return path and checksum."""
+        """Write entity to filesystem and return path and checksum.
+        
+        If content is not provided, tries to preserve existing file content.
+        """
         try:
+            # Try to preserve existing content if not provided
+            content = await self.read_entity_content(entity) if content is None else content
+
             # Get frontmatter and content
             frontmatter = await self.knowledge_writer.format_frontmatter(entity)
             file_content = await self.knowledge_writer.format_content(

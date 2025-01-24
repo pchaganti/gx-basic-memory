@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from basic_memory.models import Entity, Relation
 from basic_memory.services.exceptions import FileOperationError
 from basic_memory.services.file_service import FileService
 
@@ -218,3 +219,60 @@ async def test_write_unicode_content(tmp_path: Path, file_service: FileService):
     content, _ = await file_service.read_file(test_path)
 
     assert content == test_content
+
+
+@pytest.mark.asyncio
+async def test_write_entity_preserves_content(
+        file_service: FileService,
+        sample_entity: Entity,
+):
+    """Test that write_entity_file preserves existing content when not explicitly provided."""
+    # Write initial content
+    initial_content = """# My Note
+
+This is my original content.
+It should be preserved."""
+    path, _ = await file_service.write_entity_file(sample_entity, content=initial_content)
+
+    # Add a relation to the entity (simulating link creation)
+    sample_entity.outgoing_relations = [
+        Relation(
+            from_id=1,
+            to_id=2,
+            to_name="other-note",
+            relation_type="relates_to",
+        )
+    ]
+
+    # Write entity file without providing content
+    await file_service.write_entity_file(sample_entity)
+
+    # Verify content was preserved
+    content, _ = await file_service.read_file(path)
+
+    # Content should have frontmatter and preserved content
+    assert "# My Note" in content
+    assert "This is my original content" in content
+    assert "It should be preserved" in content
+
+    # And should also have the new relation
+    assert "[[other-note]]" in content
+
+
+@pytest.mark.asyncio
+async def test_write_entity_handles_missing_content(
+        file_service: FileService,
+        sample_entity: Entity,
+):
+    """Test that write_entity_file handles case where there is no existing content gracefully."""
+    # Write without any content
+    path, _ = await file_service.write_entity_file(sample_entity)
+
+    # Should still create a valid file
+    content, _ = await file_service.read_file(path)
+
+    # Should have frontmatter
+    assert "permalink:" in content
+
+    # Should have title
+    assert sample_entity.title in content
