@@ -104,23 +104,28 @@ class MarkdownProcessor:
         frontmatter_dict = {
             "type": markdown.frontmatter.type,
             "permalink": markdown.frontmatter.permalink,
-            "created": markdown.frontmatter.created.isoformat() if markdown.frontmatter.created else None,
-            "modified": markdown.frontmatter.modified.isoformat() if markdown.frontmatter.modified else None,
-            **metadata
+            "created": markdown.frontmatter.created.isoformat()
+            if markdown.frontmatter.created
+            else None,
+            "modified": markdown.frontmatter.modified.isoformat()
+            if markdown.frontmatter.modified
+            else None,
+            **metadata,
         }
         frontmatter_dict = {k: v for k, v in frontmatter_dict.items() if v is not None}
 
         # Start with user content (or minimal title for new files)
-        content = markdown.content.content or f"# {markdown.frontmatter.title}\n"
+        content = markdown.content or f"# {markdown.frontmatter.title}\n"
 
-        # Add structured sections if present
-        if markdown.content.observations:
-            content += (
-                "\n\n## Observations\n\n"
-                + self.format_observations(markdown.content.observations)
+        # Add structured sections with proper spacing
+        content = content.rstrip()  # Remove trailing whitespace
+
+        if markdown.observations:
+            content += "\n\n## Observations\n\n" + self.format_observations(
+                markdown.observations
             )
-        if markdown.content.relations:
-            content += "\n## Relations\n\n" + self.format_relations(markdown.content.relations)
+        if markdown.relations:
+            content += "\n\n## Relations\n\n" + self.format_relations(markdown.relations)
 
         # Create Post object for frontmatter
         post = Post(content, **frontmatter_dict)

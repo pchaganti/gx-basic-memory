@@ -7,7 +7,6 @@ import pytest_asyncio
 
 from basic_memory.markdown.schemas import (
     EntityMarkdown,
-    EntityContent,
     EntityFrontmatter,
     Observation as MarkdownObservation,
     Relation as MarkdownRelation,
@@ -31,9 +30,10 @@ def test_frontmatter() -> EntityFrontmatter:
 
 
 @pytest_asyncio.fixture
-def test_content() -> EntityContent:
-    """Create test content with observations and relations."""
-    return EntityContent(
+def test_markdown(test_frontmatter) -> EntityMarkdown:
+    """Create complete test markdown entity."""
+    return EntityMarkdown(
+        frontmatter=test_frontmatter,
         content="A test entity description",
         observations=[
             MarkdownObservation(content="First observation"),
@@ -44,12 +44,6 @@ def test_content() -> EntityContent:
             MarkdownRelation(type="related_to", target="concept/another-entity"),
         ],
     )
-
-
-@pytest_asyncio.fixture
-def test_markdown(test_frontmatter, test_content) -> EntityMarkdown:
-    """Create complete test markdown entity."""
-    return EntityMarkdown(frontmatter=test_frontmatter, content=test_content)
 
 
 @pytest.mark.asyncio
@@ -87,8 +81,8 @@ async def test_update_entity_without_relations(
 
     # Modify markdown content
     test_markdown.frontmatter.metadata["title"] = "Updated Title"
-    test_markdown.content.content = "Updated description"
-    test_markdown.content.observations = [MarkdownObservation(content="Updated observation")]
+    test_markdown.content = "Updated description"
+    test_markdown.observations = [MarkdownObservation(content="Updated observation")]
 
     # Update entity
     updated = await entity_sync_service.update_entity_and_observations(
@@ -111,7 +105,7 @@ async def test_update_entity_relations(
     """Test second pass relation updates."""
 
     # add a forward link to the markdown (entity does not exist)
-    test_markdown.content.relations.append(
+    test_markdown.relations.append(
         MarkdownRelation(type="depends_on", target="concept/doesnt-exist")
     )
 

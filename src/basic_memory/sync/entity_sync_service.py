@@ -1,15 +1,16 @@
 """Service for managing entities in the database."""
+
 from pathlib import Path
 
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
-from basic_memory.models import Entity as EntityModel, Observation, Relation, ObservationCategory
 from basic_memory.markdown.schemas import EntityMarkdown
-from basic_memory.utils import generate_permalink
+from basic_memory.models import Entity as EntityModel, Observation, Relation, ObservationCategory
 from basic_memory.repository import EntityRepository, ObservationRepository, RelationRepository
 from basic_memory.services.exceptions import EntityNotFoundError
 from basic_memory.services.link_resolver import LinkResolver
+from basic_memory.utils import generate_permalink
 
 
 def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> EntityModel:
@@ -38,7 +39,7 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
         updated_at=markdown.frontmatter.modified,
         observations=[
             Observation(content=obs.content, category=get_valid_category(obs), context=obs.context)
-            for obs in markdown.content.observations
+            for obs in markdown.observations
         ],
     )
     return model
@@ -78,18 +79,18 @@ class EntitySyncService:
         # Set timestamps from frontmatter
         created_at = markdown.frontmatter.created
         updated_at = markdown.frontmatter.modified
-        
+
         model.created_at = created_at
         model.updated_at = updated_at
-        
+
         for obs in model.observations:
             obs.created_at = created_at
             obs.updated_at = updated_at
-        
+
         for rel in model.relations:
             rel.created_at = created_at
             rel.updated_at = updated_at
-        
+
         return await self.entity_repository.add(model)
 
     async def update_entity_and_observations(
@@ -108,7 +109,7 @@ class EntitySyncService:
         # Update fields from markdown
         db_entity.title = markdown.frontmatter.title
         db_entity.entity_type = markdown.frontmatter.type
-        db_entity.summary = markdown.content.content
+        db_entity.summary = markdown.content
 
         # Clear observations for entity
         await self.observation_repository.delete_by_fields(entity_id=db_entity.id)
@@ -121,7 +122,7 @@ class EntitySyncService:
                 category=obs.category,
                 context=obs.context,
             )
-            for obs in markdown.content.observations
+            for obs in markdown.observations
         ]
         await self.observation_repository.add_all(observations)
 
@@ -153,13 +154,13 @@ class EntitySyncService:
         await self.relation_repository.delete_outgoing_relations_from_entity(db_entity.id)
 
         # Process each relation
-        for rel in markdown.content.relations:
+        for rel in markdown.relations:
             # Resolve the target permalink
             target_entity = await self.link_resolver.resolve_link(
                 rel.target,
             )
 
-            # if the target is found, store the id            
+            # if the target is found, store the id
             target_id = target_entity.id if target_entity else None
             # if the target is found, store the title, otherwise add the target for a "forward link"
             target_name = target_entity.title if target_entity else rel.target

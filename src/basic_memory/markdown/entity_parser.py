@@ -15,7 +15,6 @@ from basic_memory.markdown.plugins import observation_plugin, relation_plugin
 from basic_memory.markdown.schemas import (
     EntityMarkdown,
     EntityFrontmatter,
-    EntityContent,
     Observation,
     Relation,
 )
@@ -103,16 +102,11 @@ class EntityParser:
                     rels = token.meta["relations"]
                     relations.extend([Relation.model_validate(r) for r in rels])
 
-        # Create EntityContent
-        entity_content = EntityContent(
+        return EntityMarkdown(
+            frontmatter=entity_frontmatter,
             content=post.content,
             observations=observations,
             relations=relations,
-        )
-
-        return EntityMarkdown(
-            frontmatter=entity_frontmatter,
-            content=entity_content,
         )
 
     def parse_tags(self, tags: Any) -> list[str]:

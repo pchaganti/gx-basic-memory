@@ -6,13 +6,10 @@ from typing import Optional, Tuple
 from loguru import logger
 
 from basic_memory import file_utils
-from basic_memory.markdown import EntityFrontmatter, EntityContent, EntityMarkdown, Observation, Relation
 from basic_memory.markdown.markdown_processor import MarkdownProcessor
 from basic_memory.markdown.utils import entity_model_to_markdown
-from basic_memory.services.exceptions import FileOperationError
 from basic_memory.models import Entity as EntityModel
-
-
+from basic_memory.services.exceptions import FileOperationError
 
 
 class FileService:
@@ -75,7 +72,7 @@ class FileService:
                 # merge content with entity
                 # if content is supplied use it or existing content
                 markdown = entity_model_to_markdown(
-                    entity, content=content or existing_markdown.content.content
+                    entity, content=content or existing_markdown.content
                 )
             else:
                 # Create new file structure with provided content
@@ -109,7 +106,7 @@ class FileService:
         try:
             file_path = self.get_entity_path(entity)
             markdown = await self.markdown_processor.read_file(file_path)
-            return markdown.content.content or ""
+            return markdown.content or ""
 
         except Exception as e:
             logger.error(f"Failed to read entity content: {e}")

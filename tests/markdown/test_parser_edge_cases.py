@@ -41,16 +41,16 @@ async def test_unicode_content(tmp_path):
 
     assert "测试" in entity.frontmatter.metadata["tags"]
     assert "chinese" not in entity.frontmatter.metadata["tags"]
-    assert "🧪" in entity.content.content
+    assert "🧪" in entity.content
 
     # Verify Unicode in observations
-    assert any(o.content == "Emoji test 👍" for o in entity.content.observations)
-    assert any(o.category == "中文" for o in entity.content.observations)
-    assert any(o.category == "русский" for o in entity.content.observations)
+    assert any(o.content == "Emoji test 👍" for o in entity.observations)
+    assert any(o.category == "中文" for o in entity.observations)
+    assert any(o.category == "русский" for o in entity.observations)
 
     # Verify Unicode in relations
-    assert any(r.target == "测试组件" for r in entity.content.relations)
-    assert any(r.target == "компонент" for r in entity.content.relations)
+    assert any(r.target == "测试组件" for r in entity.relations)
+    assert any(r.target == "компонент" for r in entity.relations)
 
 
 @pytest.mark.asyncio
@@ -61,8 +61,8 @@ async def test_empty_file(tmp_path):
 
     parser = EntityParser(tmp_path)
     entity = await parser.parse_file(empty_file)
-    assert entity.content.observations == []
-    assert entity.content.relations == []
+    assert entity.observations == []
+    assert entity.relations == []
 
 
 @pytest.mark.asyncio
@@ -86,9 +86,9 @@ async def test_missing_sections(tmp_path):
 
     parser = EntityParser(tmp_path)
     entity = await parser.parse_file(test_file)
-    assert len(entity.content.relations) == 1
-    assert entity.content.relations[0].target == "links"
-    assert entity.content.relations[0].type == "links to"
+    assert len(entity.relations) == 1
+    assert entity.relations[0].target == "links"
+    assert entity.relations[0].type == "links to"
 
 
 @pytest.mark.asyncio
@@ -114,7 +114,7 @@ async def test_tasks_are_not_observations(tmp_path):
 
     parser = EntityParser(tmp_path)
     entity = await parser.parse_file(test_file)
-    assert len(entity.content.observations) == 0
+    assert len(entity.observations) == 0
 
 
 @pytest.mark.asyncio
@@ -151,9 +151,9 @@ async def test_nested_content(tmp_path):
     entity = await parser.parse_file(test_file)
 
     # Should find all observations and relations regardless of nesting
-    assert len(entity.content.observations) == 3
-    assert len(entity.content.relations) == 3
-    assert {r.target for r in entity.content.relations} == {"One", "Two", "Three"}
+    assert len(entity.observations) == 3
+    assert len(entity.relations) == 3
+    assert {r.target for r in entity.relations} == {"One", "Two", "Three"}
 
 
 @pytest.mark.asyncio

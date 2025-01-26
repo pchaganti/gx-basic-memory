@@ -66,16 +66,11 @@ class EntityFrontmatter(BaseModel):
     def modified(self) -> datetime:
         return self.metadata.get("modified") if self.metadata else None
 
-class EntityContent(BaseModel):
-    """Content sections of an entity markdown file."""
-
-    content: Optional[str] = None
-    observations: List[Observation] = []
-    relations: List[Relation] = []
-
 
 class EntityMarkdown(BaseModel):
     """Complete entity combining frontmatter, content, and metadata."""
 
     frontmatter: EntityFrontmatter
-    content: EntityContent
+    content: Optional[str] = None
+    observations: List[Observation] = []
+    relations: List[Relation] = []

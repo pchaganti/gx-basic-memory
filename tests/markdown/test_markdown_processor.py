@@ -8,23 +8,20 @@ from pathlib import Path
 
 import pytest
 
-from basic_memory.markdown.entity_parser import EntityParser
 from basic_memory.markdown.markdown_processor import MarkdownProcessor, DirtyFileError
 from basic_memory.markdown.schemas import (
     EntityMarkdown,
     EntityFrontmatter,
-    EntityContent,
     Observation,
     Relation,
 )
-
 
 
 @pytest.mark.asyncio
 async def test_write_new_minimal_file(markdown_processor: MarkdownProcessor, tmp_path: Path):
     """Test creating new file with just title."""
     path = tmp_path / "test.md"
-    
+
     # Create minimal markdown schema
     metadata = {}
     metadata["title"] = "Test Note"
@@ -37,12 +34,12 @@ async def test_write_new_minimal_file(markdown_processor: MarkdownProcessor, tmp
         frontmatter=EntityFrontmatter(
             metadata=metadata,
         ),
-        content=EntityContent(content=""),
+        content="",
     )
-    
+
     # Write file
     checksum = await markdown_processor.write_file(path, markdown)
-    
+
     # Read back and verify
     content = path.read_text()
     assert "---" in content  # Has frontmatter
@@ -61,7 +58,7 @@ async def test_write_new_minimal_file(markdown_processor: MarkdownProcessor, tmp
 async def test_write_new_file_with_content(markdown_processor: MarkdownProcessor, tmp_path: Path):
     """Test creating new file with content and sections."""
     path = tmp_path / "test.md"
-    
+
     # Create markdown with content and sections
     markdown = EntityMarkdown(
         frontmatter=EntityFrontmatter(
@@ -71,41 +68,39 @@ async def test_write_new_file_with_content(markdown_processor: MarkdownProcessor
             created=datetime(2024, 1, 1),
             modified=datetime(2024, 1, 1),
         ),
-        content=EntityContent(
-            content="# Custom Title\n\nMy content here.\nMultiple lines.",
-            observations=[
-                Observation(
-                    content="Test observation",
-                    category="tech",
-                    tags=["test"],
-                    context="test context",
-                ),
-            ],
-            relations=[
-                Relation(
-                    type="relates_to",
-                    target="other-note",
-                    context="test relation",
-                ),
-            ],
-        ),
+        content="# Custom Title\n\nMy content here.\nMultiple lines.",
+        observations=[
+            Observation(
+                content="Test observation",
+                category="tech",
+                tags=["test"],
+                context="test context",
+            ),
+        ],
+        relations=[
+            Relation(
+                type="relates_to",
+                target="other-note",
+                context="test relation",
+            ),
+        ],
     )
-    
+
     # Write file
     checksum = await markdown_processor.write_file(path, markdown)
-    
+
     # Read back and verify
     content = path.read_text()
-    
+
     # Check content preserved exactly
     assert "# Custom Title" in content
     assert "My content here." in content
     assert "Multiple lines." in content
-    
+
     # Check sections formatted correctly
     assert "## Observations" in content
     assert "- [tech] Test observation #test (test context)" in content
-    
+
     assert "## Relations" in content
     assert "- relates_to [[other-note]] (test relation)" in content
 
@@ -114,7 +109,7 @@ async def test_write_new_file_with_content(markdown_processor: MarkdownProcessor
 async def test_update_preserves_content(markdown_processor: MarkdownProcessor, tmp_path: Path):
     """Test that updating file preserves existing content."""
     path = tmp_path / "test.md"
-    
+
     # Create initial file
     initial = EntityMarkdown(
         frontmatter=EntityFrontmatter(
@@ -124,48 +119,44 @@ async def test_update_preserves_content(markdown_processor: MarkdownProcessor, t
             created=datetime(2024, 1, 1),
             modified=datetime(2024, 1, 1),
         ),
-        content=EntityContent(
-            content="# My Note\n\nOriginal content here.",
-            observations=[
-                Observation(content="First observation", category="note"),
-            ],
-        ),
+        content="# My Note\n\nOriginal content here.",
+        observations=[
+            Observation(content="First observation", category="note"),
+        ],
     )
-    
+
     checksum = await markdown_processor.write_file(path, initial)
-    
+
     # Update with new observation
     updated = EntityMarkdown(
         frontmatter=initial.frontmatter,
-        content=EntityContent(
-            content=initial.content.content,  # Preserve original content
-            observations=[
-                initial.content.observations[0],  # Keep original observation
-                Observation(content="Second observation", category="tech"),  # Add new one
-            ],
-        ),
+        content=initial.content,  # Preserve original content
+        observations=[
+            initial.observations[0],  # Keep original observation
+            Observation(content="Second observation", category="tech"),  # Add new one
+        ],
     )
-    
+
     # Update file
     new_checksum = await markdown_processor.write_file(path, updated, expected_checksum=checksum)
-    
+
     # Read back and verify
     result = await markdown_processor.read_file(path)
-    
+
     # Original content preserved
-    assert "Original content here." in result.content.content
-    
+    assert "Original content here." in result.content
+
     # Both observations present
-    assert len(result.content.observations) == 2
-    assert any(o.content == "First observation" for o in result.content.observations)
-    assert any(o.content == "Second observation" for o in result.content.observations)
+    assert len(result.observations) == 2
+    assert any(o.content == "First observation" for o in result.observations)
+    assert any(o.content == "Second observation" for o in result.observations)
 
 
 @pytest.mark.asyncio
 async def test_dirty_file_detection(markdown_processor: MarkdownProcessor, tmp_path: Path):
     """Test detection of file modifications."""
     path = tmp_path / "test.md"
-    
+
     # Create initial file
     initial = EntityMarkdown(
         frontmatter=EntityFrontmatter(
@@ -175,24 +166,24 @@ async def test_dirty_file_detection(markdown_processor: MarkdownProcessor, tmp_p
             created=datetime(2024, 1, 1),
             modified=datetime(2024, 1, 1),
         ),
-        content=EntityContent(content="Initial content"),
+        content="Initial content",
     )
-    
+
     checksum = await markdown_processor.write_file(path, initial)
-    
+
     # Modify file directly
     path.write_text(path.read_text() + "\nModified!")
-    
+
     # Try to update with old checksum
     update = EntityMarkdown(
         frontmatter=initial.frontmatter,
-        content=EntityContent(content="New content"),
+        content="New content",
     )
-    
+
     # Should raise DirtyFileError
     with pytest.raises(DirtyFileError):
         await markdown_processor.write_file(path, update, expected_checksum=checksum)
-    
+
     # Should succeed without checksum
     new_checksum = await markdown_processor.write_file(path, update)
     assert new_checksum != checksum
