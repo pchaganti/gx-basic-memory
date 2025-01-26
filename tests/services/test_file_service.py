@@ -211,11 +211,15 @@ async def test_write_entity_preserves_existing_content(
 
     # add observation
     observation = await observation_repository.add(
-        Observation(entity_id=sample_entity.id,
-            content="Test observation", category="note", context="test context")
+        Observation(
+            entity_id=sample_entity.id,
+            content="Test observation",
+            category="note",
+            context="test context",
+        )
     )
 
-    # Add a relation 
+    # Add a relation
     relation = await relation_repository.add(
         Relation(
             from_id=sample_entity.id,
@@ -262,3 +266,108 @@ async def test_write_entity_handles_missing_content(
 
     # Should have title
     assert sample_entity.title in content
+
+
+@pytest.mark.asyncio
+async def test_write_entity_adds_semantic_info(
+    file_service: FileService,
+    full_entity: Entity,
+):
+    """Test that write_entity_file uses content when explicitly provided."""
+    # Write initial content
+    initial_content = dedent("""
+                # My Note
+
+                This is my original content.
+                It should be included in the file.""")
+
+    path, _ = await file_service.write_entity_file(full_entity, content=initial_content)
+
+    # Verify content was written
+    content, _ = await file_service.read_file(path)
+
+    # Content should have frontmatter and supplied content
+    assert "# My Note" in content
+    assert "This is my original content" in content
+    assert "It should be included in the file." in content
+    
+    # semantic info should be added 
+    assert "## Observations" in content
+    assert "- [tech] Tech note" in content
+    assert "- [design] Design note" in content
+    
+    assert "## Relations" in content
+    assert "- out1 [[Test Entity]]" in content 
+    assert "- out2 [[Test Entity]]" in content
+
+
+@pytest.mark.asyncio
+async def test_write_entity_adds_semantic_info_partial(
+        file_service: FileService,
+        full_entity: Entity,
+):
+    """Test that write_entity_file uses content when explicitly provided."""
+    # Write initial content
+    initial_content = dedent("""
+                # My Note
+
+                This is my original content.
+                It should be included in the file.
+                
+                - [tech] Tech note
+                - out1 [[Test Entity]]
+                """)
+
+    path, _ = await file_service.write_entity_file(full_entity, content=initial_content)
+
+    # Verify content was written
+    content, _ = await file_service.read_file(path)
+
+    # Content should have frontmatter and supplied content
+    assert "# My Note" in content
+    assert "This is my original content" in content
+    assert "It should be included in the file." in content
+
+    # assert content contains semantic info
+    assert "- [tech] Tech note" in content
+    assert "- out1 [[Test Entity]]" in content
+    
+    # semantic info should be added if not in content 
+    assert "## Observations\n\n" + "- [design] Design note" in content
+
+    assert "## Relations\n\n" + "- out2 [[Test Entity]]" in content
+
+
+@pytest.mark.asyncio
+async def test_write_entity_includes_semantic_info_in_content(
+        file_service: FileService,
+        full_entity: Entity,
+):
+    """Test that write_entity_file uses content when explicitly provided."""
+    # Write initial content
+    initial_content = dedent("""
+                # My Note
+
+                This is my original content.
+                It should be included in the file.
+                
+                - [tech] Tech note
+                - [design] Design note
+                
+                - out1 [[Test Entity]]
+                - out2 [[Test Entity]]
+                """)
+
+    path, _ = await file_service.write_entity_file(full_entity, content=initial_content)
+
+    # Verify content was written
+    content, _ = await file_service.read_file(path)
+
+    # Content should have frontmatter and supplied content
+    assert "# My Note" in content
+    assert "This is my original content" in content
+    assert "It should be included in the file." in content
+
+    # semantic info should be added 
+    assert "## Observations" not in content
+    assert "## Relations" not in content

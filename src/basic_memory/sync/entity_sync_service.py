@@ -6,6 +6,7 @@ from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
 from basic_memory.markdown.schemas import EntityMarkdown
+from basic_memory.markdown.utils import entity_model_from_markdown
 from basic_memory.models import Entity as EntityModel, Observation, Relation, ObservationCategory
 from basic_memory.repository import EntityRepository, ObservationRepository, RelationRepository
 from basic_memory.services.exceptions import EntityNotFoundError
@@ -13,36 +14,6 @@ from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.utils import generate_permalink
 
 
-def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> EntityModel:
-    """Convert markdown entity to model.
-
-    Args:
-        markdown: Parsed markdown entity
-        include_relations: Whether to include relations. Set False for first sync pass.
-    """
-
-    # Validate/default category
-    def get_valid_category(obs):
-        if not obs.category or obs.category not in [c.value for c in ObservationCategory]:
-            return ObservationCategory.NOTE.value
-        return obs.category
-
-    # TODO handle permalink conflicts
-    permalink = markdown.frontmatter.permalink or generate_permalink(file_path)
-    model = EntityModel(
-        title=markdown.frontmatter.title or Path(file_path).stem,
-        entity_type=markdown.frontmatter.type,
-        permalink=permalink,
-        file_path=file_path,
-        content_type="text/markdown",
-        created_at=markdown.frontmatter.created,
-        updated_at=markdown.frontmatter.modified,
-        observations=[
-            Observation(content=obs.content, category=get_valid_category(obs), context=obs.context)
-            for obs in markdown.observations
-        ],
-    )
-    return model
 
 
 class EntitySyncService:
@@ -71,7 +42,7 @@ class EntitySyncService:
         Creates the entity with null checksum to indicate sync not complete.
         Relations will be added in second pass.
         """
-        logger.debug(f"Creating entity without relations: {markdown.frontmatter.title}")
+        logger.debug(f"Creating entity: {markdown.frontmatter.title}")
         model = entity_model_from_markdown(file_path, markdown)
 
         # Mark as incomplete sync

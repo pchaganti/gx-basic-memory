@@ -120,12 +120,16 @@ class MarkdownProcessor:
         # Add structured sections with proper spacing
         content = content.rstrip()  # Remove trailing whitespace
 
+        # add a blank line if we have semantic content
+        if markdown.observations or markdown.relations:
+            content += "\n"
+            
         if markdown.observations:
-            content += "\n\n## Observations\n\n" + self.format_observations(
+            content += "\n## Observations\n\n" + self.format_observations(
                 markdown.observations
             )
         if markdown.relations:
-            content += "\n\n## Relations\n\n" + self.format_relations(markdown.relations)
+            content += "\n## Relations\n\n" + self.format_relations(markdown.relations)
 
         # Create Post object for frontmatter
         post = Post(content, **frontmatter_dict)

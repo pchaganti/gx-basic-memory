@@ -122,6 +122,9 @@ async def test_parse_minimal_file(test_config, entity_parser):
     assert entity.frontmatter.permalink is None
     assert len(entity.observations) == 1
     assert len(entity.relations) == 1
+    
+    assert entity.frontmatter.created.isoformat().startswith("2024-12-21T14:00:00")
+    assert entity.frontmatter.modified.isoformat().startswith("2024-12-21T14:00:00")
 
 
 @pytest.mark.asyncio
@@ -138,3 +141,48 @@ async def test_error_handling(test_config, entity_parser):
         f.write(b"\x80\x81")  # Invalid UTF-8
     with pytest.raises(UnicodeDecodeError):
         await entity_parser.parse_file(test_file)
+
+@pytest.mark.asyncio
+async def test_parse_file_without_section_headers(test_config, entity_parser):
+    """Test parsing a minimal valid entity file."""
+    content = dedent("""
+        ---
+        type: component
+        permalink: minimal_entity
+        created: 2024-12-21T14:00:00Z
+        modified: 2024-12-21T14:00:00Z
+        status: draft
+        tags: []
+        ---
+
+        # Minimal Entity
+
+        some text
+        some [[Random Link]]
+
+        - [note] Basic observation #test
+
+        - references [[Other Entity]]
+        """)
+
+    test_file = test_config.home / "minimal.md"
+    test_file.write_text(content)
+
+    entity = await entity_parser.parse_file(test_file)
+
+    assert entity.frontmatter.type == "component"
+    assert entity.frontmatter.permalink == "minimal_entity"
+    
+    assert "some text\nsome [[Random Link]]" in entity.content 
+    
+    assert len(entity.observations) == 1
+    assert entity.observations[0].category == "note"
+    assert entity.observations[0].content == "Basic observation"
+    assert entity.observations[0].tags == ["test"]
+    
+    assert len(entity.relations) == 2
+    assert entity.relations[0].type == "links to"
+    assert entity.relations[0].target == "Random Link"
+    
+    assert entity.relations[1].type == "references"
+    assert entity.relations[1].target == "Other Entity" 
