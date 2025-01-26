@@ -125,11 +125,9 @@ class MarkdownProcessor:
             content += "\n"
             
         if markdown.observations:
-            content += "\n## Observations\n\n" + self.format_observations(
-                markdown.observations
-            )
+            content += self.format_observations(markdown.observations)
         if markdown.relations:
-            content += "\n## Relations\n\n" + self.format_relations(markdown.relations)
+            content += self.format_relations(markdown.relations)
 
         # Create Post object for frontmatter
         post = Post(content, **frontmatter_dict)
@@ -147,7 +145,7 @@ class MarkdownProcessor:
 
         Format: - [category] content #tag1 #tag2 (context)
         """
-        lines = [f"- {obs}" for obs in observations]
+        lines = [f"{obs}" for obs in observations]
         return "\n".join(lines) + "\n"
 
     def format_relations(self, relations: list[Relation]) -> str:
@@ -155,5 +153,5 @@ class MarkdownProcessor:
 
         Format: - relation_type [[target]] (context)
         """
-        lines = [f"- {rel}" for rel in relations]
+        lines = [f"{rel}" for rel in relations]
         return "\n".join(lines) + "\n"

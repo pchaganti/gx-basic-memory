@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from basic_memory.models import Entity, Observation
 from basic_memory.schemas.base import ObservationCategory
 from basic_memory.schemas.request import ObservationCreate
-from basic_memory.services import EntityService
+from basic_memory.services import EntityService, FileService
 from basic_memory.services.exceptions import EntityNotFoundError
 from basic_memory.services.observation_service import ObservationService
 
@@ -29,7 +29,7 @@ async def test_add_observations(observation_service: ObservationService, sample_
 
 @pytest.mark.asyncio
 async def test_delete_observations(
-    observation_service: ObservationService, entity_service: EntityService, sample_entity: Entity
+    observation_service: ObservationService, entity_service: EntityService, file_service: FileService, sample_entity: Entity
 ):
     """Test deleting specific observations from an entity."""
     # First add observations
@@ -48,6 +48,13 @@ async def test_delete_observations(
     assert len(entity.observations) == 1
     assert entity.observations[0].content == "Third observation"
     assert entity.observations[0].entity_id == sample_entity.id
+
+    # assert file content after delete
+    file_path = file_service.get_entity_path(entity)
+    entity_content, _ = await file_service.read_file(file_path)
+    assert entity_content.count(f"- [note] First observation") == 0
+    assert entity_content.count(f"- [note] Second observation") == 0
+    assert entity_content.count(f"- [note] Third observation") == 1
 
 
 @pytest.mark.asyncio

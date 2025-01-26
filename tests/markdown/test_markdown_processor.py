@@ -98,10 +98,7 @@ async def test_write_new_file_with_content(markdown_processor: MarkdownProcessor
     assert "Multiple lines." in content
 
     # Check sections formatted correctly
-    assert "## Observations" in content
     assert "- [tech] Test observation #test (test context)" in content
-
-    assert "## Relations" in content
     assert "- relates_to [[other-note]] (test relation)" in content
 
 

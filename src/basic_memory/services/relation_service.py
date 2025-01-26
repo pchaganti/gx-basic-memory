@@ -93,7 +93,6 @@ class RelationService(BaseService[RelationRepository]):
             # Delete relations from DB
             for relation in to_delete:
                 entities_to_update.add(relation.from_id)
-                entities_to_update.add(relation.to_id)
 
                 relation = await self.find_relation(
                     relation.from_id, relation.to_id, relation.relation_type
@@ -138,20 +137,3 @@ class RelationService(BaseService[RelationRepository]):
     ) -> RelationModel:
         return await self.repository.find_relation(from_permalink, to_permalink, relation_type)
 
-    async def delete_relation(
-        self, from_entity: EntityModel, to_entity: EntityModel, relation_type: str
-    ) -> bool:
-        """Delete a specific relation between entities."""
-        logger.debug(f"Deleting relation between {from_entity.id} and {to_entity.id}")
-
-        assert from_entity.id is not None, "from_entity.id must not be None"
-        result = await self.repository.delete_by_fields(
-            from_id=from_entity.id,
-            to_id=to_entity.id,
-            relation_type=relation_type,
-        )
-        return result
-
-    async def delete_outgoing_relations_from_entity(self, entity_id: int) -> None:
-        logger.debug(f"Deleting outgoing relations from {entity_id} ")
-        return await self.repository.delete_outgoing_relations_from_entity(entity_id)

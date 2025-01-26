@@ -292,11 +292,9 @@ async def test_write_entity_adds_semantic_info(
     assert "It should be included in the file." in content
     
     # semantic info should be added 
-    assert "## Observations" in content
     assert "- [tech] Tech note" in content
     assert "- [design] Design note" in content
     
-    assert "## Relations" in content
     assert "- out1 [[Test Entity]]" in content 
     assert "- out2 [[Test Entity]]" in content
 
@@ -333,9 +331,8 @@ async def test_write_entity_adds_semantic_info_partial(
     assert "- out1 [[Test Entity]]" in content
     
     # semantic info should be added if not in content 
-    assert "## Observations\n\n" + "- [design] Design note" in content
-
-    assert "## Relations\n\n" + "- out2 [[Test Entity]]" in content
+    assert "- [design] Design note" in content
+    assert "- out2 [[Test Entity]]" in content
 
 
 @pytest.mark.asyncio
@@ -343,7 +340,7 @@ async def test_write_entity_includes_semantic_info_in_content(
         file_service: FileService,
         full_entity: Entity,
 ):
-    """Test that write_entity_file uses content when explicitly provided."""
+    """Test that write_entity_file does not overwrite semantic info in content when explicitly provided."""
     # Write initial content
     initial_content = dedent("""
                 # My Note
@@ -367,7 +364,9 @@ async def test_write_entity_includes_semantic_info_in_content(
     assert "# My Note" in content
     assert "This is my original content" in content
     assert "It should be included in the file." in content
+    
+    assert content.count("- [tech] Tech note") == 1
+    assert content.count("- [design] Design note") == 1
+    assert content.count("- out1 [[Test Entity]]") == 1
+    assert content.count("- out2 [[Test Entity]]") == 1
 
-    # semantic info should be added 
-    assert "## Observations" not in content
-    assert "## Relations" not in content

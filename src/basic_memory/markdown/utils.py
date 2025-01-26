@@ -8,14 +8,23 @@ from basic_memory.utils import generate_permalink
 
 
 def entity_model_to_markdown(entity: Entity, content: Optional[str] = None) -> EntityMarkdown:
-    """Convert entity model to markdown schema.
+    """
+    Converts an entity model to its Markdown representation, including metadata,
+    observations, relations, and content. Ensures that observations and relations
+    from the provided content are synchronized with the entity model. Removes
+    duplicate or unmatched observations and relations from the content to maintain
+    consistency.
 
-    Args:
-        entity: Entity model to convert
-        content: Optional content to use (falls back to title)
-
-    Returns:
-        EntityMarkdown schema
+    :param entity: An instance of the Entity class containing metadata, observations,
+        relations, and other properties of the entity.
+    :type entity: Entity
+    :param content: Optional raw Markdown-formatted content to be parsed for semantic
+        information like observations or relations.
+    :type content: Optional[str]
+    :return: An instance of the EntityMarkdown class containing the entity's
+        frontmatter, observations, relations, and sanitized content formatted
+        in Markdown.
+    :rtype: EntityMarkdown
     """
     metadata = entity.entity_metadata or {}
     metadata["permalink"] = entity.permalink
@@ -24,38 +33,36 @@ def entity_model_to_markdown(entity: Entity, content: Optional[str] = None) -> E
     metadata["created"] = entity.created_at
     metadata["modified"] = entity.updated_at
 
-    observations = [
-        Observation(category=obs.category, content=obs.content, tags=obs.tags, context=obs.context)
+    # convert model to markdown
+    entity_observations = [
+        Observation(category=obs.category, content=obs.content, tags=obs.tags if obs.tags else None, context=obs.context)
         for obs in entity.observations
     ]
 
-    relations = [
+    entity_relations = [
         Relation(type=r.relation_type, target=r.to_entity.title, context=r.context)
         for r in entity.outgoing_relations
     ]
 
+    observations = entity_observations
+    relations = entity_relations
+
     # parse the content to see if it has semantic info (observations/relations)
     entity_content = parse(content) if content else None
+        
     if entity_content:
-        # remove duplicates by comparing to values in content
-        observations = [
-            o
-            for o in observations
-            if Observation(
-                category=o.category,
-                content=o.content,
-                tags=o.tags if o.tags else None,
-                context=o.context,
-            )
-            not in entity_content.observations
-        ]
+        # remove if they are already in the content
+        observations = [o for o in entity_observations if o not in entity_content.observations]
+        relations = [r for r in entity_relations if r not in entity_content.relations]
 
-        relations = [
-            r
-            for r in relations
-            if Relation(type=r.type, target=r.target, context=r.context)
-            not in entity_content.relations
-        ]
+        # remove from the content if not present in the db entity
+        for o in entity_content.observations:
+            if o not in entity_observations:
+                content = content.replace(str(o), "")
+
+        for r in entity_content.relations:
+            if r not in entity_relations:
+                content = content.replace(str(r), "")
 
     return EntityMarkdown(
         frontmatter=EntityFrontmatter(metadata=metadata),

@@ -1,4 +1,5 @@
 """Tests for RelationService."""
+
 from datetime import datetime, timezone
 
 import pytest
@@ -25,7 +26,6 @@ async def test_entities(
             content_type="text/markdown",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
-
         )
         entity2 = EntityModel(
             title="test_entity_2",
@@ -35,7 +35,6 @@ async def test_entities(
             content_type="text/markdown",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
-
         )
         session.add_all([entity1, entity2])
         await session.commit()
@@ -102,8 +101,8 @@ async def test_create_relations(
     content, _ = await file_service.read_file(file_path)
 
     # verify relation format
-    assert f"- type_0 [[{entity2.title}]] (context_0)" in content
-    assert f"- type_1 [[{entity2.title}]] (context_1)" in content
+    assert content.count(f"- type_0 [[{entity2.title}]] (context_0)") == 1
+    assert content.count(f"- type_1 [[{entity2.title}]] (context_1)") == 1
 
 
 @pytest.mark.asyncio
@@ -131,13 +130,22 @@ async def test_create_relations_resolve_links(
     assert entities[0].outgoing_relations[0].from_id == entity1.id
     assert entities[0].outgoing_relations[0].to_id == entity2.id
 
+    file_path = file_service.get_entity_path(entity1)
+    entity1_content, _ = await file_service.read_file(file_path)
+
+    # assert file content
+    assert entity1_content.count(f"- type_0 [[{entity2.title}]] (context_0)") == 1
+
 
 @pytest.mark.asyncio
-async def test_delete_relation(
-    relation_service: RelationService, test_entities: tuple[EntityModel, EntityModel]
+async def test_delete_relations(
+    relation_service: RelationService,
+    file_service: FileService,
+    test_entities: tuple[EntityModel, EntityModel],
 ):
     """Test deleting a relation between entities."""
     entity1, entity2 = test_entities
+    file_path = file_service.get_entity_path(entity1)
 
     # Create a relation first
     relation_data = RelationSchema(
@@ -145,22 +153,19 @@ async def test_delete_relation(
     )
     await relation_service.create_relations([relation_data])
 
+    # assert file content
+    entity1_content, _ = await file_service.read_file(file_path)
+    assert entity1_content.count(f"- test_relation [[{entity2.title}]]") == 1
+
     # Delete the relation
-    result = await relation_service.delete_relation(entity1, entity2, "test_relation")
+    results = await relation_service.delete_relations([relation_data])
+    assert len(results) == 1
 
-    assert result is True
+    # assert file content after delete
+    entity1_content, _ = await file_service.read_file(file_path)
+    assert entity1_content.count(f"- test_relation [[{entity2.title}]]") == 0
 
 
-@pytest.mark.asyncio
-async def test_delete_nonexistent_relation(
-    relation_service: RelationService, test_entities: tuple[EntityModel, EntityModel]
-):
-    """Test trying to delete a relation that doesn't exist."""
-    entity1, entity2 = test_entities
-
-    result = await relation_service.delete_relation(entity1, entity2, "nonexistent_relation")
-
-    assert result is False
 
 
 @pytest.mark.asyncio
@@ -182,6 +187,5 @@ async def test_delete_relations_by_criteria(
     # Delete relations matching criteria
     entities = await relation_service.delete_relations([relation1, relation2])
 
-    assert len(entities) == 2
+    assert len(entities) == 1
     assert len(entities[0].relations) == 0
-    assert len(entities[1].relations) == 0

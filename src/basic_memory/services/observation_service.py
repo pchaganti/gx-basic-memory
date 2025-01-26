@@ -29,7 +29,7 @@ class ObservationService(BaseService[ObservationRepository]):
     ):
         super().__init__(observation_repository)
         self.entity_repository = entity_repository
-        self.file_operations = file_service
+        self.file_service = file_service
 
     async def add_observations(
         self, permalink: str, observations: List[ObservationCreate], context: str | None = None
@@ -71,7 +71,7 @@ class ObservationService(BaseService[ObservationRepository]):
             entity = await self.entity_repository.get_by_permalink(permalink)
 
             # Write updated file and checksum
-            _, checksum = await self.file_operations.write_entity_file(entity)
+            _, checksum = await self.file_service.write_entity_file(entity)
             await self.entity_repository.update(entity.id, {"checksum": checksum})
 
             # Return final entity with all updates and relations
@@ -103,7 +103,10 @@ class ObservationService(BaseService[ObservationRepository]):
                 )
 
             # Write updated file
-            _, checksum = await self.file_operations.write_entity_file(entity)
+            
+            # Get fresh entity
+            entity = await self.entity_repository.get_by_permalink(permalink)
+            _, checksum = await self.file_service.write_entity_file(entity)
             await self.entity_repository.update(entity.id, {"checksum": checksum})
 
             # Return final entity with all updates

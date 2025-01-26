@@ -15,7 +15,7 @@ class Observation(BaseModel):
     context: Optional[str] = None
     
     def __str__(self) -> str:
-        obs_string = f"[{self.category}] {self.content}"
+        obs_string = f"- [{self.category}] {self.content}"
         if self.tags:
             obs_string += " " + " ".join(f"#{tag}" for tag in sorted(self.tags))
         if self.context:
@@ -31,7 +31,7 @@ class Relation(BaseModel):
     context: Optional[str] = None
     
     def __str__(self) -> str:
-        rel_string = f"{self.type} [[{self.target}]]"
+        rel_string = f"- {self.type} [[{self.target}]]"
         if self.context:
             rel_string += f" ({self.context})"
         return rel_string

@@ -337,7 +337,7 @@ async def test_delete_relations(client, relation_repository):
     data = response.json()
 
     del_response = EntityListResponse.model_validate(data)
-    assert len(del_response.entities) == 2
+    assert len(del_response.entities) == 1
     assert all(len(e.relations) == 0 for e in del_response.entities)
 
 
