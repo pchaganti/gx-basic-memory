@@ -166,9 +166,9 @@ async def test_update_index(search_service, full_entity):
     await search_service.index_entity(full_entity)
 
     # Update entity
-    full_entity.summary = "Updated description with new terms"
+    full_entity.title = "OMG I AM UPDATED"
     await search_service.index_entity(full_entity)
 
-    # Search for new terms
-    results = await search_service.search(SearchQuery(text="new terms"))
-    assert len(results) == 1
+    # Search for new title
+    results = await search_service.search(SearchQuery(text="OMG I AM UPDATED"))
+    assert len(results) > 1 

@@ -12,7 +12,7 @@ from basic_memory import db
 from basic_memory.config import ProjectConfig
 from basic_memory.db import DatabaseType
 from basic_memory.markdown import EntityParser
-from basic_memory.markdown.knowledge_writer import KnowledgeWriter
+from basic_memory.markdown.markdown_processor import MarkdownProcessor
 from basic_memory.models import Base
 from basic_memory.models.knowledge import Entity, Observation, ObservationCategory, Relation
 from basic_memory.repository.entity_repository import EntityRepository
@@ -134,15 +134,15 @@ async def observation_service(
 
 
 @pytest.fixture
-def file_service(test_config: ProjectConfig, knowledge_writer: KnowledgeWriter) -> FileService:
+def file_service(test_config: ProjectConfig, markdown_processor: MarkdownProcessor) -> FileService:
     """Create FileService instance."""
-    return FileService(test_config.home, knowledge_writer)
+    return FileService(test_config.home, markdown_processor)
 
 
 @pytest.fixture
-def knowledge_writer():
+def markdown_processor(entity_parser: EntityParser) -> MarkdownProcessor:
     """Create writer instance."""
-    return KnowledgeWriter()
+    return MarkdownProcessor(entity_parser)
 
 
 @pytest.fixture
@@ -211,9 +211,10 @@ async def init_search_index(search_service):
 async def search_service(
     search_repository: SearchRepository,
     entity_repository: EntityRepository,
+    file_service: FileService,
 ) -> SearchService:
     """Create and initialize search service"""
-    service = SearchService(search_repository, entity_repository)
+    service = SearchService(search_repository, entity_repository, file_service)
     await service.init_search_index()
     return service
 
@@ -224,7 +225,6 @@ async def sample_entity(entity_repository: EntityRepository) -> Entity:
     entity_data = {
         "title": "Test Entity",
         "entity_type": "test",
-        "summary": "A test entity",
         "permalink": "test/test-entity",
         "file_path": "test/test_entity.md",
         "content_type": "text/markdown",
@@ -233,14 +233,13 @@ async def sample_entity(entity_repository: EntityRepository) -> Entity:
 
 
 @pytest_asyncio.fixture
-async def full_entity(sample_entity, entity_repository):
+async def full_entity(sample_entity, entity_repository, file_service) -> Entity:
     """Create a search test entity."""
 
     search_entity = await entity_repository.create(
         {
-            "title": "Search Entity",
+            "title": "Searchable Entity",
             "entity_type": "test",
-            "summary": "A searchable entity",
             "permalink": "test/search-entity",
             "file_path": "test/search_entity.md",
             "content_type": "text/markdown",
@@ -281,12 +280,16 @@ async def full_entity(sample_entity, entity_repository):
     ]
     search_entity.observations = observations
     search_entity.outgoing_relations = relations
-    return await entity_repository.add(search_entity)
+    full_entity = await entity_repository.add(search_entity)
+    
+    # write file
+    await file_service.write_entity_file(full_entity)
+    return full_entity
 
 
 @pytest_asyncio.fixture
 async def test_graph(
-    entity_repository, relation_repository, observation_repository, search_service
+    entity_repository, relation_repository, observation_repository, search_service, file_service
 ):
     """Create a test knowledge graph with entities, relations and observations."""
     # Create some test entities
@@ -363,7 +366,7 @@ async def test_graph(
         Relation(
             from_id=root.id,
             to_id=conn1.id,
-            to_name = conn1.title,
+            to_name=conn1.title,
             relation_type="connects_to",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -401,6 +404,11 @@ async def test_graph(
 
     # get latest
     entities = await entity_repository.find_all()
+    
+    # make sure we have files for entities
+    for entity in entities:
+        await file_service.write_entity_file(entity)
+    
     # Index everything for search
     for entity in entities:
         await search_service.index_entity(entity)

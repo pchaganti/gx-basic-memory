@@ -1,9 +1,10 @@
 """Tests for memory router endpoints."""
+
 from datetime import datetime
 
 import pytest
 
-from basic_memory.schemas.memory import GraphContext, RelationSummary, EntitySummary, ObservationSummary
+from basic_memory.schemas.memory import GraphContext, RelationSummary, ObservationSummary
 
 
 @pytest.mark.asyncio

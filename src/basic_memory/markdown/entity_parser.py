@@ -45,7 +45,7 @@ class EntityParser:
 
     def parse_date(self, value: Any) -> Optional[datetime]:
         """Parse date strings using dateparser for maximum flexibility.
-        
+
         Supports human friendly formats like:
         - 2024-01-15
         - Jan 15, 2024
@@ -70,19 +70,22 @@ class EntityParser:
         post = frontmatter.load(str(file_path))
 
         # Extract or generate required fields
-        permalink = post.metadata.get("permalink")
         file_stats = file_path.stat()
+
+        metadata = post.metadata
+        metadata["title"] = post.metadata.get("title", file_path.name)
+        metadata["type"] = metadata.get("type", "note")
+        metadata["created"] = self.parse_date(
+            post.metadata.get("created")
+        ) or datetime.fromtimestamp(file_stats.st_ctime)
+        metadata["modified"] = self.parse_date(
+            post.metadata.get("modified")
+        ) or datetime.fromtimestamp(file_stats.st_mtime)
+        metadata["tags"] = self.parse_tags(post.metadata.get("tags", []))
 
         # Parse frontmatter
         entity_frontmatter = EntityFrontmatter(
-            type=str(post.metadata.get("type", "note")),
-            permalink=permalink,
-            title=str(post.metadata.get("title", file_path.name)),
-            created=self.parse_date(post.metadata.get("created"))
-            or datetime.fromtimestamp(file_stats.st_ctime),
-            modified=self.parse_date(post.metadata.get("modified"))
-            or datetime.fromtimestamp(file_stats.st_mtime),
-            tags=self.parse_tags(post.metadata.get("tags", [])),
+            metadata=post.metadata,
         )
 
         # Parse content for observations and relations using markdown-it

@@ -9,7 +9,8 @@ from basic_memory.models import Entity
 from basic_memory.repository import EntityRepository
 from basic_memory.repository.search_repository import SearchRepository, SearchIndexRow
 from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
-from basic_memory.utils import generate_permalink
+from basic_memory.services import FileService
+from basic_memory.services.exceptions import FileOperationError
 
 
 class SearchService:
@@ -25,9 +26,11 @@ class SearchService:
         self,
         search_repository: SearchRepository,
         entity_repository: EntityRepository,
+        file_service: FileService,
     ):
         self.repository = search_repository
         self.entity_repository = entity_repository
+        self.file_service = file_service
 
     async def init_search_index(self):
         """Create FTS5 virtual table if it doesn't exist."""
@@ -100,7 +103,9 @@ class SearchService:
         return variants
 
     async def index_entity(
-        self, entity: Entity, background_tasks: Optional[BackgroundTasks] = None
+        self,
+        entity: Entity,
+        background_tasks: Optional[BackgroundTasks] = None,
     ) -> None:
         """Index an entity and all its observations and relations.
 
@@ -119,12 +124,25 @@ class SearchService:
 
         Each type gets its own row in the search index with appropriate metadata.
         """
+        if background_tasks:
+            background_tasks.add_task(self.index_entity_data, entity)
+        else:
+            await self.index_entity_data(entity)
+
+    async def index_entity_data(
+        self,
+        entity: Entity,
+    ) -> None:
+        """Actually perform the indexing."""
+
         content_parts = []
         title_variants = self._generate_variants(entity.title)
         content_parts.extend(title_variants)
 
-        if entity.summary:
-            content_parts.append(entity.summary)
+        # TODO should we do something to content on indexing?
+        content = await self.file_service.read_entity_content(entity)
+        if content:
+            content_parts.append(content)
 
         content_parts.extend(self._generate_variants(entity.permalink))
         content_parts.extend(self._generate_variants(entity.file_path))
@@ -132,7 +150,7 @@ class SearchService:
         entity_content = "\n".join(p for p in content_parts if p and p.strip())
 
         # Index entity
-        await self._do_index(
+        await self.repository.index_item(
             SearchIndexRow(
                 id=entity.id,
                 type=SearchItemType.ENTITY.value,
@@ -150,11 +168,10 @@ class SearchService:
             )
         )
 
-        # Index each observation with synthetic permalink
+        # Index each observation with permalink
         for obs in entity.observations:
-
             # Index with parent entity's file path since that's where it's defined
-            await self._do_index(
+            await self.repository.index_item(
                 SearchIndexRow(
                     id=obs.id,
                     type=SearchItemType.OBSERVATION.value,
@@ -177,9 +194,13 @@ class SearchService:
         # Only index outgoing relations (ones defined in this file)
         for rel in entity.outgoing_relations:
             # Create descriptive title showing the relationship
-            relation_title = f"{rel.from_entity.title} → {rel.to_entity.title}" if rel.to_entity else f"{rel.from_entity.title}"
+            relation_title = (
+                f"{rel.from_entity.title} → {rel.to_entity.title}"
+                if rel.to_entity
+                else f"{rel.from_entity.title}"
+            )
 
-            await self._do_index(
+            await self.repository.index_item(
                 SearchIndexRow(
                     id=rel.id,
                     title=relation_title,
@@ -198,15 +219,6 @@ class SearchService:
                     updated_at=rel.updated_at.isoformat(),
                 )
             )
-
-    async def _do_index(
-        self, index_row: SearchIndexRow, background_tasks: Optional[BackgroundTasks] = None
-    ) -> None:
-        """Actually perform the indexing."""
-        if background_tasks:
-            background_tasks.add_task(self.repository.index_item, index_row)
-        else:
-            await self.repository.index_item(index_row)
 
     async def delete_by_permalink(self, path_id: str):
         """Delete an item from the search index."""

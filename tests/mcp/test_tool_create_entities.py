@@ -15,7 +15,6 @@ async def test_create_basic_entity(client):
             Entity(
                 title="TestEntity",
                 entity_type="test",
-                summary="A test entity",
                 observations=["First observation"],
             )
         ]
@@ -31,7 +30,6 @@ async def test_create_basic_entity(client):
     assert entity.title == "TestEntity"
     assert entity.entity_type == "test"
     assert entity.permalink == "test-entity"
-    assert entity.summary == "A test entity"
 
     # Check observations
     assert len(entity.observations) == 1
@@ -51,7 +49,6 @@ async def test_create_entity_with_multiple_observations(client):
             Entity(
                 title="TestEntity",
                 entity_type="test",
-                summary="A test entity",
                 observations=["First observation", "Second observation", "Third observation"],
             )
         ]
@@ -100,7 +97,6 @@ async def test_create_entity_without_observations(client):
             Entity(
                 title="TestEntity",
                 entity_type="test",
-                summary="A test entity without observations",
             )
         ]
     )

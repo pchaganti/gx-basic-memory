@@ -39,8 +39,8 @@ async def test_unicode_content(tmp_path):
     parser = EntityParser(tmp_path)
     entity = await parser.parse_file(test_file)
 
-    assert "测试" in entity.frontmatter.tags
-    assert "chinese" not in entity.frontmatter.tags
+    assert "测试" in entity.frontmatter.metadata["tags"]
+    assert "chinese" not in entity.frontmatter.metadata["tags"]
     assert "🧪" in entity.content.content
 
     # Verify Unicode in observations

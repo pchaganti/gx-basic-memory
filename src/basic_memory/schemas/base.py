@@ -179,7 +179,6 @@ class Entity(BaseModel):
     entity_type: EntityType
     entity_metadata: Optional[Dict] = Field(default=None, description="Optional metadata")
     content: Optional[str] = None
-    summary: Optional[str] = None
     content_type: ContentType = Field(
         description="MIME type of the content (e.g. text/markdown, image/jpeg)",
         examples=["text/markdown", "image/jpeg"],

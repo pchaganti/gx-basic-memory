@@ -1076,7 +1076,6 @@ Context(
     primary=entity,  # The main entity
     related_results=[...],  # Related entities
     discussions=[...],  # Relevant chats/discussions
-    summary="..."  # AI-friendly summary
 )
 ```
 
@@ -1171,7 +1170,6 @@ class ContextBuilder:
             primary=entity,
             related_results=related,
             discussions=discussions,
-            summary=summary
         )
         self.cache.set(f"{uri}:{depth}", context)
         return context
@@ -1283,7 +1281,6 @@ async def merge_contexts(
     return Context(
         entities=list(all_entities),
         discussions=list(all_discussions),
-        summary=self.summarize_merged(contexts)
     )
 ```
 

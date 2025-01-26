@@ -19,32 +19,29 @@ from basic_memory.markdown.schemas import (
 )
 
 
-@pytest.fixture
-def processor(tmp_path: Path, entity_parser: EntityParser) -> MarkdownProcessor:
-    """Create MarkdownProcessor with temp path."""
-    return MarkdownProcessor(tmp_path, entity_parser)
-
 
 @pytest.mark.asyncio
-async def test_write_new_minimal_file(processor: MarkdownProcessor, tmp_path: Path):
+async def test_write_new_minimal_file(markdown_processor: MarkdownProcessor, tmp_path: Path):
     """Test creating new file with just title."""
     path = tmp_path / "test.md"
     
     # Create minimal markdown schema
+    metadata = {}
+    metadata["title"] = "Test Note"
+    metadata["type"] = "note"
+    metadata["permalink"] = "test"
+    metadata["created"] = datetime(2024, 1, 1)
+    metadata["modified"] = datetime(2024, 1, 1)
+    metadata["tags"] = ["test"]
     markdown = EntityMarkdown(
         frontmatter=EntityFrontmatter(
-            type="note",
-            permalink="test",
-            title="Test Note",
-            created=datetime(2024, 1, 1),
-            modified=datetime(2024, 1, 1),
-            tags=["test"],
+            metadata=metadata,
         ),
         content=EntityContent(content=""),
     )
     
     # Write file
-    checksum = await processor.write_file(path, markdown)
+    checksum = await markdown_processor.write_file(path, markdown)
     
     # Read back and verify
     content = path.read_text()
@@ -61,7 +58,7 @@ async def test_write_new_minimal_file(processor: MarkdownProcessor, tmp_path: Pa
 
 
 @pytest.mark.asyncio
-async def test_write_new_file_with_content(processor: MarkdownProcessor, tmp_path: Path):
+async def test_write_new_file_with_content(markdown_processor: MarkdownProcessor, tmp_path: Path):
     """Test creating new file with content and sections."""
     path = tmp_path / "test.md"
     
@@ -95,7 +92,7 @@ async def test_write_new_file_with_content(processor: MarkdownProcessor, tmp_pat
     )
     
     # Write file
-    checksum = await processor.write_file(path, markdown)
+    checksum = await markdown_processor.write_file(path, markdown)
     
     # Read back and verify
     content = path.read_text()
@@ -114,7 +111,7 @@ async def test_write_new_file_with_content(processor: MarkdownProcessor, tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_update_preserves_content(processor: MarkdownProcessor, tmp_path: Path):
+async def test_update_preserves_content(markdown_processor: MarkdownProcessor, tmp_path: Path):
     """Test that updating file preserves existing content."""
     path = tmp_path / "test.md"
     
@@ -135,7 +132,7 @@ async def test_update_preserves_content(processor: MarkdownProcessor, tmp_path: 
         ),
     )
     
-    checksum = await processor.write_file(path, initial)
+    checksum = await markdown_processor.write_file(path, initial)
     
     # Update with new observation
     updated = EntityMarkdown(
@@ -150,10 +147,10 @@ async def test_update_preserves_content(processor: MarkdownProcessor, tmp_path: 
     )
     
     # Update file
-    new_checksum = await processor.write_file(path, updated, expected_checksum=checksum)
+    new_checksum = await markdown_processor.write_file(path, updated, expected_checksum=checksum)
     
     # Read back and verify
-    result = await processor.read_file(path)
+    result = await markdown_processor.read_file(path)
     
     # Original content preserved
     assert "Original content here." in result.content.content
@@ -165,7 +162,7 @@ async def test_update_preserves_content(processor: MarkdownProcessor, tmp_path: 
 
 
 @pytest.mark.asyncio
-async def test_dirty_file_detection(processor: MarkdownProcessor, tmp_path: Path):
+async def test_dirty_file_detection(markdown_processor: MarkdownProcessor, tmp_path: Path):
     """Test detection of file modifications."""
     path = tmp_path / "test.md"
     
@@ -181,7 +178,7 @@ async def test_dirty_file_detection(processor: MarkdownProcessor, tmp_path: Path
         content=EntityContent(content="Initial content"),
     )
     
-    checksum = await processor.write_file(path, initial)
+    checksum = await markdown_processor.write_file(path, initial)
     
     # Modify file directly
     path.write_text(path.read_text() + "\nModified!")
@@ -194,8 +191,8 @@ async def test_dirty_file_detection(processor: MarkdownProcessor, tmp_path: Path
     
     # Should raise DirtyFileError
     with pytest.raises(DirtyFileError):
-        await processor.write_file(path, update, expected_checksum=checksum)
+        await markdown_processor.write_file(path, update, expected_checksum=checksum)
     
     # Should succeed without checksum
-    new_checksum = await processor.write_file(path, update)
+    new_checksum = await markdown_processor.write_file(path, update)
     assert new_checksum != checksum

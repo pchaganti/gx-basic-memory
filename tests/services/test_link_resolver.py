@@ -10,13 +10,12 @@ from basic_memory.services.link_resolver import LinkResolver
 
 
 @pytest_asyncio.fixture
-async def test_entities(entity_repository):
+async def test_entities(entity_repository, file_service):
     """Create a set of test entities."""
     entities = [
         Entity(
             title="Core Service",
             entity_type="component",
-            summary="The core service implementation",
             permalink="components/core-service",
             file_path="components/core-service.md",
             content_type="text/markdown",
@@ -26,7 +25,6 @@ async def test_entities(entity_repository):
         Entity(
             title="Service Config",
             entity_type="config",
-            summary="Configuration for services",
             permalink="config/service-config",
             file_path="config/service-config.md",
             content_type="text/markdown",
@@ -36,7 +34,6 @@ async def test_entities(entity_repository):
         Entity(
             title="Auth Service",
             entity_type="component",
-            summary="Authentication service implementation",
             permalink="components/auth/service",
             file_path="components/auth/service.md",
             content_type="text/markdown",
@@ -46,7 +43,6 @@ async def test_entities(entity_repository):
         Entity(
             title="Core Features",
             entity_type="specs",
-            summary="Core feature specifications",
             permalink="specs/features/core",
             file_path="specs/features/core.md",
             content_type="text/markdown",
@@ -54,6 +50,9 @@ async def test_entities(entity_repository):
             updated_at=datetime.now(timezone.utc),
         ),
     ]
+    
+    for entity in entities:
+        await file_service.write_entity_file(entity)
 
     # Add to repository
     return await entity_repository.add_all(entities)

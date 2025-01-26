@@ -25,8 +25,15 @@ async def test_search_basic(client, indexed_entity):
     response = await client.post("/search/", json={"text": "searchable"})
     assert response.status_code == 200
     search_results = SearchResponse.model_validate(response.json())
-    assert len(search_results.results) == 1
-    assert search_results.results[0].permalink == indexed_entity.permalink
+    assert len(search_results.results) == 3
+    
+    found = False
+    for r in search_results.results:
+        if r.type == SearchItemType.ENTITY.value:    
+            assert r.permalink == indexed_entity.permalink
+            found = True
+    
+    assert found, "Expected to find indexed entity in results"
 
 
 @pytest.mark.asyncio
@@ -122,7 +129,6 @@ async def test_reindex(client, search_service, entity_service, session_maker):
         EntitySchema(
             title="TestEntity1",
             entity_type="test",
-            summary="A test entity description",
             observations=["this is a test observation"],
         ),
     )

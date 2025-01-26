@@ -21,7 +21,6 @@ def test_entity_in_minimal():
     entity = Entity.model_validate(data)
     assert entity.title == "test_entity"
     assert entity.entity_type == "knowledge"
-    assert entity.summary is None
     assert entity.observations == []
 
 
@@ -30,13 +29,11 @@ def test_entity_in_complete():
     data = {
         "title": "test_entity",
         "entity_type": "knowledge",
-        "summary": "A test entity",
         "observations": ["Test observation"],
     }
     entity = Entity.model_validate(data)
     assert entity.title == "test_entity"
     assert entity.entity_type == "knowledge"
-    assert entity.summary == "A test entity"
     assert len(entity.observations) == 1
     assert entity.observations[0] == "Test observation"
 
@@ -93,12 +90,11 @@ def test_create_entities_input():
     data = {
         "entities": [
             {"title": "entity1", "entity_type": "knowledge"},
-            {"title": "entity2", "entity_type": "knowledge", "summary": "test description"},
+            {"title": "entity2", "entity_type": "knowledge"},
         ]
     }
     create_input = CreateEntityRequest.model_validate(data)
     assert len(create_input.entities) == 2
-    assert create_input.entities[1].summary == "test description"
 
     # Empty entities list should fail
     with pytest.raises(ValidationError):
@@ -113,7 +109,6 @@ def test_entity_out_from_attributes():
         "title": "test",
         "entity_type": "knowledge",
         "content_type": "text/markdown",
-        "summary": "test description",
         "observations": [{"id": 1, "content": "test obs", "context": None}],
         "relations": [
             {
@@ -127,7 +122,6 @@ def test_entity_out_from_attributes():
     }
     entity = EntityResponse.model_validate(db_data)
     assert entity.permalink == "test/test"
-    assert entity.summary == "test description"
     assert len(entity.observations) == 1
     assert len(entity.relations) == 1
 
@@ -136,7 +130,6 @@ def test_optional_fields():
     """Test handling of optional fields."""
     # Create with no optional fields
     entity = Entity.model_validate({"title": "test", "entity_type": "knowledge"})
-    assert entity.summary is None
     assert entity.observations == []
 
     # Create with empty optional fields
@@ -144,18 +137,15 @@ def test_optional_fields():
         {
             "title": "test",
             "entity_type": "knowledge",
-            "summary": None,
             "observations": [],
         }
     )
-    assert entity.summary is None
     assert entity.observations == []
 
     # Create with some optional fields
     entity = Entity.model_validate(
-        {"title": "test", "entity_type": "knowledge", "summary": "test", "observations": []}
+        {"title": "test", "entity_type": "knowledge", "observations": []}
     )
-    assert entity.summary == "test"
     assert entity.observations == []
 
 

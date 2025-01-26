@@ -1,4 +1,5 @@
 """Service for managing entities in the database."""
+from pathlib import Path
 
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
@@ -28,12 +29,11 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
     # TODO handle permalink conflicts
     permalink = markdown.frontmatter.permalink or generate_permalink(file_path)
     model = EntityModel(
-        title=markdown.frontmatter.title,
+        title=markdown.frontmatter.title or Path(file_path).stem,
         entity_type=markdown.frontmatter.type,
         permalink=permalink,
         file_path=file_path,
         content_type="text/markdown",
-        summary=markdown.content.content,
         created_at=markdown.frontmatter.created,
         updated_at=markdown.frontmatter.modified,
         observations=[

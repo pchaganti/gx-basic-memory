@@ -21,7 +21,6 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             title="Memory Service",
             entity_type="test",
             content_type="text/markdown",
-            summary="Core memory service",
             permalink="component/memory-service",
             file_path="component/memory_service.md",
             observations=[
@@ -43,7 +42,6 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             title="File Format",
             entity_type="test",
             content_type="text/markdown",
-            summary="File format spec",
             permalink="spec/file-format",
             file_path="spec/file_format.md",
             observations=[
@@ -65,7 +63,6 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             title="Technical Decision",
             entity_type="test",
             content_type="text/markdown",
-            summary="Architecture decision",
             permalink="decision/tech-choice",
             file_path="decision/tech_choice.md",
             observations=[
@@ -88,7 +85,6 @@ async def test_entities(entity_repository: EntityRepository) -> list[Entity]:
             title="API Service",
             entity_type="test",
             content_type="text/markdown",
-            summary="API layer",
             permalink="component/api-service",
             file_path="component/api_service.md",
             observations=[

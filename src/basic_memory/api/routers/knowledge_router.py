@@ -49,7 +49,7 @@ async def create_or_update_entity(
     entity, created = await entity_service.create_or_update_entity(data)
     response.status_code = 201 if created else 200
 
-    # Always reindex since content has changed
+    # reindex
     await search_service.index_entity(entity, background_tasks=background_tasks)
 
     return EntityResponse.model_validate(entity)

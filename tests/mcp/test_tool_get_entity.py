@@ -18,7 +18,6 @@ async def test_get_basic_entity(client):
             Entity(
                 title="TestEntity",
                 entity_type="test",
-                summary="A test entity",
                 observations=["First observation"],
             )
         ]
@@ -33,7 +32,6 @@ async def test_get_basic_entity(client):
     assert entity.title == "TestEntity"
     assert entity.entity_type == "test"
     assert entity.permalink == "test-entity"
-    assert entity.summary == "A test entity"
 
     # Check observations
     assert len(entity.observations) == 1

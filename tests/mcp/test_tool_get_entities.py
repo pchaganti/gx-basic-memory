@@ -19,8 +19,8 @@ async def test_open_multiple_entities(mcp: FastMCP, client: AsyncClient):
     # Create some test entities
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(title="Entity1", entity_type="test", summary="First test entity"),
-            Entity(title="Entity2", entity_type="test", summary="Second test entity"),
+            Entity(title="Entity1", entity_type="test"),
+            Entity(title="Entity2", entity_type="test"),
         ]
     )
     result = await mcp.call_tool("create_entities",{ "request": entity_request})
@@ -54,7 +54,6 @@ async def test_open_nodes_with_details(client):
             Entity(
                 title="DetailedEntity",
                 entity_type="test",
-                summary="Test entity with details",
                 observations=["First observation", "Second observation"],
             )
         ]
@@ -71,7 +70,6 @@ async def test_open_nodes_with_details(client):
     entity = response.entities[0]
     assert entity.title == "DetailedEntity"
     assert entity.entity_type == "test"
-    assert entity.summary == "Test entity with details"
     assert len(entity.observations) == 2
 
 

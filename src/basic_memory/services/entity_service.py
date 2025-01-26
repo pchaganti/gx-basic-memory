@@ -20,7 +20,6 @@ def entity_model(entity: EntitySchema):
         entity_metadata=entity.entity_metadata,
         permalink=entity.permalink,
         file_path=entity.file_path,
-        summary=entity.summary,
         content_type=entity.content_type,
         observations=[Observation(content=observation) for observation in entity.observations],
     )
@@ -58,7 +57,6 @@ class EntityService(BaseService[EntityModel]):
                 "entity_type": schema.entity_type,
                 "entity_metadata": schema.entity_metadata,
                 "content_type": schema.content_type,
-                "summary": schema.summary,
             }
 
             return await self.update_entity(

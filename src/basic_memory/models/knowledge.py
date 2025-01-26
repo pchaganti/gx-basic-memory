@@ -56,9 +56,6 @@ class Entity(Base):
     # checksum of file
     checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    # Content summary
-    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
     # Metadata and tracking
     created_at: Mapped[datetime] = mapped_column(DateTime)
     updated_at: Mapped[datetime] = mapped_column(DateTime)
@@ -105,7 +102,7 @@ class Entity(Base):
         return value
 
     def __repr__(self) -> str:
-        return f"Entity(id={self.id}, name='{self.title}', type='{self.entity_type}', summary='{self.summary}')"
+        return f"Entity(id={self.id}, name='{self.title}', type='{self.entity_type}'"
 
 
 class ObservationCategory(str, Enum):
@@ -209,8 +206,8 @@ class Relation(Base):
         return generate_permalink(
             f"{self.from_entity.permalink}/{self.relation_type}/{self.to_entity.permalink}"
             if self.to_entity
-            else f"{self.from_entity.permalink}/{self.relation_type}"
+            else f"{self.from_entity.permalink}/{self.relation_type}/{self.to_name}"
         )
 
     def __repr__(self) -> str:
-        return f"Relation(id={self.id}, from_id={self.from_id}, to_id={self.to_id}, type='{self.relation_type}')"
+        return f"Relation(id={self.id}, from_id={self.from_id}, to_id={self.to_id}, to_name={self.to_name}, type='{self.relation_type}')"

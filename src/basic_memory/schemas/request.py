@@ -103,6 +103,5 @@ class UpdateEntityRequest(BaseModel):
 
     title: Optional[str] = None
     entity_type: Optional[EntityType] = None
-    summary: Optional[str] = None
     content: Optional[str] = None
     entity_metadata: Optional[Dict[str, Any]] = None
