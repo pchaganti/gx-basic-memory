@@ -20,7 +20,6 @@ async def create_entity(client) -> EntityResponse:
     data = {
         "title": "TestEntity",
         "entity_type": "test",
-        "observations": ["First observation", "Second observation"],
     }
     # Create an entity
     response = await client.post("/knowledge/entities", json={"entities": [data]})
@@ -33,8 +32,6 @@ async def create_entity(client) -> EntityResponse:
     assert entity["title"] == data["title"]
     entity_type = entity.get("entity_type")
     assert entity_type == data["entity_type"]
-
-    assert len(entity["observations"]) == 2
 
     create_response = EntityListResponse.model_validate(response_data)
     return create_response.entities[0]

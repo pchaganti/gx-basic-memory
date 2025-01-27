@@ -19,7 +19,6 @@ async def test_create_entity(entity_service: EntityService, file_service: FileSe
     entity_data = EntitySchema(
         title="TestEntity",
         entity_type="test",
-        observations=["this is a test observation"],
     )
 
     # Act
@@ -32,7 +31,6 @@ async def test_create_entity(entity_service: EntityService, file_service: FileSe
     assert entity.file_path == entity_data.file_path
     assert entity.entity_type == "test"
     assert entity.created_at is not None
-    assert entity.observations[0].content == "this is a test observation"
     assert len(entity.relations) == 0
 
     # Verify we can retrieve it using permalink
@@ -40,7 +38,6 @@ async def test_create_entity(entity_service: EntityService, file_service: FileSe
     assert retrieved.title == "TestEntity"
     assert retrieved.entity_type == "test"
     assert retrieved.created_at is not None
-    assert retrieved.observations[0].content == "this is a test observation"
 
     # Verify file was written
     file_path = file_service.get_entity_path(entity)
@@ -63,12 +60,10 @@ async def test_create_entities(entity_service: EntityService, file_service: File
         EntitySchema(
             title="TestEntity1",
             entity_type="test",
-            observations=["this is a test observation"],
         ),
         EntitySchema(
             title="TestEntity2",
             entity_type="test",
-            observations=["this is a test observation"],
         ),
     ]
 
@@ -82,7 +77,6 @@ async def test_create_entities(entity_service: EntityService, file_service: File
     assert entity1.title == "TestEntity1"
     assert entity1.entity_type == "test"
     assert entity1.created_at is not None
-    assert entity1.observations[0].content == "this is a test observation"
     assert len(entity1.relations) == 0
 
     entity2 = entities[1]
@@ -90,7 +84,6 @@ async def test_create_entities(entity_service: EntityService, file_service: File
     assert entity2.title == "TestEntity2"
     assert entity2.entity_type == "test"
     assert entity2.created_at is not None
-    assert entity2.observations[0].content == "this is a test observation"
 
     # Verify we can retrieve them using permalinks
     retrieved1 = await entity_service.get_by_permalink(entity_data[0].permalink)
@@ -110,14 +103,12 @@ async def test_get_by_permalink(entity_service: EntityService):
     entity1_data = EntitySchema(
         title="TestEntity1",
         entity_type="test",
-        observations=[],
     )
     entity1 = await entity_service.create_entity(entity1_data)
 
     entity2_data = EntitySchema(
         title="TestEntity2",
         entity_type="test",
-        observations=[],
     )
     entity2 = await entity_service.create_entity(entity2_data)
 
@@ -143,7 +134,6 @@ async def test_get_entity_success(entity_service: EntityService):
     entity_data = EntitySchema(
         title="TestEntity",
         entity_type="test",
-        observations=[],
     )
     await entity_service.create_entity(entity_data)
 
@@ -160,7 +150,6 @@ async def test_delete_entity_success(entity_service: EntityService):
     entity_data = EntitySchema(
         title="TestEntity",
         entity_type="test",
-        observations=[],
     )
     await entity_service.create_entity(entity_data)
 
@@ -205,12 +194,10 @@ async def test_open_nodes_by_permalinks(entity_service: EntityService):
     entity1_data = EntitySchema(
         title="Entity1",
         entity_type="test",
-        observations=[],
     )
     entity2_data = EntitySchema(
         title="Entity2",
         entity_type="test",
-        observations=[],
     )
     await entity_service.create_entity(entity1_data)
     await entity_service.create_entity(entity2_data)
@@ -236,7 +223,6 @@ async def test_open_nodes_some_not_found(entity_service: EntityService):
     entity_data = EntitySchema(
         title="Entity1",
         entity_type="test",
-        observations=[],
     )
     await entity_service.create_entity(entity_data)
 
@@ -254,12 +240,10 @@ async def test_delete_entities_by_permalinks(entity_service: EntityService):
     entity1_data = EntitySchema(
         title="Entity1",
         entity_type="test",
-        observations=[],
     )
     entity2_data = EntitySchema(
         title="Entity2",
         entity_type="test",
-        observations=[],
     )
     await entity_service.create_entity(entity1_data)
     await entity_service.create_entity(entity2_data)

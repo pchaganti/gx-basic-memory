@@ -15,27 +15,13 @@ from basic_memory.schemas import (
 from basic_memory.schemas.base import to_snake_case, TimeFrame
 
 
-def test_entity_in_minimal():
+def test_entity():
     """Test creating EntityIn with minimal required fields."""
     data = {"title": "test_entity", "entity_type": "knowledge"}
     entity = Entity.model_validate(data)
     assert entity.title == "test_entity"
     assert entity.entity_type == "knowledge"
-    assert entity.observations == []
 
-
-def test_entity_in_complete():
-    """Test creating EntityIn with all fields."""
-    data = {
-        "title": "test_entity",
-        "entity_type": "knowledge",
-        "observations": ["Test observation"],
-    }
-    entity = Entity.model_validate(data)
-    assert entity.title == "test_entity"
-    assert entity.entity_type == "knowledge"
-    assert len(entity.observations) == 1
-    assert entity.observations[0] == "Test observation"
 
 
 def test_entity_in_validation():
@@ -124,29 +110,6 @@ def test_entity_out_from_attributes():
     assert entity.permalink == "test/test"
     assert len(entity.observations) == 1
     assert len(entity.relations) == 1
-
-
-def test_optional_fields():
-    """Test handling of optional fields."""
-    # Create with no optional fields
-    entity = Entity.model_validate({"title": "test", "entity_type": "knowledge"})
-    assert entity.observations == []
-
-    # Create with empty optional fields
-    entity = Entity.model_validate(
-        {
-            "title": "test",
-            "entity_type": "knowledge",
-            "observations": [],
-        }
-    )
-    assert entity.observations == []
-
-    # Create with some optional fields
-    entity = Entity.model_validate(
-        {"title": "test", "entity_type": "knowledge", "observations": []}
-    )
-    assert entity.observations == []
 
 
 def test_search_nodes_input():

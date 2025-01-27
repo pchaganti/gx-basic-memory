@@ -42,29 +42,10 @@ def test_entity_data():
                 "title": "Test Entity",
                 "entity_type": "test",
                 "summary": "",  # Empty string instead of None
-                "observations": ["This is a test observation"],
             }
         ]
     }
 
-
-@pytest_asyncio.fixture
-def test_directory_entity_data():
-    """Real data that caused failure in the tool."""
-    return {
-        "entities": [
-            {
-                "title": "Directory Organization",
-                "entity_type": "memory",
-                "summary": "Implemented filesystem organization by entity type",
-                "observations": [
-                    "Files are now organized by type using directories like entities/project/basic_memory",
-                    "Entity IDs match filesystem paths for better mental model",
-                    "Fixed path handling bugs by adding consistent get_entity_path helper",
-                ],
-            }
-        ]
-    }
 
 @pytest_asyncio.fixture(autouse=True)
 async def init_search_index(search_service: SearchService):

@@ -18,7 +18,7 @@ async def test_get_basic_entity(client):
             Entity(
                 title="TestEntity",
                 entity_type="test",
-                observations=["First observation"],
+                content="- [note] First observation",
             )
         ]
     )

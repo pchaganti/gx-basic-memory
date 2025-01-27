@@ -3,7 +3,6 @@
 import pytest
 from httpx import AsyncClient
 from mcp.server import FastMCP
-from mcp.server.fastmcp import Context
 from mcp.types import TextContent
 
 from basic_memory.mcp.tools import get_entities
@@ -23,7 +22,7 @@ async def test_open_multiple_entities(mcp: FastMCP, client: AsyncClient):
             Entity(title="Entity2", entity_type="test"),
         ]
     )
-    result = await mcp.call_tool("create_entities",{ "request": entity_request})
+    result = await mcp.call_tool("create_entities", {"request": entity_request})
 
     assert len(result) == 1
     assert isinstance(result[0], TextContent)
@@ -54,7 +53,10 @@ async def test_open_nodes_with_details(client):
             Entity(
                 title="DetailedEntity",
                 entity_type="test",
-                observations=["First observation", "Second observation"],
+                content="""
+- [note] First observation
+- [note] Second observation
+""",
             )
         ]
     )

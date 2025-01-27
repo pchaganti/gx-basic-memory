@@ -99,12 +99,12 @@ async def test_add_observations_with_context(client):
 
 
 @pytest.mark.asyncio
-async def test_add_observations_preserves_existing(client):
+async def test_add_observations(client):
     """Test that adding observations preserves existing ones."""
     # Create entity with initial observation
     entity_request = CreateEntityRequest(
         entities=[
-            Entity(title="TestEntity", entity_type="test", observations=["Initial observation"])
+            Entity(title="TestEntity", entity_type="test")
         ]
     )
     result = await create_entities(entity_request)
@@ -119,10 +119,9 @@ async def test_add_observations_preserves_existing(client):
     )
     updated = await add_observations(request)
 
-    # Should have both observations
-    assert len(updated.observations) == 2
+    # Should have observation
+    assert len(updated.observations) == 1
     contents = {obs.content for obs in updated.observations}
-    assert "Initial observation" in contents
     assert "New observation" in contents
 
 

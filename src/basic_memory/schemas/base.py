@@ -183,7 +183,6 @@ class Entity(BaseModel):
         description="MIME type of the content (e.g. text/markdown, image/jpeg)",
         examples=["text/markdown", "image/jpeg"],
     )
-    observations: List[Observation] = []
 
     @property
     def permalink(self) -> PathId:

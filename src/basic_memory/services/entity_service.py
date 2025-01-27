@@ -9,10 +9,10 @@ from basic_memory.models import Entity as EntityModel, Observation, Relation
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.services.exceptions import EntityNotFoundError
-from . import FileService
-from . import BaseService
-from .link_resolver import LinkResolver
-from ..markdown.entity_parser import parse
+from basic_memory.services import FileService
+from basic_memory.services import BaseService
+from basic_memory.services.link_resolver import LinkResolver
+from basic_memory.markdown.entity_parser import parse
 
 
 def entity_model(entity: EntitySchema):
@@ -23,7 +23,6 @@ def entity_model(entity: EntitySchema):
         permalink=entity.permalink,
         file_path=entity.file_path,
         content_type=entity.content_type,
-        observations=[Observation(content=observation) for observation in entity.observations],
     )
     return model
 
@@ -94,12 +93,7 @@ class EntityService(BaseService[EntityModel]):
                 ]
         
         db_entity = None
-        try:
-            # set timestamps for observations if present
-            for observation in model.observations:
-                observation.created_at = observation.created_at or datetime.now(timezone.utc)
-                observation.updated_at = observation.updated_at or datetime.now(timezone.utc)
-            
+        try:            
             # Create entity in DB
             db_entity = await self.repository.add(model)
 

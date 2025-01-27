@@ -15,7 +15,7 @@ async def test_create_basic_entity(client):
             Entity(
                 title="TestEntity",
                 entity_type="test",
-                observations=["First observation"],
+                content="- [note] First observation",
             )
         ]
     )
@@ -49,7 +49,11 @@ async def test_create_entity_with_multiple_observations(client):
             Entity(
                 title="TestEntity",
                 entity_type="test",
-                observations=["First observation", "Second observation", "Third observation"],
+                content="""
+- [note] First observation 
+- [note] Second observation 
+- [note] Third observation
+""",
             )
         ]
     )
@@ -72,8 +76,8 @@ async def test_create_multiple_entities(client):
     """Test creating multiple entities in one request."""
     request = CreateEntityRequest(
         entities=[
-            Entity(title="Entity1", entity_type="test", observations=["Observation 1"]),
-            Entity(title="Entity2", entity_type="test", observations=["Observation 2"]),
+            Entity(title="Entity1", entity_type="test", content="- [note] Observation 1"),
+            Entity(title="Entity2", entity_type="test", content="- [note] Observation 2"),
         ]
     )
 

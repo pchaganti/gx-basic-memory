@@ -129,7 +129,6 @@ async def test_reindex(client, search_service, entity_service, session_maker):
         EntitySchema(
             title="TestEntity1",
             entity_type="test",
-            observations=["this is a test observation"],
         ),
     )
 
@@ -151,7 +150,7 @@ async def test_reindex(client, search_service, entity_service, session_maker):
     # Verify content is searchable again
     search_response = await client.post("/search/", json={"text": "test"})
     search_results = SearchResponse.model_validate(search_response.json())
-    assert len(search_results.results) == 2
+    assert len(search_results.results) == 1
     
     
 
