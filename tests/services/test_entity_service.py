@@ -188,8 +188,8 @@ async def test_create_entity_with_special_chars(entity_service: EntityService):
     retrieved = await entity_service.get_by_permalink(entity_data.permalink)
 
 
-async def test_open_nodes_by_permalinks(entity_service: EntityService):
-    """Test opening multiple nodes by path IDs."""
+async def test_get_entities_by_permalinks(entity_service: EntityService):
+    """Test opening multiple entities by path IDs."""
     # Create test entities
     entity1_data = EntitySchema(
         title="Entity1",
@@ -211,13 +211,13 @@ async def test_open_nodes_by_permalinks(entity_service: EntityService):
     assert names == {"Entity1", "Entity2"}
 
 
-async def test_open_nodes_empty_input(entity_service: EntityService):
+async def test_oget_entities_empty_input(entity_service: EntityService):
     """Test opening nodes with empty path ID list."""
     found = await entity_service.get_entities_by_permalinks([])
     assert len(found) == 0
 
 
-async def test_open_nodes_some_not_found(entity_service: EntityService):
+async def test_get_entities_some_not_found(entity_service: EntityService):
     """Test opening nodes with mix of existing and non-existent path IDs."""
     # Create one test entity
     entity_data = EntitySchema(
@@ -297,21 +297,27 @@ async def test_update_note_entity_content(entity_service: EntityService, file_se
         )
     )
 
-    # Update content
-    new_content = "# Updated Content\n\nThis is new content."
+    # Update content with a relation 
+    new_content = """
+# Updated [[Content]]
+- references [[new content]]
+- [note] This is new content.
+"""
     updated = await entity_service.update_entity(entity.permalink, content=new_content)
 
     # Verify file has new content but preserved metadata
     file_path = file_service.get_entity_path(updated)
     content, _ = await file_service.read_file(file_path)
 
-    assert "# Updated Content" in content
-    assert "This is new content" in content
+    assert "# Updated [[Content]]" in content
+    assert "- references [[new content]]" in content
+    assert "- [note] This is new content" in content
 
     # Verify metadata was preserved
     _, frontmatter, _ = content.split("---", 2)
     metadata = yaml.safe_load(frontmatter)
     assert metadata.get("status") == "draft"
+    
 
 
 @pytest.mark.asyncio
@@ -353,7 +359,7 @@ async def test_create_or_update_existing(entity_service: EntityService, file_ser
 
 
 @pytest.mark.asyncio
-async def test_create_or_update_with_content(
+async def test_create_with_content(
     entity_service: EntityService, file_service: FileService
 ):
     content = """# Git Workflow Guide
@@ -404,3 +410,82 @@ See the [[Git Cheat Sheet]] for reference.
 
     # assert content is in file
     assert content.strip() in file_content
+
+
+@pytest.mark.asyncio
+async def test_update_with_content(
+        entity_service: EntityService, file_service: FileService
+):
+    content = """# Git Workflow Guide"""
+
+    # Create test entity
+    entity, created = await entity_service.create_or_update_entity(
+        EntitySchema(
+            title="Git Workflow Guide",
+            entity_type="test",
+            content=content,
+        )
+    )
+
+    assert created is True
+    assert entity.title == "Git Workflow Guide"
+
+    assert len(entity.observations) == 0
+    assert len(entity.relations) == 0
+
+    # Verify file has new content but preserved metadata
+    file_path = file_service.get_entity_path(entity)
+    file_content, _ = await file_service.read_file(file_path)
+
+    # assert content is in file
+    assert content.strip() in file_content
+
+    # now update the content
+    update_content = """# Git Workflow Guide
+
+A guide to our [[Git]] workflow. This uses some ideas from [[Trunk Based Development]].
+
+## Best Practices
+Use branches effectively:
+- [design] Keep feature branches short-lived #git #workflow (Reduces merge conflicts)
+- implements [[Branch Strategy]] (Our standard workflow)
+
+## Common Commands
+See the [[Git Cheat Sheet]] for reference.
+"""
+
+    # Create test entity
+    entity, created = await entity_service.create_or_update_entity(
+        EntitySchema(
+            title="Git Workflow Guide",
+            entity_type="test",
+            content=update_content,
+        )
+    )
+
+    assert created is False
+    assert entity.title == "Git Workflow Guide"
+
+    assert len(entity.observations) == 1
+    assert entity.observations[0].category == "design"
+    assert entity.observations[0].content == "Keep feature branches short-lived"
+    assert set(entity.observations[0].tags) == {"git", "workflow"}
+    assert entity.observations[0].context == "Reduces merge conflicts"
+
+    assert len(entity.relations) == 4
+    assert entity.relations[0].relation_type == "links to"
+    assert entity.relations[0].to_name == "Git"
+    assert entity.relations[1].relation_type == "links to"
+    assert entity.relations[1].to_name == "Trunk Based Development"
+    assert entity.relations[2].relation_type == "implements"
+    assert entity.relations[2].to_name == "Branch Strategy"
+    assert entity.relations[2].context == "Our standard workflow"
+    assert entity.relations[3].relation_type == "links to"
+    assert entity.relations[3].to_name == "Git Cheat Sheet"
+
+    # Verify file has new content but preserved metadata
+    file_path = file_service.get_entity_path(entity)
+    file_content, _ = await file_service.read_file(file_path)
+
+    # assert content is in file
+    assert update_content.strip() in file_content

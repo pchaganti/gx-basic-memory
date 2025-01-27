@@ -164,6 +164,40 @@ class EntityService(BaseService[EntityModel]):
         if not entity:
             raise EntityNotFoundError(f"Entity not found: {permalink}")
 
+        # if content is provided use that, otherwise write the entity info
+        if content:
+            # parse content to find semantic info
+            entity_content = parse(content)
+            if entity_content.observations:
+                entity.observations = [
+                    Observation(
+                        category=o.category,
+                        content=o.content,
+                        tags=o.tags,
+                        context=o.context,
+                        created_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc),
+                    )
+                    for o in entity_content.observations
+                ]
+
+                # if the content contains relations, add them to the model
+                if entity_content.relations:
+                    entity.outgoing_relations = []
+                    for r in entity_content.relations:
+                        target_entity = await self.link_resolver.resolve_link(r.target)
+                        entity.outgoing_relations.append(
+                            Relation(
+                                from_id=entity.id,
+                                to_id=target_entity.id if target_entity else None,
+                                to_name=r.target,
+                                relation_type=r.type,
+                                context=r.context,
+                            )
+                        )
+                    # save relations
+                    await self.repository.add_all(entity.outgoing_relations)
+
         try:
             # Build update data
             update_data = {}
