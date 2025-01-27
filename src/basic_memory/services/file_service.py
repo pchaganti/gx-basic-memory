@@ -86,7 +86,7 @@ class FileService:
             return path, checksum
 
         except Exception as e:
-            logger.error(f"Failed to write entity file: {e}")
+            logger.exception(f"Failed to write entity file: {e}")
             raise FileOperationError(f"Failed to write entity file: {e}")
 
     async def read_entity_content(self, entity: EntityModel) -> str:

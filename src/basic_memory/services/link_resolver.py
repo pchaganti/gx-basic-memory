@@ -29,7 +29,7 @@ class LinkResolver:
     async def resolve_link(
         self,
         link_text: str,
-    ) -> Entity:
+    ) -> Optional[Entity]:
         """Resolve a markdown link to a permalink."""
         logger.debug(f"Resolving link: {link_text}")
 

@@ -35,16 +35,17 @@ def parse(content: str) -> EntityContent:
     observations = []
     relations = []
 
-    for token in md.parse(content):
-        # check for observations and relations
-        if token.meta:
-            if "observation" in token.meta:
-                obs = token.meta["observation"]
-                observation = Observation.model_validate(obs)
-                observations.append(observation)
-            if "relations" in token.meta:
-                rels = token.meta["relations"]
-                relations.extend([Relation.model_validate(r) for r in rels])
+    if content:
+        for token in md.parse(content):
+            # check for observations and relations
+            if token.meta:
+                if "observation" in token.meta:
+                    obs = token.meta["observation"]
+                    observation = Observation.model_validate(obs)
+                    observations.append(observation)
+                if "relations" in token.meta:
+                    rels = token.meta["relations"]
+                    relations.extend([Relation.model_validate(r) for r in rels])
 
     return EntityContent(
         content=content,

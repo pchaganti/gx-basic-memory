@@ -35,12 +35,21 @@ def entity_model_to_markdown(entity: Entity, content: Optional[str] = None) -> E
 
     # convert model to markdown
     entity_observations = [
-        Observation(category=obs.category, content=obs.content, tags=obs.tags if obs.tags else None, context=obs.context)
+        Observation(
+            category=obs.category,
+            content=obs.content,
+            tags=obs.tags if obs.tags else None,
+            context=obs.context,
+        )
         for obs in entity.observations
     ]
 
     entity_relations = [
-        Relation(type=r.relation_type, target=r.to_entity.title, context=r.context)
+        Relation(
+            type=r.relation_type,
+            target=r.to_entity.title if r.to_entity else r.to_name,
+            context=r.context,
+        )
         for r in entity.outgoing_relations
     ]
 
@@ -49,7 +58,7 @@ def entity_model_to_markdown(entity: Entity, content: Optional[str] = None) -> E
 
     # parse the content to see if it has semantic info (observations/relations)
     entity_content = parse(content) if content else None
-        
+
     if entity_content:
         # remove if they are already in the content
         observations = [o for o in entity_observations if o not in entity_content.observations]

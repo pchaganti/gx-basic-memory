@@ -138,7 +138,6 @@ async def test_get_by_permalink(entity_service: EntityService):
         await entity_service.get_by_permalink("nonexistent/test_entity")
 
 
-
 async def test_get_entity_success(entity_service: EntityService):
     """Test successful entity retrieval."""
     entity_data = EntitySchema(
@@ -198,7 +197,6 @@ async def test_create_entity_with_special_chars(entity_service: EntityService):
 
     # Verify after retrieval using permalink
     retrieved = await entity_service.get_by_permalink(entity_data.permalink)
-
 
 
 async def test_open_nodes_by_permalinks(entity_service: EntityService):
@@ -303,7 +301,6 @@ async def test_get_entity_path(entity_service: EntityService):
     assert path == Path(entity_service.file_service.base_path / "test-entity.md")
 
 
-
 @pytest.mark.asyncio
 async def test_update_note_entity_content(entity_service: EntityService, file_service: FileService):
     """Should update note content directly."""
@@ -333,8 +330,6 @@ async def test_update_note_entity_content(entity_service: EntityService, file_se
     assert metadata.get("status") == "draft"
 
 
-
-
 @pytest.mark.asyncio
 async def test_create_or_update_new(entity_service: EntityService, file_service: FileService):
     """Should create a new entity."""
@@ -348,7 +343,7 @@ async def test_create_or_update_new(entity_service: EntityService, file_service:
     )
     assert entity.title == "test"
     assert created is True
-    
+
 
 @pytest.mark.asyncio
 async def test_create_or_update_existing(entity_service: EntityService, file_service: FileService):
@@ -362,13 +357,66 @@ async def test_create_or_update_existing(entity_service: EntityService, file_ser
             entity_metadata={"status": "final"},
         )
     )
-    
+
     entity.content = "Updated content"
 
     # Update name
     updated, created = await entity_service.create_or_update_entity(entity)
-    
+
     assert updated.title == "test"
     assert updated.entity_metadata["status"] == "final"
     assert created is False
-    
+
+
+@pytest.mark.asyncio
+async def test_create_or_update_with_content(
+    entity_service: EntityService, file_service: FileService
+):
+    content = """# Git Workflow Guide
+        
+A guide to our [[Git]] workflow. This uses some ideas from [[Trunk Based Development]].
+
+## Best Practices
+Use branches effectively:
+- [design] Keep feature branches short-lived #git #workflow (Reduces merge conflicts)
+- implements [[Branch Strategy]] (Our standard workflow)
+
+## Common Commands
+See the [[Git Cheat Sheet]] for reference.
+"""
+
+    # Create test entity
+    entity, created = await entity_service.create_or_update_entity(
+        EntitySchema(
+            title="Git Workflow Guide",
+            entity_type="test",
+            content=content,
+        )
+    )
+
+    assert created is True
+    assert entity.title == "Git Workflow Guide"
+
+    assert len(entity.observations) == 1
+    assert entity.observations[0].category == "design"
+    assert entity.observations[0].content == "Keep feature branches short-lived"
+    assert set(entity.observations[0].tags) == {"git", "workflow"}
+    assert entity.observations[0].context == "Reduces merge conflicts"
+
+    assert len(entity.relations) == 4
+    assert entity.relations[0].relation_type == "links to"
+    assert entity.relations[0].to_name == "Git"
+    assert entity.relations[1].relation_type == "links to"
+    assert entity.relations[1].to_name == "Trunk Based Development"
+    assert entity.relations[2].relation_type == "implements"
+    assert entity.relations[2].to_name == "Branch Strategy"
+    assert entity.relations[2].context == "Our standard workflow"
+    assert entity.relations[3].relation_type == "links to"
+    assert entity.relations[3].to_name == "Git Cheat Sheet"
+
+    # Verify file has new content but preserved metadata
+    file_path = file_service.get_entity_path(entity)
+    file_content, _ = await file_service.read_file(file_path)
+
+    # assert content is in file
+    assert content.strip() in file_content

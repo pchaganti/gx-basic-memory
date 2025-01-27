@@ -1,16 +1,18 @@
 """Service for managing entities in the database."""
+
 from datetime import datetime, timezone
 from typing import Dict, Any, Sequence, List, Optional
 
 from loguru import logger
 
-from basic_memory.models import Entity as EntityModel, Observation
+from basic_memory.models import Entity as EntityModel, Observation, Relation
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.services.exceptions import EntityNotFoundError
 from . import FileService
 from . import BaseService
 from .link_resolver import LinkResolver
+from ..markdown.entity_parser import parse
 
 
 def entity_model(entity: EntitySchema):
@@ -70,25 +72,59 @@ class EntityService(BaseService[EntityModel]):
         """Create a new entity and write to filesystem."""
         logger.debug(f"Creating entity: {schema}")
 
+        # if content is provided use that, otherwise write the entity info
+        content = schema.content or None
+
+        # create model from schema 
+        model = entity_model(schema)
+        
+        # parse content to find semantic info
+        entity_content = parse(schema.content)
+        if entity_content.observations:
+            model.observations = [
+                    Observation(
+                        category=o.category,
+                        content=o.content,
+                        tags=o.tags,
+                        context=o.context,
+                        created_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc),
+                    )
+                    for o in entity_content.observations
+                ]
+        
         db_entity = None
         try:
-            # 1. Create entity in DB
-            model = entity_model(schema)    
-            
             # set timestamps for observations if present
             for observation in model.observations:
                 observation.created_at = observation.created_at or datetime.now(timezone.utc)
                 observation.updated_at = observation.updated_at or datetime.now(timezone.utc)
             
+            # Create entity in DB
             db_entity = await self.repository.add(model)
 
-            # if content is provided use that, otherwise write the entity info
-            content = schema.content or None
+            # if the content contains relations, add them to the model
+            if entity_content.relations:
+                db_entity.outgoing_relations = []
+                for r in entity_content.relations:
+                    target_entity = await self.link_resolver.resolve_link(r.target)
+                    db_entity.outgoing_relations.append(
+                        Relation(
+                            from_id=db_entity.id,
+                            to_id=target_entity.id if target_entity else None,
+                            to_name=r.target,
+                            relation_type=r.type,
+                            context=r.context,
+                        )
+                    )
+                # save relations
+                await self.repository.add_all(db_entity.outgoing_relations)
 
-            # 2. Write file and get checksum
+            # Write file and get checksum
+            db_entity = await self.repository.find_by_id(db_entity.id)
             _, checksum = await self.file_service.write_entity_file(db_entity, content=content)
 
-            # 3. Update DB with checksum
+            # Update DB with checksum
             updated = await self.repository.update(db_entity.id, {"checksum": checksum})
 
             return updated
