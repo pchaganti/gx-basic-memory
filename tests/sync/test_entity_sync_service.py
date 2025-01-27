@@ -1,6 +1,6 @@
 """Tests for EntitySyncService."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -119,6 +119,9 @@ async def test_update_entity_relations(
         permalink="concept/other-entity",
         file_path="concept/other_entity.md",
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+
     )
     another_entity = EntityModel(
         title="Another Entity",
@@ -126,6 +129,8 @@ async def test_update_entity_relations(
         permalink="concept/another-entity",
         file_path="concept/another_entity.md",
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     await entity_sync_service.entity_repository.add(other_entity)
     await entity_sync_service.entity_repository.add(another_entity)
@@ -166,6 +171,8 @@ async def test_two_pass_sync_flow(
         permalink="concept/other-entity",
         file_path="concept/other_entity.md",
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     another_entity = EntityModel(
         title="Another Entity",
@@ -173,6 +180,8 @@ async def test_two_pass_sync_flow(
         permalink="concept/another-entity",
         file_path="concept/another_entity.md",
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     await entity_sync_service.entity_repository.add(other_entity)
     await entity_sync_service.entity_repository.add(another_entity)

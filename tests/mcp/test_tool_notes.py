@@ -100,30 +100,6 @@ async def test_read_note_by_title(app):
     assert "Note content here" in content
 
 
-@pytest.mark.asyncio
-async def test_link_notes(app):
-    """Test creating links between notes."""
-    # Create two notes
-    note1 = await notes.write_note(
-        title="Design Doc",
-        content="# Design\nSome design notes"
-    )
-    
-    note2 = await notes.write_note(
-        title="Implementation",
-        content="# Implementation\nCode details"
-    )
-    
-    # Link them
-    permalink = await notes.link_notes(
-        from_note=note1,
-        to_note=note2,
-        relationship="inspires",
-        context="Design informs implementation"
-    )
-    
-    content = await notes.read_note(permalink)
-    assert "- inspires [[Implementation]] (Design informs implementation)" in content
 
 
 @pytest.mark.asyncio

@@ -160,8 +160,6 @@ class SearchService:
                 file_path=entity.file_path,
                 metadata={
                     "entity_type": entity.entity_type,
-                    "created_at": entity.created_at.isoformat(),
-                    "updated_at": entity.updated_at.isoformat(),
                 },
                 created_at=entity.created_at.isoformat(),
                 updated_at=entity.updated_at.isoformat(),
@@ -182,12 +180,10 @@ class SearchService:
                     category=obs.category,
                     entity_id=entity.id,
                     metadata={
-                        "created_at": obs.created_at.isoformat(),
-                        "updated_at": obs.updated_at.isoformat(),
                         "tags": obs.tags,
                     },
-                    created_at=obs.created_at.isoformat(),
-                    updated_at=obs.updated_at.isoformat(),
+                    created_at=entity.created_at.isoformat(),
+                    updated_at=entity.updated_at.isoformat(),
                 )
             )
 
@@ -211,12 +207,8 @@ class SearchService:
                     from_id=rel.from_id,
                     to_id=rel.to_id,
                     relation_type=rel.relation_type,
-                    metadata={
-                        "created_at": rel.created_at.isoformat(),
-                        "updated_at": rel.updated_at.isoformat(),
-                    },
-                    created_at=rel.created_at.isoformat(),
-                    updated_at=rel.updated_at.isoformat(),
+                    created_at=entity.created_at.isoformat(),
+                    updated_at=entity.updated_at.isoformat(),
                 )
             )
 

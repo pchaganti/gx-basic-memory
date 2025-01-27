@@ -23,6 +23,10 @@ def entity_model(entity: EntitySchema):
         permalink=entity.permalink,
         file_path=entity.file_path,
         content_type=entity.content_type,
+        # set timestamps
+        created_at = datetime.now(timezone.utc),
+        updated_at = datetime.now(timezone.utc),
+
     )
     return model
 
@@ -86,8 +90,6 @@ class EntityService(BaseService[EntityModel]):
                         content=o.content,
                         tags=o.tags,
                         context=o.context,
-                        created_at=datetime.now(timezone.utc),
-                        updated_at=datetime.now(timezone.utc),
                     )
                     for o in entity_content.observations
                 ]
@@ -175,8 +177,6 @@ class EntityService(BaseService[EntityModel]):
                         content=o.content,
                         tags=o.tags,
                         context=o.context,
-                        created_at=datetime.now(timezone.utc),
-                        updated_at=datetime.now(timezone.utc),
                     )
                     for o in entity_content.observations
                 ]

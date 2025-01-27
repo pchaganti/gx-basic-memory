@@ -67,7 +67,6 @@ class RelationSummary(BaseModel):
     type: str
     from_id: str
     to_id: str
-    created_at: datetime
 
 
 class ObservationSummary(BaseModel):

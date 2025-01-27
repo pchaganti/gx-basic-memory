@@ -1,4 +1,5 @@
 """Tests for the RelationRepository."""
+
 from datetime import datetime, timezone
 
 import pytest
@@ -50,10 +51,18 @@ async def target_entity(session_maker):
 async def test_relations(session_maker, source_entity, target_entity):
     """Create test relations."""
     relations = [
-        Relation(from_id=source_entity.id, to_id=target_entity.id, to_name=target_entity.title, relation_type="connects_to", created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),),
-        Relation(from_id=source_entity.id, to_id=target_entity.id, to_name=target_entity.title, relation_type="depends_on", created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),),
+        Relation(
+            from_id=source_entity.id,
+            to_id=target_entity.id,
+            to_name=target_entity.title,
+            relation_type="connects_to",
+        ),
+        Relation(
+            from_id=source_entity.id,
+            to_id=target_entity.id,
+            to_name=target_entity.title,
+            relation_type="depends_on",
+        ),
     ]
     async with db.scoped_session(session_maker) as session:
         session.add_all(relations)
@@ -71,7 +80,8 @@ async def related_entity(entity_repository):
         "file_path": "test/related_entity.md",
         "summary": "A related test entity",
         "content_type": "text/markdown",
-        "references": "",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
     }
     return await entity_repository.create(entity_data)
 
@@ -337,4 +347,3 @@ async def test_delete_nonexistent_relation(relation_repository):
     """Test deleting a relation that doesn't exist."""
     result = await relation_repository.delete_by_fields(relation_type="nonexistent")
     assert result is False
-

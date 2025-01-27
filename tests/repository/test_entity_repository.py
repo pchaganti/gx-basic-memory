@@ -20,14 +20,10 @@ async def entity_with_observations(session_maker, sample_entity):
             Observation(
                 entity_id=sample_entity.id,
                 content="First observation",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
             ),
             Observation(
                 entity_id=sample_entity.id,
                 content="Second observation",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
             ),
         ]
         session.add_all(observations)
@@ -65,8 +61,6 @@ async def related_results(session_maker):
             to_id=target.id,
             to_name=target.title,
             relation_type="connects_to",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         )
         session.add(relation)
 
@@ -82,6 +76,8 @@ async def test_create_entity(entity_repository: EntityRepository):
         "permalink": "test/test",
         "file_path": "test/test.md",
         "content_type": "text/markdown",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
     }
     entity = await entity_repository.create(entity_data)
 
@@ -113,6 +109,8 @@ async def test_create_all(entity_repository: EntityRepository):
             "permalink": "test/test-1",
             "file_path": "test/test_1.md",
             "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         },
         {
             "title": "Test-2",
@@ -120,6 +118,8 @@ async def test_create_all(entity_repository: EntityRepository):
             "permalink": "test/test-2",
             "file_path": "test/test_2.md",
             "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         },
     ]
     entities = await entity_repository.create_all(entity_data)
@@ -137,8 +137,6 @@ async def test_create_all(entity_repository: EntityRepository):
     # assert relations are eagerly loaded
     assert len(entity.observations) == 0
     assert len(entity.relations) == 0
-
-
 
 
 @pytest.mark.asyncio
@@ -171,7 +169,6 @@ async def test_update_entity(entity_repository: EntityRepository, sample_entity:
         result = await session.execute(stmt)
         db_entity = result.scalar_one()
         assert db_entity.title == "Updated title"
-
 
 
 @pytest.mark.asyncio
@@ -348,14 +345,10 @@ async def test_delete_by_permalinks_with_observations(
             Observation(
                 entity_id=test_entities[0].id,
                 content="First observation",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
             ),
             Observation(
                 entity_id=test_entities[1].id,
                 content="Second observation",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
             ),
         ]
         session.add_all(observations)
@@ -421,8 +414,6 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
                 to_id=dbe.id,
                 to_name="db_service",
                 relation_type="depends_on",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
             ),
             # config -> core (configures)
             Relation(
@@ -430,8 +421,6 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
                 to_id=core.id,
                 to_name="core_service",
                 relation_type="configures",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
             ),
         ]
         session.add_all(relations)

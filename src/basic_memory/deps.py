@@ -19,8 +19,6 @@ from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services import (
     EntityService,
-    ObservationService,
-    RelationService,
 )
 from basic_memory.services.context_service import ContextService
 from basic_memory.services.file_service import FileService
@@ -145,38 +143,6 @@ async def get_entity_service(
 EntityServiceDep = Annotated[EntityService, Depends(get_entity_service)]
 
 
-async def get_observation_service(
-    observation_repository: ObservationRepositoryDep,
-    entity_repository: EntityRepositoryDep,
-    file_service: FileServiceDep,
-) -> ObservationService:
-    """Create ObservationService with repository."""
-    return ObservationService(
-        observation_repository=observation_repository,
-        entity_repository=entity_repository,
-        file_service=file_service,
-    )
-
-
-ObservationServiceDep = Annotated[ObservationService, Depends(get_observation_service)]
-
-
-async def get_relation_service(
-    relation_repository: RelationRepositoryDep,
-    entity_repository: EntityRepositoryDep,
-    file_service: FileServiceDep,
-    link_resolver: "LinkResolverDep",
-) -> RelationService:
-    """Create RelationService with repository."""
-    return RelationService(
-        relation_repository=relation_repository,
-        entity_repository=entity_repository,
-        file_service=file_service,
-        link_resolver=link_resolver,
-    )
-
-
-RelationServiceDep = Annotated[RelationService, Depends(get_relation_service)]
 
 
 async def get_search_service(

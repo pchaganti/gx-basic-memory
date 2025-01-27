@@ -21,8 +21,6 @@ from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services import (
     EntityService,
-    ObservationService,
-    RelationService,
 )
 from basic_memory.services.file_service import FileService
 from basic_memory.services.link_resolver import LinkResolver
@@ -105,32 +103,6 @@ async def entity_service(
     return EntityService(
         entity_repository=entity_repository, file_service=file_service, link_resolver=link_resolver
     )
-
-
-@pytest_asyncio.fixture
-async def relation_service(
-    relation_repository: RelationRepository,
-    entity_repository: EntityRepository,
-    file_service: FileService,
-    link_resolver: LinkResolver,
-) -> RelationService:
-    """Create RelationService with repository."""
-    return RelationService(
-        relation_repository=relation_repository,
-        entity_repository=entity_repository,
-        file_service=file_service,
-        link_resolver=link_resolver,
-    )
-
-
-@pytest_asyncio.fixture
-async def observation_service(
-    observation_repository: ObservationRepository,
-    entity_repository: EntityRepository,
-    file_service: FileService,
-) -> ObservationService:
-    """Create ObservationService with repository."""
-    return ObservationService(observation_repository, entity_repository, file_service)
 
 
 @pytest.fixture
@@ -228,6 +200,8 @@ async def sample_entity(entity_repository: EntityRepository) -> Entity:
         "permalink": "test/test-entity",
         "file_path": "test/test_entity.md",
         "content_type": "text/markdown",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
     }
     return await entity_repository.create(entity_data)
 
@@ -243,6 +217,8 @@ async def full_entity(sample_entity, entity_repository, file_service) -> Entity:
             "permalink": "test/search-entity",
             "file_path": "test/search_entity.md",
             "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
     )
 
@@ -250,14 +226,10 @@ async def full_entity(sample_entity, entity_repository, file_service) -> Entity:
         Observation(
             content="Tech note",
             category=ObservationCategory.TECH,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         ),
         Observation(
             content="Design note",
             category=ObservationCategory.DESIGN,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         ),
     ]
     relations = [
@@ -266,22 +238,18 @@ async def full_entity(sample_entity, entity_repository, file_service) -> Entity:
             to_id=sample_entity.id,
             to_name=sample_entity.title,
             relation_type="out1",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         ),
         Relation(
             from_id=search_entity.id,
             to_id=sample_entity.id,
             to_name=sample_entity.title,
             relation_type="out2",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         ),
     ]
     search_entity.observations = observations
     search_entity.outgoing_relations = relations
     full_entity = await entity_repository.add(search_entity)
-    
+
     # write file
     await file_service.write_entity_file(full_entity)
     return full_entity
@@ -300,6 +268,8 @@ async def test_graph(
             permalink="test/root",
             file_path="test/root.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         ),
         Entity(
             title="Connected Entity 1",
@@ -307,6 +277,8 @@ async def test_graph(
             permalink="test/connected1",
             file_path="test/connected1.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         ),
         Entity(
             title="Connected Entity 2",
@@ -314,6 +286,8 @@ async def test_graph(
             permalink="test/connected2",
             file_path="test/connected2.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         ),
         Entity(
             title="Deep Entity",
@@ -321,6 +295,8 @@ async def test_graph(
             permalink="test/deep",
             file_path="test/deep.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         ),
         Entity(
             title="Deeper Entity",
@@ -328,6 +304,8 @@ async def test_graph(
             permalink="test/deeper",
             file_path="test/deeper.md",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         ),
     ]
     entities = await entity_repository.add_all(entities)
@@ -338,14 +316,10 @@ async def test_graph(
         Observation(
             content="Root note 1",
             category=ObservationCategory.NOTE,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         ),
         Observation(
             content="Root tech note",
             category=ObservationCategory.TECH,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         ),
     ]
 
@@ -353,8 +327,6 @@ async def test_graph(
         Observation(
             content="Connected 1 note",
             category=ObservationCategory.NOTE,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         )
     ]
     await observation_repository.add_all(root.observations)
@@ -368,16 +340,12 @@ async def test_graph(
             to_id=conn1.id,
             to_name=conn1.title,
             relation_type="connects_to",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         ),
         Relation(
             from_id=conn1.id,
             to_id=conn2.id,
             to_name=conn2.title,
             relation_type="connected_to",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         ),
         # Deep connection
         Relation(
@@ -385,8 +353,6 @@ async def test_graph(
             to_id=deep.id,
             to_name=deep.title,
             relation_type="deep_connection",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         ),
         # Deeper connection
         Relation(
@@ -394,8 +360,6 @@ async def test_graph(
             to_id=deeper.id,
             to_name=deeper.title,
             relation_type="deeper_connection",
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
         ),
     ]
 
@@ -404,11 +368,11 @@ async def test_graph(
 
     # get latest
     entities = await entity_repository.find_all()
-    
+
     # make sure we have files for entities
     for entity in entities:
         await file_service.write_entity_file(entity)
-    
+
     # Index everything for search
     for entity in entities:
         await search_service.index_entity(entity)

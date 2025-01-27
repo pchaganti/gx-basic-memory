@@ -65,11 +65,7 @@ class Repository[T: Base]:
         :param model: the model to add
         :return: the added model instance
         """
-        async with db.scoped_session(self.session_maker) as session:
-            
-            # set timestamps only if not already set
-            model.created_at = model.created_at or datetime.now(timezone.utc)
-            model.updated_at = model.updated_at or datetime.now(timezone.utc)
+        async with db.scoped_session(self.session_maker) as session:            
             session.add(model)
             await session.flush()
 
@@ -85,11 +81,6 @@ class Repository[T: Base]:
         :return: the added models instances
         """
         async with db.scoped_session(self.session_maker) as session:
-            # set timestamps only if not already set
-            for m in models:
-                m.created_at = m.created_at or datetime.now(timezone.utc)
-                m.updated_at = m.updated_at or datetime.now(timezone.utc)
-                
             session.add_all(models)
             await session.flush()
 
@@ -193,14 +184,7 @@ class Repository[T: Base]:
         async with db.scoped_session(self.session_maker) as session:
             # Only include valid columns that are provided in entity_data
             model_data = self.get_model_data(data)
-            model = self.Model(**model_data)
-            
-            # set timestamps only if not already set
-            if not model.created_at:
-                model.created_at = datetime.now(timezone.utc)
-            if not model.updated_at:
-                model.updated_at = datetime.now(timezone.utc)
-            
+            model = self.Model(**model_data)            
             session.add(model)
             await session.flush()
 
@@ -217,8 +201,6 @@ class Repository[T: Base]:
             model_list = [
                 self.Model(
                     **self.get_model_data(d),
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),
                 )
                 for d in data_list
             ]

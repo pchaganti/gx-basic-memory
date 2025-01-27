@@ -17,13 +17,10 @@ from basic_memory.schemas.base import (
 # Delete operation models
 from basic_memory.schemas.delete import (
     DeleteEntitiesRequest,
-    DeleteRelationsRequest,
-    DeleteObservationsRequest,
 )
 
 # Request models
 from basic_memory.schemas.request import (
-    AddObservationsRequest,
     CreateEntityRequest,
     SearchNodesRequest,
     GetEntitiesRequest,
@@ -56,7 +53,6 @@ __all__ = [
     "Relation",
     "Entity",
     # Requests
-    "AddObservationsRequest",
     "CreateEntityRequest",
     "SearchNodesRequest",
     "GetEntitiesRequest",
@@ -72,8 +68,6 @@ __all__ = [
     "DeleteEntitiesResponse",
     # Delete Operations
     "DeleteEntitiesRequest",
-    "DeleteRelationsRequest",
-    "DeleteObservationsRequest",
     # Discovery and Analytics
     "EntityTypeList",
     "ObservationCategoryList",

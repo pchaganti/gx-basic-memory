@@ -117,14 +117,6 @@ TimeFrame = Annotated[
 PathId = Annotated[str, BeforeValidator(validate_path_format)]
 """Unique identifier in format '{path}/{normalized_name}'."""
 
-Observation = Annotated[
-    str,
-    BeforeValidator(str.strip),  # Clean whitespace
-    MinLen(1),  # Ensure non-empty after stripping
-    MaxLen(1000),  # Keep reasonable length
-]
-"""A single piece of information about an entity. Must be non-empty and under 1000 characters.
-"""
 
 EntityType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
 """Classification of entity (e.g., 'person', 'project', 'concept'). """
@@ -149,6 +141,20 @@ ContentType = Annotated[
 RelationType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
 """Type of relationship between entities. Always use active voice present tense."""
 
+ObservationStr = Annotated[
+    str,
+    BeforeValidator(str.strip),  # Clean whitespace
+    MinLen(1),  # Ensure non-empty after stripping
+    MaxLen(1000),  # Keep reasonable length
+]
+
+class Observation(BaseModel):
+    """A single observation with category, content, and optional context."""
+
+    category: ObservationCategory
+    content: ObservationStr
+    tags: Optional[List[str]] = Field(default_factory=list)
+    context: Optional[str] = None
 
 class Relation(BaseModel):
     """Represents a directed edge between entities in the knowledge graph.

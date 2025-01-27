@@ -1,6 +1,7 @@
 """Test general sync behavior."""
 
 import asyncio
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,7 @@ from basic_memory.config import ProjectConfig
 from basic_memory.models import Entity
 from basic_memory.repository import EntityRepository
 from basic_memory.schemas.search import SearchQuery
-from basic_memory.services import EntityService, ObservationService
+from basic_memory.services import EntityService
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync.sync_service import SyncService
 
@@ -108,6 +109,8 @@ A test concept.
         file_path="concept/other.md",
         checksum="12345678",
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     await entity_service.repository.add(other)
 
@@ -987,7 +990,6 @@ async def test_handle_entity_deletion(
     sync_service: SyncService,
     test_config: ProjectConfig,
     entity_repository: EntityRepository,
-    observation_service: ObservationService,
     search_service: SearchService,
 ):
     """Test deletion of entity cleans up search index."""
@@ -1209,6 +1211,8 @@ async def test_sync_null_checksum_cleanup(
         file_path="concept/incomplete.md",
         checksum=None,  # Null checksum
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     await entity_service.repository.add(entity)
 

@@ -8,13 +8,10 @@ from basic_memory.schemas.base import PathId
 from basic_memory.schemas.request import (
     CreateEntityRequest,
     CreateRelationsRequest,
-    AddObservationsRequest,
     GetEntitiesRequest,
 )
 from basic_memory.schemas.delete import (
     DeleteEntitiesRequest,
-    DeleteObservationsRequest,
-    DeleteRelationsRequest,
 )
 from basic_memory.schemas.response import EntityListResponse, EntityResponse, DeleteEntitiesResponse
 from basic_memory.mcp.async_client import client
@@ -30,16 +27,6 @@ async def create_entities(request: CreateEntityRequest) -> EntityListResponse:
     response = await call_post(client, url, json=request.model_dump())
     return EntityListResponse.model_validate(response.json())
 
-
-@mcp.tool(
-    description="Create typed relationships between existing entities",
-)
-async def create_relations(request: CreateRelationsRequest) -> EntityListResponse:
-    """Create relations between existing entities."""
-    logger.info(f"Creating {len(request.relations)} relations")
-    url = "/knowledge/relations"
-    response = await call_post(client, url, json=request.model_dump())
-    return EntityListResponse.model_validate(response.json())
 
 
 @mcp.tool(
@@ -74,36 +61,6 @@ async def get_entities(request: GetEntitiesRequest) -> EntityListResponse:
     )
     return EntityListResponse.model_validate(response.json())
 
-
-@mcp.tool(
-    description="Add categorized observations to an existing entity",
-)
-async def add_observations(request: AddObservationsRequest) -> EntityResponse:
-    """Add observations to an existing entity."""
-    logger.info(f"Adding {len(request.observations)} observations to {request.permalink}")
-    url = "/knowledge/observations"
-    response = await call_post(client,url, json=request.model_dump())
-    return EntityResponse.model_validate(response.json())
-
-
-@mcp.tool(
-    description="Delete specific observations from an entity while preserving other content",
-)
-async def delete_observations(request: DeleteObservationsRequest) -> EntityResponse:
-    """Delete specific observations from an entity."""
-    url = "/knowledge/observations/delete"
-    response = await call_post(client,url, json=request.model_dump())
-    return EntityResponse.model_validate(response.json())
-
-
-@mcp.tool(
-    description="Delete relationships between entities while preserving the entities themselves",
-)
-async def delete_relations(request: DeleteRelationsRequest) -> EntityListResponse:
-    """Delete relations between entities."""
-    url = "/knowledge/relations/delete"
-    response = await call_post(client,url, json=request.model_dump())
-    return EntityListResponse.model_validate(response.json())
 
 
 @mcp.tool(

@@ -51,7 +51,6 @@ async def to_graph_context(context, entity_repository: EntityRepository):
                     type=item.type,
                     from_id=from_entity.permalink,
                     to_id=to_entity.permalink,
-                    created_at=item.created_at,
                 )
 
     primary_results = [await to_summary(r) for r in context["primary_results"]]

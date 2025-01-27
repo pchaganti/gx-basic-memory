@@ -75,38 +75,6 @@ async def test_open_nodes_with_details(client):
     assert len(entity.observations) == 2
 
 
-@pytest.mark.asyncio
-async def test_open_nodes_with_relations(client):
-    """Test opening nodes that have relations."""
-    # Create related entities
-    entity_request = CreateEntityRequest(
-        entities=[
-            Entity(title="Service", entity_type="test", summary="A service"),
-            Entity(title="Database", entity_type="test", summary="A database"),
-        ]
-    )
-    create_result = await create_entities(entity_request)
-    permalinks = [e.permalink for e in create_result.entities]
-
-    # Add a relation between them
-    from basic_memory.mcp.tools.knowledge import create_relations
-    from basic_memory.schemas.request import CreateRelationsRequest
-    from basic_memory.schemas.base import Relation
-
-    relation_request = CreateRelationsRequest(
-        relations=[Relation(from_id=permalinks[0], to_id=permalinks[1], relation_type="depends_on")]
-    )
-    await create_relations(relation_request)
-
-    # Open both nodes
-    request = GetEntitiesRequest(permalinks=permalinks)
-    result = await get_entities(request)
-    response = EntityListResponse.model_validate(result)
-
-    # Verify relations are present
-    assert len(response.entities[0].relations) == 1
-    assert len(response.entities[1].relations) == 1
-
 
 @pytest.mark.asyncio
 async def test_open_nonexistent_nodes(client):

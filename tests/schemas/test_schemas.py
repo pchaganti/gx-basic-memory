@@ -95,7 +95,7 @@ def test_entity_out_from_attributes():
         "title": "test",
         "entity_type": "knowledge",
         "content_type": "text/markdown",
-        "observations": [{"id": 1, "content": "test obs", "context": None}],
+        "observations": [{"id": 1, "category": "note", "content": "test obs", "context": None}],
         "relations": [
             {
                 "id": 1,

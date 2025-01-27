@@ -113,7 +113,7 @@ async def test_after_date(search_service, test_graph):
         )
     )
     for r in results:
-        assert datetime.fromisoformat(r.metadata["created_at"]) > past_date
+        assert datetime.fromisoformat(r.created_at) > past_date
 
     # Should not find with future date
     future_date = datetime(2030, 1, 1)

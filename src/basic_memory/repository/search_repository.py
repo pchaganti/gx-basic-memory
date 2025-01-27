@@ -21,11 +21,11 @@ class SearchIndexRow:
 
     id: int
     type: str
-    metadata: dict
+    metadata: Optional[dict] = None
 
     # date values
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     # assigned in result
     score: Optional[float] = None
@@ -57,8 +57,8 @@ class SearchIndexRow:
             "relation_type": self.relation_type,
             "entity_id": self.entity_id,
             "category": self.category,
-            "created_at": self.metadata.get("created_at"),
-            "updated_at": self.metadata.get("updated_at"),
+            "created_at": self.created_at if self.created_at else None,
+            "updated_at": self.updated_at if self.updated_at else None,
         }
 
 

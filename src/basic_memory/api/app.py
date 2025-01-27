@@ -7,7 +7,7 @@ from fastapi.exception_handlers import http_exception_handler
 from loguru import logger
 
 from basic_memory import db
-from .routers import knowledge, discovery, search, memory, resource
+from .routers import knowledge, search, memory, resource
 
 
 @asynccontextmanager
@@ -29,7 +29,6 @@ app = FastAPI(
 
 # Include routers
 app.include_router(knowledge.router)
-app.include_router(discovery.router)
 app.include_router(search.router)
 app.include_router(memory.router)
 app.include_router(resource.router)

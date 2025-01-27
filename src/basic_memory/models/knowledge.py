@@ -125,8 +125,6 @@ class Observation(Base):
     __table_args__ = (
         Index("ix_observation_entity_id", "entity_id"),  # Add FK index
         Index("ix_observation_category", "category"),  # Add category index
-        Index("ix_observation_created_at", "created_at"),  # For timeline queries
-        Index("ix_observation_updated_at", "updated_at"),  # For timeline queries
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -142,9 +140,6 @@ class Observation(Base):
     tags: Mapped[Optional[list[str]]] = mapped_column(
         JSON, nullable=True, default=list, server_default="[]"
     )
-
-    created_at: Mapped[datetime] = mapped_column(DateTime)
-    updated_at: Mapped[datetime] = mapped_column(DateTime)
 
     # Relationships
     entity = relationship("Entity", back_populates="observations")
@@ -175,8 +170,6 @@ class Relation(Base):
         Index("ix_relation_type", "relation_type"),
         Index("ix_relation_from_id", "from_id"),  # Add FK indexes
         Index("ix_relation_to_id", "to_id"),
-        Index("ix_relation_created_at", "created_at"),  # For timeline queries
-        Index("ix_relation_updated_at", "updated_at"),  # For timeline queries
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -187,8 +180,6 @@ class Relation(Base):
     to_name: Mapped[str] = mapped_column(String)
     relation_type: Mapped[str] = mapped_column(String)
     context: Mapped[str] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime)
-    updated_at: Mapped[datetime] = mapped_column(DateTime)
 
     # Relationships
     from_entity = relationship(

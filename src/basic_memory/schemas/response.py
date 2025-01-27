@@ -15,8 +15,7 @@ from typing import List, Optional, Dict
 
 from pydantic import BaseModel, ConfigDict, Field, AliasPath, AliasChoices
 
-from basic_memory.schemas.base import Relation, PathId, EntityType, ContentType
-from basic_memory.schemas.request import ObservationCreate
+from basic_memory.schemas.base import Relation, PathId, EntityType, ContentType, Observation
 
 
 class SQLAlchemyModel(BaseModel):
@@ -29,8 +28,8 @@ class SQLAlchemyModel(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
-class ObservationResponse(ObservationCreate, SQLAlchemyModel):
+    
+class ObservationResponse(Observation, SQLAlchemyModel):
     """Schema for observation data returned from the service.
 
     Each observation gets a unique ID that can be used for later
@@ -43,8 +42,6 @@ class ObservationResponse(ObservationCreate, SQLAlchemyModel):
         "context": "Initial database design meeting"
     }
     """
-
-    context: Optional[str] = None
 
 
 class RelationResponse(Relation, SQLAlchemyModel):

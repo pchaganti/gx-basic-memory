@@ -15,25 +15,6 @@ from basic_memory.schemas.base import (
 )
 
 
-class ObservationCreate(BaseModel):
-    """A single observation with category, content, and optional context."""
-
-    category: ObservationCategory = ObservationCategory.NOTE
-    content: Observation
-
-
-class AddObservationsRequest(BaseModel):
-    """Add new observations to an existing entity.
-
-    Observations are atomic pieces of information about the entity.
-    Each observation should be a single fact or note that adds value
-    to our understanding of the entity.
-    """
-
-    permalink: PathId
-    context: Optional[str] = None
-    observations: List[ObservationCreate]
-
 
 class CreateEntityRequest(BaseModel):
     """Create one or more new entities in the knowledge graph.

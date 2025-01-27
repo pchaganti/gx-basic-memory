@@ -1,5 +1,7 @@
 """Tests for resource router endpoints."""
 
+from datetime import datetime, timezone
+
 import pytest
 from pathlib import Path
 
@@ -21,6 +23,8 @@ async def test_get_resource_content(client, test_config, entity_repository):
             "permalink": "test/test",
             "file_path": "test/test.md",  # Relative to config.home
             "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
     )
 
@@ -29,6 +33,7 @@ async def test_get_resource_content(client, test_config, entity_repository):
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/markdown; charset=utf-8"
     assert response.text == content
+
 
 async def test_get_resource_by_title(client, test_config, entity_repository):
     """Test getting content by permalink."""
@@ -46,6 +51,8 @@ async def test_get_resource_by_title(client, test_config, entity_repository):
             "permalink": "test/test",
             "file_path": "test/test.md",  # Relative to config.home
             "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
     )
 
@@ -73,6 +80,8 @@ async def test_get_resource_missing_file(client, test_config, entity_repository)
             "permalink": "test/missing",
             "file_path": "test/missing.md",
             "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         }
     )
 

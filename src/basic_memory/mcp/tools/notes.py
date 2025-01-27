@@ -11,9 +11,7 @@ from loguru import logger
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.async_client import client
 from basic_memory.schemas import EntityResponse, DeleteEntitiesResponse
-from basic_memory.schemas.base import Entity, Relation
-from basic_memory.schemas.request import CreateRelationsRequest
-from basic_memory.mcp.tools.knowledge import create_relations
+from basic_memory.schemas.base import Entity
 from basic_memory.mcp.tools.utils import call_get, call_put, call_delete
 
 
@@ -92,50 +90,6 @@ async def read_note(identifier: str) -> str:
     """
     response = await call_get(client, f"/resource/{identifier}")
     return response.text
-
-
-@mcp.tool(description="Create a semantic link between two notes")
-async def link_notes(
-    from_note: str,
-    to_note: str,
-    relationship: str = "relates_to",
-    context: Optional[str] = None,
-) -> str:
-    """Create a semantic link between two notes.
-
-    Args:
-        from_note: Title or permalink of the source note
-        to_note: Title or permalink of the target note
-        relationship: Type of relationship (e.g., "relates_to", "implements", "depends_on")
-        context: Optional context about the relationship
-
-    Examples:
-        # Create basic link
-        link_notes(
-            "Architecture Overview",
-            "Implementation Details"
-        )
-
-        # Create specific relationship
-        link_notes(
-            "Project Requirements",
-            "Technical Design",
-            relationship="informs",
-            context="Requirements drive technical decisions"
-        )
-    """
-    request = CreateRelationsRequest(
-        relations=[
-            Relation(
-                from_id=from_note,  # TODO: Add title->permalink lookup
-                to_id=to_note,
-                relation_type=relationship,
-                context=context,
-            )
-        ]
-    )
-    response = await create_relations(request)
-    return response.entities[0].permalink
 
 
 @mcp.tool(description="Delete a note by title or permalink")
