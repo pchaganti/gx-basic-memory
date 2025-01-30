@@ -11,7 +11,6 @@ from basic_memory.deps import (
     LinkResolverDep,
 )
 from basic_memory.schemas import (
-    CreateEntityRequest,
     EntityListResponse,
     EntityResponse,
     DeleteEntitiesResponse,
@@ -23,6 +22,21 @@ from basic_memory.services.exceptions import EntityNotFoundError
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
 ## Create endpoints
+
+
+@router.post("/entities", response_model=EntityResponse)
+async def create_entity(
+    data: Entity,
+    background_tasks: BackgroundTasks,
+    entity_service: EntityServiceDep,
+    search_service: SearchServiceDep,
+) -> EntityResponse:
+    """Create an entity."""
+    entity = await entity_service.create_entity(data)
+
+    # reindex
+    await search_service.index_entity(entity, background_tasks=background_tasks)
+    return EntityResponse.model_validate(entity)
 
 
 @router.put("/entities/{permalink:path}", response_model=EntityResponse)
@@ -47,25 +61,6 @@ async def create_or_update_entity(
     await search_service.index_entity(entity, background_tasks=background_tasks)
 
     return EntityResponse.model_validate(entity)
-
-
-@router.post("/entities", response_model=EntityListResponse)
-async def create_entities(
-    data: CreateEntityRequest,
-    background_tasks: BackgroundTasks,
-    entity_service: EntityServiceDep,
-    search_service=Depends(get_search_service),
-) -> EntityListResponse:
-    """Create new entities in the knowledge graph and index them."""
-    entities = await entity_service.create_entities(data.entities)
-
-    # Index each entity
-    for entity in entities:
-        await search_service.index_entity(entity, background_tasks=background_tasks)
-
-    return EntityListResponse(
-        entities=[EntityResponse.model_validate(entity) for entity in entities]
-    )
 
 
 ## Read endpoints
@@ -138,10 +133,11 @@ async def delete_entities(
     search_service=Depends(get_search_service),
 ) -> DeleteEntitiesResponse:
     """Delete entities and remove from search index."""
-    deleted = await entity_service.delete_entities(data.permalinks)
+    deleted = False
 
     # Remove each deleted entity from search index
     for permalink in data.permalinks:
+        deleted = await entity_service.delete_entity(permalink)
         background_tasks.add_task(search_service.delete_by_permalink, permalink)
 
     return DeleteEntitiesResponse(deleted=deleted)

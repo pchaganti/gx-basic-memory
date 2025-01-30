@@ -24,6 +24,7 @@ from basic_memory.services.context_service import ContextService
 from basic_memory.services.file_service import FileService
 from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
+from basic_memory.sync import EntitySyncService
 
 
 ## project
@@ -128,15 +129,33 @@ async def get_file_service(
 
 FileServiceDep = Annotated[FileService, Depends(get_file_service)]
 
+async def get_entity_sync_service(
+    entity_repository: EntityRepositoryDep,
+    observation_repository: ObservationRepositoryDep,
+    relation_repository: RelationRepositoryDep,
+    link_resolver: "LinkResolverDep",
+) -> EntitySyncService:
+    """Create EntitySyncService with repository."""
+    return EntitySyncService(
+        entity_repository, observation_repository, relation_repository, link_resolver
+    )
+
+EntitySyncServiceDep = Annotated[EntitySyncService, Depends(get_entity_sync_service)]
+
 
 async def get_entity_service(
     entity_repository: EntityRepositoryDep,
+    entity_parser: EntityParserDep,
+    entity_sync_service: EntitySyncServiceDep,
     file_service: FileServiceDep,
     link_resolver: "LinkResolverDep",
 ) -> EntityService:
     """Create EntityService with repository."""
     return EntityService(
-        entity_repository=entity_repository, file_service=file_service, link_resolver=link_resolver
+        entity_repository=entity_repository,
+        entity_parser=entity_parser,
+        entity_sync_service=entity_sync_service,
+        file_service=file_service, link_resolver=link_resolver
     )
 
 

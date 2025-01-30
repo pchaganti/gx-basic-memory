@@ -3,35 +3,33 @@
 import pytest
 from mcp.server.fastmcp.exceptions import ToolError
 
-from basic_memory.mcp.tools.knowledge import get_entity, create_entities
+from basic_memory.mcp.tools import notes
+from basic_memory.mcp.tools.knowledge import get_entity
 from basic_memory.schemas.base import Entity, ObservationCategory
-from basic_memory.schemas.request import CreateEntityRequest
-from basic_memory.services.exceptions import EntityNotFoundError
 
 
 @pytest.mark.asyncio
 async def test_get_basic_entity(client):
     """Test retrieving a basic entity."""
     # First create an entity
-    entity_request = CreateEntityRequest(
-        entities=[
-            Entity(
-                title="TestEntity",
-                entity_type="test",
-                content="- [note] First observation",
-            )
-        ]
+    permalink = await notes.write_note(
+        file_path="Test Note",
+        content="""
+# Test\nThis is a test note
+- [note] First observation
+""",
+        tags=["test", "documentation"]
     )
-    create_result = await create_entities(entity_request)
-    permalink = create_result.entities[0].permalink
+
+    assert permalink  # Got a valid permalink
 
     # Get the entity without content
     entity = await get_entity(permalink)
 
     # Verify entity details
-    assert entity.title == "TestEntity"
-    assert entity.entity_type == "test"
-    assert entity.permalink == "test-entity"
+    assert entity.file_path == "Test Note"
+    assert entity.entity_type == "note"
+    assert entity.permalink == "test-note"
 
     # Check observations
     assert len(entity.observations) == 1

@@ -11,7 +11,6 @@ from basic_memory.mcp.tools.ai_edit import ai_edit
 from basic_memory.mcp.tools.notes import read_note, write_note
 
 from basic_memory.mcp.tools.knowledge import (
-    create_entities,
     delete_entities,
     get_entity,
     get_entities,
@@ -19,7 +18,6 @@ from basic_memory.mcp.tools.knowledge import (
 
 __all__ = [
     # Knowledge graph tools
-    "create_entities",
     "delete_entities",
     "get_entity",
     "get_entities",

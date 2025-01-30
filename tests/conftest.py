@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
+from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, async_sessionmaker
 
@@ -44,6 +45,7 @@ def test_config(tmp_path) -> ProjectConfig:
     config.home = tmp_path
 
     (tmp_path / config.home.name).mkdir(parents=True, exist_ok=True)
+    logger.info(f"project config home: {config.home}")
     return config
 
 
@@ -96,12 +98,18 @@ async def relation_repository(
 @pytest_asyncio.fixture
 async def entity_service(
     entity_repository: EntityRepository,
+    entity_parser: EntityParser,
+    entity_sync_service: EntitySyncService,
     file_service: FileService,
     link_resolver: LinkResolver,
 ) -> EntityService:
-    """Create EntityService with repository."""
+    """Create EntityService."""
     return EntityService(
-        entity_repository=entity_repository, file_service=file_service, link_resolver=link_resolver
+        entity_parser=entity_parser,
+        entity_sync_service=entity_sync_service,
+        entity_repository=entity_repository,
+        file_service=file_service,
+        link_resolver=link_resolver,
     )
 
 

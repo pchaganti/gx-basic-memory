@@ -81,7 +81,7 @@ def entity_model_to_markdown(entity: Entity, content: Optional[str] = None) -> E
     )
 
 
-def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Entity:
+def entity_model_from_markdown(file_path: Path, markdown: EntityMarkdown) -> Entity:
     """
     Convert markdown entity to model.
     Does not include relations.
@@ -100,13 +100,14 @@ def entity_model_from_markdown(file_path: str, markdown: EntityMarkdown) -> Enti
     # TODO handle permalink conflicts
     permalink = markdown.frontmatter.permalink or generate_permalink(file_path)
     model = Entity(
-        title=markdown.frontmatter.title or Path(file_path).stem,
+        title=markdown.frontmatter.title or file_path.stem,
         entity_type=markdown.frontmatter.type,
         permalink=permalink,
-        file_path=file_path,
+        file_path=str(file_path),
         content_type="text/markdown",
         created_at=markdown.frontmatter.created,
         updated_at=markdown.frontmatter.modified,
+        entity_metadata={k:str(v) for k,v in markdown.frontmatter.metadata.items()},
         observations=[
             ObservationModel(
                 content=obs.content,

@@ -19,14 +19,14 @@ from basic_memory.mcp.tools.utils import call_get, call_put, call_delete
     description="Create or update a markdown note. Returns the permalink for referencing.",
 )
 async def write_note(
-    title: str,
+    file_path: str,
     content: str,
     tags: Optional[List[str]] = None,
 ) -> str:
     """Write a markdown note to the knowledge base.
 
     Args:
-        title: The note's title
+        file_path: The note's title
         content: Markdown content for the note
         tags: Optional list of tags to categorize the note
 
@@ -47,12 +47,12 @@ async def write_note(
             tags=["security", "development"]
         )
     """
-    logger.info(f"Writing note: {title}")
+    logger.info(f"Writing note: {file_path}")
 
     # Create the entity request
     metadata = {"tags": [f"#{tag}" for tag in tags]} if tags else None
     entity = Entity(
-        title=title,
+        file_path=file_path,
         entity_type="note",
         content_type="text/markdown",
         content=content,

@@ -21,7 +21,6 @@ from basic_memory.schemas.delete import (
 
 # Request models
 from basic_memory.schemas.request import (
-    CreateEntityRequest,
     SearchNodesRequest,
     GetEntitiesRequest,
     CreateRelationsRequest, UpdateEntityRequest,
@@ -53,7 +52,6 @@ __all__ = [
     "Relation",
     "Entity",
     # Requests
-    "CreateEntityRequest",
     "SearchNodesRequest",
     "GetEntitiesRequest",
     "CreateRelationsRequest",

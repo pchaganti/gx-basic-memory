@@ -17,7 +17,7 @@ async def test_write_note(app):
     - Return valid permalink
     """
     permalink = await notes.write_note(
-        title="Test Note",
+        file_path="Test Note",
         content="# Test\nThis is a test note",
         tags=["test", "documentation"]
     )
@@ -36,7 +36,7 @@ async def test_write_note(app):
 async def test_write_note_no_tags(app):
     """Test creating a note without tags."""
     permalink = await notes.write_note(
-        title="Simple Note",
+        file_path="Simple Note",
         content="Just some text"
     )
     
@@ -64,7 +64,7 @@ async def test_write_note_update_existing(app):
     - Return valid permalink
     """
     permalink = await notes.write_note(
-        title="Test Note",
+        file_path="Test Note",
         content="# Test\nThis is a test note",
         tags=["test", "documentation"]
     )
@@ -72,7 +72,7 @@ async def test_write_note_update_existing(app):
     assert permalink  # Got a valid permalink
 
     permalink = await notes.write_note(
-        title="Test Note",
+        file_path="Test Note",
         content="# Test\nThis is an updated note",
         tags=["test", "documentation"]
     )
@@ -91,7 +91,7 @@ async def test_read_note_by_title(app):
     """Test reading a note by its title."""
     # First create a note
     await notes.write_note(
-        title="Special Note",
+        file_path="Special Note",
         content="Note content here"
     )
     
@@ -107,7 +107,7 @@ async def test_note_unicode_content(app):
     """Test handling of unicode content in notes."""
     content = "# Test 🚀\nThis note has emoji 🎉 and unicode ♠♣♥♦"
     permalink = await notes.write_note(
-        title="Unicode Test",
+        file_path="Unicode Test",
         content=content
     )
     
@@ -127,8 +127,8 @@ async def test_multiple_notes(app):
     ]
     
     permalinks = []
-    for title, content, tags in notes_data:
-        permalink = await notes.write_note(title=title, content=content, tags=tags)
+    for file_path, content, tags in notes_data:
+        permalink = await notes.write_note(file_path=file_path, content=content, tags=tags)
         permalinks.append(permalink)
         
     # Should be able to read each one
@@ -147,7 +147,7 @@ async def test_delete_note_existing(app):
     - Delete the note
     """
     permalink = await notes.write_note(
-        title="Test Note",
+        file_path="Test Note",
         content="# Test\nThis is a test note",
         tags=["test", "documentation"]
     )

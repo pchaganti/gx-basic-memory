@@ -16,17 +16,6 @@ from basic_memory.schemas.base import (
 
 
 
-class CreateEntityRequest(BaseModel):
-    """Create one or more new entities in the knowledge graph.
-
-    Entities represent nodes in the knowledge graph. They can be created
-    with initial observations and optional descriptions. Entity IDs are
-    automatically generated from the type and name.
-
-    Observations will be assigned the default category of 'note'.
-    """
-
-    entities: Annotated[List[Entity], MinLen(1)]
 
 
 class SearchNodesRequest(BaseModel):

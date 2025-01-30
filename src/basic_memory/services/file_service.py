@@ -10,7 +10,7 @@ from basic_memory.markdown.markdown_processor import MarkdownProcessor
 from basic_memory.markdown.utils import entity_model_to_markdown
 from basic_memory.models import Entity as EntityModel
 from basic_memory.services.exceptions import FileOperationError
-
+from basic_memory.schemas import Entity as EntitySchema
 
 class FileService:
     """
@@ -31,12 +31,11 @@ class FileService:
         self.base_path = base_path
         self.markdown_processor = markdown_processor
 
-    def get_entity_path(self, entity: EntityModel) -> Path:
-        """Generate filesystem path for entity."""
-        if entity.file_path:
-            return self.base_path / entity.file_path
-        return self.base_path / f"{entity.permalink}.md"
+    def get_entity_path(self, entity: EntityModel| EntitySchema) -> Path:
+        """Generate absolute filesystem path for entity."""
+        return self.base_path / f"{entity.file_path}"
 
+    # TODO move to tests
     async def write_entity_file(
         self,
         entity: EntityModel,
@@ -90,7 +89,7 @@ class FileService:
             raise FileOperationError(f"Failed to write entity file: {e}")
 
     async def read_entity_content(self, entity: EntityModel) -> str:
-        """Get entity's content without frontmatter or structured sections.
+        """Get entity's content without frontmatter or structured sections (used to index for search)
 
         Args:
             entity: Entity to read content for
@@ -123,7 +122,7 @@ class FileService:
 
     async def exists(self, path: Path) -> bool:
         """
-        Check if file exists.
+        Check if file exists at the provided path. If path is relative, it is assumed to be relative to base_path.
 
         Args:
             path: Path to check
@@ -132,7 +131,10 @@ class FileService:
             True if file exists, False otherwise
         """
         try:
-            return path.exists()
+            if path.is_absolute():
+                return path.exists()
+            else:
+                return (self.base_path / path).exists()
         except Exception as e:
             logger.error(f"Failed to check file existence {path}: {e}")
             raise FileOperationError(f"Failed to check file existence: {e}")
@@ -151,6 +153,8 @@ class FileService:
         Raises:
             FileOperationError: If write fails
         """
+        
+        path = path if path.is_absolute() else self.base_path / path
         try:
             # Ensure parent directory exists
             await file_utils.ensure_directory(path.parent)
@@ -167,8 +171,7 @@ class FileService:
             logger.error(f"Failed to write file {path}: {e}")
             raise FileOperationError(f"Failed to write file: {e}")
 
-    @staticmethod
-    async def read_file(path: Path) -> Tuple[str, str]:
+    async def read_file(self, path: Path) -> Tuple[str, str]:
         """
         Read file and compute checksum.
 
@@ -181,6 +184,7 @@ class FileService:
         Raises:
             FileOperationError: If read fails
         """
+        path = path if path.is_absolute() else self.base_path / path
         try:
             content = path.read_text()
             checksum = await file_utils.compute_checksum(content)
@@ -191,8 +195,7 @@ class FileService:
             logger.error(f"Failed to read file {path}: {e}")
             raise FileOperationError(f"Failed to read file: {e}")
 
-    @staticmethod
-    async def delete_file(path: Path) -> None:
+    async def delete_file(self, path: Path) -> None:
         """
         Delete file if it exists.
 
@@ -202,6 +205,7 @@ class FileService:
         Raises:
             FileOperationError: If deletion fails
         """
+        path = path if path.is_absolute() else self.base_path / path
         try:
             path.unlink(missing_ok=True)
         except Exception as e:

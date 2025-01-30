@@ -127,7 +127,7 @@ async def test_reindex(client, search_service, entity_service, session_maker):
     # Create test entity and document
     await entity_service.create_entity(
         EntitySchema(
-            title="TestEntity1",
+            file_path="TestEntity1",
             entity_type="test",
         ),
     )

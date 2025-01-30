@@ -35,7 +35,7 @@ class EntitySyncService:
         return await self.entity_repository.delete_by_file_path(file_path)
 
     async def create_entity_from_markdown(
-        self, file_path: str, markdown: EntityMarkdown
+        self, file_path: Path, markdown: EntityMarkdown
     ) -> EntityModel:
         """First pass: Create entity and observations only.
 
@@ -47,25 +47,10 @@ class EntitySyncService:
 
         # Mark as incomplete sync
         model.checksum = None
-        # Set timestamps from frontmatter
-        created_at = markdown.frontmatter.created
-        updated_at = markdown.frontmatter.modified
-
-        model.created_at = created_at
-        model.updated_at = updated_at
-
-        for obs in model.observations:
-            obs.created_at = created_at
-            obs.updated_at = updated_at
-
-        for rel in model.relations:
-            rel.created_at = created_at
-            rel.updated_at = updated_at
-
         return await self.entity_repository.add(model)
 
     async def update_entity_and_observations(
-        self, file_path: str, markdown: EntityMarkdown
+        self, file_path: Path | str, markdown: EntityMarkdown
     ) -> EntityModel:
         """First pass: Update entity fields and observations.
 
@@ -73,6 +58,8 @@ class EntitySyncService:
         to indicate sync not complete.
         """
         logger.debug(f"Updating entity and observations: {file_path}")
+        file_path = str(file_path)
+        
         db_entity = await self.entity_repository.get_by_file_path(file_path)
         if not db_entity:
             raise EntityNotFoundError(f"Entity not found: {file_path}")
@@ -80,7 +67,7 @@ class EntitySyncService:
         # Update fields from markdown
         db_entity.title = markdown.frontmatter.title
         db_entity.entity_type = markdown.frontmatter.type
-        db_entity.summary = markdown.content
+        db_entity.entity_metadata = {k: str(v) for k, v in markdown.frontmatter.metadata.items()}
 
         # Clear observations for entity
         await self.observation_repository.delete_by_fields(entity_id=db_entity.id)
@@ -92,6 +79,7 @@ class EntitySyncService:
                 content=obs.content,
                 category=obs.category,
                 context=obs.context,
+                tags=obs.tags
             )
             for obs in markdown.observations
         ]
@@ -104,7 +92,8 @@ class EntitySyncService:
             {
                 "title": db_entity.title,
                 "entity_type": db_entity.entity_type,
-                "summary": db_entity.summary,
+                "entity_metadata": db_entity.entity_metadata,
+                # TODO redo update, get created, modified from file
                 "created_at": markdown.frontmatter.created,
                 "updated_at": markdown.frontmatter.modified,
                 # Mark as incomplete
@@ -114,11 +103,13 @@ class EntitySyncService:
 
     async def update_entity_relations(
         self,
-        file_path: str,
+        file_path: Path | str,
         markdown: EntityMarkdown,
     ) -> EntityModel:
         """Update relations for entity"""
         logger.debug(f"Updating relations for entity: {file_path}")
+        
+        file_path = str(file_path)
         db_entity = await self.entity_repository.get_by_file_path(file_path)
 
         # Clear existing relations first

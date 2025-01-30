@@ -67,13 +67,13 @@ class RelationResponse(Relation, SQLAlchemyModel):
             "from_id",
         )
     )
-    to_id: PathId = Field(
+    to_id: Optional[PathId] = Field(
         # use the permalink from the associated Entity
         # or the to_id value
         validation_alias=AliasChoices(
             AliasPath("to_entity", "permalink"),
             "to_id",
-        )
+        ), default=None
     )
 
 
@@ -89,9 +89,10 @@ class EntityResponse(SQLAlchemyModel):
     Example Response:
     {
         "permalink": "component/memory-service",
-        "title": "MemoryService",
+        "file_path": "MemoryService",
         "entity_type": "component",
-        "description": "Core persistence service",
+        "entity_metadata": {}
+        "content_type: "text/markdown"
         "observations": [
             {
                 "category": "feature",
@@ -116,14 +117,10 @@ class EntityResponse(SQLAlchemyModel):
     """
 
     permalink: PathId
-    title: str
+    file_path: str
     entity_type: EntityType
     entity_metadata: Optional[Dict] = None
     content_type: ContentType
-    # TODO figure out better option for entity summary
-    summary: Optional[str] = None
-    # TODO remove content
-    content: Optional[str] = None 
     observations: List[ObservationResponse] = []
     relations: List[RelationResponse] = []
 

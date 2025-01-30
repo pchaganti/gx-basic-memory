@@ -1,13 +1,9 @@
 """Knowledge graph management tools for Basic Memory MCP server."""
 
-from loguru import logger
-
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_get, call_post
 from basic_memory.schemas.base import PathId
 from basic_memory.schemas.request import (
-    CreateEntityRequest,
-    CreateRelationsRequest,
     GetEntitiesRequest,
 )
 from basic_memory.schemas.delete import (
@@ -15,18 +11,6 @@ from basic_memory.schemas.delete import (
 )
 from basic_memory.schemas.response import EntityListResponse, EntityResponse, DeleteEntitiesResponse
 from basic_memory.mcp.async_client import client
-
-
-@mcp.tool(
-    description="Create new entities in the knowledge graph with names, types, and observations",
-)
-async def create_entities(request: CreateEntityRequest) -> EntityListResponse:
-    """Create new entities in the knowledge graph."""
-    logger.info(f"Creating {len(request.entities)} entities")
-    url = "/knowledge/entities"
-    response = await call_post(client, url, json=request.model_dump())
-    return EntityListResponse.model_validate(response.json())
-
 
 
 @mcp.tool(
@@ -62,12 +46,11 @@ async def get_entities(request: GetEntitiesRequest) -> EntityListResponse:
     return EntityListResponse.model_validate(response.json())
 
 
-
 @mcp.tool(
     description="Permanently delete entities and all related content (observations and relations)",
 )
 async def delete_entities(request: DeleteEntitiesRequest) -> DeleteEntitiesResponse:
     """Delete entities from the knowledge graph."""
     url = "/knowledge/entities/delete"
-    response = await call_post(client,url, json=request.model_dump())
+    response = await call_post(client, url, json=request.model_dump())
     return DeleteEntitiesResponse.model_validate(response.json())

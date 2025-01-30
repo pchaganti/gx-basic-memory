@@ -2,6 +2,7 @@
 import os
 import re
 import unicodedata
+from pathlib import Path
 
 from unidecode import unidecode
 
@@ -31,7 +32,7 @@ def sanitize_name(name: str) -> str:
     return name
 
 
-def generate_permalink(file_path: str) -> str:
+def generate_permalink(file_path: Path | str) -> str:
     """Generate a stable permalink from a file path.
 
     Args:

@@ -15,6 +15,7 @@ import mimetypes
 import re
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import List, Optional, Annotated, Dict
 
 from annotated_types import MinLen, MaxLen
@@ -138,7 +139,7 @@ ContentType = Annotated[
 ]
 
 
-RelationType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
+RelationType = Annotated[str, MinLen(1), MaxLen(200)]
 """Type of relationship between entities. Always use active voice present tense."""
 
 ObservationStr = Annotated[
@@ -174,43 +175,36 @@ class Entity(BaseModel):
     """Represents a node in our knowledge graph - could be a person, project, concept, etc.
 
     Each entity has:
-    - A title
+    - A file path (e.g., "people/jane-doe.md")
     - An entity type (for classification)
     - A list of observations (facts/notes about the entity)
     - Optional relations to other entities
     - Optional description for high-level overview
     """
 
-    title: str
-    entity_type: EntityType
-    entity_metadata: Optional[Dict] = Field(default=None, description="Optional metadata")
+    file_path: str
+    entity_type: EntityType = "note"
     content: Optional[str] = None
+    entity_metadata: Optional[Dict] = Field(default=None, description="Optional metadata")
     content_type: ContentType = Field(
         description="MIME type of the content (e.g. text/markdown, image/jpeg)",
-        examples=["text/markdown", "image/jpeg"],
+        examples=["text/markdown", "image/jpeg"], default="text/markdown"
     )
 
     @property
     def permalink(self) -> PathId:
         """Get the path ID in format {snake_case_title}."""
-        return generate_permalink(self.title)
+        return generate_permalink(self.file_path)
 
-    @property
-    def file_path(self):
-        """Get the file path for this entity based on its permalink."""
-        return f"{self.permalink}.md"
-
-    @model_validator(mode="before")
+    @model_validator(mode="after")
     @classmethod
-    def infer_content_type(cls, data: Dict) -> Dict:
+    def infer_content_type(cls, entity: "Entity") -> Dict | None:
         """Infer content_type from file_path if not provided."""
-        if "content_type" not in data:
-            # Get path from either file_path or construct from permalink
-            file_path = data.get("file_path") or f"{data.get('name')}.md"
+        if not entity.content_type:
+            path = Path(entity.file_path)
+            if not path.exists():
+                return None
+            mime_type, _ = mimetypes.guess_type(path.name)
+            entity.content_type = mime_type or "text/plain"
 
-            if not file_path:
-                raise ValidationError("Either file_path or name must be provided")
-            mime_type, _ = mimetypes.guess_type(file_path)
-            data["content_type"] = mime_type or "text/plain"
-
-        return data
+        return entity

@@ -73,7 +73,10 @@ async def write_file_atomic(path: Path, content: str) -> None:
     temp_path = path.with_suffix(".tmp")
     try:
         temp_path.write_text(content)
+        
+        # TODO check for path.exists()
         temp_path.replace(path)
+        logger.debug(f"wrote file: {path}")
     except Exception as e:
         temp_path.unlink(missing_ok=True)
         logger.error(f"Failed to write file: {path}: {e}")
