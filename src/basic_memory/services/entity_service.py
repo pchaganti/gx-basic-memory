@@ -190,7 +190,7 @@ class EntityService(BaseService[EntityModel]):
     async def create_entity_from_markdown(
         self, file_path: Path, markdown: EntityMarkdown
     ) -> EntityModel:
-        """First pass: Create entity and observations only.
+        """Create entity and observations only.
 
         Creates the entity with null checksum to indicate sync not complete.
         Relations will be added in second pass.
@@ -205,7 +205,7 @@ class EntityService(BaseService[EntityModel]):
     async def update_entity_and_observations(
         self, file_path: Path | str, markdown: EntityMarkdown
     ) -> EntityModel:
-        """First pass: Update entity fields and observations.
+        """Update entity fields and observations.
 
         Updates everything except relations and sets null checksum
         to indicate sync not complete.
@@ -217,13 +217,11 @@ class EntityService(BaseService[EntityModel]):
         if not db_entity:
             raise EntityNotFoundError(f"Entity not found: {file_path}")
 
-        # Update fields from markdown
-        db_entity.title = markdown.frontmatter.title
-        db_entity.entity_type = markdown.frontmatter.type
-        db_entity.entity_metadata = {k: str(v) for k, v in markdown.frontmatter.metadata.items()}
-
         # Clear observations for entity
         await self.observation_repository.delete_by_fields(entity_id=db_entity.id)
+
+        # update values from markdown
+        db_entity = entity_model_from_markdown(file_path, markdown, db_entity)
 
         # add new observations
         observations = [
@@ -238,6 +236,9 @@ class EntityService(BaseService[EntityModel]):
         ]
         await self.observation_repository.add_all(observations)
 
+        # checksum value is None == not finished with sync
+        db_entity.checksum = None
+        
         # update entity
         # checksum value is None == not finished with sync
         return await self.repository.update(

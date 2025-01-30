@@ -81,7 +81,7 @@ def entity_model_to_markdown(entity: Entity, content: Optional[str] = None) -> E
     )
 
 
-def entity_model_from_markdown(file_path: Path, markdown: EntityMarkdown) -> Entity:
+def entity_model_from_markdown(file_path: Path, markdown: EntityMarkdown, entity: Optional[Entity] = None) -> Entity:
     """
     Convert markdown entity to model.
     Does not include relations.
@@ -98,16 +98,17 @@ def entity_model_from_markdown(file_path: Path, markdown: EntityMarkdown) -> Ent
         return obs.category
 
     permalink = markdown.frontmatter.permalink or generate_permalink(file_path)
-    model = Entity(
-        title=markdown.frontmatter.title or file_path.stem,
-        entity_type=markdown.frontmatter.type,
-        permalink=permalink,
-        file_path=str(file_path),
-        content_type="text/markdown",
-        created_at=markdown.frontmatter.created,
-        updated_at=markdown.frontmatter.modified,
-        entity_metadata={k:str(v) for k,v in markdown.frontmatter.metadata.items()},
-        observations=[
+    model = entity or Entity()
+    
+    model.title=markdown.frontmatter.title or file_path.stem
+    model.entity_type=markdown.frontmatter.type
+    model.permalink=permalink
+    model.file_path=str(file_path)
+    model.content_type="text/markdown"
+    model.created_at=markdown.frontmatter.created
+    model.updated_at=markdown.frontmatter.modified
+    model.entity_metadata={k:str(v) for k,v in markdown.frontmatter.metadata.items()}
+    model.observations=[
             ObservationModel(
                 content=obs.content,
                 category=get_valid_category(obs),
@@ -115,6 +116,6 @@ def entity_model_from_markdown(file_path: Path, markdown: EntityMarkdown) -> Ent
                 tags=obs.tags,
             )
             for obs in markdown.observations
-        ],
-    )
+        ]
+    
     return model
