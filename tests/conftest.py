@@ -27,7 +27,6 @@ from basic_memory.services.file_service import FileService
 from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
-from basic_memory.sync.entity_sync_service import EntitySyncService
 from basic_memory.sync.sync_service import SyncService
 
 
@@ -98,16 +97,18 @@ async def relation_repository(
 @pytest_asyncio.fixture
 async def entity_service(
     entity_repository: EntityRepository,
+    observation_repository: ObservationRepository,
+    relation_repository: RelationRepository,
     entity_parser: EntityParser,
-    entity_sync_service: EntitySyncService,
     file_service: FileService,
     link_resolver: LinkResolver,
 ) -> EntityService:
     """Create EntityService."""
     return EntityService(
         entity_parser=entity_parser,
-        entity_sync_service=entity_sync_service,
         entity_repository=entity_repository,
+        observation_repository=observation_repository,
+        relation_repository=relation_repository,
         file_service=file_service,
         link_resolver=link_resolver,
     )
@@ -143,23 +144,11 @@ def file_change_scanner(entity_repository) -> FileChangeScanner:
     return FileChangeScanner(entity_repository)
 
 
-@pytest_asyncio.fixture
-async def entity_sync_service(
-    entity_repository: EntityRepository,
-    observation_repository: ObservationRepository,
-    relation_repository: RelationRepository,
-    link_resolver: LinkResolver,
-) -> EntitySyncService:
-    """Create EntitySyncService with repository."""
-    return EntitySyncService(
-        entity_repository, observation_repository, relation_repository, link_resolver
-    )
-
 
 @pytest_asyncio.fixture
 async def sync_service(
-    entity_sync_service: EntitySyncService,
     file_change_scanner: FileChangeScanner,
+    entity_service: EntityService,
     entity_parser: EntityParser,
     entity_repository: EntityRepository,
     relation_repository: RelationRepository,
@@ -168,7 +157,7 @@ async def sync_service(
     """Create sync service for testing."""
     return SyncService(
         scanner=file_change_scanner,
-        entity_sync_service=entity_sync_service,
+        entity_service=entity_service,
         entity_repository=entity_repository,
         relation_repository=relation_repository,
         entity_parser=entity_parser,

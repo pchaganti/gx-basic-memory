@@ -214,7 +214,7 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify entity created but no relations
-    entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity = await sync_service.entity_service.repository.get_by_permalink(
         "concept/depends-on-future"
     )
     assert entity is not None
@@ -321,10 +321,10 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify both entities and their relations
-    entity_a = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity_a = await sync_service.entity_service.repository.get_by_permalink(
         "concept/entity-a"
     )
-    entity_b = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity_b = await sync_service.entity_service.repository.get_by_permalink(
         "concept/entity-b"
     )
 
@@ -447,7 +447,7 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify duplicates are handled
-    entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity = await sync_service.entity_service.repository.get_by_permalink(
         "concept/duplicate-relations"
     )
 
@@ -540,7 +540,7 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify observations
-    entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity = await sync_service.entity_service.repository.get_by_permalink(
         "concept/invalid-category"
     )
 
@@ -670,13 +670,13 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify all relations are created correctly regardless of order
-    entity_a = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity_a = await sync_service.entity_service.repository.get_by_permalink(
         "concept/entity-a"
     )
-    entity_b = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity_b = await sync_service.entity_service.repository.get_by_permalink(
         "concept/entity-b"
     )
-    entity_c = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity_c = await sync_service.entity_service.repository.get_by_permalink(
         "concept/entity-c"
     )
 
@@ -833,7 +833,7 @@ modified: 2024-01-01
     await asyncio.gather(sync_service.sync(test_config.home), modify_file())
 
     # Verify final state
-    doc = await sync_service.entity_sync_service.entity_repository.get_by_permalink("changing")
+    doc = await sync_service.entity_service.repository.get_by_permalink("changing")
     assert doc is not None
     # File should have a checksum, even if it's from either version
     assert doc.checksum is not None

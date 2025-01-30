@@ -7,9 +7,9 @@ from loguru import logger
 
 from basic_memory.markdown import EntityParser, EntityMarkdown
 from basic_memory.repository import EntityRepository, RelationRepository
+from basic_memory.services import EntityService
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
-from basic_memory.sync.entity_sync_service import EntitySyncService
 from basic_memory.sync.utils import SyncReport
 
 
@@ -24,14 +24,14 @@ class SyncService:
     def __init__(
         self,
         scanner: FileChangeScanner,
-        entity_sync_service: EntitySyncService,
+        entity_service: EntityService,
         entity_parser: EntityParser,
         entity_repository: EntityRepository,
         relation_repository: RelationRepository,
         search_service: SearchService,
     ):
         self.scanner = scanner
-        self.entity_sync_service = entity_sync_service
+        self.entity_service = entity_service
         self.entity_parser = entity_parser
         self.entity_repository = entity_repository
         self.relation_repository = relation_repository
@@ -45,7 +45,7 @@ class SyncService:
             logger.debug(f"Deleting entity and cleaning up search index: {file_path}")
 
             # Delete from db (this cascades to observations/relations)
-            await self.entity_sync_service.delete_entity_by_file_path(file_path)
+            await self.entity_service.delete_entity_by_file_path(file_path)
 
             # Clean up search index
             permalinks = (
@@ -95,13 +95,13 @@ class SyncService:
             # if the file is new, create an entity
             if file_path in changes.new:
                 logger.debug(f"Creating new entity_markdown: {file_path}")
-                await self.entity_sync_service.create_entity_from_markdown(
+                await self.entity_service.create_entity_from_markdown(
                     file_path, entity_markdown
                 )
             # otherwise we need to update the entity and observations
             else:
                 logger.debug(f"Updating entity_markdown: {file_path}")
-                await self.entity_sync_service.update_entity_and_observations(
+                await self.entity_service.update_entity_and_observations(
                     file_path, entity_markdown
                 )
 
@@ -111,7 +111,7 @@ class SyncService:
 
             # Process relations
             checksum = changes.checksums[file_path]
-            entity = await self.entity_sync_service.update_entity_relations(
+            entity = await self.entity_service.update_entity_relations(
                 file_path, entity_markdown
             )
 
@@ -124,7 +124,7 @@ class SyncService:
         # Third pass: Try to resolve any forward references
         logger.debug("Attempting to resolve forward references")
         for relation in await self.relation_repository.find_unresolved_relations():
-            target_entity = await self.entity_sync_service.link_resolver.resolve_link(relation.to_name)
+            target_entity = await self.entity_service.link_resolver.resolve_link(relation.to_name)
             # check we found a link that is not the source
             if target_entity and target_entity.id != relation.from_id:
                 logger.debug(f"Resolved forward reference: {relation.to_name} -> {target_entity.permalink}")

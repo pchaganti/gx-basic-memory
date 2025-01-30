@@ -19,16 +19,19 @@ from basic_memory.cli.app import app
 from basic_memory.config import config
 from basic_memory.db import DatabaseType
 from basic_memory.markdown import EntityParser
+from basic_memory.markdown.markdown_processor import MarkdownProcessor
 from basic_memory.repository import (
     EntityRepository,
     ObservationRepository,
     RelationRepository,
 )
 from basic_memory.repository.search_repository import SearchRepository
+from basic_memory.services import EntityService, FileService
 from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
-from basic_memory.sync import SyncService, FileChangeScanner, EntitySyncService
+from basic_memory.sync import SyncService, FileChangeScanner
 from basic_memory.sync.utils import SyncReport
+from conftest import markdown_processor
 
 console = Console()
 
@@ -58,16 +61,24 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         # Initialize scanner
         file_change_scanner = FileChangeScanner(entity_repository)
 
-        # Initialize services
-        knowledge_sync_service = EntitySyncService(
-            entity_repository, observation_repository, relation_repository, link_resolver
-        )
         entity_parser = EntityParser(config.home)
+        markdown_processor =  MarkdownProcessor(entity_parser)
+        file_service = FileService(config.home, markdown_processor)
+        
+        # Initialize services
+        entity_service = EntityService(
+            entity_parser, 
+            entity_repository, 
+            observation_repository, 
+            relation_repository,
+            file_service,
+            link_resolver
+        )
 
         # Create sync service
         sync_service = SyncService(
             scanner=file_change_scanner,
-            entity_sync_service=knowledge_sync_service,
+            entity_service=entity_service,
             entity_parser=entity_parser,
             entity_repository=entity_repository,
             relation_repository=relation_repository,
