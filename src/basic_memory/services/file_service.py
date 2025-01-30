@@ -68,14 +68,11 @@ class FileService:
                 # read the existing file
                 existing_markdown = await self.markdown_processor.read_file(path)
 
-                # merge content with entity
                 # if content is supplied use it or existing content
-                markdown = entity_model_to_markdown(
-                    entity, content=content or existing_markdown.content
-                )
-            else:
-                # Create new file structure with provided content
-                markdown = entity_model_to_markdown(entity, content=content)
+                content=content or existing_markdown.content
+            
+            # Create new file structure with provided content
+            markdown = entity_model_to_markdown(entity, content=content)
 
             # Write back atomically
             checksum = await self.markdown_processor.write_file(

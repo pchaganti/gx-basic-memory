@@ -97,7 +97,6 @@ def entity_model_from_markdown(file_path: Path, markdown: EntityMarkdown) -> Ent
             return ObservationCategory.NOTE.value
         return obs.category
 
-    # TODO handle permalink conflicts
     permalink = markdown.frontmatter.permalink or generate_permalink(file_path)
     model = Entity(
         title=markdown.frontmatter.title or file_path.stem,

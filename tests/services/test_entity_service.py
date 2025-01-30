@@ -416,3 +416,7 @@ See the [[Git Cheat Sheet]] for reference.
 
     # assert content is in file
     assert update_content.strip() in file_content
+
+
+
+    # TODO handle permalink conflicts
