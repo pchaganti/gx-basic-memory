@@ -36,13 +36,13 @@ async def write_note(
     Examples:
         # Create a simple note
         write_note(
-            title="Meeting Notes: Project Planning",
+            file_path="Meeting Notes: Project Planning",
             content="# Key Points\\n\\n- Discussed timeline\\n- Set priorities"
         )
 
         # Create note with tags
         write_note(
-            title="Security Review",
+            file_path="Security Review",
             content="# Findings\\n\\n1. Updated auth flow\\n2. Added rate limiting",
             tags=["security", "development"]
         )

@@ -133,8 +133,8 @@ class SyncService:
                     "to_name": target_entity.title  # Update to actual title
                 })
 
-            # update search index
-            await self.search_service.index_entity(target_entity)
+                # update search index
+                await self.search_service.index_entity(target_entity)
 
 
         return changes

@@ -93,6 +93,7 @@ class SearchRepository:
         search_text: Optional[str] = None,
         permalink: Optional[str] = None,
         permalink_match: Optional[str] = None,
+        title: Optional[str] = None,
         types: List[SearchItemType] = None,
         after_date: datetime = None,
         entity_types: List[str] = None,
@@ -107,6 +108,12 @@ class SearchRepository:
             search_text = self._quote_search_term(search_text.lower().strip())
             params["text"] = f"{search_text}*"
             conditions.append("(title MATCH :text OR content MATCH :text)")
+
+        # Handle title match search
+        if title:
+            title_text = self._quote_search_term(title.lower().strip())
+            params["text"] = f"{title_text}*"
+            conditions.append("title MATCH :text")
 
         # Handle permalink exact search
         if permalink:
@@ -162,7 +169,7 @@ class SearchRepository:
             LIMIT :limit
         """
 
-        #logger.debug(f"Search {sql} params: {params}")
+        logger.debug(f"Search {sql} params: {params}")
         async with db.scoped_session(self.session_maker) as session:
             result = await session.execute(text(sql), params)
             rows = result.fetchall()
@@ -188,7 +195,8 @@ class SearchRepository:
             for row in rows
         ]
 
-        #logger.debug(f"Search results: {results}")
+        for r in results:
+            logger.debug(f"Search result: type:{r.type} title: {r.title} permalink: {r.permalink} score: {r.score}")
         return results
 
     async def index_item(

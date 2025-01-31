@@ -72,6 +72,7 @@ class SearchService:
             search_text=query.text,
             permalink=query.permalink,
             permalink_match=query.permalink_match,
+            title=query.title,
             types=query.types,
             entity_types=query.entity_types,
             after_date=query.after_date,

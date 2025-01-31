@@ -215,22 +215,17 @@ async def test_get_entity_path(entity_service: EntityService):
 async def test_update_note_entity_content(entity_service: EntityService, file_service: FileService):
     """Should update note content directly."""
     # Create test entity
-    entity = await entity_service.create_entity(
-        EntitySchema(
-            file_path="test.md",
-            entity_type="note",
-            entity_metadata={"status": "draft"},
-        )
-    )
+    schema = EntitySchema(file_path="test.md", entity_type="note", entity_metadata={"status": "draft"}, )
+    entity = await entity_service.create_entity(schema)
     assert entity.entity_metadata.get("status") == "draft"
 
     # Update content with a relation 
-    entity.content = content = """
+    schema.content = """
 # Updated [[Content]]
 - references [[new content]]
 - [note] This is new content.
 """
-    updated = await entity_service.update_entity(entity)
+    updated = await entity_service.update_entity(entity, schema)
 
     # Verify file has new content but preserved metadata
     file_path = file_service.get_entity_path(updated)

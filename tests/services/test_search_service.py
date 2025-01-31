@@ -55,6 +55,13 @@ async def test_search_text(search_service, test_graph):
     assert len(results) >= 1
     assert results[0].permalink == "test/root"
 
+@pytest.mark.asyncio
+async def test_search_title(search_service, test_graph):
+    """Title only search"""
+    results = await search_service.search(SearchQuery(title="Root", types=[SearchItemType.ENTITY]))
+    assert len(results) >= 1
+    assert results[0].permalink == "test/root"
+
 
 @pytest.mark.asyncio
 async def test_text_search_features(search_service, test_graph):

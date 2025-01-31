@@ -52,7 +52,7 @@ class EntityService(BaseService[EntityModel]):
 
         if existing:
             logger.debug(f"Found existing entity: {existing.permalink}")
-            return await self.update_entity(schema), False
+            return await self.update_entity(existing, schema), False
         else:
             # Create new entity
             return await self.create_entity(schema), True
@@ -90,12 +90,12 @@ class EntityService(BaseService[EntityModel]):
         return await self.repository.update(entity.id, {"checksum": checksum})
 
 
-    async def update_entity(self, schema: EntitySchema) -> EntityModel:
+    async def update_entity(self, entity: EntityModel, schema: EntitySchema) -> EntityModel:
         """Update an entity's content and metadata."""
-        logger.debug(f"Updating entity with permalink: {schema.permalink}")
+        logger.debug(f"Updating entity with permalink: {entity.permalink}")
 
         # get file path
-        file_path = Path(schema.file_path)
+        file_path = Path(entity.file_path)
 
         post = await schema_to_markdown(schema)
 
