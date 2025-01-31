@@ -133,55 +133,6 @@ A test concept.
     assert relations[0].to_name == "concept/other"
 
 
-@pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
 
 
 @pytest.mark.asyncio
@@ -222,56 +173,6 @@ modified: 2024-01-01
     assert entity.relations[0].to_name == "concept/not_created_yet"
     assert entity.relations[1].to_name == "concept/also_future"
 
-
-@pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
 
 
 @pytest.mark.asyncio
@@ -348,56 +249,6 @@ modified: 2024-01-01
     assert b_relation.to_id == entity_a.id
 
 
-@pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
-
 
 @pytest.mark.asyncio
 async def test_sync_entity_duplicate_relations(
@@ -462,57 +313,6 @@ modified: 2024-01-01
 
 
 @pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
-
-
-@pytest.mark.asyncio
 async def test_sync_entity_with_invalid_category(
     sync_service: SyncService, test_config: ProjectConfig
 ):
@@ -551,57 +351,6 @@ modified: 2024-01-01
     assert "note" in categories
     # Valid categories preserved
     assert "design" in categories
-
-
-@pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
 
 
 @pytest.mark.asyncio
@@ -690,56 +439,6 @@ modified: 2024-01-01
     assert len(entity_c.incoming_relations) == 2  # A and B depend on C
 
 
-@pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
-
 
 @pytest.mark.asyncio
 async def test_sync_empty_directories(sync_service: SyncService, test_config: ProjectConfig):
@@ -748,57 +447,6 @@ async def test_sync_empty_directories(sync_service: SyncService, test_config: Pr
 
     # Should not raise exceptions for empty dirs
     assert (test_config.home).exists()
-
-
-@pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
 
 
 @pytest.mark.asyncio
@@ -837,57 +485,6 @@ modified: 2024-01-01
     assert doc is not None
     # File should have a checksum, even if it's from either version
     assert doc.checksum is not None
-
-
-@pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
 
 
 @pytest.mark.asyncio
@@ -934,57 +531,6 @@ Testing permalink generation.
 
 
 @pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
-
-
-@pytest.mark.asyncio
 async def test_handle_entity_deletion(
     test_graph,
     sync_service: SyncService,
@@ -1012,56 +558,6 @@ async def test_handle_entity_deletion(
     assert len(rel_results) == 0
 
 
-
-@pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
 
 
 @pytest.mark.asyncio
@@ -1107,56 +603,6 @@ Testing file timestamps
     file_stats = file_path.stat()
     assert abs((file_entity.created_at.timestamp() - file_stats.st_ctime)) < 1  # Allow 1s difference
     assert abs((file_entity.updated_at.timestamp() - file_stats.st_mtime)) < 1  # Allow 1s difference
-
-@pytest.mark.asyncio
-async def test_forward_reference_resolution(
-    sync_service: SyncService,
-    test_config: ProjectConfig,
-    entity_service: EntityService,
-):
-    """Test that forward references get resolved when target file is created."""
-    project_dir = test_config.home
-
-    # First create a file with a forward reference
-    source_content = """
----
-type: knowledge
----
-# Source Document
-
-## Relations
-- depends_on [[target-doc]]
-"""
-    await create_test_file(project_dir / "source.md", source_content)
-
-    # Initial sync - should create forward reference
-    await sync_service.sync(test_config.home)
-
-    # Verify forward reference
-    source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id is None
-    assert source.relations[0].to_name == "target-doc"
-
-    # Now create the target file
-    target_content = """
----
-type: knowledge
----
-# Target Doc
-Target content
-"""
-    await create_test_file(project_dir / "target_doc.md", target_content)
-
-    # Sync again - should resolve the reference
-    await sync_service.sync(test_config.home)
-
-    # Verify reference is now resolved
-    source = await entity_service.get_by_permalink("source")
-    target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 1
-    assert source.relations[0].to_id == target.id
-    assert source.relations[0].to_name == target.title
 
 
 @pytest.mark.asyncio
