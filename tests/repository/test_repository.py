@@ -124,6 +124,36 @@ async def test_delete_by_ids(repository):
 
 
 @pytest.mark.asyncio
+async def test_update(repository):
+    """Test finding entities modified since a timestamp."""
+    # Create initial test data
+    instance = TestModel(id="test_add", name="Test Add")
+    await repository.add(instance)
+
+    instance = TestModel(id="test_add", name="Updated")
+
+    # Find recently modified
+    modified = await repository.update(instance.id, {"name": "Updated"})
+    assert modified is not None
+    assert modified.name == "Updated"
+
+
+@pytest.mark.asyncio
+async def test_update_model(repository):
+    """Test finding entities modified since a timestamp."""
+    # Create initial test data
+    instance = TestModel(id="test_add", name="Test Add")
+    await repository.add(instance)
+
+    instance.name = "Updated"
+
+    # Find recently modified
+    modified = await repository.update(instance.id, instance)
+    assert modified is not None
+    assert modified.name == "Updated"
+
+
+@pytest.mark.asyncio
 async def test_find_modified_since(repository):
     """Test finding entities modified since a timestamp."""
     # Create initial test data

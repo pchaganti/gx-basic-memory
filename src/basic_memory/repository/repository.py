@@ -1,6 +1,6 @@
 """Base repository implementation."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Type, Optional, Any, Sequence, TypeVar, List
 
 from loguru import logger
@@ -65,7 +65,7 @@ class Repository[T: Base]:
         :param model: the model to add
         :return: the added model instance
         """
-        async with db.scoped_session(self.session_maker) as session:            
+        async with db.scoped_session(self.session_maker) as session:
             session.add(model)
             await session.flush()
 
@@ -184,7 +184,7 @@ class Repository[T: Base]:
         async with db.scoped_session(self.session_maker) as session:
             # Only include valid columns that are provided in entity_data
             model_data = self.get_model_data(data)
-            model = self.Model(**model_data)            
+            model = self.Model(**model_data)
             session.add(model)
             await session.flush()
 
@@ -209,7 +209,7 @@ class Repository[T: Base]:
 
             return await self.select_by_ids(session, [model.id for model in model_list])  # pyright: ignore [reportAttributeAccessIssue]
 
-    async def update(self, entity_id: int, entity_data: dict) -> Optional[T]:
+    async def update(self, entity_id: int, entity_data: dict | T) -> Optional[T]:
         """Update an entity with the given data."""
         logger.debug(f"Updating {self.Model.__name__} {entity_id} with data: {entity_data}")
         async with db.scoped_session(self.session_maker) as session:
@@ -219,10 +219,15 @@ class Repository[T: Base]:
                 )
                 entity = result.scalars().one()
 
-                for key, value in entity_data.items():
-                    if key in self.valid_columns:
-                        setattr(entity, key, value)
-                
+                if isinstance(entity_data, dict):
+                    for key, value in entity_data.items():
+                        if key in self.valid_columns:
+                            setattr(entity, key, value)
+                            
+                elif isinstance(entity_data, self.Model):
+                    for column in self.Model.__table__.columns.keys():
+                        setattr(entity, column, getattr(entity_data, column))
+                        
                 await session.flush()  # Make sure changes are flushed
                 await session.refresh(entity)  # Refresh
 

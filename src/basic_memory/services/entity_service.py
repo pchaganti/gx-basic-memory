@@ -220,9 +220,6 @@ class EntityService(BaseService[EntityModel]):
         # Clear observations for entity
         await self.observation_repository.delete_by_fields(entity_id=db_entity.id)
 
-        # update values from markdown
-        db_entity = entity_model_from_markdown(file_path, markdown, db_entity)
-
         # add new observations
         observations = [
             Observation(
@@ -236,6 +233,9 @@ class EntityService(BaseService[EntityModel]):
         ]
         await self.observation_repository.add_all(observations)
 
+        # update values from markdown
+        db_entity = entity_model_from_markdown(file_path, markdown, db_entity)
+
         # checksum value is None == not finished with sync
         db_entity.checksum = None
         
@@ -243,16 +243,7 @@ class EntityService(BaseService[EntityModel]):
         # checksum value is None == not finished with sync
         return await self.repository.update(
             db_entity.id,
-            {
-                "title": db_entity.title,
-                "entity_type": db_entity.entity_type,
-                "entity_metadata": db_entity.entity_metadata,
-                # TODO redo update, get created, modified from file
-                "created_at": markdown.frontmatter.created,
-                "updated_at": markdown.frontmatter.modified,
-                # Mark as incomplete
-                "checksum": None,
-            },
+            db_entity,
         )
 
     async def update_entity_relations(
