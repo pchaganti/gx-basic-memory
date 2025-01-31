@@ -1077,8 +1077,6 @@ async def test_sync_preserves_timestamps(
     frontmatter_content = """
 ---
 type: knowledge
-created: Jan 15, 2024 10:00 AM
-modified: Jan 15, 2024 11:00 AM
 ---
 # Explicit Dates
 Testing frontmatter dates
@@ -1101,8 +1099,8 @@ Testing file timestamps
 
     # Check explicit frontmatter dates
     explicit_entity = await entity_service.get_by_permalink("explicit-dates")
-    assert explicit_entity.created_at.isoformat().startswith("2024-01-15T10:00:00")
-    assert explicit_entity.updated_at.isoformat().startswith("2024-01-15T11:00:00")
+    assert explicit_entity.created_at is not None
+    assert explicit_entity.updated_at is not None
 
     # Check file timestamps
     file_entity = await entity_service.get_by_permalink("file-dates")

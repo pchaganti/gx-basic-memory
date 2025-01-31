@@ -53,6 +53,13 @@ def parse(content: str) -> EntityContent:
         relations=relations,
     )
 
+def parse_tags(tags: Any) -> list[str]:
+    """Parse tags into list of strings."""
+    if isinstance(tags, str):
+        return [t.strip() for t in tags.split(",") if t.strip()]
+    if isinstance(tags, (list, tuple)):
+        return [str(t).strip() for t in tags if str(t).strip()]
+    return []
 
 class EntityParser:
     """Parser for markdown files into Entity objects."""
@@ -107,17 +114,10 @@ class EntityParser:
         # Extract file stat info
         file_stats = absolute_path.stat()
 
-        
         metadata = post.metadata
         metadata["title"] = post.metadata.get("title", file_path.name)
         metadata["type"] = metadata.get("type", "note")
-        metadata["created"] = self.parse_date(
-            post.metadata.get("created")
-        ) or datetime.fromtimestamp(file_stats.st_ctime)
-        metadata["modified"] = self.parse_date(
-            post.metadata.get("modified")
-        ) or datetime.fromtimestamp(file_stats.st_mtime)
-        metadata["tags"] = self.parse_tags(post.metadata.get("tags", []))
+        metadata["tags"] = parse_tags(post.metadata.get("tags", []))
 
         # frontmatter
         entity_frontmatter = EntityFrontmatter(
@@ -131,12 +131,7 @@ class EntityParser:
             content=post.content,
             observations=entity_content.observations,
             relations=entity_content.relations,
+            created=datetime.fromtimestamp(file_stats.st_ctime),
+            modified=datetime.fromtimestamp(file_stats.st_mtime),
         )
 
-    def parse_tags(self, tags: Any) -> list[str]:
-        """Parse tags into list of strings."""
-        if isinstance(tags, str):
-            return [t.strip() for t in tags.split(",") if t.strip()]
-        if isinstance(tags, (list, tuple)):
-            return [str(t).strip() for t in tags if str(t).strip()]
-        return []

@@ -9,7 +9,7 @@ from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
 from basic_memory.markdown import EntityMarkdown
-from basic_memory.markdown.utils import entity_model_from_markdown
+from basic_memory.markdown.utils import entity_model_from_markdown, schema_to_markdown
 from basic_memory.models import Entity as EntityModel, Observation, Relation
 from basic_memory.repository import ObservationRepository, RelationRepository
 from basic_memory.repository.entity_repository import EntityRepository
@@ -69,14 +69,7 @@ class EntityService(BaseService[EntityModel]):
                 f"file_path {file_path} for entity {schema.permalink} already exists: {file_path}"
             )
 
-        # Convert frontmatter to dict
-        frontmatter_dict = schema.entity_metadata or {}
-        frontmatter_dict["permalink"] = schema.permalink
-        frontmatter_dict["type"] = schema.entity_type
-
-        # Create Post object for frontmatter
-        content = schema.content or ""
-        post = Post(content, **frontmatter_dict)
+        post = await schema_to_markdown(schema)
 
         # write file
         final_content = frontmatter.dumps(post)
@@ -84,6 +77,8 @@ class EntityService(BaseService[EntityModel]):
 
         # parse entity from file
         entity_markdown = await self.entity_parser.parse_file(file_path)
+        
+        # create entity
         created_entity = await self.create_entity_from_markdown(
             file_path, entity_markdown
         )
@@ -94,6 +89,7 @@ class EntityService(BaseService[EntityModel]):
         # Set final checksum to mark complete
         return await self.repository.update(entity.id, {"checksum": checksum})
 
+
     async def update_entity(self, schema: EntitySchema) -> EntityModel:
         """Update an entity's content and metadata."""
         logger.debug(f"Updating entity with permalink: {schema.permalink}")
@@ -101,14 +97,7 @@ class EntityService(BaseService[EntityModel]):
         # get file path
         file_path = Path(schema.file_path)
 
-        # Convert frontmatter to dict
-        frontmatter_dict = schema.entity_metadata or {}
-        frontmatter_dict["permalink"] = schema.permalink
-        frontmatter_dict["type"] = schema.entity_type
-
-        # Create Post object for frontmatter
-        content = schema.content or ""
-        post = Post(content, **frontmatter_dict)
+        post = await schema_to_markdown(schema)
 
         # write file
         final_content = frontmatter.dumps(post)

@@ -58,13 +58,6 @@ class EntityFrontmatter(BaseModel):
     def permalink(self) -> str:
         return self.metadata.get("permalink") if self.metadata else None
 
-    @property
-    def created(self) -> datetime:
-        return self.metadata.get("created") if self.metadata else None
-
-    @property
-    def modified(self) -> datetime:
-        return self.metadata.get("modified") if self.metadata else None
 
 
 class EntityMarkdown(BaseModel):
@@ -74,3 +67,7 @@ class EntityMarkdown(BaseModel):
     content: Optional[str] = None
     observations: List[Observation] = []
     relations: List[Relation] = []
+
+    # created, updated will have values after a read
+    created: Optional[datetime] = None
+    modified: Optional[datetime] = None

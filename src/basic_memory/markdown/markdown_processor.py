@@ -105,10 +105,10 @@ class MarkdownProcessor:
             "type": markdown.frontmatter.type,
             "permalink": markdown.frontmatter.permalink,
             "created": markdown.frontmatter.created.isoformat()
-            if markdown.frontmatter.created
+            if markdown.created
             else None,
             "modified": markdown.frontmatter.modified.isoformat()
-            if markdown.frontmatter.modified
+            if markdown.modified
             else None,
             **metadata,
         }

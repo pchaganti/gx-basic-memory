@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Optional
 
+from frontmatter import Post
+
 from basic_memory.markdown import EntityMarkdown, EntityFrontmatter, Observation, Relation
 from basic_memory.markdown.entity_parser import parse
 from basic_memory.models import Entity, ObservationCategory, Observation as ObservationModel
@@ -105,8 +107,8 @@ def entity_model_from_markdown(file_path: Path, markdown: EntityMarkdown, entity
     model.permalink=permalink
     model.file_path=str(file_path)
     model.content_type="text/markdown"
-    model.created_at=markdown.frontmatter.created
-    model.updated_at=markdown.frontmatter.modified
+    model.created_at=markdown.created
+    model.updated_at=markdown.modified
     model.entity_metadata={k:str(v) for k,v in markdown.frontmatter.metadata.items()}
     model.observations=[
             ObservationModel(
@@ -119,3 +121,21 @@ def entity_model_from_markdown(file_path: Path, markdown: EntityMarkdown, entity
         ]
     
     return model
+
+async def schema_to_markdown(schema):
+    """
+    Convert schema to markdown.
+    :param schema: the schema to convert 
+    :return: Post 
+    """
+    # Add metadata to dict
+    frontmatter_dict = schema.entity_metadata or {}
+    
+    # set permalink and type
+    frontmatter_dict["permalink"] = schema.permalink
+    frontmatter_dict["type"] = schema.entity_type
+    
+    # Create Post object
+    content = schema.content or ""
+    post = Post(content, **frontmatter_dict)
+    return post

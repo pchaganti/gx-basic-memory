@@ -1,5 +1,6 @@
 """Tests for entity markdown parsing."""
-
+import os
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 from textwrap import dedent
 
@@ -99,8 +100,6 @@ async def test_parse_minimal_file(test_config, entity_parser):
     content = dedent("""
         ---
         type: component
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
         tags: []
         ---
 
@@ -123,8 +122,8 @@ async def test_parse_minimal_file(test_config, entity_parser):
     assert len(entity.observations) == 1
     assert len(entity.relations) == 1
     
-    assert entity.frontmatter.created.isoformat().startswith("2024-12-21T14:00:00")
-    assert entity.frontmatter.modified.isoformat().startswith("2024-12-21T14:00:00")
+    assert entity.created is not None
+    assert entity.modified is not None
 
 
 @pytest.mark.asyncio
@@ -149,8 +148,6 @@ async def test_parse_file_without_section_headers(test_config, entity_parser):
         ---
         type: component
         permalink: minimal_entity
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
         status: draft
         tags: []
         ---
