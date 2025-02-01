@@ -38,14 +38,14 @@ async def write_note(
     Examples:
         # Create a simple note
         write_note(
-            file_path="Meeting Notes: Project Planning.md",
+            tile="Meeting Notes: Project Planning.md",
             content="# Key Points\\n\\n- Discussed timeline\\n- Set priorities"
             folder="notes"
         )
 
         # Create note with tags
         write_note(
-            file_path="Security Review.md",
+            title="Security Review",
             content="# Findings\\n\\n1. Updated auth flow\\n2. Added rate limiting",
             folder="security",
             tags=["security", "development"]            
@@ -84,8 +84,8 @@ async def read_note(identifier: str) -> str:
         The note's markdown content
 
     Examples:
-        # Read by file path
-        read_note("Meeting Notes: Project Planning.md")
+        # Read by title
+        read_note("Meeting Notes: Project Planning")
 
         # Read by permalink
         read_note("notes/project-planning")
