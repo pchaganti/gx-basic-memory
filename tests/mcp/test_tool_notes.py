@@ -4,6 +4,7 @@ import pytest
 from mcp.server.fastmcp.exceptions import ToolError
 
 from basic_memory.mcp.tools import notes
+from basic_memory.schemas import EntityResponse
 
 
 @pytest.mark.asyncio
@@ -187,3 +188,45 @@ async def test_delete_note_doesnt_exist(app):
     """
     deleted = await notes.delete_note("doesnt-exist")
     assert deleted is False
+
+@pytest.mark.asyncio
+async def test_write_note_verbose(app):
+    """Test creating a new note.
+
+    Should:
+    - Create entity with correct type and content
+    - Save markdown content
+    - Handle tags correctly
+    - Return valid permalink
+    """
+    entity = await notes.write_note(
+        title="Test Note",
+        folder="test",
+        content="""
+# Test\nThis is a test note
+
+- [note] First observation
+- relates to [[Knowledge]]
+
+""",
+        tags=["test", "documentation"],
+        verbose=True,
+    )
+
+    assert isinstance(entity, EntityResponse)
+
+    assert entity.title == "Test Note"
+    assert entity.file_path == "test/Test Note.md"
+    assert entity.entity_type == "note"
+    assert entity.permalink == "test/test-note"
+    
+    assert len(entity.observations) == 1
+    assert entity.observations[0].content == "First observation"
+    
+    assert len(entity.relations) == 1
+    assert entity.relations[0].relation_type == "relates to"
+    assert entity.relations[0].from_id == "test/test-note"
+    assert entity.relations[0].to_id is None
+    assert entity.relations[0].to_name == "Knowledge"
+
+

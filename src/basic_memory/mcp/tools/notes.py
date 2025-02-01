@@ -23,7 +23,8 @@ async def write_note(
     content: str,
     folder: str,
     tags: Optional[List[str]] = None,
-) -> str:
+    verbose: bool = False,
+) -> EntityResponse | str:
     """Write a markdown note to the knowledge base.
 
     Args:
@@ -31,9 +32,11 @@ async def write_note(
         content: Markdown content for the note
         folder: the folder where the file should be saved
         tags: Optional list of tags to categorize the note
+        verbose: If True, returns full EntityResponse with semantic info
 
     Returns:
-        Permalink that can be used to reference the note
+        If verbose=False: Permalink that can be used to reference the note
+        If verbose=True: EntityResponse with full semantic details
 
     Examples:
         # Create a simple note
@@ -48,7 +51,7 @@ async def write_note(
             title="Security Review",
             content="# Findings\\n\\n1. Updated auth flow\\n2. Added rate limiting",
             folder="security",
-            tags=["security", "development"]            
+            tags=["security", "development"]
         )
     """
     logger.info(f"Writing note folder:'{folder}' title: '{title}'")
@@ -69,7 +72,7 @@ async def write_note(
     url = f"/knowledge/entities/{entity.permalink}"
     response = await call_put(client, url, json=entity.model_dump())
     result = EntityResponse.model_validate(response.json())
-    return result.permalink
+    return result if verbose else result.permalink
 
 
 @mcp.tool(description="Read a note's content by its title or permalink")
