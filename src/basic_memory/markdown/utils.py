@@ -29,11 +29,9 @@ def entity_model_to_markdown(entity: Entity, content: Optional[str] = None) -> E
     :rtype: EntityMarkdown
     """
     metadata = entity.entity_metadata or {}
-    metadata["permalink"] = entity.permalink
     metadata["type"] = entity.entity_type or "note"
     metadata["title"] = entity.title
-    metadata["created"] = entity.created_at
-    metadata["modified"] = entity.updated_at
+    metadata["permalink"] = entity.permalink
 
     # convert model to markdown
     entity_observations = [
@@ -80,6 +78,8 @@ def entity_model_to_markdown(entity: Entity, content: Optional[str] = None) -> E
         content=content,
         observations=observations,
         relations=relations,
+        created = entity.created_at,
+        modified = entity.updated_at,
     )
 
 
@@ -102,7 +102,7 @@ def entity_model_from_markdown(file_path: Path, markdown: EntityMarkdown, entity
     permalink = markdown.frontmatter.permalink or generate_permalink(file_path)
     model = entity or Entity()
     
-    model.title=markdown.frontmatter.title or file_path.stem
+    model.title=markdown.frontmatter.title
     model.entity_type=markdown.frontmatter.type
     model.permalink=permalink
     model.file_path=str(file_path)
@@ -128,14 +128,17 @@ async def schema_to_markdown(schema):
     :param schema: the schema to convert 
     :return: Post 
     """
-    # Add metadata to dict
-    frontmatter_dict = schema.entity_metadata or {}
-    
-    # set permalink and type
-    frontmatter_dict["permalink"] = schema.permalink
-    frontmatter_dict["type"] = schema.entity_type
-    
     # Create Post object
     content = schema.content or ""
-    post = Post(content, **frontmatter_dict)
+    frontmatter_metadata = schema.entity_metadata or {}
+    
+    # remove from map so we can define ordering in frontmatter
+    if "type" in frontmatter_metadata:
+        del frontmatter_metadata["type"]
+    if "title" in frontmatter_metadata:
+        del frontmatter_metadata["title"]
+    if "permalink" in frontmatter_metadata:
+        del frontmatter_metadata["permalink"]
+        
+    post = Post(content, title=schema.title, type=schema.entity_type, permalink=schema.permalink, **frontmatter_metadata)
     return post

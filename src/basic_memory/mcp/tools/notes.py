@@ -19,15 +19,17 @@ from basic_memory.mcp.tools.utils import call_get, call_put, call_delete
     description="Create or update a markdown note. Returns the permalink for referencing.",
 )
 async def write_note(
-    file_path: str,
+    title: str,
     content: str,
+    folder: str,
     tags: Optional[List[str]] = None,
 ) -> str:
     """Write a markdown note to the knowledge base.
 
     Args:
-        file_path: The note's title
+        title: The title of the note
         content: Markdown content for the note
+        folder: the folder where the file should be saved
         tags: Optional list of tags to categorize the note
 
     Returns:
@@ -36,23 +38,26 @@ async def write_note(
     Examples:
         # Create a simple note
         write_note(
-            file_path="Meeting Notes: Project Planning",
+            file_path="Meeting Notes: Project Planning.md",
             content="# Key Points\\n\\n- Discussed timeline\\n- Set priorities"
+            folder="notes"
         )
 
         # Create note with tags
         write_note(
-            file_path="Security Review",
+            file_path="Security Review.md",
             content="# Findings\\n\\n1. Updated auth flow\\n2. Added rate limiting",
-            tags=["security", "development"]
+            folder="security",
+            tags=["security", "development"]            
         )
     """
-    logger.info(f"Writing note: {file_path}")
+    logger.info(f"Writing note folder:'{folder}' title: '{title}'")
 
     # Create the entity request
     metadata = {"tags": [f"#{tag}" for tag in tags]} if tags else None
     entity = Entity(
-        file_path=file_path,
+        title=title,
+        folder=folder,
         entity_type="note",
         content_type="text/markdown",
         content=content,
@@ -79,8 +84,8 @@ async def read_note(identifier: str) -> str:
         The note's markdown content
 
     Examples:
-        # Read by title
-        read_note("Meeting Notes: Project Planning")
+        # Read by file path
+        read_note("Meeting Notes: Project Planning.md")
 
         # Read by permalink
         read_note("notes/project-planning")

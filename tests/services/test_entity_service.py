@@ -17,7 +17,8 @@ from basic_memory.services.exceptions import EntityNotFoundError
 async def test_create_entity(entity_service: EntityService, file_service: FileService):
     """Test successful entity creation."""
     entity_data = EntitySchema(
-        file_path="TestEntity.md",
+        title="Test Entity",
+        folder="",
         entity_type="test",
     )
 
@@ -34,7 +35,7 @@ async def test_create_entity(entity_service: EntityService, file_service: FileSe
 
     # Verify we can retrieve it using permalink
     retrieved = await entity_service.get_by_permalink(entity_data.permalink)
-    assert retrieved.title == "TestEntity.md"
+    assert retrieved.title == "Test Entity"
     assert retrieved.entity_type == "test"
     assert retrieved.created_at is not None
 
@@ -56,13 +57,15 @@ async def test_create_entity(entity_service: EntityService, file_service: FileSe
 async def test_get_by_permalink(entity_service: EntityService):
     """Test finding entity by type and name combination."""
     entity1_data = EntitySchema(
-        file_path="TestEntity1.md",
+        title="TestEntity1",
+        folder="test",
         entity_type="test",
     )
     entity1 = await entity_service.create_entity(entity1_data)
 
     entity2_data = EntitySchema(
-        file_path="TestEntity2.md",
+        title="TestEntity2",
+        folder="test",
         entity_type="test",
     )
     entity2 = await entity_service.create_entity(entity2_data)
@@ -88,16 +91,17 @@ async def test_get_by_permalink(entity_service: EntityService):
 async def test_get_entity_success(entity_service: EntityService):
     """Test successful entity retrieval."""
     entity_data = EntitySchema(
-        file_path="TestEntity.md",
+        title="TestEntity",
+        folder="test",
         entity_type="test",
     )
     await entity_service.create_entity(entity_data)
 
-    # Get by path ID
+    # Get by permalink
     retrieved = await entity_service.get_by_permalink(entity_data.permalink)
 
     assert isinstance(retrieved, EntityModel)
-    assert retrieved.title == "TestEntity.md"
+    assert retrieved.title == "TestEntity"
     assert retrieved.entity_type == "test"
 
 
@@ -105,7 +109,8 @@ async def test_get_entity_success(entity_service: EntityService):
 async def test_delete_entity_success(entity_service: EntityService):
     """Test successful entity deletion."""
     entity_data = EntitySchema(
-        file_path="TestEntity.md",
+        title="TestEntity",
+        folder="test",
         entity_type="test",
     )
     await entity_service.create_entity(entity_data)
@@ -135,9 +140,10 @@ async def test_delete_nonexistent_entity(entity_service: EntityService):
 @pytest.mark.asyncio
 async def test_create_entity_with_special_chars(entity_service: EntityService):
     """Test entity creation with special characters in name and description."""
-    name = "TestEntity_$pecial chars & symbols!.md"  # Note: Using valid path characters
+    name = "TestEntity_$pecial chars & symbols!"  # Note: Using valid path characters
     entity_data = EntitySchema(
-        file_path=name,
+        title=name,
+        folder="test",
         entity_type="test",
     )
     entity = await entity_service.create_entity(entity_data)
@@ -153,11 +159,13 @@ async def test_get_entities_by_permalinks(entity_service: EntityService):
     """Test opening multiple entities by path IDs."""
     # Create test entities
     entity1_data = EntitySchema(
-        file_path="Entity1.md",
+        title="Entity1",
+        folder="test",
         entity_type="test",
     )
     entity2_data = EntitySchema(
-        file_path="Entity2.md",
+        title="Entity2",
+        folder="test",
         entity_type="test",
     )
     await entity_service.create_entity(entity1_data)
@@ -169,7 +177,7 @@ async def test_get_entities_by_permalinks(entity_service: EntityService):
 
     assert len(found) == 2
     names = {e.title for e in found}
-    assert names == {"Entity1.md", "Entity2.md"}
+    assert names == {"Entity1", "Entity2"}
 
 
 @pytest.mark.asyncio
@@ -184,7 +192,8 @@ async def test_get_entities_some_not_found(entity_service: EntityService):
     """Test opening nodes with mix of existing and non-existent path IDs."""
     # Create one test entity
     entity_data = EntitySchema(
-        file_path="Entity1.md",
+        title="Entity1",
+        folder="test",
         entity_type="test",
     )
     await entity_service.create_entity(entity_data)
@@ -194,7 +203,7 @@ async def test_get_entities_some_not_found(entity_service: EntityService):
     found = await entity_service.get_entities_by_permalinks(permalinks)
 
     assert len(found) == 1
-    assert found[0].title == "Entity1.md"
+    assert found[0].title == "Entity1"
 
 
 
@@ -202,7 +211,6 @@ async def test_get_entities_some_not_found(entity_service: EntityService):
 async def test_get_entity_path(entity_service: EntityService):
     """Should generate correct filesystem path for entity."""
     entity = EntityModel(
-        id=1,
         permalink="test-entity",
         file_path="test-entity.md",
         entity_type="test",
@@ -215,7 +223,8 @@ async def test_get_entity_path(entity_service: EntityService):
 async def test_update_note_entity_content(entity_service: EntityService, file_service: FileService):
     """Should update note content directly."""
     # Create test entity
-    schema = EntitySchema(file_path="test.md", entity_type="note", entity_metadata={"status": "draft"}, )
+    schema = EntitySchema(title="test", folder="test", entity_type="note", entity_metadata={"status": "draft"}, )
+    
     entity = await entity_service.create_entity(schema)
     assert entity.entity_metadata.get("status") == "draft"
 
@@ -248,12 +257,13 @@ async def test_create_or_update_new(entity_service: EntityService, file_service:
     # Create test entity
     entity, created = await entity_service.create_or_update_entity(
         EntitySchema(
-            file_path="test.md",
+            title="test",
+            folder="test",
             entity_type="test",
             entity_metadata={"status": "draft"},
         )
     )
-    assert entity.title == "test.md"
+    assert entity.title == "test"
     assert created is True
 
 
@@ -263,7 +273,8 @@ async def test_create_or_update_existing(entity_service: EntityService, file_ser
     # Create test entity
     entity = await entity_service.create_entity(
         EntitySchema(
-            file_path="test.md",
+            title="test",
+            folder="test",
             entity_type="test",
             content="Test entity",
             entity_metadata={"status": "final"},
@@ -275,7 +286,7 @@ async def test_create_or_update_existing(entity_service: EntityService, file_ser
     # Update name
     updated, created = await entity_service.create_or_update_entity(entity)
 
-    assert updated.title == "test.md"
+    assert updated.title == "test"
     assert updated.entity_metadata["status"] == "final"
     assert created is False
 
@@ -300,14 +311,18 @@ See the [[Git Cheat Sheet]] for reference.
     # Create test entity
     entity, created = await entity_service.create_or_update_entity(
         EntitySchema(
-            file_path="Git Workflow Guide.md",
+            title="Git Workflow Guide",
+            folder="test",
             entity_type="test",
             content=content,
         )
     )
 
     assert created is True
-    assert entity.title == "Git Workflow Guide.md"
+    assert entity.title == "Git Workflow Guide"
+    assert entity.entity_type == "test"
+    assert entity.permalink == "test/git-workflow-guide"
+    assert entity.file_path == "test/Git Workflow Guide.md"
 
     assert len(entity.observations) == 1
     assert entity.observations[0].category == "design"
@@ -332,6 +347,15 @@ See the [[Git Cheat Sheet]] for reference.
 
     # assert content is in file
     assert content.strip() in file_content
+    
+    # assert frontmatter
+    assert """
+---
+title: Git Workflow Guide
+type: test
+permalink: test/git-workflow-guide
+---    
+    """.strip() in file_content
 
 
 @pytest.mark.asyncio
@@ -343,14 +367,15 @@ async def test_update_with_content(
     # Create test entity
     entity, created = await entity_service.create_or_update_entity(
         EntitySchema(
-            file_path="Git Workflow Guide.md",
+            title="Git Workflow Guide",
             entity_type="test",
+            folder="test",
             content=content,
         )
     )
 
     assert created is True
-    assert entity.title == "Git Workflow Guide.md"
+    assert entity.title == "Git Workflow Guide"
 
     assert len(entity.observations) == 0
     assert len(entity.relations) == 0
@@ -379,14 +404,15 @@ See the [[Git Cheat Sheet]] for reference.
     # Create test entity
     entity, created = await entity_service.create_or_update_entity(
         EntitySchema(
-            file_path="Git Workflow Guide.md",
+            title="Git Workflow Guide",
+            folder="test",
             entity_type="test",
             content=update_content,
         )
     )
 
     assert created is False
-    assert entity.title == "Git Workflow Guide.md"
+    assert entity.title == "Git Workflow Guide"
 
     assert len(entity.observations) == 1
     assert entity.observations[0].category == "design"

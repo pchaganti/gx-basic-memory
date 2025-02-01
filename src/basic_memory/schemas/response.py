@@ -117,6 +117,7 @@ class EntityResponse(SQLAlchemyModel):
     """
 
     permalink: PathId
+    title: str
     file_path: str
     entity_type: EntityType
     entity_metadata: Optional[Dict] = None

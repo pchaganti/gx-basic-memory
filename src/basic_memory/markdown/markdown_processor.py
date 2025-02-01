@@ -14,6 +14,7 @@ The file format has two distinct types of content:
 
 from pathlib import Path
 from typing import Optional
+from collections import OrderedDict
 
 import frontmatter
 from frontmatter import Post
@@ -99,21 +100,16 @@ class MarkdownProcessor:
             if current_checksum != expected_checksum:
                 raise DirtyFileError(f"File {path} has been modified")
 
-        # Convert frontmatter to dict, dropping None values
+        # Convert frontmatter to dict
+        frontmatter_dict = OrderedDict()
+        frontmatter_dict["title"] =  markdown.frontmatter.title
+        frontmatter_dict["type"] =  markdown.frontmatter.type
+        frontmatter_dict["permalink"] = markdown.frontmatter.permalink
+        
         metadata = markdown.frontmatter.metadata or {}
-        frontmatter_dict = {
-            "type": markdown.frontmatter.type,
-            "permalink": markdown.frontmatter.permalink,
-            "created": markdown.frontmatter.created.isoformat()
-            if markdown.created
-            else None,
-            "modified": markdown.frontmatter.modified.isoformat()
-            if markdown.modified
-            else None,
-            **metadata,
-        }
-        frontmatter_dict = {k: v for k, v in frontmatter_dict.items() if v is not None}
-
+        for k,v in metadata.items():
+            frontmatter_dict[k] = v
+        
         # Start with user content (or minimal title for new files)
         content = markdown.content or f"# {markdown.frontmatter.title}\n"
 
@@ -131,7 +127,7 @@ class MarkdownProcessor:
 
         # Create Post object for frontmatter
         post = Post(content, **frontmatter_dict)
-        final_content = frontmatter.dumps(post)
+        final_content = frontmatter.dumps(post, sort_keys=False)
 
         logger.debug(f"writing file {path} with content:\n{final_content}")
 

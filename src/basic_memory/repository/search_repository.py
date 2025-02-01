@@ -169,7 +169,7 @@ class SearchRepository:
             LIMIT :limit
         """
 
-        logger.debug(f"Search {sql} params: {params}")
+        #logger.debug(f"Search {sql} params: {params}")
         async with db.scoped_session(self.session_maker) as session:
             result = await session.execute(text(sql), params)
             rows = result.fetchall()
@@ -195,8 +195,8 @@ class SearchRepository:
             for row in rows
         ]
 
-        for r in results:
-            logger.debug(f"Search result: type:{r.type} title: {r.title} permalink: {r.permalink} score: {r.score}")
+        #for r in results:
+        #    logger.debug(f"Search result: type:{r.type} title: {r.title} permalink: {r.permalink} score: {r.score}")
         return results
 
     async def index_item(

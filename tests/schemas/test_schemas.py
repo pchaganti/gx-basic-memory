@@ -16,9 +16,10 @@ from basic_memory.schemas.base import to_snake_case, TimeFrame
 
 def test_entity():
     """Test creating EntityIn with minimal required fields."""
-    data = {"file_path": "test_entity.md", "entity_type": "knowledge"}
+    data = {"title": "Test Entity", "folder": "test", "entity_type": "knowledge"}
     entity = Entity.model_validate(data)
-    assert entity.file_path == "test_entity.md"
+    assert entity.file_path == "test/Test Entity.md"
+    assert entity.permalink == "test/test-entity"
     assert entity.entity_type == "knowledge"
 
 
@@ -69,6 +70,7 @@ def test_entity_out_from_attributes():
     """Test EntityOut creation from database model attributes."""
     # Simulate database model attributes
     db_data = {
+        "title": "Test Entity",
         "permalink": "test/test",
         "file_path": "test",
         "entity_type": "knowledge",
@@ -132,10 +134,11 @@ def test_path_sanitization():
 def test_permalink_generation():
     """Test permalink property generates correct paths."""
     test_cases = [
-        ({"file_path": "BasicMemory", "entity_type": "test"}, "basic-memory"),
-        ({"file_path": "Memory Service", "entity_type": "test"}, "memory-service"),
-        ({"file_path": "API Gateway", "entity_type": "test"}, "api-gateway"),
-        ({"file_path": "TestCase1", "entity_type": "test"}, "test-case1"),
+        ({"title": "BasicMemory", "folder": "test"}, "test/basic-memory"),
+        ({"title": "Memory Service", "folder": "test"}, "test/memory-service"),
+        ({"title": "API Gateway", "folder": "test"}, "test/api-gateway"),
+        ({"title": "TestCase1", "folder": "test"}, "test/test-case1"),
+        ({"title": "TestCaseRoot", "folder": ""}, "test-case-root"),
     ]
 
     for input_data, expected_path in test_cases:

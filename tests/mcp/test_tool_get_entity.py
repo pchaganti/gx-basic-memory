@@ -13,7 +13,8 @@ async def test_get_basic_entity(client):
     """Test retrieving a basic entity."""
     # First create an entity
     permalink = await notes.write_note(
-        file_path="Test Note",
+        title="Test Note",
+        folder="test",
         content="""
 # Test\nThis is a test note
 - [note] First observation
@@ -27,9 +28,9 @@ async def test_get_basic_entity(client):
     entity = await get_entity(permalink)
 
     # Verify entity details
-    assert entity.file_path == "Test Note"
+    assert entity.file_path == "test/Test Note.md"
     assert entity.entity_type == "note"
-    assert entity.permalink == "test-note"
+    assert entity.permalink == "test/test-note"
 
     # Check observations
     assert len(entity.observations) == 1

@@ -17,7 +17,8 @@ async def test_create_entity(client: AsyncClient, file_service):
     """Should create entity successfully."""
 
     data = {
-        "file_path": "TestEntity",
+        "title": "TestEntity",
+        "folder": "test",
         "entity_type": "test",
         "content": "TestContent",
     }
@@ -27,8 +28,8 @@ async def test_create_entity(client: AsyncClient, file_service):
     assert response.status_code == 200
     entity = EntityResponse.model_validate(response.json())
 
-    assert entity.permalink == "test-entity"
-    assert entity.file_path == data["file_path"]
+    assert entity.permalink == "test/test-entity"
+    assert entity.file_path == "test/TestEntity.md"
     assert entity.entity_type == data["entity_type"]
     assert entity.content_type == "text/markdown"
 
@@ -44,7 +45,8 @@ async def test_create_entity_observations_relations(client: AsyncClient, file_se
     """Should create entity successfully."""
 
     data = {
-        "file_path": "TestEntity.md",
+        "title": "TestEntity",
+        "folder": "test",
         "content": """
 # TestContent
 
@@ -59,8 +61,8 @@ async def test_create_entity_observations_relations(client: AsyncClient, file_se
     assert response.status_code == 200
     entity = EntityResponse.model_validate(response.json())
 
-    assert entity.permalink == "test-entity"
-    assert entity.file_path == data["file_path"]
+    assert entity.permalink == "test/test-entity"
+    assert entity.file_path == "test/TestEntity.md"
     assert entity.entity_type == "note"
     assert entity.content_type == "text/markdown"
 
@@ -72,7 +74,7 @@ async def test_create_entity_observations_relations(client: AsyncClient, file_se
 
     assert len(entity.relations) == 1
     assert entity.relations[0].relation_type == "related to"
-    assert entity.relations[0].from_id == "test-entity"
+    assert entity.relations[0].from_id == "test/test-entity"
     assert entity.relations[0].to_id is None
 
     # TODO Relation.to_id should be name from link
@@ -88,7 +90,7 @@ async def test_create_entity_observations_relations(client: AsyncClient, file_se
 async def test_get_entity(client: AsyncClient):
     """Should retrieve an entity by path ID."""
     # First create an entity
-    data = {"file_path": "TestEntity", "entity_type": "test"}
+    data = {"title": "TestEntity", "folder": "test", "entity_type": "test"}
     response = await client.post("/knowledge/entities", json=data)
     assert response.status_code == 200
     data = response.json()
@@ -100,17 +102,17 @@ async def test_get_entity(client: AsyncClient):
     # Verify retrieval
     assert response.status_code == 200
     entity = response.json()
-    assert entity["file_path"] == "TestEntity"
+    assert entity["file_path"] == "test/TestEntity.md"
     assert entity["entity_type"] == "test"
-    assert entity["permalink"] == "test-entity"
+    assert entity["permalink"] == "test/test-entity"
 
 
 @pytest.mark.asyncio
 async def test_get_entities(client: AsyncClient):
     """Should open multiple entities by path IDs."""
     # Create a few entities with different names
-    await client.post("/knowledge/entities", json={"file_path": "AlphaTest", "entity_type": "test"})
-    await client.post("/knowledge/entities", json={"file_path": "BetaTest", "entity_type": "test"})
+    await client.post("/knowledge/entities", json={"title": "AlphaTest", "folder": "", "entity_type": "test"})
+    await client.post("/knowledge/entities", json={"title": "BetaTest", "folder": "", "entity_type": "test"})
 
     # Open nodes by path IDs
     response = await client.get(
@@ -123,12 +125,14 @@ async def test_get_entities(client: AsyncClient):
     assert len(data["entities"]) == 2
 
     entity_0 = data["entities"][0]
-    assert entity_0["file_path"] == "AlphaTest"
+    assert entity_0["title"] == "AlphaTest"
+    assert entity_0["file_path"] == "AlphaTest.md"
     assert entity_0["entity_type"] == "test"
     assert entity_0["permalink"] == "alpha-test"
 
     entity_1 = data["entities"][1]
-    assert entity_1["file_path"] == "BetaTest"
+    assert entity_1["title"] == "BetaTest"
+    assert entity_1["file_path"] == "BetaTest.md"
     assert entity_1["entity_type"] == "test"
     assert entity_1["permalink"] == "beta-test"
 
@@ -155,7 +159,7 @@ async def test_delete_entity(client: AsyncClient):
 async def test_delete_single_entity(client: AsyncClient):
     """Test DELETE /knowledge/entities with path ID."""
     # Create test entity
-    entity_data = {"file_path": "TestEntity", "entity_type": "test"}
+    entity_data = {"title": "TestEntity", "folder": "", "entity_type": "test"}
     await client.post("/knowledge/entities", json=entity_data)
 
     # Test deletion
@@ -173,7 +177,7 @@ async def test_delete_single_entity(client: AsyncClient):
 async def test_delete_single_entity_by_title(client: AsyncClient):
     """Test DELETE /knowledge/entities with path ID."""
     # Create test entity
-    entity_data = {"file_path": "TestEntity", "entity_type": "test"}
+    entity_data = {"title": "TestEntity", "folder": "", "entity_type": "test"}
     await client.post("/knowledge/entities", json=entity_data)
 
     # Test deletion
@@ -235,7 +239,8 @@ async def test_entity_indexing(client: AsyncClient):
     response = await client.post(
         "/knowledge/entities",
         json={
-            "file_path": "SearchTest",
+            "title": "SearchTest",
+            "folder": "",
             "entity_type": "test",
             "observations": ["Unique searchable observation"],
         },
@@ -261,7 +266,8 @@ async def test_entity_delete_indexing(client: AsyncClient):
     response = await client.post(
         "/knowledge/entities",
         json={
-            "file_path": "DeleteTest",
+            "title": "DeleteTest",
+            "folder": "",
             "entity_type": "test",
             "observations": ["Searchable observation that should be removed"],
         },
@@ -297,7 +303,8 @@ async def test_update_entity_basic(client: AsyncClient):
     response = await client.post(
         "/knowledge/entities",
         json={
-            "file_path": "test",
+            "title": "test",
+            "folder": "",
             "entity_type": "test",
             "content": "Initial summary",
             "entity_metadata": {"status": "draft"},
@@ -306,7 +313,7 @@ async def test_update_entity_basic(client: AsyncClient):
     entity_response = response.json()
 
     # Update fields
-    entity = Entity(**entity_response)
+    entity = Entity(**entity_response, folder="")
     entity.entity_metadata["status"] = "final"
     entity.content = "Updated summary"
 
@@ -330,12 +337,12 @@ async def test_update_entity_content(client: AsyncClient):
     # Create a note entity
     response = await client.post(
         "/knowledge/entities",
-        json={"file_path": "test-note", "entity_type": "note", "summary": "Test note"},
+        json={"title": "test-note", "folder": "", "entity_type": "note", "summary": "Test note"},
     )
     note = response.json()
 
     # Update fields
-    entity = Entity(**note)
+    entity = Entity(**note, folder="")
     entity.content = "# Updated Note\n\nNew content."
 
     response = await client.put(
@@ -358,7 +365,8 @@ async def test_update_entity_type_conversion(client: AsyncClient):
     """Test converting between note and knowledge types."""
     # Create a note
     note_data = {
-        "file_path": "test-note",
+        "title": "test-note",
+        "folder": "",
         "entity_type": "note",
         "summary": "Test note",
         "content": "# Test Note\n\nInitial content.",
@@ -367,7 +375,7 @@ async def test_update_entity_type_conversion(client: AsyncClient):
     note = response.json()
 
     # Update fields
-    entity = Entity(**note)
+    entity = Entity(**note, folder="")
     entity.entity_type = "test"
 
     response = await client.put(
@@ -389,12 +397,12 @@ async def test_update_entity_type_conversion(client: AsyncClient):
 async def test_update_entity_metadata(client: AsyncClient):
     """Test updating entity metadata."""
     # Create entity
-    data = {"file_path": "test", "entity_type": "test", "entity_metadata": {"status": "draft"}}
+    data = {"title": "test", "folder": "", "entity_type": "test", "entity_metadata": {"status": "draft"}}
     response = await client.post("/knowledge/entities", json=data)
     entity_response = response.json()
 
     # Update fields
-    entity = Entity(**entity_response)
+    entity = Entity(**entity_response, folder="")
     entity.entity_metadata["status"] = "final"
     entity.entity_metadata["reviewed"] = True
 
@@ -405,7 +413,7 @@ async def test_update_entity_metadata(client: AsyncClient):
 
     # Verify metadata was merged, not replaced
     assert updated["entity_metadata"]["status"] == "final"
-    assert updated["entity_metadata"]["reviewed"] in (True, "True") 
+    assert updated["entity_metadata"]["reviewed"] in (True, "True")
 
 
 @pytest.mark.asyncio
@@ -413,7 +421,8 @@ async def test_update_entity_not_found_does_create(client: AsyncClient):
     """Test updating non-existent entity does a create"""
 
     data = {
-        "file_path": "nonexistent",
+        "title": "nonexistent",
+        "folder": "",
         "entity_type": "test",
         "observations": ["First observation", "Second observation"],
     }
@@ -427,7 +436,8 @@ async def test_update_entity_incorrect_permalink(client: AsyncClient):
     """Test updating non-existent entity does a create"""
 
     data = {
-        "file_path": "Test Entity",
+        "title": "Test Entity",
+        "folder": "",
         "entity_type": "test",
         "observations": ["First observation", "Second observation"],
     }
@@ -440,12 +450,12 @@ async def test_update_entity_incorrect_permalink(client: AsyncClient):
 async def test_update_entity_search_index(client: AsyncClient):
     """Test search index is updated after entity changes."""
     # Create entity
-    data = {"file_path": "test", "entity_type": "test", "content": "Initial searchable content"}
+    data = {"title": "test", "folder": "", "entity_type": "test", "content": "Initial searchable content"}
     response = await client.post("/knowledge/entities", json=data)
     entity_response = response.json()
 
     # Update fields
-    entity = Entity(**entity_response)
+    entity = Entity(**entity_response, folder="")
     entity.content = "Updated with unique sphinx marker"
 
     response = await client.put(f"/knowledge/entities/{entity.permalink}", json=entity.model_dump())

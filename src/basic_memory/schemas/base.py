@@ -182,15 +182,21 @@ class Entity(BaseModel):
     - Optional description for high-level overview
     """
 
-    file_path: str
-    entity_type: EntityType = "note"
+    title: str
     content: Optional[str] = None
+    folder: str
+    entity_type: EntityType = "note"
     entity_metadata: Optional[Dict] = Field(default=None, description="Optional metadata")
     content_type: ContentType = Field(
         description="MIME type of the content (e.g. text/markdown, image/jpeg)",
         examples=["text/markdown", "image/jpeg"], default="text/markdown"
     )
 
+    @property
+    def file_path(self):
+        """Get the file path for this entity based on its permalink."""
+        return f"{self.folder}/{self.title}.md" if self.folder else f"{self.title}.md"
+    
     @property
     def permalink(self) -> PathId:
         """Get the path ID in format {snake_case_title}."""
