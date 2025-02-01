@@ -13,12 +13,11 @@ from basic_memory.repository import EntityRepository
 from basic_memory.repository.search_repository import SearchIndexRow
 from basic_memory.schemas.base import TimeFrame
 from basic_memory.schemas.memory import (
-    MemoryUrl,
     GraphContext,
     RelationSummary,
     EntitySummary,
     ObservationSummary,
-    MemoryMetadata,
+    MemoryMetadata, normalize_memory_url,
 )
 from basic_memory.schemas.search import SearchItemType
 from basic_memory.services.context_service import ContextResultRow
@@ -50,7 +49,7 @@ async def to_graph_context(context, entity_repository: EntityRepository):
                     permalink=item.permalink,
                     type=item.type,
                     from_id=from_entity.permalink,
-                    to_id=to_entity.permalink,
+                    to_id=to_entity.permalink if to_entity else None,
                 )
 
     primary_results = [await to_summary(r) for r in context["primary_results"]]
@@ -109,7 +108,7 @@ async def get_memory_context(
     logger.debug(
         f"Getting context for URI: `{uri}` depth: `{depth}` timeframe: `{timeframe}` max_results: `{max_results}`"
     )
-    memory_url = MemoryUrl(f"memory://{uri}")
+    memory_url = normalize_memory_url(uri)
 
     # Parse timeframe
     since = parse(timeframe)

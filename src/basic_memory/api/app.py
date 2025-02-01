@@ -39,4 +39,4 @@ async def exception_handler(request, exc):
     logger.exception(
         f"An unhandled exception occurred for request '{request.url}', exception: {exc}"
     )
-    return await http_exception_handler(request, HTTPException(status_code=500, detail=exc.args[0]))
+    return await http_exception_handler(request, HTTPException(status_code=500, detail=str(exc)))

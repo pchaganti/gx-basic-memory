@@ -7,6 +7,7 @@ from basic_memory.mcp.tools import notes
 from basic_memory.schemas import EntityResponse
 
 
+
 @pytest.mark.asyncio
 async def test_write_note(app):
     """Test creating a new note.

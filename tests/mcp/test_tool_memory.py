@@ -8,7 +8,6 @@ from mcp.server.fastmcp.exceptions import ToolError
 from basic_memory.mcp.tools.memory import build_context, recent_activity
 from basic_memory.schemas.memory import (
     GraphContext,
-    MemoryUrl,
     EntitySummary,
     ObservationSummary,
     RelationSummary,
@@ -132,7 +131,7 @@ async def test_recent_activity_type_filters(client, test_graph):
 @pytest.mark.asyncio
 async def test_build_context_timeframe_formats(client, test_graph):
     """Test that build_context accepts various timeframe formats."""
-    test_url = MemoryUrl.validate("memory://specs/test")
+    test_url = "memory://specs/test"
 
     # Test each valid timeframe
     for timeframe in valid_timeframes:

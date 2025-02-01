@@ -1,53 +1,48 @@
 """Tests for MemoryUrl parsing."""
 
 import pytest
-from basic_memory.schemas.memory import MemoryUrl
+from basic_memory.schemas.memory import MemoryUrl, memory_url, memory_url_path
 
 
 def test_basic_permalink():
     """Test basic permalink parsing."""
-    url = MemoryUrl.validate("memory://specs/search")
+    url = memory_url.validate_strings("memory://specs/search")
     assert str(url) == "memory://specs/search"
-    assert url.path == "specs/search"
+    assert memory_url_path(url) == "specs/search"
 
 
 def test_glob_pattern():
     """Test pattern matching."""
-    url = MemoryUrl.validate("memory://specs/search/*")
-    assert url.path == "specs/search/*"
+    url = memory_url.validate_python("memory://specs/search/*")
+    assert memory_url_path(url) == "specs/search/*"
 
 
 def test_related_prefix():
     """Test related content prefix."""
-    url = MemoryUrl.validate("memory://related/specs/search")
-    assert url.path == "related/specs/search"
+    url = memory_url.validate_python("memory://related/specs/search")
+    assert memory_url_path(url) == "related/specs/search"
 
 
 def test_context_prefix():
     """Test context prefix."""
-    url = MemoryUrl.validate("memory://context/current")
-    assert url.path == "context/current"
+    url = memory_url.validate_python("memory://context/current")
+    assert memory_url_path(url) == "context/current"
 
 
 def test_complex_pattern():
     """Test multiple glob patterns."""
-    url = MemoryUrl.validate("memory://specs/*/search/*")
-    assert url.path == "specs/*/search/*"
+    url = memory_url.validate_python("memory://specs/*/search/*")
+    assert memory_url_path(url) == "specs/*/search/*"
 
 
 def test_path_with_dashes():
     """Test path with dashes and other chars."""
-    url = MemoryUrl.validate("memory://file-sync-and-note-updates-implementation")
-    assert url.path == "file-sync-and-note-updates-implementation"
+    url = memory_url.validate_python("memory://file-sync-and-note-updates-implementation")
+    assert memory_url_path(url) == "file-sync-and-note-updates-implementation"
     
-
-def test_invalid_url():
-    """Test URL must start with memory://."""
-    with pytest.raises(ValueError, match="Invalid memory URL"):
-        MemoryUrl.validate("http://specs/search")
         
 
 def test_str_representation():
     """Test converting back to string."""
-    url = MemoryUrl.validate("memory://specs/search")
-    assert str(url) == "memory://specs/search"
+    url = memory_url.validate_python("memory://specs/search")
+    assert url == "memory://specs/search"
