@@ -22,6 +22,10 @@ class ProjectConfig(BaseSettings):
     # Name of the project
     project: str = Field(default="default", description="Project name")
 
+    # Watch service configuration
+    sync_delay: int = Field(
+        default=500, description="Milliseconds to wait after changes before syncing", gt=0
+    )
 
     model_config = SettingsConfigDict(
         env_prefix="BASIC_MEMORY_",

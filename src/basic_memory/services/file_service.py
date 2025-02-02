@@ -208,3 +208,6 @@ class FileService:
         except Exception as e:
             logger.error(f"Failed to delete file {path}: {e}")
             raise FileOperationError(f"Failed to delete file: {e}")
+
+    def path(self, path_string: str, absolute: bool = False):
+        return Path( self.base_path / path_string ) if absolute else Path(path_string).relative_to(self.base_path)

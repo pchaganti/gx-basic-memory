@@ -1,7 +1,7 @@
 """Service for syncing files between filesystem and database."""
 
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 from loguru import logger
 
@@ -10,7 +10,8 @@ from basic_memory.repository import EntityRepository, RelationRepository
 from basic_memory.services import EntityService
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
-from basic_memory.sync.utils import SyncReport
+from basic_memory.sync.utils import SyncReport, FileChange
+from watchfiles import Change
 
 
 class SyncService:
@@ -60,10 +61,28 @@ class SyncService:
         else:
             logger.debug(f"No entity found to delete: {file_path}")
 
-    async def sync(self, directory: Path) -> SyncReport:
+    async def sync(self, directory: Optional[Path] = None, file_changes: Optional[dict[str, FileChange]] = None) -> SyncReport:
         """Sync knowledge files with database."""
-        changes = await self.scanner.find_knowledge_changes(directory)
-        logger.info(f"Found {changes.total_changes} knowledge changes")
+        if file_changes is not None:
+            changes = SyncReport()
+            for path, file_change in file_changes.items():
+                logger.debug(f"path {path} file_change {file_change}")
+                match file_change.change_type:
+                    case Change.added:
+                        changes.new.add(path)
+                        changes.checksums[path] = file_change.checksum
+                    case Change.modified:
+                        changes.modified.add(path)
+                        changes.checksums[path] = file_change.checksum
+                    case Change.deleted:
+                        changes.deleted.add(path)
+        else:
+            # Traditional directory scan mode
+            if directory is None:
+                raise ValueError("Must provide either directory or file_changes")
+            
+            changes = await self.scanner.find_knowledge_changes(directory)
+            logger.info(f"Found {changes.total_changes} knowledge changes")
 
         # Handle moves first
         for old_path, new_path in changes.moves.items():
@@ -86,7 +105,7 @@ class SyncService:
         parsed_entities: Dict[str, EntityMarkdown] = {}
 
         for file_path in [*changes.new, *changes.modified]:
-            entity_markdown = await self.entity_parser.parse_file(directory / file_path)
+            entity_markdown = await self.entity_parser.parse_file(Path(file_path))
             parsed_entities[file_path] = entity_markdown
 
         # First pass: Create/update entities
