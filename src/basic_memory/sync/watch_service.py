@@ -20,7 +20,7 @@ from basic_memory.sync.utils import FileChange
 class WatchEvent(BaseModel):
     timestamp: datetime
     path: str
-    action: str  # sync, delete, etc
+    action: str  # new, delete, etc
     status: str  # success, error
     error: Optional[str] = None
 
@@ -32,8 +32,6 @@ class WatchServiceState(BaseModel):
     pid: int = dataclasses.field(default_factory=os.getpid)
 
     # Stats
-    files_synced: int = 0
-    bytes_processed: int = 0
     error_count: int = 0
     last_error: Optional[datetime] = None
     last_scan: Optional[datetime] = None
@@ -54,6 +52,7 @@ class WatchServiceState(BaseModel):
 
     def record_error(self, error: str):
         self.error_count += 1
+        self.add_event(path="", action="sync", status="error", error=error)
         self.last_error = datetime.now()
 
 
@@ -79,7 +78,7 @@ class WatchService:
                 debounce=self.config.sync_delay,
                 recursive=True,
             ):
-                await self.handle_changes(changes)
+                await self.handle_changes(self.config.home)
 
         except Exception as e:
             self.state.record_error(str(e))
@@ -97,35 +96,28 @@ class WatchService:
         """Filter to only watch markdown files"""
         return path.endswith(".md") and not Path(path).name.startswith(".")
 
-    async def handle_changes(self, changes: set[tuple[Change, str]]):
+    async def handle_changes(self, directory: Path):
         """Process a batch of file changes"""
 
-        # Group changes by file path
-        changes_by_file = {}
         try:
-            for change_type, path in changes:
-                file_change = await FileChange.from_path(path, change_type, self.file_service)
-                
-                # store changes by relative path
-                changes_by_file[str(file_change.path)] = file_change
-
             # Process changes with timeout
-            await self.sync_service.sync(file_changes=changes_by_file)
+            report = await self.sync_service.sync(directory)
+            self.state.last_scan = datetime.now()
+            self.state.total_files = report.total_files
 
             # Update stats
-            self.state.files_synced += len(changes_by_file)
-            for path, change in changes_by_file.items():
-                if change.change_type != Change.deleted:
-                    size = self.file_service.path(path,absolute=True).stat().st_size
-                    self.state.bytes_processed += size
-
-                self.state.add_event(path=path, action="sync", status="success")
+            for path in report.new:
+                self.state.add_event(path=path, action="new", status="success")
+            for path in report.modified:
+                self.state.add_event(path=path, action="modified", status="success")
+            for path in report.moves:
+                self.state.add_event(path=path, action="moved", status="success")
+            for path in report.deleted:
+                self.state.add_event(path=path, action="deleted", status="success")
 
             await self.write_status()
 
         except Exception as e:
             self.state.record_error(str(e))
-            for path in changes_by_file:
-                self.state.add_event(path=path, action="sync", status="error", error=str(e))
             await self.write_status()
             raise

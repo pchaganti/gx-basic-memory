@@ -28,6 +28,7 @@ from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.sync_service import SyncService
+from basic_memory.sync.watch_service import WatchService
 
 
 @pytest_asyncio.fixture
@@ -382,3 +383,13 @@ async def test_graph(
         "observations": [e.observations for e in entities],
         "relations": relations,
     }
+
+
+@pytest_asyncio.fixture
+def watch_service(sync_service, file_service, test_config):
+    return WatchService(
+        sync_service=sync_service,
+        file_service=file_service,
+        config=test_config
+    )
+

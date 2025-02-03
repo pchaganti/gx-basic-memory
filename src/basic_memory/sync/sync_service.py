@@ -61,28 +61,10 @@ class SyncService:
         else:
             logger.debug(f"No entity found to delete: {file_path}")
 
-    async def sync(self, directory: Optional[Path] = None, file_changes: Optional[dict[str, FileChange]] = None) -> SyncReport:
-        """Sync knowledge files with database."""
-        if file_changes is not None:
-            changes = SyncReport()
-            for path, file_change in file_changes.items():
-                logger.debug(f"path {path} file_change {file_change}")
-                match file_change.change_type:
-                    case Change.added:
-                        changes.new.add(path)
-                        changes.checksums[path] = file_change.checksum
-                    case Change.modified:
-                        changes.modified.add(path)
-                        changes.checksums[path] = file_change.checksum
-                    case Change.deleted:
-                        changes.deleted.add(path)
-        else:
-            # Traditional directory scan mode
-            if directory is None:
-                raise ValueError("Must provide either directory or file_changes")
-            
-            changes = await self.scanner.find_knowledge_changes(directory)
-            logger.info(f"Found {changes.total_changes} knowledge changes")
+    async def sync(self, directory: Path) -> SyncReport:
+        """Sync knowledge files with database."""            
+        changes = await self.scanner.find_knowledge_changes(directory)
+        logger.info(f"Found {changes.total_changes} knowledge changes")
 
         # Handle moves first
         for old_path, new_path in changes.moves.items():

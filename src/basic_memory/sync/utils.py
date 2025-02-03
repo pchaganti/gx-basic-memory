@@ -55,5 +55,10 @@ class SyncReport:
 
     @property
     def total_changes(self) -> int:
-        """Total number of files that need attention."""
+        """Total number of changes."""
         return len(self.new) + len(self.modified) + len(self.deleted) + len(self.moves)
+
+    @property
+    def total_files(self) -> int:
+        """Total number of files synced."""
+        return len(self.new) + len(self.modified) + len(self.moves)
