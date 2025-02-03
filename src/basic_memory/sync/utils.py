@@ -53,7 +53,7 @@ class SyncReport:
     modified: Set[str] = field(default_factory=set)
     deleted: Set[str] = field(default_factory=set)
     moves: Dict[str, str] = field(default_factory=dict)  # old_path -> new_path  
-    checksums: Dict[str, str] = field(default_factory=dict)
+    checksums: Dict[str, str] = field(default_factory=dict) # path -> checksum
 
     @property
     def total_changes(self) -> int:

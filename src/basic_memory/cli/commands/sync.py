@@ -209,7 +209,6 @@ async def run_sync(verbose: bool = False, watch: bool = False):
 
     # Start watching if requested
     if watch:
-        console.print("\n[cyan]Starting watch service...[/cyan]")        
         watch_service = WatchService(
             sync_service=sync_service,
             file_service=sync_service.entity_service.file_service,

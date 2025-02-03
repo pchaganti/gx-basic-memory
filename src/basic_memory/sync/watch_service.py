@@ -1,21 +1,22 @@
 """Watch service for Basic Memory."""
 
-import json
 import dataclasses
 
 from loguru import logger
 from pydantic import BaseModel
-from pydantic.dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
+
+from rich.console import Console
 from watchfiles import awatch, Change
 import os
 
 from basic_memory.config import ProjectConfig
 from basic_memory.sync.sync_service import SyncService
 from basic_memory.services.file_service import FileService
-from basic_memory.sync.utils import FileChange
+
+console = Console()
 
 
 class WatchEvent(BaseModel):
@@ -23,6 +24,7 @@ class WatchEvent(BaseModel):
     path: str
     action: str  # new, delete, etc
     status: str  # success, error
+    checksum: Optional[str]
     error: Optional[str] = None
 
 
@@ -43,12 +45,25 @@ class WatchServiceState(BaseModel):
     # Recent activity
     recent_events: List[WatchEvent] = dataclasses.field(default_factory=list)
 
-    def add_event(self, path: str, action: str, status: str, error: Optional[str] = None):
+    def add_event(
+        self,
+        path: str,
+        action: str,
+        status: str,
+        checksum: Optional[str] = None,
+        error: Optional[str] = None,
+    ) -> WatchEvent:
         event = WatchEvent(
-            timestamp=datetime.now(), path=path, action=action, status=status, error=error
+            timestamp=datetime.now(),
+            path=path,
+            action=action,
+            status=status,
+            checksum=checksum,
+            error=error,
         )
         self.recent_events.insert(0, event)
         self.recent_events = self.recent_events[:100]  # Keep last 100
+        return event
 
     def record_error(self, error: str):
         self.error_count += 1
@@ -71,6 +86,7 @@ class WatchService:
         self.state.start_time = datetime.now()
         await self.write_status()
 
+        console.print("\n[cyan]Watching for changes...[/cyan]")
         try:
             async for changes in awatch(
                 self.config.home,
@@ -100,26 +116,39 @@ class WatchService:
     async def handle_changes(self, directory: Path):
         """Process a batch of file changes"""
 
-        try:
-            logger.debug(f"handling change in directory: {directory} ...")
-            # Process changes with timeout
-            report = await self.sync_service.sync(directory)
-            self.state.last_scan = datetime.now()
-            self.state.synced_files = report.total
+        logger.debug(f"handling change in directory: {directory} ...")
+        # Process changes with timeout
+        report = await self.sync_service.sync(directory)
+        self.state.last_scan = datetime.now()
+        self.state.synced_files = report.total
 
-            # Update stats
-            for path in report.new:
-                self.state.add_event(path=path, action="new", status="success")
-            for path in report.modified:
-                self.state.add_event(path=path, action="modified", status="success")
-            for path in report.moves:
-                self.state.add_event(path=path, action="moved", status="success")
-            for path in report.deleted:
-                self.state.add_event(path=path, action="deleted", status="success")
+        # Update stats
+        for path in report.new:
+            event = self.state.add_event(
+                path=path, action="new", status="success", checksum=report.checksums[path]
+            )
+            console.print(
+                f"{event.timestamp.isoformat(timespec='minutes')} New:\t\t [green]{path}[/green] ({event.checksum[:8]})"
+            )
+        for path in report.modified:
+            event = self.state.add_event(
+                path=path, action="modified", status="success", checksum=report.checksums[path]
+            )
+            console.print(
+                f"{event.timestamp.isoformat(timespec='minutes')} Modified:\t [yellow]{path}[/yellow] ({event.checksum[:8]})"
+            )
+        for old_path, new_path in report.moves.items():
+            event = self.state.add_event(
+                path=f"{old_path} -> {new_path}",
+                action="moved",
+                status="success",
+                checksum=report.checksums[new_path],
+            )
+            console.print(
+                f"{event.timestamp.isoformat(timespec='minutes')} Moved:\t\t [blue]{old_path} -> {new_path}[/blue] ({event.checksum[:8]})"
+            )
+        for path in report.deleted:
+            event = self.state.add_event(path=path, action="deleted", status="success")
+            console.print(f"{event.timestamp.isoformat(timespec='minutes')} Deleted:\t [red]{path}[/red]")
 
-            await self.write_status()
-
-        except Exception as e:
-            self.state.record_error(str(e))
-            await self.write_status()
-            raise
+        await self.write_status()
