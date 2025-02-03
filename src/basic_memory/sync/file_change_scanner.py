@@ -2,14 +2,14 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Sequence, Optional
+from typing import Dict, Sequence
 
 from loguru import logger
 
 from basic_memory.file_utils import compute_checksum
 from basic_memory.models import Entity
 from basic_memory.repository.entity_repository import EntityRepository
-from basic_memory.sync.utils import SyncReport, FileChange
+from basic_memory.sync.utils import SyncReport
 
 
 @dataclass
@@ -87,19 +87,13 @@ class FileChangeScanner:
         return result
 
     async def find_changes(
-        self,
-        db_file_state: Dict[str, FileState],
-        directory: Optional[Path] = None,
+        self, directory: Path, db_file_state: Dict[str, FileState]
     ) -> SyncReport:
         """Find changes between filesystem and database."""
         # Get current files and checksums
-
-        # scan the directory provided
         scan_result = await self.scan_directory(directory)
-
-        # the set of all of the current files and their checksums    
         current_files = scan_result.files
-        
+
         # Build report
         report = SyncReport()
 
@@ -163,6 +157,5 @@ class FileChangeScanner:
 
     async def find_knowledge_changes(self, directory: Path) -> SyncReport:
         """Find changes in knowledge directory."""
-        
         db_file_state = await self.get_db_file_state(await self.entity_repository.find_all())
         return await self.find_changes(directory=directory, db_file_state=db_file_state)

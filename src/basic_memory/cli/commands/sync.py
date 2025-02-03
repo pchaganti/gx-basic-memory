@@ -31,7 +31,6 @@ from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import SyncService, FileChangeScanner
 from basic_memory.sync.utils import SyncReport
-from conftest import markdown_processor
 
 console = Console()
 
@@ -48,6 +47,10 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         engine,
         session_maker,
     ):
+        entity_parser = EntityParser(config.home)
+        markdown_processor =  MarkdownProcessor(entity_parser)
+        file_service = FileService(config.home, markdown_processor)
+
         # Initialize repositories
         entity_repository = EntityRepository(session_maker)
         observation_repository = ObservationRepository(session_maker)
@@ -55,15 +58,12 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         search_repository = SearchRepository(session_maker)
 
         # Initialize services
-        search_service = SearchService(search_repository, entity_repository)
+        search_service = SearchService(search_repository, entity_repository, file_service)
         link_resolver = LinkResolver(entity_repository, search_service)
 
         # Initialize scanner
         file_change_scanner = FileChangeScanner(entity_repository)
 
-        entity_parser = EntityParser(config.home)
-        markdown_processor =  MarkdownProcessor(entity_parser)
-        file_service = FileService(config.home, markdown_processor)
         
         # Initialize services
         entity_service = EntityService(
