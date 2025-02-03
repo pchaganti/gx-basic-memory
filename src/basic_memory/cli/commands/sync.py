@@ -31,6 +31,7 @@ from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import SyncService, FileChangeScanner
 from basic_memory.sync.utils import SyncReport
+from basic_memory.sync.watch_service import WatchService
 
 console = Console()
 
@@ -48,7 +49,7 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         session_maker,
     ):
         entity_parser = EntityParser(config.home)
-        markdown_processor =  MarkdownProcessor(entity_parser)
+        markdown_processor = MarkdownProcessor(entity_parser)
         file_service = FileService(config.home, markdown_processor)
 
         # Initialize repositories
@@ -64,15 +65,14 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         # Initialize scanner
         file_change_scanner = FileChangeScanner(entity_repository)
 
-        
         # Initialize services
         entity_service = EntityService(
-            entity_parser, 
-            entity_repository, 
-            observation_repository, 
+            entity_parser,
+            entity_repository,
+            observation_repository,
             relation_repository,
             file_service,
-            link_resolver
+            link_resolver,
         )
 
         # Create sync service
@@ -114,7 +114,7 @@ def display_validation_errors(issues: List[ValidationIssue]):
     for dir_name, dir_issues in sorted(grouped_issues.items()):
         # Create branch for directory
         branch = tree.add(
-            f"[bold blue]{dir_name}/[/bold blue] " f"([yellow]{len(dir_issues)} files[/yellow])"
+            f"[bold blue]{dir_name}/[/bold blue] ([yellow]{len(dir_issues)} files[/yellow])"
         )
 
         # Add each file issue
@@ -202,19 +202,29 @@ def display_detailed_sync_results(knowledge: SyncReport):
         console.print(knowledge_tree)
 
 
-async def run_sync(verbose: bool = False):
+async def run_sync(verbose: bool = False, watch: bool = False):
     """Run sync operation."""
 
     sync_service = await get_sync_service()
 
-    # Sync
-    knowledge_changes = await sync_service.sync(config.home)
-
-    # Display results
-    if verbose:
-        display_detailed_sync_results(knowledge_changes)
+    # Start watching if requested
+    if watch:
+        console.print("\n[cyan]Starting watch service...[/cyan]")        
+        watch_service = WatchService(
+            sync_service=sync_service,
+            file_service=sync_service.entity_service.file_service,
+            config=config
+        )
+        await watch_service.handle_changes(config.home)
+        await watch_service.run()
     else:
-        display_sync_summary(knowledge_changes)
+        # one time sync
+        knowledge_changes = await sync_service.sync(config.home)
+        # Display results
+        if verbose:
+            display_detailed_sync_results(knowledge_changes)
+        else:
+            display_sync_summary(knowledge_changes)
 
 
 @app.command()
@@ -225,11 +235,17 @@ def sync(
         "-v",
         help="Show detailed sync information.",
     ),
+    watch: bool = typer.Option(
+        False,
+        "--watch",
+        "-w",
+        help="Start watching for changes after sync.",
+    ),
 ) -> None:
     """Sync knowledge files with the database."""
     try:
         # Run sync
-        asyncio.run(run_sync(verbose))
+        asyncio.run(run_sync(verbose=verbose, watch=watch))
 
     except Exception as e:
         if not isinstance(e, typer.Exit):

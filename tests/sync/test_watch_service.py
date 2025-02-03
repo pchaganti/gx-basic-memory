@@ -29,7 +29,7 @@ async def test_handle_file_added(test_config, watch_service, sync_service, sampl
     await watch_service.handle_changes(test_config.home)
 
     # Check stats updated
-    assert watch_service.state.total_files == 1
+    assert watch_service.state.synced_files == 1
     assert watch_service.state.last_scan is not None
 
     # Check event recorded
@@ -52,7 +52,7 @@ async def test_handle_file_modified(test_config, watch_service, sync_service, sa
 
     # Should have two events
     assert len(watch_service.state.recent_events) == 2
-    assert watch_service.state.total_files == 1
+    assert watch_service.state.synced_files == 1
     event = watch_service.state.recent_events[0]
     assert event.path == "test.md"
     assert event.action == "modified"
@@ -72,7 +72,7 @@ async def test_handle_file_moved(test_config, watch_service, sync_service, sampl
 
     # Should have two events
     assert len(watch_service.state.recent_events) == 2
-    assert watch_service.state.total_files == 1
+    assert watch_service.state.synced_files == 1
     event = watch_service.state.recent_events[0]
     assert event.path == "test.md"
     assert event.action == "moved"

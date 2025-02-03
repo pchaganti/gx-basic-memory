@@ -41,12 +41,14 @@ class SyncReport:
     """Report of file changes found compared to database state.
     
     Attributes:
+        total: Total number of files in directory being synced
         new: Files that exist on disk but not in database
         modified: Files that exist in both but have different checksums
         deleted: Files that exist in database but not on disk
         moves: Files that have been moved from one location to another
         checksums: Current checksums for files on disk
     """
+    total: int = 0
     new: Set[str] = field(default_factory=set)
     modified: Set[str] = field(default_factory=set)
     deleted: Set[str] = field(default_factory=set)
@@ -59,6 +61,6 @@ class SyncReport:
         return len(self.new) + len(self.modified) + len(self.deleted) + len(self.moves)
 
     @property
-    def total_files(self) -> int:
+    def syned_files(self) -> int:
         """Total number of files synced."""
         return len(self.new) + len(self.modified) + len(self.moves)

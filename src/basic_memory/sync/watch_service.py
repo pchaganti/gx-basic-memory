@@ -3,6 +3,7 @@
 import json
 import dataclasses
 
+from loguru import logger
 from pydantic import BaseModel
 from pydantic.dataclasses import dataclass
 from datetime import datetime
@@ -37,8 +38,7 @@ class WatchServiceState(BaseModel):
     last_scan: Optional[datetime] = None
 
     # File counts
-    total_files: int = 0
-    markdown_files: int = 0
+    synced_files: int = 0
 
     # Recent activity
     recent_events: List[WatchEvent] = dataclasses.field(default_factory=list)
@@ -78,6 +78,7 @@ class WatchService:
                 debounce=self.config.sync_delay,
                 recursive=True,
             ):
+                # just sync the whole dir
                 await self.handle_changes(self.config.home)
 
         except Exception as e:
@@ -100,10 +101,11 @@ class WatchService:
         """Process a batch of file changes"""
 
         try:
+            logger.debug(f"handling change in directory: {directory} ...")
             # Process changes with timeout
             report = await self.sync_service.sync(directory)
             self.state.last_scan = datetime.now()
-            self.state.total_files = report.total_files
+            self.state.synced_files = report.total
 
             # Update stats
             for path in report.new:

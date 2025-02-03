@@ -95,7 +95,7 @@ class FileChangeScanner:
         current_files = scan_result.files
 
         # Build report
-        report = SyncReport()
+        report = SyncReport(total=len(current_files))
 
         # Track potentially moved files by checksum
         files_by_checksum = {}  # checksum -> file_path
@@ -127,6 +127,7 @@ class FileChangeScanner:
                     report.deleted.add(db_file_path)
 
         # Log summary
+        logger.debug(f"Total files: {report.total}")
         logger.debug(f"Changes found: {report.total_changes}")
         logger.debug(f"  New: {len(report.new)}")
         logger.debug(f"  Modified: {len(report.modified)}")
