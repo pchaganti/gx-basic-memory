@@ -10,7 +10,7 @@ from basic_memory.config import ProjectConfig
 from basic_memory.models import Entity
 from basic_memory.repository import EntityRepository
 from basic_memory.schemas.search import SearchQuery
-from basic_memory.services import EntityService
+from basic_memory.services import EntityService, FileService
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync.sync_service import SyncService
 
@@ -557,9 +557,6 @@ async def test_handle_entity_deletion(
     rel_results = await search_service.search(SearchQuery(text="connects_to"))
     assert len(rel_results) == 0
 
-
-
-
 @pytest.mark.asyncio
 async def test_sync_preserves_timestamps(
     sync_service: SyncService,
@@ -681,3 +678,104 @@ modified: 2024-01-01
     # Verify entity was properly synced
     updated = await entity_service.get_by_permalink("concept/incomplete")
     assert updated.checksum is not None
+
+
+
+@pytest.mark.asyncio
+async def test_sync_permalink_resolved(
+    sync_service: SyncService,
+    test_config: ProjectConfig,
+    file_service: FileService,
+):
+    """Test that we resolve duplicate permalinks on sync ."""
+    project_dir = test_config.home
+
+    # Create initial file
+    content = """
+---
+type: knowledge
+---
+# Test Move
+Content for move test
+"""
+    old_path = project_dir / "old" / "test_move.md"
+    old_path.parent.mkdir(parents=True)
+    await create_test_file(old_path, content)
+
+    # Initial sync
+    await sync_service.sync(test_config.home)
+
+    # Move the file
+    new_path = project_dir / "new" / "moved_file.md"
+    new_path.parent.mkdir(parents=True)
+    old_path.rename(new_path)
+
+    # Sync again
+    await sync_service.sync(test_config.home)
+
+    file_content, _ = await file_service.read_file(new_path)
+    assert "permalink: old/test-move" in file_content
+
+    # Create another that has the same permalink
+    content = """
+---
+type: knowledge
+---
+# Test Move
+Content for move test
+"""
+    old_path = project_dir / "old" / "test_move.md"
+    old_path.parent.mkdir(parents=True, exist_ok=True)
+    await create_test_file(old_path, content)
+
+    # Sync new file
+    await sync_service.sync(test_config.home)
+
+    # assert permalink is unique
+    file_content, _ = await file_service.read_file(old_path)
+    assert "permalink: old/test-move-1" in file_content
+
+
+@pytest.mark.asyncio
+async def test_sync_permalink_resolved_on_update(
+    sync_service: SyncService,
+    test_config: ProjectConfig,
+    file_service: FileService,
+):
+    """Test that sync resolves permalink conflicts on update."""
+    project_dir = test_config.home
+
+    one_file = project_dir / "one.md"
+    two_file = project_dir / "two.md"
+    await create_test_file(one_file)
+    await create_test_file(two_file)
+
+    # Run sync
+    await sync_service.sync(test_config.home)
+
+    # Check permalinks
+    file_one_content, _ = await file_service.read_file(one_file)
+    assert "permalink: one" in file_one_content
+    
+    file_two_content, _ = await file_service.read_file(two_file)
+    assert "permalink: two" in file_two_content
+
+    # update the second file with a duplicate permalink
+    updated_content = """
+---
+title: two.md
+type: note
+permalink: one
+tags: []
+---
+
+test content
+"""
+    two_file.write_text(updated_content)
+    
+    # Run sync
+    await sync_service.sync(test_config.home)
+
+    # Check permalinks
+    file_one_content, _ = await file_service.read_file(two_file)
+    assert "permalink: one-1" in file_one_content

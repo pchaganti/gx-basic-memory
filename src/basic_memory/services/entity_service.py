@@ -19,6 +19,7 @@ from basic_memory.services import FileService
 from basic_memory.services import BaseService
 from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.markdown.entity_parser import EntityParser
+from basic_memory.utils import generate_permalink
 
 
 class EntityService(BaseService[EntityModel]):
@@ -40,6 +41,40 @@ class EntityService(BaseService[EntityModel]):
         self.file_service = file_service
         self.link_resolver = link_resolver
 
+    async def resolve_permalink(
+            self,
+            file_path: Path,
+            markdown: Optional[EntityMarkdown] = None
+    ) -> str:
+        """Get or generate unique permalink for an entity.
+
+        Priority:
+        1. Use explicit permalink from markdown frontmatter if present
+        2. For existing files, keep current permalink
+        3. Generate new unique permalink for new files
+        """
+        # If markdown has explicit permalink, try to use it
+        if markdown and markdown.frontmatter.permalink:
+            desired_permalink = markdown.frontmatter.permalink
+        else:
+            # For existing files, try to find current permalink
+            existing = await self.repository.get_by_file_path(str(file_path))
+            if existing:
+                return existing.permalink
+
+            # New file - generate permalink
+            desired_permalink = generate_permalink(file_path)
+
+        # Make unique if needed
+        permalink = desired_permalink
+        suffix = 1
+        while await self.repository.get_by_permalink(permalink):
+            permalink = f"{desired_permalink}-{suffix}"
+            suffix += 1
+            logger.debug(f"creating unique permalink: {permalink}")
+            
+        return permalink
+    
     async def create_or_update_entity(self, schema: EntitySchema) -> (EntityModel, bool):
         """Create new entity or update existing one.
         if a new entity is created, the return value is (entity, True)
@@ -66,8 +101,12 @@ class EntityService(BaseService[EntityModel]):
 
         if await self.file_service.exists(file_path):
             raise EntityCreationError(
-                f"file_path {file_path} for entity {schema.permalink} already exists: {file_path}"
+                f"file for entity {schema.folder}/{schema.title} already exists: {file_path}"
             )
+
+        # Get unique permalink
+        permalink = await self.resolve_permalink(schema.permalink or file_path)
+        schema._permalink = permalink
 
         post = await schema_to_markdown(schema)
 
@@ -184,7 +223,7 @@ class EntityService(BaseService[EntityModel]):
         Creates the entity with null checksum to indicate sync not complete.
         Relations will be added in second pass.
         """
-        logger.debug(f"Creating entity: {markdown.frontmatter.title}")
+        logger.debug(f"Creating entity: {markdown.frontmatter.title}")        
         model = entity_model_from_markdown(file_path, markdown)
 
         # Mark as incomplete sync

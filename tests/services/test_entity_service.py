@@ -6,11 +6,12 @@ import pytest
 import yaml
 
 from basic_memory.models import Entity as EntityModel
+from basic_memory.repository import EntityRepository
 from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.services import FileService
 from basic_memory.services.entity_service import EntityService
 from basic_memory.services.exceptions import EntityNotFoundError
-
+from basic_memory.utils import generate_permalink
 
 
 @pytest.mark.asyncio
@@ -51,7 +52,36 @@ async def test_create_entity(entity_service: EntityService, file_service: FileSe
     assert metadata["permalink"] == entity.permalink
     assert metadata["type"] == entity.entity_type
 
+@pytest.mark.asyncio
+async def test_create_entity_unique_permalink(test_config, entity_service: EntityService, file_service: FileService, entity_repository: EntityRepository):
+    """Test successful entity creation."""
+    entity_data = EntitySchema(
+        title="Test Entity",
+        folder="test",
+        entity_type="test",
+    )
 
+    entity = await entity_service.create_entity(entity_data)
+    
+    # default permalink
+    assert entity.permalink == generate_permalink(entity.file_path)
+
+    # move file
+    file_path = file_service.get_entity_path(entity)
+    file_path.rename(test_config.home / "new_path.md")
+    await entity_repository.update(entity.id, {"file_path": "new_path.md"})
+    
+    # create again
+    entity2 = await entity_service.create_entity(entity_data)
+    assert entity2.permalink == f"{entity.permalink}-1"
+
+    file_path = file_service.get_entity_path(entity2)
+    file_content, _ = await file_service.read_file(file_path)
+    _, frontmatter, doc_content = file_content.split("---", 2)
+    metadata = yaml.safe_load(frontmatter)
+
+    # Verify frontmatter contents
+    assert metadata["permalink"] == entity2.permalink
 
 @pytest.mark.asyncio
 async def test_get_by_permalink(entity_service: EntityService):
@@ -440,4 +470,3 @@ See the [[Git Cheat Sheet]] for reference.
 
 
 
-    # TODO handle permalink conflicts
