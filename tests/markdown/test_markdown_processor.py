@@ -71,7 +71,7 @@ async def test_write_new_file_with_content(markdown_processor: MarkdownProcessor
         content="# Custom Title\n\nMy content here.\nMultiple lines.",
         observations=[
             Observation(
-                content="Test observation",
+                content="Test observation #test",
                 category="tech",
                 tags=["test"],
                 context="test context",

@@ -68,7 +68,7 @@ def parse_observation(token: Token) -> Dict[str, Any]:
     
     return {
         'category': category,
-        'content': ' '.join(content_parts).strip(),
+        'content': content,
         'tags': list(tags) if tags else None,
         'context': context
     }

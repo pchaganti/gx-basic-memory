@@ -326,7 +326,7 @@ See the [[Git Cheat Sheet]] for reference.
 
     assert len(entity.observations) == 1
     assert entity.observations[0].category == "design"
-    assert entity.observations[0].content == "Keep feature branches short-lived"
+    assert entity.observations[0].content == "Keep feature branches short-lived #git #workflow"
     assert set(entity.observations[0].tags) == {"git", "workflow"}
     assert entity.observations[0].context == "Reduces merge conflicts"
 
@@ -416,7 +416,7 @@ See the [[Git Cheat Sheet]] for reference.
 
     assert len(entity.observations) == 1
     assert entity.observations[0].category == "design"
-    assert entity.observations[0].content == "Keep feature branches short-lived"
+    assert entity.observations[0].content == "Keep feature branches short-lived #git #workflow"
     assert set(entity.observations[0].tags) == {"git", "workflow"}
     assert entity.observations[0].context == "Reduces merge conflicts"
 

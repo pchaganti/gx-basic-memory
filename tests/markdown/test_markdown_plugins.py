@@ -16,7 +16,7 @@ def test_observation_plugin():
     obs = obs_token.meta['observation']
     
     assert obs['category'] == 'design'
-    assert obs['content'] == 'Core feature'
+    assert obs['content'] == 'Core feature #important #mvp'
     assert set(obs['tags']) == {'important', 'mvp'}
     assert obs['context'] is None
     
@@ -26,7 +26,7 @@ def test_observation_plugin():
     obs = obs_token.meta['observation']
     
     assert obs['category'] == 'feature'
-    assert obs['content'] == 'Authentication system'
+    assert obs['content'] == 'Authentication system #security'
     assert set(obs['tags']) == {'security'}
     assert obs['context'] == 'Required for MVP'
     
@@ -36,7 +36,7 @@ def test_observation_plugin():
     obs = obs_token.meta['observation']
     
     assert obs['category'] is None
-    assert obs['content'] == 'Authentication system'
+    assert obs['content'] == 'Authentication system #security'
     assert set(obs['tags']) == {'security'}
     assert obs['context'] == 'Required for MVP'
 
@@ -61,7 +61,7 @@ def test_observation_edge_cases():
     tokens = md.parse("- [code] Function (x) returns y #function")
     obs_token = next(t for t in tokens if t.meta and 'observation' in t.meta)
     obs = obs_token.meta['observation']
-    assert obs['content'] == 'Function (x) returns y'
+    assert obs['content'] == 'Function (x) returns y #function'
     assert obs['context'] is None
     
     # Multiple hashtags together

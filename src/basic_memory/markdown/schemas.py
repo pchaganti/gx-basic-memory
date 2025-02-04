@@ -9,15 +9,13 @@ from pydantic import BaseModel
 class Observation(BaseModel):
     """An observation about an entity."""
 
-    category: Optional[str] = None
+    category: Optional[str] = "Note"
     content: str
     tags: Optional[List[str]] = None
     context: Optional[str] = None
     
     def __str__(self) -> str:
         obs_string = f"- [{self.category}] {self.content}"
-        if self.tags:
-            obs_string += " " + " ".join(f"#{tag}" for tag in sorted(self.tags))
         if self.context:
             obs_string += f" ({self.context})"
         return obs_string

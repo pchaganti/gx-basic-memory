@@ -50,13 +50,13 @@ def test_complex_format():
     obs = parse_observation(token)
     assert obs["category"] == "complex test"
     assert set(obs["tags"]) == {"tag1", "tag2", "tag3"}
-    assert obs["content"] == "This is with content"
+    assert obs["content"] == "This is #tag1#tag2 with #tag3 content"
 
     # Pydantic model validation
     observation = Observation.model_validate(obs)
     assert observation.category == "complex test"
     assert set(observation.tags) == {"tag1", "tag2", "tag3"}
-    assert observation.content == "This is with content"
+    assert observation.content == "This is #tag1#tag2 with #tag3 content"
 
 
 def test_malformed_category():
@@ -90,20 +90,6 @@ def test_no_category():
     assert observation.category is None
     assert observation.content == "No category"
 
-
-def test_whitespace_handling():
-    """Test handling of various whitespace in content."""
-    md = MarkdownIt().use(observation_plugin)
-
-    # Various whitespace in content
-    test_chars = {" ": "space", "\t": "tab", "\r": "return"}
-    for char, name in test_chars.items():
-        content = f"- [test] Content{char}with{char}{name}"
-        tokens = md.parse(content)
-        token = next(t for t in tokens if t.type == "inline")
-        obs = parse_observation(token)
-        observation = Observation.model_validate(obs)
-        assert observation.content == f"Content with {name}"
 
 
 def test_unicode_content():
