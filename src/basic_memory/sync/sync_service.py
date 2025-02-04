@@ -92,8 +92,28 @@ class SyncService:
         # First pass: Create/update entities
         # entities will have a null checksum to indicate they are not complete
         for file_path, entity_markdown in parsed_entities.items():
+
+            # Get unique permalink and update markdown if needed
+            permalink = await self.entity_service.resolve_permalink(
+                file_path,
+                markdown=entity_markdown
+            )
+
+            if permalink != entity_markdown.frontmatter.permalink:
+                # Permalink changed - update markdown and rewrite file
+                entity_markdown.frontmatter.metadata["permalink"] = permalink
+
+                # update file
+                logger.info(f"Adding permalink '{permalink}' to file: {file_path}")
+                updated_checksum = await self.entity_service.file_service.markdown_processor.write_file(
+                    directory / file_path, entity_markdown)
+
+                # Update checksum in changes report since file was modified
+                changes.checksums[file_path] = updated_checksum
+            
             # if the file is new, create an entity
             if file_path in changes.new:
+                # Create entity with final permalink
                 logger.debug(f"Creating new entity_markdown: {file_path}")
                 await self.entity_service.create_entity_from_markdown(
                     file_path, entity_markdown

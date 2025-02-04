@@ -35,7 +35,6 @@ class FileService:
         """Generate absolute filesystem path for entity."""
         return self.base_path / f"{entity.file_path}"
 
-    # TODO move to tests
     async def write_entity_file(
         self,
         entity: EntityModel,

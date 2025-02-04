@@ -181,6 +181,9 @@ class Entity(BaseModel):
     - Optional relations to other entities
     - Optional description for high-level overview
     """
+    
+    # private field to override permalink
+    _permalink: Optional[str] = None
 
     title: str
     content: Optional[str] = None
@@ -199,8 +202,8 @@ class Entity(BaseModel):
     
     @property
     def permalink(self) -> PathId:
-        """Get the path ID in format {snake_case_title}."""
-        return generate_permalink(self.file_path)
+        """Get a url friendly path}."""
+        return self._permalink or generate_permalink(self.file_path)
 
     @model_validator(mode="after")
     @classmethod
