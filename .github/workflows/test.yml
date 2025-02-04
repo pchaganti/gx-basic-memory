@@ -40,4 +40,4 @@ jobs:
       - name: Run tests
         run: |
           uv pip install pytest pytest-cov
-          make test
+          uv run make test
