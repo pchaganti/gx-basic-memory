@@ -95,14 +95,15 @@ class SearchRepository:
         permalink_match: Optional[str] = None,
         title: Optional[str] = None,
         types: List[SearchItemType] = None,
-        after_date: datetime = None,
+        after_date: Optional[datetime] = None,
         entity_types: List[str] = None,
         limit: int = 10,
     ) -> List[SearchIndexRow]:
         """Search across all indexed content with fuzzy matching."""
         conditions = []
         params = {}
-
+        order_by_clause = ""
+        
         # Handle text search for title and content
         if search_text:
             search_text = self._quote_search_term(search_text.lower().strip())
@@ -139,6 +140,9 @@ class SearchRepository:
         if after_date:
             params["after_date"] = after_date
             conditions.append("datetime(created_at) > datetime(:after_date)")
+            
+            # order by most recent first
+            order_by_clause = ", updated_at DESC"
 
         # set limit on search query
         params["limit"] = limit
@@ -165,11 +169,11 @@ class SearchRepository:
                 bm25(search_index) as score
             FROM search_index 
             WHERE {where_clause}
-            ORDER BY score ASC
+            ORDER BY score ASC {order_by_clause}
             LIMIT :limit
         """
 
-        #logger.debug(f"Search {sql} params: {params}")
+        logger.debug(f"Search {sql} params: {params}")
         async with db.scoped_session(self.session_maker) as session:
             result = await session.execute(text(sql), params)
             rows = result.fetchall()
@@ -195,8 +199,8 @@ class SearchRepository:
             for row in rows
         ]
 
-        #for r in results:
-        #    logger.debug(f"Search result: type:{r.type} title: {r.title} permalink: {r.permalink} score: {r.score}")
+        for r in results:
+            logger.debug(f"Search result: type:{r.type} title: {r.title} permalink: {r.permalink} score: {r.score}")
         return results
 
     async def index_item(

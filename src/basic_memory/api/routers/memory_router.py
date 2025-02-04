@@ -47,7 +47,7 @@ async def to_graph_context(context, entity_repository: EntityRepository):
 
                 return RelationSummary(
                     permalink=item.permalink,
-                    type=item.type,
+                    relation_type=item.type,
                     from_id=from_entity.permalink,
                     to_id=to_entity.permalink if to_entity else None,
                 )

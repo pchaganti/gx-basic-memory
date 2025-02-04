@@ -76,7 +76,7 @@ class ContextService:
                 primary = await self.search_repository.search(permalink=path)
         else:
             logger.debug(f"Build context for '{types}'")
-            primary = await self.search_repository.search(types=types)
+            primary = await self.search_repository.search(types=types, after_date=since)
 
         # Get type_id pairs for traversal
 

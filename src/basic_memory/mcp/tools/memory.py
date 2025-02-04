@@ -1,6 +1,6 @@
 """Discussion context tools for Basic Memory MCP server."""
 
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 from loguru import logger
 
@@ -9,6 +9,7 @@ from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_get
 from basic_memory.schemas.memory import GraphContext, MemoryUrl, memory_url, memory_url_path, normalize_memory_url
 from basic_memory.schemas.base import TimeFrame
+from basic_memory.schemas.search import SearchItemType
 
 
 @mcp.tool(
@@ -83,7 +84,7 @@ async def build_context(
     """,
 )
 async def recent_activity(
-    type: Literal["entity", "observation", "relation"] = None,
+    type: List[Literal["entity", "observation", "relation"]] = None,
     depth: Optional[int] = 1,
     timeframe: Optional[TimeFrame] = "7d",
     max_results: int = 10,
@@ -110,6 +111,9 @@ async def recent_activity(
             - metadata: Query details and statistics
 
     Examples:
+        # Get all entities for the last 10 days (default)
+        recent_activity()
+
         # Get all entities from yesterday
         recent_activity(type=["entity"], timeframe="yesterday")
 
@@ -131,8 +135,9 @@ async def recent_activity(
         "depth": depth,
         "timeframe": timeframe,
         "max_results": max_results,
-        "type": type if type else None,
     }
+    if type: 
+        params["type"] = type
 
     response = await call_get(
         client,

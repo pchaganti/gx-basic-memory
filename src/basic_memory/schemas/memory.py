@@ -59,6 +59,7 @@ def memory_url_path(url: memory_url) -> str:
 class EntitySummary(BaseModel):
     """Simplified entity representation."""
 
+    type: str = "entity"
     permalink: str
     title: str
     file_path: str
@@ -68,8 +69,9 @@ class EntitySummary(BaseModel):
 class RelationSummary(BaseModel):
     """Simplified relation representation."""
 
+    type: str = "relation"
     permalink: str
-    type: str
+    relation_type: str
     from_id: str
     to_id: Optional[str] = None
 
@@ -77,6 +79,7 @@ class RelationSummary(BaseModel):
 class ObservationSummary(BaseModel):
     """Simplified observation representation."""
 
+    type: str = "observation"
     permalink: str
     category: str
     content: str
