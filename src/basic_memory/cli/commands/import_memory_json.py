@@ -46,13 +46,13 @@ async def process_memory_json(json_path: Path, base_path: Path,markdown_processo
                     entities[data["name"]] = data
                 elif data["type"] == "relation":
                     # Store relation with its source entity
-                    source = data["from"]
+                    source = data.get("from") or data.get("from_id")
                     if source not in entity_relations:
                         entity_relations[source] = []
                     entity_relations[source].append(
                         Relation(
-                            type=data["relationType"],
-                            target=data["to"]
+                            type=data.get("relationType") or data.get("relation_type"),
+                            target=data.get("to") or data.get("to_id")
                         )
                     )
                 progress.update(read_task, advance=1)
