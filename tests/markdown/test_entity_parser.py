@@ -1,12 +1,12 @@
 """Tests for entity markdown parsing."""
-
+import os
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
 
-from basic_memory.markdown.entity_parser import EntityParser
-from basic_memory.markdown.schemas import EntityMarkdown, EntityFrontmatter, EntityContent, Relation
+from basic_memory.markdown.schemas import EntityMarkdown, EntityFrontmatter, Relation
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ async def test_parse_complete_file(test_config, entity_parser, valid_entity_cont
     # Verify entity structure
     assert isinstance(entity, EntityMarkdown)
     assert isinstance(entity.frontmatter, EntityFrontmatter)
-    assert isinstance(entity.content, EntityContent)
+    assert isinstance(entity.content, str)
 
     # Check frontmatter
     assert entity.frontmatter.title == "Auth Service"
@@ -59,40 +59,39 @@ async def test_parse_complete_file(test_config, entity_parser, valid_entity_cont
     assert set(entity.frontmatter.tags) == {"authentication", "security", "core"}
 
     # Check content
-    assert "Core authentication service that handles user authentication." in entity.content.content
+    assert "Core authentication service that handles user authentication." in entity.content
 
     # Check observations
-    assert len(entity.content.observations) == 3
-    obs = entity.content.observations[0]
+    assert len(entity.observations) == 3
+    obs = entity.observations[0]
     assert obs.category == "design"
     assert obs.content == "Stateless authentication"
     assert set(obs.tags or []) == {"security", "architecture"}
     assert obs.context == "JWT based"
 
     # Check relations
-    assert len(entity.content.relations) == 5
-    assert Relation(
-        type="implements",
-        target="OAuth Implementation",
-        context="Core auth flows") in entity.content.relations,"missing [[OAuth Implementation]]"
-    assert Relation(
-        type="uses",
-        target="Redis Cache",
-        context="Token caching") in entity.content.relations,"missing [[Redis Cache]]"
-    assert Relation(
-        type="specified_by",
-        target="Auth API Spec",
-        context="OpenAPI spec") in entity.content.relations,"missing [[Auth API Spec]]"
+    assert len(entity.relations) == 5
+    assert (
+        Relation(type="implements", target="OAuth Implementation", context="Core auth flows")
+        in entity.relations
+    ), "missing [[OAuth Implementation]]"
+    assert (
+        Relation(type="uses", target="Redis Cache", context="Token caching")
+        in entity.relations
+    ), "missing [[Redis Cache]]"
+    assert (
+        Relation(type="specified_by", target="Auth API Spec", context="OpenAPI spec")
+        in entity.relations
+    ), "missing [[Auth API Spec]]"
 
     # inline links in content
-    assert Relation(
-        type="links to",
-        target="Random Link",
-        context=None) in entity.content.relations,"missing [[Random Link]]"
-    assert Relation(
-        type="links to",
-        target="Random Link with Title|Titled Link",
-        context=None) in entity.content.relations,"missing [[Random Link with Title|Titled Link]]"
+    assert (
+        Relation(type="links to", target="Random Link", context=None) in entity.relations
+    ), "missing [[Random Link]]"
+    assert (
+        Relation(type="links to", target="Random Link with Title|Titled Link", context=None)
+        in entity.relations
+    ), "missing [[Random Link with Title|Titled Link]]"
 
 
 @pytest.mark.asyncio
@@ -101,8 +100,6 @@ async def test_parse_minimal_file(test_config, entity_parser):
     content = dedent("""
         ---
         type: component
-        created: 2024-12-21T14:00:00Z
-        modified: 2024-12-21T14:00:00Z
         tags: []
         ---
 
@@ -122,8 +119,11 @@ async def test_parse_minimal_file(test_config, entity_parser):
 
     assert entity.frontmatter.type == "component"
     assert entity.frontmatter.permalink is None
-    assert len(entity.content.observations) == 1
-    assert len(entity.content.relations) == 1
+    assert len(entity.observations) == 1
+    assert len(entity.relations) == 1
+    
+    assert entity.created is not None
+    assert entity.modified is not None
 
 
 @pytest.mark.asyncio
@@ -140,3 +140,46 @@ async def test_error_handling(test_config, entity_parser):
         f.write(b"\x80\x81")  # Invalid UTF-8
     with pytest.raises(UnicodeDecodeError):
         await entity_parser.parse_file(test_file)
+
+@pytest.mark.asyncio
+async def test_parse_file_without_section_headers(test_config, entity_parser):
+    """Test parsing a minimal valid entity file."""
+    content = dedent("""
+        ---
+        type: component
+        permalink: minimal_entity
+        status: draft
+        tags: []
+        ---
+
+        # Minimal Entity
+
+        some text
+        some [[Random Link]]
+
+        - [note] Basic observation #test
+
+        - references [[Other Entity]]
+        """)
+
+    test_file = test_config.home / "minimal.md"
+    test_file.write_text(content)
+
+    entity = await entity_parser.parse_file(test_file)
+
+    assert entity.frontmatter.type == "component"
+    assert entity.frontmatter.permalink == "minimal_entity"
+    
+    assert "some text\nsome [[Random Link]]" in entity.content 
+    
+    assert len(entity.observations) == 1
+    assert entity.observations[0].category == "note"
+    assert entity.observations[0].content == "Basic observation"
+    assert entity.observations[0].tags == ["test"]
+    
+    assert len(entity.relations) == 2
+    assert entity.relations[0].type == "links to"
+    assert entity.relations[0].target == "Random Link"
+    
+    assert entity.relations[1].type == "references"
+    assert entity.relations[1].target == "Other Entity" 

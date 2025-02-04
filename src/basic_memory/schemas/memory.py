@@ -1,51 +1,59 @@
 """Schemas for memory context."""
 
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Annotated
 
-from pydantic import AnyUrl, Field, BaseModel
+import pydantic
+from annotated_types import MinLen, MaxLen
+from pydantic import BaseModel, field_validator, Field, BeforeValidator, TypeAdapter, AnyUrl
 
-from basic_memory.config import config
 from basic_memory.schemas.search import SearchItemType
 
-"""Memory URL schema for knowledge addressing.
 
-The memory:// URL scheme provides a unified way to address knowledge:
+def normalize_memory_url(url: str) -> str:
+    """Normalize a MemoryUrl string.
 
-Examples:
-    memory://specs/search/*         # Pattern matching 
-    memory://specs/xyz              # direct reference
-"""
+    Args:
+        url: A path like "specs/search" or "memory://specs/search"
+
+    Returns:
+        Normalized URL starting with memory://
+
+    Examples:
+        >>> normalize_memory_url("specs/search")
+        'memory://specs/search'
+        >>> normalize_memory_url("memory://specs/search")
+        'memory://specs/search'
+    """
+    clean_path = url.removeprefix("memory://")
+    return f"memory://{clean_path}"
 
 
-class MemoryUrl(AnyUrl):
-    """memory:// URL scheme for knowledge addressing."""
+MemoryUrl = Annotated[
+    str,
+    BeforeValidator(str.strip),  # Clean whitespace
+    MinLen(1),       
+    MaxLen(2028),   
+]
 
-    allowed_schemes = {"memory"}
+memory_url = TypeAdapter(MemoryUrl) 
 
-    # Query params
-    params: Dict[str, Any] = Field(default_factory=dict)  # For special modes like 'related'
+def memory_url_path(url: memory_url) -> str:
+    """
+    Returns the uri for a url value by removing the prefix "memory://" from a given MemoryUrl.
 
-    @classmethod
-    def validate(cls, url: str) -> "MemoryUrl":
-        """Validate and construct a MemoryUrl."""
+    This function processes a given MemoryUrl by removing the "memory://"
+    prefix and returns the resulting string. If the provided url does not 
+    begin with "memory://", the function will simply return the input url 
+    unchanged.
 
-        memory_url = cls(url)
+    :param url: A MemoryUrl object representing the URL with a "memory://" prefix.
+    :type url: MemoryUrl
+    :return: A string representing the URL with the "memory://" prefix removed.
+    :rtype: str
+    """
+    return url.removeprefix("memory://")
 
-        # if the url host value is not the project name, assume the default project
-        if memory_url.host != config.project:
-            memory_url = cls(f"memory://{config.project}/{memory_url.host}{memory_url.path}")
-
-        return memory_url
-
-    def relative_path(self) -> str:
-        """Get the path without leading slash."""
-        path = self.path
-        return path[1:] if path.startswith("/") else path
-
-    def __str__(self) -> str:
-        """Convert back to URL string."""
-        return f"memory://{self.host}{self.path}"
 
 
 class EntitySummary(BaseModel):
@@ -63,8 +71,7 @@ class RelationSummary(BaseModel):
     permalink: str
     type: str
     from_id: str
-    to_id: str
-    created_at: datetime
+    to_id: Optional[str] = None
 
 
 class ObservationSummary(BaseModel):

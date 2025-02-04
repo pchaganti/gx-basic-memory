@@ -7,28 +7,18 @@ all tools with the MCP server.
 
 # Import tools to register them with MCP
 from basic_memory.mcp.tools.memory import build_context, recent_activity
-from basic_memory.mcp.tools.ai_edit import ai_edit
-from basic_memory.mcp.tools.notes import read_note, link_notes, write_note
+#from basic_memory.mcp.tools.ai_edit import ai_edit
+from basic_memory.mcp.tools.notes import read_note, write_note
 
 from basic_memory.mcp.tools.knowledge import (
-    create_entities,
-    create_relations,
-    add_observations,
     delete_entities,
-    delete_observations,
-    delete_relations,
     get_entity,
     get_entities,
 )
 
 __all__ = [
     # Knowledge graph tools
-    "create_entities",
-    "create_relations",
-    "add_observations",
     "delete_entities",
-    "delete_observations",
-    "delete_relations",
     "get_entity",
     "get_entities",
     # Search tools
@@ -37,7 +27,8 @@ __all__ = [
     "build_context",
     "recent_activity",
     #notes
-    "notes"
+    "read_note",
+    "write_note",
     # file edit
-    "ai_edit",
+    #"ai_edit",
 ]

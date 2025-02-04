@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.search_repository import SearchRepository
-from basic_memory.schemas.memory import MemoryUrl
+from basic_memory.schemas.memory import MemoryUrl, memory_url_path
 from basic_memory.schemas.search import SearchItemType
 
 
@@ -62,17 +62,18 @@ class ContextService:
         )
 
         if memory_url:
+            path = memory_url_path(memory_url)
             # Pattern matching - use search
-            if "*" in memory_url.relative_path():
-                logger.debug(f"Pattern search for '{memory_url.relative_path()}'")
+            if "*" in path:
+                logger.debug(f"Pattern search for '{path}'")
                 primary = await self.search_repository.search(
-                    permalink_match=memory_url.relative_path()
+                    permalink_match=path
                 )
-    
+
             # Direct lookup for exact path
             else:
-                logger.debug(f"Direct lookup for '{memory_url.relative_path()}'")
-                primary = await self.search_repository.search(permalink=memory_url.relative_path())
+                logger.debug(f"Direct lookup for '{path}'")
+                primary = await self.search_repository.search(permalink=path)
         else:
             logger.debug(f"Build context for '{types}'")
             primary = await self.search_repository.search(types=types)
@@ -95,7 +96,7 @@ class ContextService:
             "primary_results": primary,
             "related_results": related,
             "metadata": {
-                "uri": memory_url.relative_path() if memory_url else None,
+                "uri": memory_url_path(memory_url) if memory_url else None,
                 "types": types if types else None,
                 "depth": depth,
                 "timeframe": since.isoformat() if since else None,

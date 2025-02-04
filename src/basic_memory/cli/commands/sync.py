@@ -19,16 +19,19 @@ from basic_memory.cli.app import app
 from basic_memory.config import config
 from basic_memory.db import DatabaseType
 from basic_memory.markdown import EntityParser
+from basic_memory.markdown.markdown_processor import MarkdownProcessor
 from basic_memory.repository import (
     EntityRepository,
     ObservationRepository,
     RelationRepository,
 )
 from basic_memory.repository.search_repository import SearchRepository
+from basic_memory.services import EntityService, FileService
 from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
-from basic_memory.sync import SyncService, FileChangeScanner, EntitySyncService
+from basic_memory.sync import SyncService, FileChangeScanner
 from basic_memory.sync.utils import SyncReport
+from basic_memory.sync.watch_service import WatchService
 
 console = Console()
 
@@ -45,6 +48,10 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         engine,
         session_maker,
     ):
+        entity_parser = EntityParser(config.home)
+        markdown_processor = MarkdownProcessor(entity_parser)
+        file_service = FileService(config.home, markdown_processor)
+
         # Initialize repositories
         entity_repository = EntityRepository(session_maker)
         observation_repository = ObservationRepository(session_maker)
@@ -52,24 +59,29 @@ async def get_sync_service(db_type=DatabaseType.FILESYSTEM):
         search_repository = SearchRepository(session_maker)
 
         # Initialize services
-        search_service = SearchService(search_repository, entity_repository)
+        search_service = SearchService(search_repository, entity_repository, file_service)
         link_resolver = LinkResolver(entity_repository, search_service)
 
         # Initialize scanner
         file_change_scanner = FileChangeScanner(entity_repository)
 
         # Initialize services
-        knowledge_sync_service = EntitySyncService(
-            entity_repository, observation_repository, relation_repository, link_resolver
+        entity_service = EntityService(
+            entity_parser,
+            entity_repository,
+            observation_repository,
+            relation_repository,
+            file_service,
+            link_resolver,
         )
-        entity_parser = EntityParser(config.home)
 
         # Create sync service
         sync_service = SyncService(
             scanner=file_change_scanner,
-            entity_sync_service=knowledge_sync_service,
+            entity_service=entity_service,
             entity_parser=entity_parser,
             entity_repository=entity_repository,
+            relation_repository=relation_repository,
             search_service=search_service,
         )
 
@@ -102,7 +114,7 @@ def display_validation_errors(issues: List[ValidationIssue]):
     for dir_name, dir_issues in sorted(grouped_issues.items()):
         # Create branch for directory
         branch = tree.add(
-            f"[bold blue]{dir_name}/[/bold blue] " f"([yellow]{len(dir_issues)} files[/yellow])"
+            f"[bold blue]{dir_name}/[/bold blue] ([yellow]{len(dir_issues)} files[/yellow])"
         )
 
         # Add each file issue
@@ -190,19 +202,28 @@ def display_detailed_sync_results(knowledge: SyncReport):
         console.print(knowledge_tree)
 
 
-async def run_sync(verbose: bool = False):
+async def run_sync(verbose: bool = False, watch: bool = False):
     """Run sync operation."""
 
     sync_service = await get_sync_service()
 
-    # Sync
-    knowledge_changes = await sync_service.sync(config.home)
-
-    # Display results
-    if verbose:
-        display_detailed_sync_results(knowledge_changes)
+    # Start watching if requested
+    if watch:
+        watch_service = WatchService(
+            sync_service=sync_service,
+            file_service=sync_service.entity_service.file_service,
+            config=config
+        )
+        await watch_service.handle_changes(config.home)
+        await watch_service.run()
     else:
-        display_sync_summary(knowledge_changes)
+        # one time sync
+        knowledge_changes = await sync_service.sync(config.home)
+        # Display results
+        if verbose:
+            display_detailed_sync_results(knowledge_changes)
+        else:
+            display_sync_summary(knowledge_changes)
 
 
 @app.command()
@@ -213,11 +234,17 @@ def sync(
         "-v",
         help="Show detailed sync information.",
     ),
+    watch: bool = typer.Option(
+        False,
+        "--watch",
+        "-w",
+        help="Start watching for changes after sync.",
+    ),
 ) -> None:
     """Sync knowledge files with the database."""
     try:
         # Run sync
-        asyncio.run(run_sync(verbose))
+        asyncio.run(run_sync(verbose=verbose, watch=watch))
 
     except Exception as e:
         if not isinstance(e, typer.Exit):

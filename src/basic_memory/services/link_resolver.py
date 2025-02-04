@@ -25,10 +25,7 @@ class LinkResolver:
         self.entity_repository = entity_repository
         self.search_service = search_service
 
-    async def resolve_link(
-        self,
-        link_text: str,
-    ) -> Entity:
+    async def resolve_link(self, link_text: str, use_search: bool = True) -> Optional[Entity]:
         """Resolve a markdown link to a permalink."""
         logger.debug(f"Resolving link: {link_text}")
 
@@ -44,19 +41,24 @@ class LinkResolver:
         # 2. Try exact title match
         entity = await self.entity_repository.get_by_title(clean_text)
         if entity:
-            logger.debug(f"Found title match: {entity.permalink}")
+            logger.debug(f"Found title match: {entity.title}")
             return entity
 
-        # 3. Fall back to search for fuzzy matching
-        results = await self.search_service.search(
-            query=SearchQuery(text=clean_text, types=[SearchItemType.ENTITY]),
-        )
-
-        if results:
-            # Look for best match
-            best_match = self._select_best_match(clean_text, results)
-            logger.debug(f"Selected best match from {len(results)} results: {best_match.permalink}")
-            return await self.entity_repository.get_by_permalink(best_match.permalink)
+        if use_search:
+            
+            # 3. Fall back to search for fuzzy matching on title if specified
+            results = await self.search_service.search(
+                query=SearchQuery(title=clean_text, types=[SearchItemType.ENTITY]),
+            )
+    
+            if results:
+                # Look for best match
+                best_match = self._select_best_match(clean_text, results)
+                logger.debug(f"Selected best match from {len(results)} results: {best_match.permalink}")
+                return await self.entity_repository.get_by_permalink(best_match.permalink)
+    
+            # if we couldn't find anything then return None
+        return None
 
     def _normalize_link_text(self, link_text: str) -> Tuple[str, Optional[str]]:
         """Normalize link text and extract alias if present.
@@ -120,4 +122,5 @@ class LinkResolver:
 
         # Sort by score (lowest first) and return best
         scored_results.sort(key=lambda x: x[0], reverse=True)
+
         return scored_results[0][1]

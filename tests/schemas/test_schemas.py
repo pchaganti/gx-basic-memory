@@ -7,7 +7,6 @@ from basic_memory.schemas import (
     Entity,
     EntityResponse,
     Relation,
-    CreateEntityRequest,
     SearchNodesRequest,
     GetEntitiesRequest,
     RelationResponse,
@@ -15,42 +14,20 @@ from basic_memory.schemas import (
 from basic_memory.schemas.base import to_snake_case, TimeFrame
 
 
-def test_entity_in_minimal():
+def test_entity():
     """Test creating EntityIn with minimal required fields."""
-    data = {"title": "test_entity", "entity_type": "knowledge"}
+    data = {"title": "Test Entity", "folder": "test", "entity_type": "knowledge"}
     entity = Entity.model_validate(data)
-    assert entity.title == "test_entity"
+    assert entity.file_path == "test/Test Entity.md"
+    assert entity.permalink == "test/test-entity"
     assert entity.entity_type == "knowledge"
-    assert entity.summary is None
-    assert entity.observations == []
 
-
-def test_entity_in_complete():
-    """Test creating EntityIn with all fields."""
-    data = {
-        "title": "test_entity",
-        "entity_type": "knowledge",
-        "summary": "A test entity",
-        "observations": ["Test observation"],
-    }
-    entity = Entity.model_validate(data)
-    assert entity.title == "test_entity"
-    assert entity.entity_type == "knowledge"
-    assert entity.summary == "A test entity"
-    assert len(entity.observations) == 1
-    assert entity.observations[0] == "Test observation"
 
 
 def test_entity_in_validation():
     """Test validation errors for EntityIn."""
     with pytest.raises(ValidationError):
-        Entity.model_validate({"file_path": "test"})  # Missing required fields
-
-    with pytest.raises(ValidationError):
-        Entity.model_validate({"title": "test"})  # Missing entityType
-
-    with pytest.raises(ValidationError):
-        Entity.model_validate({"entityType": "test"})  # Missing name
+        Entity.model_validate({"entity_type": "test"})  # Missing required fields
 
 
 def test_relation_in_validation():
@@ -88,33 +65,17 @@ def test_relation_response():
     assert relation.context is None
 
 
-def test_create_entities_input():
-    """Test CreateEntitiesInput validation."""
-    data = {
-        "entities": [
-            {"title": "entity1", "entity_type": "knowledge"},
-            {"title": "entity2", "entity_type": "knowledge", "summary": "test description"},
-        ]
-    }
-    create_input = CreateEntityRequest.model_validate(data)
-    assert len(create_input.entities) == 2
-    assert create_input.entities[1].summary == "test description"
-
-    # Empty entities list should fail
-    with pytest.raises(ValidationError):
-        CreateEntityRequest.model_validate({"entities": []})
-
 
 def test_entity_out_from_attributes():
     """Test EntityOut creation from database model attributes."""
     # Simulate database model attributes
     db_data = {
+        "title": "Test Entity",
         "permalink": "test/test",
-        "title": "test",
+        "file_path": "test",
         "entity_type": "knowledge",
         "content_type": "text/markdown",
-        "summary": "test description",
-        "observations": [{"id": 1, "content": "test obs", "context": None}],
+        "observations": [{"id": 1, "category": "note", "content": "test obs", "context": None}],
         "relations": [
             {
                 "id": 1,
@@ -127,36 +88,8 @@ def test_entity_out_from_attributes():
     }
     entity = EntityResponse.model_validate(db_data)
     assert entity.permalink == "test/test"
-    assert entity.summary == "test description"
     assert len(entity.observations) == 1
     assert len(entity.relations) == 1
-
-
-def test_optional_fields():
-    """Test handling of optional fields."""
-    # Create with no optional fields
-    entity = Entity.model_validate({"title": "test", "entity_type": "knowledge"})
-    assert entity.summary is None
-    assert entity.observations == []
-
-    # Create with empty optional fields
-    entity = Entity.model_validate(
-        {
-            "title": "test",
-            "entity_type": "knowledge",
-            "summary": None,
-            "observations": [],
-        }
-    )
-    assert entity.summary is None
-    assert entity.observations == []
-
-    # Create with some optional fields
-    entity = Entity.model_validate(
-        {"title": "test", "entity_type": "knowledge", "summary": "test", "observations": []}
-    )
-    assert entity.summary == "test"
-    assert entity.observations == []
 
 
 def test_search_nodes_input():
@@ -201,10 +134,11 @@ def test_path_sanitization():
 def test_permalink_generation():
     """Test permalink property generates correct paths."""
     test_cases = [
-        ({"title": "BasicMemory", "entity_type": "knowledge"}, "basic-memory"),
-        ({"title": "Memory Service", "entity_type": "knowledge"}, "memory-service"),
-        ({"title": "API Gateway", "entity_type": "knowledge"}, "api-gateway"),
-        ({"title": "TestCase1", "entity_type": "knowledge"}, "test-case1"),
+        ({"title": "BasicMemory", "folder": "test"}, "test/basic-memory"),
+        ({"title": "Memory Service", "folder": "test"}, "test/memory-service"),
+        ({"title": "API Gateway", "folder": "test"}, "test/api-gateway"),
+        ({"title": "TestCase1", "folder": "test"}, "test/test-case1"),
+        ({"title": "TestCaseRoot", "folder": ""}, "test-case-root"),
     ]
 
     for input_data, expected_path in test_cases:

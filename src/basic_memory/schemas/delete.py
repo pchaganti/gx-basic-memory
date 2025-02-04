@@ -36,25 +36,3 @@ class DeleteEntitiesRequest(BaseModel):
 
     permalinks: Annotated[List[PathId], MinLen(1)]
 
-
-class DeleteRelationsRequest(BaseModel):
-    """Delete specific relations between entities.
-
-    This operation removes connections between entities without
-    affecting the entities themselves. You must specify the exact
-    relation to delete - matching from_id, to_id, and relation_type.
-    """
-
-    relations: List[Relation]
-
-
-class DeleteObservationsRequest(BaseModel):
-    """Delete specific observations from an entity.
-
-    This precision operation removes individual observations while
-    preserving the entity and all its relations. Observations must
-    match exactly for deletion.
-    """
-
-    permalink: PathId
-    observations: Annotated[List[Observation], MinLen(1)]

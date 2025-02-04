@@ -1,13 +1,17 @@
 """Test general sync behavior."""
 
 import asyncio
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from basic_memory.config import ProjectConfig
 from basic_memory.models import Entity
+from basic_memory.repository import EntityRepository
+from basic_memory.schemas.search import SearchQuery
 from basic_memory.services import EntityService
+from basic_memory.services.search_service import SearchService
 from basic_memory.sync.sync_service import SyncService
 
 
@@ -15,6 +19,57 @@ async def create_test_file(path: Path, content: str = "test content") -> None:
     """Create a test file with given content."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
+
+
+@pytest.mark.asyncio
+async def test_forward_reference_resolution(
+    sync_service: SyncService,
+    test_config: ProjectConfig,
+    entity_service: EntityService,
+):
+    """Test that forward references get resolved when target file is created."""
+    project_dir = test_config.home
+
+    # First create a file with a forward reference
+    source_content = """
+---
+type: knowledge
+---
+# Source Document
+
+## Relations
+- depends_on [[target-doc]]
+"""
+    await create_test_file(project_dir / "source.md", source_content)
+
+    # Initial sync - should create forward reference
+    await sync_service.sync(test_config.home)
+
+    # Verify forward reference
+    source = await entity_service.get_by_permalink("source")
+    assert len(source.relations) == 1
+    assert source.relations[0].to_id is None
+    assert source.relations[0].to_name == "target-doc"
+
+    # Now create the target file
+    target_content = """
+---
+type: knowledge
+---
+# Target Doc
+Target content
+"""
+    await create_test_file(project_dir / "target_doc.md", target_content)
+
+    # Sync again - should resolve the reference
+    await sync_service.sync(test_config.home)
+
+    # Verify reference is now resolved
+    source = await entity_service.get_by_permalink("source")
+    target = await entity_service.get_by_permalink("target-doc")
+    assert len(source.relations) == 1
+    assert source.relations[0].to_id == target.id
+    assert source.relations[0].to_name == target.title
 
 
 @pytest.mark.asyncio
@@ -54,6 +109,8 @@ A test concept.
         file_path="concept/other.md",
         checksum="12345678",
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     await entity_service.repository.add(other)
 
@@ -68,11 +125,14 @@ A test concept.
     test_concept = next(e for e in entities if e.permalink == "concept/test-concept")
     assert test_concept.entity_type == "knowledge"
 
-    # Verify relation was not created
-    # because file for related entity was not found
+    # Verify relation was created
+    # with forward link
     entity = await entity_service.get_by_permalink(test_concept.permalink)
     relations = entity.relations
-    assert len(relations) == 0
+    assert len(relations) == 1
+    assert relations[0].to_name == "concept/other"
+
+
 
 
 @pytest.mark.asyncio
@@ -105,11 +165,14 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify entity created but no relations
-    entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity = await sync_service.entity_service.repository.get_by_permalink(
         "concept/depends-on-future"
     )
     assert entity is not None
-    assert len(entity.relations) == 0  # Relations to nonexistent entities should be skipped
+    assert len(entity.relations) == 2 
+    assert entity.relations[0].to_name == "concept/not_created_yet"
+    assert entity.relations[1].to_name == "concept/also_future"
+
 
 
 @pytest.mark.asyncio
@@ -159,10 +222,10 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify both entities and their relations
-    entity_a = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity_a = await sync_service.entity_service.repository.get_by_permalink(
         "concept/entity-a"
     )
-    entity_b = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity_b = await sync_service.entity_service.repository.get_by_permalink(
         "concept/entity-b"
     )
 
@@ -184,6 +247,7 @@ modified: 2024-01-01
 
     b_relation = entity_b.outgoing_relations[0]
     assert b_relation.to_id == entity_a.id
+
 
 
 @pytest.mark.asyncio
@@ -234,7 +298,7 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify duplicates are handled
-    entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity = await sync_service.entity_service.repository.get_by_permalink(
         "concept/duplicate-relations"
     )
 
@@ -276,7 +340,7 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify observations
-    entity = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity = await sync_service.entity_service.repository.get_by_permalink(
         "concept/invalid-category"
     )
 
@@ -355,13 +419,13 @@ modified: 2024-01-01
     await sync_service.sync(test_config.home)
 
     # Verify all relations are created correctly regardless of order
-    entity_a = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity_a = await sync_service.entity_service.repository.get_by_permalink(
         "concept/entity-a"
     )
-    entity_b = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity_b = await sync_service.entity_service.repository.get_by_permalink(
         "concept/entity-b"
     )
-    entity_c = await sync_service.entity_sync_service.entity_repository.get_by_permalink(
+    entity_c = await sync_service.entity_service.repository.get_by_permalink(
         "concept/entity-c"
     )
 
@@ -373,6 +437,7 @@ modified: 2024-01-01
 
     assert len(entity_c.outgoing_relations) == 1  # Should depend on A
     assert len(entity_c.incoming_relations) == 2  # A and B depend on C
+
 
 
 @pytest.mark.asyncio
@@ -416,25 +481,28 @@ modified: 2024-01-01
     await asyncio.gather(sync_service.sync(test_config.home), modify_file())
 
     # Verify final state
-    doc = await sync_service.entity_sync_service.entity_repository.get_by_permalink("changing")
+    doc = await sync_service.entity_service.repository.get_by_permalink("changing")
     assert doc is not None
     # File should have a checksum, even if it's from either version
     assert doc.checksum is not None
-    
+
+
 @pytest.mark.asyncio
-async def test_permalink_formatting(sync_service: SyncService, test_config: ProjectConfig, entity_service: EntityService):
+async def test_permalink_formatting(
+    sync_service: SyncService, test_config: ProjectConfig, entity_service: EntityService
+):
     """Test that permalinks are properly formatted during sync."""
-    
+
     # Test cases with different filename formats
     test_files = {
-    # filename -> expected permalink
-    "my_awesome_feature.md": "my-awesome-feature",
-    "MIXED_CASE_NAME.md": "mixed-case-name",
-    "spaces and_underscores.md": "spaces-and-underscores",
-    "design/model_refactor.md": "design/model-refactor",
-    "test/multiple_word_directory/feature_name.md": "test/multiple-word-directory/feature-name",
+        # filename -> expected permalink
+        "my_awesome_feature.md": "my-awesome-feature",
+        "MIXED_CASE_NAME.md": "mixed-case-name",
+        "spaces and_underscores.md": "spaces-and-underscores",
+        "design/model_refactor.md": "design/model-refactor",
+        "test/multiple_word_directory/feature_name.md": "test/multiple-word-directory/feature-name",
     }
-    
+
     # Create test files
     for filename, _ in test_files.items():
         content: str = """
@@ -448,16 +516,131 @@ modified: 2024-01-01
 Testing permalink generation.
 """
         await create_test_file(test_config.home / filename, content)
-        
+
         # Run sync
         await sync_service.sync(test_config.home)
-        
+
     # Verify permalinks
     entities = await entity_service.repository.find_all()
     for filename, expected_permalink in test_files.items():
         # Find entity for this file
         entity = next(e for e in entities if e.file_path == filename)
-        assert entity.permalink == expected_permalink, f"File {filename} should have permalink {expected_permalink}"
+        assert (
+            entity.permalink == expected_permalink
+        ), f"File {filename} should have permalink {expected_permalink}"
+
+
+@pytest.mark.asyncio
+async def test_handle_entity_deletion(
+    test_graph,
+    sync_service: SyncService,
+    test_config: ProjectConfig,
+    entity_repository: EntityRepository,
+    search_service: SearchService,
+):
+    """Test deletion of entity cleans up search index."""
+    
+    root_entity = test_graph["root"]
+    # Delete the entity
+    await sync_service.handle_entity_deletion(root_entity.file_path)
+
+    # Verify entity is gone from db
+    assert await entity_repository.get_by_permalink(root_entity.permalink) is None
+
+    # Verify entity is gone from search index
+    entity_results = await search_service.search(SearchQuery(text=root_entity.title))
+    assert len(entity_results) == 0
+
+    obs_results = await search_service.search(SearchQuery(text="Root note 1"))
+    assert len(obs_results) == 0
+
+    rel_results = await search_service.search(SearchQuery(text="connects_to"))
+    assert len(rel_results) == 0
+
+
+
+
+@pytest.mark.asyncio
+async def test_sync_preserves_timestamps(
+    sync_service: SyncService,
+    test_config: ProjectConfig,
+    entity_service: EntityService,
+):
+    """Test that sync preserves file timestamps and frontmatter dates."""
+    project_dir = test_config.home
+
+    # Create a file with explicit frontmatter dates
+    frontmatter_content = """
+---
+type: knowledge
+---
+# Explicit Dates
+Testing frontmatter dates
+"""
+    await create_test_file(project_dir / "explicit_dates.md", frontmatter_content)
+
+    # Create a file without dates (will use file timestamps)
+    file_dates_content = """
+---
+type: knowledge
+---
+# File Dates
+Testing file timestamps
+"""
+    file_path = project_dir / "file_dates.md"
+    await create_test_file(file_path, file_dates_content)
+
+    # Run sync
+    await sync_service.sync(test_config.home)
+
+    # Check explicit frontmatter dates
+    explicit_entity = await entity_service.get_by_permalink("explicit-dates")
+    assert explicit_entity.created_at is not None
+    assert explicit_entity.updated_at is not None
+
+    # Check file timestamps
+    file_entity = await entity_service.get_by_permalink("file-dates")
+    file_stats = file_path.stat()
+    assert abs((file_entity.created_at.timestamp() - file_stats.st_ctime)) < 1  # Allow 1s difference
+    assert abs((file_entity.updated_at.timestamp() - file_stats.st_mtime)) < 1  # Allow 1s difference
+
+
+@pytest.mark.asyncio
+async def test_file_move_updates_search_index(
+    sync_service: SyncService,
+    test_config: ProjectConfig,
+    search_service: SearchService,
+):
+    """Test that moving a file updates its path in the search index."""
+    project_dir = test_config.home
+
+    # Create initial file
+    content = """
+---
+type: knowledge
+---
+# Test Move
+Content for move test
+"""
+    old_path = project_dir / "old" / "test_move.md"
+    old_path.parent.mkdir(parents=True)
+    await create_test_file(old_path, content)
+
+    # Initial sync
+    await sync_service.sync(test_config.home)
+
+    # Move the file
+    new_path = project_dir / "new" / "moved_file.md"
+    new_path.parent.mkdir(parents=True)
+    old_path.rename(new_path)
+
+    # Sync again
+    await sync_service.sync(test_config.home)
+
+    # Check search index has updated path
+    results = await search_service.search(SearchQuery(text="Content for move test"))
+    assert len(results) == 1
+    assert results[0].file_path == str(new_path.relative_to(project_dir))
 
 @pytest.mark.asyncio
 async def test_sync_null_checksum_cleanup(
@@ -472,6 +655,8 @@ async def test_sync_null_checksum_cleanup(
         file_path="concept/incomplete.md",
         checksum=None,  # Null checksum
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     await entity_service.repository.add(entity)
 

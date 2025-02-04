@@ -38,6 +38,7 @@ class SearchQuery(BaseModel):
     permalink: Optional[str] = None  # Exact permalink match
     permalink_match: Optional[str] = None  # Exact permalink match
     text: Optional[str] = None  # Full-text search
+    title: Optional[str] = None  # title only search
 
     # Optional filters
     types: Optional[List[SearchItemType]] = None  # Filter by item type

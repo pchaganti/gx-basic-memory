@@ -116,7 +116,7 @@ class EntityRepository(Repository[Entity]):
 
     def get_load_options(self) -> List[LoaderOption]:
         return [
-            selectinload(Entity.observations),
+            selectinload(Entity.observations).selectinload(Observation.entity),
             # Load from_relations and both entities for each relation
             selectinload(Entity.outgoing_relations).selectinload(Relation.from_entity),
             selectinload(Entity.outgoing_relations).selectinload(Relation.to_entity),

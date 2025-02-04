@@ -13,6 +13,14 @@ class Observation(BaseModel):
     content: str
     tags: Optional[List[str]] = None
     context: Optional[str] = None
+    
+    def __str__(self) -> str:
+        obs_string = f"- [{self.category}] {self.content}"
+        if self.tags:
+            obs_string += " " + " ".join(f"#{tag}" for tag in sorted(self.tags))
+        if self.context:
+            obs_string += f" ({self.context})"
+        return obs_string
 
 
 class Relation(BaseModel):
@@ -21,29 +29,45 @@ class Relation(BaseModel):
     type: str
     target: str
     context: Optional[str] = None
+    
+    def __str__(self) -> str:
+        rel_string = f"- {self.type} [[{self.target}]]"
+        if self.context:
+            rel_string += f" ({self.context})"
+        return rel_string
 
 
 class EntityFrontmatter(BaseModel):
     """Required frontmatter fields for an entity."""
 
-    title: str
-    type: str
-    permalink: Optional[str] = None
-    created: datetime
-    modified: datetime
-    tags: List[str]
+    metadata: Optional[dict] = None
 
+    @property
+    def tags(self) -> List[str]:
+        return self.metadata.get("tags") if self.metadata else []
 
-class EntityContent(BaseModel):
-    """Content sections of an entity markdown file."""
+    @property
+    def title(self) -> str:
+        return self.metadata.get("title") if self.metadata else None
 
-    content: Optional[str] = None
-    observations: List[Observation] = []
-    relations: List[Relation] = []
+    @property
+    def type(self) -> str:
+        return self.metadata.get("type", "note") if self.metadata else "note"
+
+    @property
+    def permalink(self) -> str:
+        return self.metadata.get("permalink") if self.metadata else None
+
 
 
 class EntityMarkdown(BaseModel):
     """Complete entity combining frontmatter, content, and metadata."""
 
     frontmatter: EntityFrontmatter
-    content: EntityContent
+    content: Optional[str] = None
+    observations: List[Observation] = []
+    relations: List[Relation] = []
+
+    # created, updated will have values after a read
+    created: Optional[datetime] = None
+    modified: Optional[datetime] = None

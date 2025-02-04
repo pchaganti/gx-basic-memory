@@ -1,10 +1,8 @@
 """Knowledge graph models."""
 
 import re
-import os
 from datetime import datetime
 from typing import Optional
-from unidecode import unidecode
 
 from sqlalchemy import (
     Integer,
@@ -12,7 +10,6 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     UniqueConstraint,
-    text,
     DateTime,
     Index,
     JSON,
@@ -22,7 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from basic_memory.models.base import Base
 from enum import Enum
 
-
+from basic_memory.utils import generate_permalink
 
 
 class Entity(Base):
@@ -59,14 +56,9 @@ class Entity(Base):
     # checksum of file
     checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    # Content summary
-    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
     # Metadata and tracking
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    updated_at: Mapped[datetime] = mapped_column(DateTime)
 
     # Relationships
     observations = relationship(
@@ -89,10 +81,10 @@ class Entity(Base):
     def relations(self):
         return self.incoming_relations + self.outgoing_relations
 
-    @validates('permalink')
+    @validates("permalink")
     def validate_permalink(self, key, value):
         """Validate permalink format.
-        
+
         Requirements:
         1. Must be valid URI path component
         2. Only lowercase letters, numbers, and hyphens (no underscores)
@@ -101,8 +93,8 @@ class Entity(Base):
         """
         if not value:
             raise ValueError("Permalink must not be None")
-        
-        if not re.match(r'^[a-z0-9][a-z0-9\-/]*[a-z0-9]$', value):
+
+        if not re.match(r"^[a-z0-9][a-z0-9\-/]*[a-z0-9]$", value):
             raise ValueError(
                 f"Invalid permalink format: {value}. "
                 "Use only lowercase letters, numbers, and hyphens."
@@ -110,7 +102,7 @@ class Entity(Base):
         return value
 
     def __repr__(self) -> str:
-        return f"Entity(id={self.id}, name='{self.title}', type='{self.entity_type}', summary='{self.summary}')"
+        return f"Entity(id={self.id}, name='{self.title}', type='{self.entity_type}'"
 
 
 class ObservationCategory(str, Enum):
@@ -133,8 +125,6 @@ class Observation(Base):
     __table_args__ = (
         Index("ix_observation_entity_id", "entity_id"),  # Add FK index
         Index("ix_observation_category", "category"),  # Add category index
-        Index("ix_observation_created_at", "created_at"),  # For timeline queries
-        Index("ix_observation_updated_at", "updated_at"),  # For timeline queries
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -151,13 +141,19 @@ class Observation(Base):
         JSON, nullable=True, default=list, server_default="[]"
     )
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
-    )
-
     # Relationships
     entity = relationship("Entity", back_populates="observations")
+
+    @property
+    def permalink(self) -> str:
+        """
+        Create synthetic permalink for the observation
+            We can construct these because observations are always
+            defined in and owned by a single entity
+        """
+        return generate_permalink(
+            f"{self.entity.permalink}/observations/{self.category}/{self.content}"
+        )
 
     def __repr__(self) -> str:
         return f"Observation(id={self.id}, entity_id={self.entity_id}, content='{self.content}')"
@@ -174,19 +170,16 @@ class Relation(Base):
         Index("ix_relation_type", "relation_type"),
         Index("ix_relation_from_id", "from_id"),  # Add FK indexes
         Index("ix_relation_to_id", "to_id"),
-        Index("ix_relation_created_at", "created_at"),  # For timeline queries
-        Index("ix_relation_updated_at", "updated_at"),  # For timeline queries
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     from_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
-    to_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
+    to_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("entity.id", ondelete="CASCADE"), nullable=True
+    )
+    to_name: Mapped[str] = mapped_column(String)
     relation_type: Mapped[str] = mapped_column(String)
     context: Mapped[str] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
-    )
 
     # Relationships
     from_entity = relationship(
@@ -194,5 +187,18 @@ class Relation(Base):
     )
     to_entity = relationship("Entity", foreign_keys=[to_id], back_populates="incoming_relations")
 
+    @property
+    def permalink(self) -> str:
+        """Create relation permalink showing the semantic connection:
+        source/relation_type/target
+        e.g., "specs/search/implements/features/search-ui"
+        """
+
+        return generate_permalink(
+            f"{self.from_entity.permalink}/{self.relation_type}/{self.to_entity.permalink}"
+            if self.to_entity
+            else f"{self.from_entity.permalink}/{self.relation_type}/{self.to_name}"
+        )
+
     def __repr__(self) -> str:
-        return f"Relation(id={self.id}, from_id={self.from_id}, to_id={self.to_id}, type='{self.relation_type}')"
+        return f"Relation(id={self.id}, from_id={self.from_id}, to_id={self.to_id}, to_name={self.to_name}, type='{self.relation_type}')"

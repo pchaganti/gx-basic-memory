@@ -1,132 +1,123 @@
 """Service for managing entities in the database."""
 
-from typing import Dict, Any, Sequence, List, Optional
+from pathlib import Path
+from typing import Sequence, List, Optional
 
+import frontmatter
+from frontmatter import Post
 from loguru import logger
+from sqlalchemy.exc import IntegrityError
 
-from basic_memory.models import Entity as EntityModel, Observation
+from basic_memory.markdown import EntityMarkdown
+from basic_memory.markdown.utils import entity_model_from_markdown, schema_to_markdown
+from basic_memory.models import Entity as EntityModel, Observation, Relation
+from basic_memory.repository import ObservationRepository, RelationRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.schemas import Entity as EntitySchema
-from basic_memory.services.exceptions import EntityNotFoundError
-from . import FileService
-from . import BaseService
-
-
-def entity_model(entity: EntitySchema):
-    model = EntityModel(
-        title=entity.title,
-        entity_type=entity.entity_type,
-        entity_metadata=entity.entity_metadata,
-        permalink=entity.permalink,
-        file_path=entity.file_path,
-        summary=entity.summary,
-        content_type=entity.content_type,
-        observations=[Observation(content=observation) for observation in entity.observations],
-    )
-    return model
+from basic_memory.services.exceptions import EntityNotFoundError, EntityCreationError
+from basic_memory.services import FileService
+from basic_memory.services import BaseService
+from basic_memory.services.link_resolver import LinkResolver
+from basic_memory.markdown.entity_parser import EntityParser
 
 
 class EntityService(BaseService[EntityModel]):
     """Service for managing entities in the database."""
 
-    def __init__(self, entity_repository: EntityRepository, file_service: FileService):
+    def __init__(
+        self,
+        entity_parser: EntityParser,
+        entity_repository: EntityRepository,
+        observation_repository: ObservationRepository,
+        relation_repository: RelationRepository,
+        file_service: FileService,
+        link_resolver: LinkResolver,
+    ):
         super().__init__(entity_repository)
+        self.observation_repository = observation_repository
+        self.relation_repository = relation_repository
+        self.entity_parser = entity_parser
         self.file_service = file_service
+        self.link_resolver = link_resolver
+
+    async def create_or_update_entity(self, schema: EntitySchema) -> (EntityModel, bool):
+        """Create new entity or update existing one.
+        if a new entity is created, the return value is (entity, True)
+        """
+
+        logger.debug(f"Creating or updating entity: {schema}")
+
+        # Try to find existing entity using smart resolution
+        existing = await self.link_resolver.resolve_link(schema.permalink)
+
+        if existing:
+            logger.debug(f"Found existing entity: {existing.permalink}")
+            return await self.update_entity(existing, schema), False
+        else:
+            # Create new entity
+            return await self.create_entity(schema), True
 
     async def create_entity(self, schema: EntitySchema) -> EntityModel:
         """Create a new entity and write to filesystem."""
-        logger.debug(f"Creating entity: {schema}")
+        logger.debug(f"Creating entity: {schema.permalink}")
 
-        db_entity = None
-        try:
-            # 1. Create entity in DB
-            model = entity_model(schema)
-            db_entity = await self.repository.add(model)
+        # get file path
+        file_path = Path(schema.file_path)
 
-            # if content is provided use that, otherwise write the entity info
-            content = schema.content or None
+        if await self.file_service.exists(file_path):
+            raise EntityCreationError(
+                f"file_path {file_path} for entity {schema.permalink} already exists: {file_path}"
+            )
 
-            # 2. Write file and get checksum
-            _, checksum = await self.file_service.write_entity_file(db_entity, content=content)
+        post = await schema_to_markdown(schema)
 
-            # 3. Update DB with checksum
-            updated = await self.repository.update(db_entity.id, {"checksum": checksum})
+        # write file
+        final_content = frontmatter.dumps(post, sort_keys=False)
+        checksum = await self.file_service.write_file(file_path, final_content)
 
-            return updated
+        # parse entity from file
+        entity_markdown = await self.entity_parser.parse_file(file_path)
+        
+        # create entity
+        created_entity = await self.create_entity_from_markdown(
+            file_path, entity_markdown
+        )
 
-        except Exception as e:
-            # Clean up on any failure
-            if db_entity:
-                await self.delete_entity(db_entity.permalink)
-                await self.file_service.delete_entity_file(db_entity)
-            logger.error(f"Failed to create entity: {e}")
-            raise
+        # add relations
+        entity = await self.update_entity_relations(file_path, entity_markdown)
 
-    async def create_entities(self, entities: List[EntitySchema]) -> Sequence[EntityModel]:
-        """Create multiple entities."""
-        logger.debug(f"Creating {len(entities)} entities")
-        return [await self.create_entity(entity) for entity in entities]
+        # Set final checksum to mark complete
+        return await self.repository.update(entity.id, {"checksum": checksum})
 
-    async def update_entity(
-        self,
-        permalink: str,
-        content: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        **update_fields: Any,
-    ) -> EntityModel:
-        """Update an entity's content and metadata.
 
-        Args:
-            permalink: Entity's path ID
-            content: Optional new content
-            metadata: Optional metadata updates
-            **update_fields: Additional entity fields to update
+    async def update_entity(self, entity: EntityModel, schema: EntitySchema) -> EntityModel:
+        """Update an entity's content and metadata."""
+        logger.debug(f"Updating entity with permalink: {entity.permalink}")
 
-        Returns:
-            Updated entity
+        # get file path
+        file_path = Path(entity.file_path)
 
-        Raises:
-            EntityNotFoundError: If entity doesn't exist
-        """
-        logger.debug(f"Updating entity with permalink: {permalink}")
+        post = await schema_to_markdown(schema)
 
-        # Get existing entity
-        entity = await self.get_by_permalink(permalink)
-        if not entity:
-            raise EntityNotFoundError(f"Entity not found: {permalink}")
+        # write file
+        final_content = frontmatter.dumps(post)
+        checksum = await self.file_service.write_file(file_path, final_content)
 
-        try:
-            # Build update data
-            update_data = {}
+        # parse entity from file
+        entity_markdown = await self.entity_parser.parse_file(file_path)
 
-            # Add any direct field updates
-            if update_fields:
-                update_data.update(update_fields)
+        # update entity in db
+        entity = await self.update_entity_and_observations(
+            file_path, entity_markdown
+        )
 
-            # Handle metadata update
-            if metadata is not None:
-                # Update existing metadata
-                new_metadata = dict(entity.entity_metadata or {})
-                new_metadata.update(metadata)
-                update_data["entity_metadata"] = new_metadata
+        # add relations
+        await self.update_entity_relations(file_path, entity_markdown)
 
-            # Update entity in database if we have changes
-            if update_data:
-                entity = await self.repository.update(entity.id, update_data)
+        # Set final checksum to match file
+        entity = await self.repository.update(entity.id, {"checksum": checksum})
 
-            # Always write file if we have any updates
-            if update_data or content is not None:
-                _, checksum = await self.file_service.write_entity_file(
-                    entity=entity, content=content
-                )
-                # Update checksum in DB
-                entity = await self.repository.update(entity.id, {"checksum": checksum})
-
-            return entity
-
-        except Exception as e:
-            logger.error(f"Failed to update entity: {e}")
-            raise
+        return entity
 
     async def delete_entity(self, permalink: str) -> bool:
         """Delete entity and its file."""
@@ -136,7 +127,7 @@ class EntityService(BaseService[EntityModel]):
             # Get entity first for file deletion
             entity = await self.get_by_permalink(permalink)
 
-            # Delete file first (it's source of truth)
+            # Delete file first
             await self.file_service.delete_entity_file(entity)
 
             # Delete from DB (this will cascade to observations/relations)
@@ -149,17 +140,6 @@ class EntityService(BaseService[EntityModel]):
         except Exception as e:
             logger.error(f"Failed to delete entity: {e}")
             raise
-
-    async def delete_entities(self, permalinks: List[str]) -> bool:
-        """Delete multiple entities and their files."""
-        logger.debug(f"Deleting entities: {permalinks}")
-        success = True
-
-        for permalink in permalinks:
-            await self.delete_entity(permalink)
-            success = True
-
-        return success
 
     async def get_by_permalink(self, permalink: str) -> EntityModel:
         """Get entity by type and name combination."""
@@ -195,3 +175,107 @@ class EntityService(BaseService[EntityModel]):
 
     async def delete_entity_by_file_path(self, file_path):
         await self.repository.delete_by_file_path(file_path)
+
+    async def create_entity_from_markdown(
+        self, file_path: Path, markdown: EntityMarkdown
+    ) -> EntityModel:
+        """Create entity and observations only.
+
+        Creates the entity with null checksum to indicate sync not complete.
+        Relations will be added in second pass.
+        """
+        logger.debug(f"Creating entity: {markdown.frontmatter.title}")
+        model = entity_model_from_markdown(file_path, markdown)
+
+        # Mark as incomplete sync
+        model.checksum = None
+        return await self.add(model)
+
+    async def update_entity_and_observations(
+        self, file_path: Path | str, markdown: EntityMarkdown
+    ) -> EntityModel:
+        """Update entity fields and observations.
+
+        Updates everything except relations and sets null checksum
+        to indicate sync not complete.
+        """
+        logger.debug(f"Updating entity and observations: {file_path}")
+        file_path = str(file_path)
+
+        db_entity = await self.repository.get_by_file_path(file_path)
+        if not db_entity:
+            raise EntityNotFoundError(f"Entity not found: {file_path}")
+
+        # Clear observations for entity
+        await self.observation_repository.delete_by_fields(entity_id=db_entity.id)
+
+        # add new observations
+        observations = [
+            Observation(
+                entity_id=db_entity.id,
+                content=obs.content,
+                category=obs.category,
+                context=obs.context,
+                tags=obs.tags,
+            )
+            for obs in markdown.observations
+        ]
+        await self.observation_repository.add_all(observations)
+
+        # update values from markdown
+        db_entity = entity_model_from_markdown(file_path, markdown, db_entity)
+
+        # checksum value is None == not finished with sync
+        db_entity.checksum = None
+        
+        # update entity
+        # checksum value is None == not finished with sync
+        return await self.repository.update(
+            db_entity.id,
+            db_entity,
+        )
+
+    async def update_entity_relations(
+        self,
+        file_path: Path | str,
+        markdown: EntityMarkdown,
+    ) -> EntityModel:
+        """Update relations for entity"""
+        logger.debug(f"Updating relations for entity: {file_path}")
+
+        file_path = str(file_path)
+        db_entity = await self.repository.get_by_file_path(file_path)
+
+        # Clear existing relations first
+        await self.relation_repository.delete_outgoing_relations_from_entity(db_entity.id)
+
+        # Process each relation
+        for rel in markdown.relations:
+            # Resolve the target permalink
+            target_entity = await self.link_resolver.resolve_link(
+                rel.target,
+            )
+
+            # if the target is found, store the id
+            target_id = target_entity.id if target_entity else None
+            # if the target is found, store the title, otherwise add the target for a "forward link"
+            target_name = target_entity.title if target_entity else rel.target
+
+            # Create the relation
+            relation = Relation(
+                from_id=db_entity.id,
+                to_id=target_id,
+                to_name=target_name,
+                relation_type=rel.type,
+                context=rel.context,
+            )
+            try:
+                await self.relation_repository.add(relation)
+            except IntegrityError:
+                # Unique constraint violation - relation already exists
+                logger.debug(
+                    f"Skipping duplicate relation {rel.type} from {db_entity.permalink} target: {rel.target}, type: {rel.type}"
+                )
+                continue
+
+        return await self.repository.get_by_file_path(file_path)

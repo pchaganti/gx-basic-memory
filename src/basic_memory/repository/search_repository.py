@@ -21,11 +21,11 @@ class SearchIndexRow:
 
     id: int
     type: str
-    metadata: dict
+    metadata: Optional[dict] = None
 
     # date values
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     # assigned in result
     score: Optional[float] = None
@@ -57,8 +57,8 @@ class SearchIndexRow:
             "relation_type": self.relation_type,
             "entity_id": self.entity_id,
             "category": self.category,
-            "created_at": self.metadata.get("created_at"),
-            "updated_at": self.metadata.get("updated_at"),
+            "created_at": self.created_at if self.created_at else None,
+            "updated_at": self.updated_at if self.updated_at else None,
         }
 
 
@@ -93,6 +93,7 @@ class SearchRepository:
         search_text: Optional[str] = None,
         permalink: Optional[str] = None,
         permalink_match: Optional[str] = None,
+        title: Optional[str] = None,
         types: List[SearchItemType] = None,
         after_date: datetime = None,
         entity_types: List[str] = None,
@@ -107,6 +108,12 @@ class SearchRepository:
             search_text = self._quote_search_term(search_text.lower().strip())
             params["text"] = f"{search_text}*"
             conditions.append("(title MATCH :text OR content MATCH :text)")
+
+        # Handle title match search
+        if title:
+            title_text = self._quote_search_term(title.lower().strip())
+            params["text"] = f"{title_text}*"
+            conditions.append("title MATCH :text")
 
         # Handle permalink exact search
         if permalink:
@@ -188,7 +195,8 @@ class SearchRepository:
             for row in rows
         ]
 
-        #logger.debug(f"Search results: {results}")
+        #for r in results:
+        #    logger.debug(f"Search result: type:{r.type} title: {r.title} permalink: {r.permalink} score: {r.score}")
         return results
 
     async def index_item(

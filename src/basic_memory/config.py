@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from loguru import logger
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -21,6 +22,10 @@ class ProjectConfig(BaseSettings):
     # Name of the project
     project: str = Field(default="default", description="Project name")
 
+    # Watch service configuration
+    sync_delay: int = Field(
+        default=500, description="Milliseconds to wait after changes before syncing", gt=0
+    )
 
     model_config = SettingsConfigDict(
         env_prefix="BASIC_MEMORY_",
@@ -45,3 +50,4 @@ class ProjectConfig(BaseSettings):
 
 # Load project config
 config = ProjectConfig()
+logger.info(f"project config home: {config.home}")

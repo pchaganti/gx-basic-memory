@@ -1,5 +1,7 @@
 """Tests for the RelationRepository."""
 
+from datetime import datetime, timezone
+
 import pytest
 import pytest_asyncio
 import sqlalchemy
@@ -17,8 +19,9 @@ async def source_entity(session_maker):
         entity_type="test",
         permalink="source/test-source",
         file_path="source/test_source.md",
-        summary="Source entity",
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     async with db.scoped_session(session_maker) as session:
         session.add(entity)
@@ -34,8 +37,9 @@ async def target_entity(session_maker):
         entity_type="test",
         permalink="target/test-target",
         file_path="target/test_target.md",
-        summary="Target entity",
         content_type="text/markdown",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
     async with db.scoped_session(session_maker) as session:
         session.add(entity)
@@ -47,8 +51,18 @@ async def target_entity(session_maker):
 async def test_relations(session_maker, source_entity, target_entity):
     """Create test relations."""
     relations = [
-        Relation(from_id=source_entity.id, to_id=target_entity.id, relation_type="connects_to"),
-        Relation(from_id=source_entity.id, to_id=target_entity.id, relation_type="depends_on"),
+        Relation(
+            from_id=source_entity.id,
+            to_id=target_entity.id,
+            to_name=target_entity.title,
+            relation_type="connects_to",
+        ),
+        Relation(
+            from_id=source_entity.id,
+            to_id=target_entity.id,
+            to_name=target_entity.title,
+            relation_type="depends_on",
+        ),
     ]
     async with db.scoped_session(session_maker) as session:
         session.add_all(relations)
@@ -66,7 +80,8 @@ async def related_entity(entity_repository):
         "file_path": "test/related_entity.md",
         "summary": "A related test entity",
         "content_type": "text/markdown",
-        "references": "",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
     }
     return await entity_repository.create(entity_data)
 
@@ -79,6 +94,7 @@ async def sample_relation(
     relation_data = {
         "from_id": sample_entity.id,
         "to_id": related_entity.id,
+        "to_name": related_entity.title,
         "relation_type": "test_relation",
         "context": "test-context",
     }
@@ -94,18 +110,21 @@ async def multiple_relations(
         {
             "from_id": sample_entity.id,
             "to_id": related_entity.id,
+            "to_name": related_entity.title,
             "relation_type": "relation_one",
             "context": "context_one",
         },
         {
             "from_id": sample_entity.id,
             "to_id": related_entity.id,
+            "to_name": related_entity.title,
             "relation_type": "relation_two",
             "context": "context_two",
         },
         {
             "from_id": related_entity.id,
             "to_id": sample_entity.id,
+            "to_name": related_entity.title,
             "relation_type": "relation_one",
             "context": "context_three",
         },
@@ -121,6 +140,7 @@ async def test_create_relation(
     relation_data = {
         "from_id": sample_entity.id,
         "to_id": related_entity.id,
+        "to_name": related_entity.title,
         "relation_type": "test_relation",
         "context": "test-context",
     }
@@ -140,6 +160,7 @@ async def test_create_relation_entity_does_not_exist(
     relation_data = {
         "from_id": "not_exist",
         "to_id": related_entity.id,
+        "to_name": related_entity.title,
         "relation_type": "test_relation",
         "context": "test-context",
     }
@@ -178,6 +199,28 @@ async def test_find_by_type(relation_repository: RelationRepository, sample_rela
     relations = await relation_repository.find_by_type("test_relation")
     assert len(relations) == 1
     assert relations[0].id == sample_relation.id
+
+
+@pytest.mark.asyncio
+async def test_find_unresolved_relations(
+    relation_repository: RelationRepository, sample_entity: Entity, related_entity: Entity
+):
+    """Test creating a new relation"""
+    relation_data = {
+        "from_id": sample_entity.id,
+        "to_id": None,
+        "to_name": related_entity.title,
+        "relation_type": "test_relation",
+        "context": "test-context",
+    }
+    relation = await relation_repository.create(relation_data)
+
+    assert relation.from_id == sample_entity.id
+    assert relation.to_id is None
+
+    unresolved = await relation_repository.find_unresolved_relations()
+    assert len(unresolved) == 1
+    assert unresolved[0].id == relation.id
 
 
 @pytest.mark.asyncio

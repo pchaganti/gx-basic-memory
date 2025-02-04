@@ -1,6 +1,6 @@
 """Tests for the EntityRepository."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -17,8 +17,14 @@ async def entity_with_observations(session_maker, sample_entity):
     """Create an entity with observations."""
     async with db.scoped_session(session_maker) as session:
         observations = [
-            Observation(entity_id=sample_entity.id, content="First observation"),
-            Observation(entity_id=sample_entity.id, content="Second observation"),
+            Observation(
+                entity_id=sample_entity.id,
+                content="First observation",
+            ),
+            Observation(
+                entity_id=sample_entity.id,
+                content="Second observation",
+            ),
         ]
         session.add_all(observations)
         return sample_entity
@@ -33,22 +39,29 @@ async def related_results(session_maker):
             entity_type="test",
             permalink="source/source",
             file_path="source/source.md",
-            summary="Source entity",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         target = Entity(
             title="target",
             entity_type="test",
             permalink="target/target",
             file_path="target/target.md",
-            summary="Target entity",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add(source)
         session.add(target)
         await session.flush()
 
-        relation = Relation(from_id=source.id, to_id=target.id, relation_type="connects_to")
+        relation = Relation(
+            from_id=source.id,
+            to_id=target.id,
+            to_name=target.title,
+            relation_type="connects_to",
+        )
         session.add(relation)
 
         return source, target, relation
@@ -62,15 +75,15 @@ async def test_create_entity(entity_repository: EntityRepository):
         "entity_type": "test",
         "permalink": "test/test",
         "file_path": "test/test.md",
-        "summary": "Test description",
         "content_type": "text/markdown",
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
     }
     entity = await entity_repository.create(entity_data)
 
     # Verify returned object
     assert entity.id is not None
     assert entity.title == "Test"
-    assert entity.summary == "Test description"
     assert isinstance(entity.created_at, datetime)
     assert isinstance(entity.updated_at, datetime)
 
@@ -80,7 +93,6 @@ async def test_create_entity(entity_repository: EntityRepository):
     assert found.id is not None
     assert found.id == entity.id
     assert found.title == entity.title
-    assert found.summary == entity.summary
 
     # assert relations are eagerly loaded
     assert len(entity.observations) == 0
@@ -96,16 +108,18 @@ async def test_create_all(entity_repository: EntityRepository):
             "entity_type": "test",
             "permalink": "test/test-1",
             "file_path": "test/test_1.md",
-            "summary": "Test description",
             "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         },
         {
             "title": "Test-2",
             "entity_type": "test",
             "permalink": "test/test-2",
             "file_path": "test/test_2.md",
-            "summary": "Test description",
             "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
         },
     ]
     entities = await entity_repository.create_all(entity_data)
@@ -119,32 +133,10 @@ async def test_create_all(entity_repository: EntityRepository):
     assert found.id is not None
     assert found.id == entity.id
     assert found.title == entity.title
-    assert found.summary == entity.summary
 
     # assert relations are eagerly loaded
     assert len(entity.observations) == 0
     assert len(entity.relations) == 0
-
-
-@pytest.mark.asyncio
-async def test_create_entity_null_description(session_maker, entity_repository: EntityRepository):
-    """Test creating an entity with null description"""
-    entity_data = {
-        "title": "Test",
-        "entity_type": "test",
-        "permalink": "test/test",
-        "file_path": "test/test.md",
-        "content_type": "text/markdown",
-        "summary": None,
-    }
-    entity = await entity_repository.create(entity_data)
-
-    # Verify in database
-    async with db.scoped_session(session_maker) as session:
-        stmt = select(Entity).where(Entity.id == entity.id)
-        result = await session.execute(stmt)
-        db_entity = result.scalar_one()
-        assert db_entity.summary is None
 
 
 @pytest.mark.asyncio
@@ -162,39 +154,21 @@ async def test_find_by_id(entity_repository: EntityRepository, sample_entity: En
         db_entity = result.scalar_one()
         assert db_entity.id == found.id
         assert db_entity.title == found.title
-        assert db_entity.summary == found.summary
 
 
 @pytest.mark.asyncio
 async def test_update_entity(entity_repository: EntityRepository, sample_entity: Entity):
     """Test updating an entity"""
-    updated = await entity_repository.update(sample_entity.id, {"summary": "Updated description"})
+    updated = await entity_repository.update(sample_entity.id, {"title": "Updated title"})
     assert updated is not None
-    assert updated.summary == "Updated description"
-    assert updated.title == sample_entity.title  # Other fields unchanged
+    assert updated.title == "Updated title"
 
     # Verify in database
     async with db.scoped_session(entity_repository.session_maker) as session:
         stmt = select(Entity).where(Entity.id == sample_entity.id)
         result = await session.execute(stmt)
         db_entity = result.scalar_one()
-        assert db_entity.summary == "Updated description"
-        assert db_entity.title == sample_entity.title
-
-
-@pytest.mark.asyncio
-async def test_update_entity_to_null(entity_repository: EntityRepository, sample_entity: Entity):
-    """Test updating an entity's description to null"""
-    updated = await entity_repository.update(sample_entity.id, {"summary": None})
-    assert updated is not None
-    assert updated.summary is None
-
-    # Verify in database
-    async with db.scoped_session(entity_repository.session_maker) as session:
-        stmt = select(Entity).where(Entity.id == sample_entity.id)
-        result = await session.execute(stmt)
-        db_entity = result.scalar_one()
-        assert db_entity.summary is None
+        assert db_entity.title == "Updated title"
 
 
 @pytest.mark.asyncio
@@ -280,26 +254,29 @@ async def test_entities(session_maker):
             Entity(
                 title="entity1",
                 entity_type="test",
-                summary="First test entity",
                 permalink="type1/entity1",
                 file_path="type1/entity1.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
             Entity(
                 title="entity2",
                 entity_type="test",
-                summary="Second test entity",
                 permalink="type1/entity2",
                 file_path="type1/entity2.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
             Entity(
                 title="entity3",
                 entity_type="test",
-                summary="Third test entity",
                 permalink="type2/entity3",
                 file_path="type2/entity3.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
         ]
         session.add_all(entities)
@@ -365,8 +342,14 @@ async def test_delete_by_permalinks_with_observations(
     # Add observations
     async with db.scoped_session(session_maker) as session:
         observations = [
-            Observation(entity_id=test_entities[0].id, content="First observation"),
-            Observation(entity_id=test_entities[1].id, content="Second observation"),
+            Observation(
+                entity_id=test_entities[0].id,
+                content="First observation",
+            ),
+            Observation(
+                entity_id=test_entities[1].id,
+                content="Second observation",
+            ),
         ]
         session.add_all(observations)
 
@@ -397,16 +380,18 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
             entity_type="note",
             permalink="service/core",
             file_path="service/core.md",
-            summary="Core service",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         dbe = Entity(
             title="db_service",
             entity_type="test",
             permalink="service/db",
             file_path="service/db.md",
-            summary="Database service",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         # Related entity of different type
         config = Entity(
@@ -414,8 +399,9 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
             entity_type="test",
             permalink="config/service",
             file_path="config/service.md",
-            summary="Service configuration",
             content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         session.add_all([core, dbe, config])
         await session.flush()
@@ -423,9 +409,19 @@ async def test_list_entities_with_related(entity_repository: EntityRepository, s
         # Create relations in both directions
         relations = [
             # core -> db (depends_on)
-            Relation(from_id=core.id, to_id=dbe.id, relation_type="depends_on"),
+            Relation(
+                from_id=core.id,
+                to_id=dbe.id,
+                to_name="db_service",
+                relation_type="depends_on",
+            ),
             # config -> core (configures)
-            Relation(from_id=config.id, to_id=core.id, relation_type="configures"),
+            Relation(
+                from_id=config.id,
+                to_id=core.id,
+                to_name="core_service",
+                relation_type="configures",
+            ),
         ]
         session.add_all(relations)
 
@@ -503,6 +499,8 @@ async def test_get_by_title(entity_repository: EntityRepository, session_maker):
                 permalink="test/unique-title",
                 file_path="test/unique-title.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
             Entity(
                 title="Another Title",
@@ -510,6 +508,8 @@ async def test_get_by_title(entity_repository: EntityRepository, session_maker):
                 permalink="test/another-title",
                 file_path="test/another-title.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
         ]
         session.add_all(entities)
@@ -541,6 +541,8 @@ async def test_get_by_file_path(entity_repository: EntityRepository, session_mak
                 permalink="test/unique-title",
                 file_path="test/unique-title.md",
                 content_type="text/markdown",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
             ),
         ]
         session.add_all(entities)

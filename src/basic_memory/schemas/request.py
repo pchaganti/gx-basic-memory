@@ -15,37 +15,7 @@ from basic_memory.schemas.base import (
 )
 
 
-class ObservationCreate(BaseModel):
-    """A single observation with category, content, and optional context."""
 
-    category: ObservationCategory = ObservationCategory.NOTE
-    content: Observation
-
-
-class AddObservationsRequest(BaseModel):
-    """Add new observations to an existing entity.
-
-    Observations are atomic pieces of information about the entity.
-    Each observation should be a single fact or note that adds value
-    to our understanding of the entity.
-    """
-
-    permalink: PathId
-    context: Optional[str] = None
-    observations: List[ObservationCreate]
-
-
-class CreateEntityRequest(BaseModel):
-    """Create one or more new entities in the knowledge graph.
-
-    Entities represent nodes in the knowledge graph. They can be created
-    with initial observations and optional descriptions. Entity IDs are
-    automatically generated from the type and name.
-
-    Observations will be assigned the default category of 'note'.
-    """
-
-    entities: Annotated[List[Entity], MinLen(1)]
 
 
 class SearchNodesRequest(BaseModel):
@@ -97,12 +67,11 @@ class CreateRelationsRequest(BaseModel):
 
 ## update
 
-
+# TODO remove UpdateEntityRequest
 class UpdateEntityRequest(BaseModel):
     """Request to update an existing entity."""
 
     title: Optional[str] = None
     entity_type: Optional[EntityType] = None
-    summary: Optional[str] = None
     content: Optional[str] = None
     entity_metadata: Optional[Dict[str, Any]] = None

@@ -15,8 +15,7 @@ from typing import List, Optional, Dict
 
 from pydantic import BaseModel, ConfigDict, Field, AliasPath, AliasChoices
 
-from basic_memory.schemas.base import Relation, PathId, EntityType, ContentType
-from basic_memory.schemas.request import ObservationCreate
+from basic_memory.schemas.base import Relation, PathId, EntityType, ContentType, Observation
 
 
 class SQLAlchemyModel(BaseModel):
@@ -29,8 +28,8 @@ class SQLAlchemyModel(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
-class ObservationResponse(ObservationCreate, SQLAlchemyModel):
+    
+class ObservationResponse(Observation, SQLAlchemyModel):
     """Schema for observation data returned from the service.
 
     Each observation gets a unique ID that can be used for later
@@ -43,8 +42,6 @@ class ObservationResponse(ObservationCreate, SQLAlchemyModel):
         "context": "Initial database design meeting"
     }
     """
-
-    context: Optional[str] = None
 
 
 class RelationResponse(Relation, SQLAlchemyModel):
@@ -70,14 +67,23 @@ class RelationResponse(Relation, SQLAlchemyModel):
             "from_id",
         )
     )
-    to_id: PathId = Field(
+    to_id: Optional[PathId] = Field(
         # use the permalink from the associated Entity
         # or the to_id value
         validation_alias=AliasChoices(
             AliasPath("to_entity", "permalink"),
             "to_id",
-        )
+        ), default=None
     )
+    to_name: Optional[PathId] = Field(
+        # use the permalink from the associated Entity
+        # or the to_id value
+        validation_alias=AliasChoices(
+            AliasPath("to_entity", "title"),
+            "to_name",
+        ), default=None
+    )
+
 
 
 class EntityResponse(SQLAlchemyModel):
@@ -92,9 +98,10 @@ class EntityResponse(SQLAlchemyModel):
     Example Response:
     {
         "permalink": "component/memory-service",
-        "title": "MemoryService",
+        "file_path": "MemoryService",
         "entity_type": "component",
-        "description": "Core persistence service",
+        "entity_metadata": {}
+        "content_type: "text/markdown"
         "observations": [
             {
                 "category": "feature",
@@ -118,14 +125,12 @@ class EntityResponse(SQLAlchemyModel):
     }
     """
 
-    # Note this Class does not inherit form Entity because of the Entity.permalink semantics
     permalink: PathId
     title: str
+    file_path: str
     entity_type: EntityType
     entity_metadata: Optional[Dict] = None
     content_type: ContentType
-    summary: Optional[str] = None
-    content: Optional[str] = None
     observations: List[ObservationResponse] = []
     relations: List[RelationResponse] = []
 

@@ -198,6 +198,7 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "typer" },
     { name = "unidecode" },
+    { name = "watchfiles" },
 ]
 
 [package.optional-dependencies]
@@ -238,6 +239,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.0" },
     { name = "typer", specifier = ">=0.9.0" },
     { name = "unidecode", specifier = ">=1.3.8" },
+    { name = "watchfiles", specifier = ">=1.0.4" },
 ]
 
 [package.metadata.requires-dev]

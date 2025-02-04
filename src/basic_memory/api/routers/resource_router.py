@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from loguru import logger
 
-from basic_memory.deps import EntityRepositoryDep, ProjectConfigDep, LinkResolverDep
+from basic_memory.deps import ProjectConfigDep, LinkResolverDep
 
 router = APIRouter(prefix="/resource", tags=["resources"])
 

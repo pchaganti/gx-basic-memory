@@ -55,6 +55,13 @@ async def test_search_text(search_service, test_graph):
     assert len(results) >= 1
     assert results[0].permalink == "test/root"
 
+@pytest.mark.asyncio
+async def test_search_title(search_service, test_graph):
+    """Title only search"""
+    results = await search_service.search(SearchQuery(title="Root", types=[SearchItemType.ENTITY]))
+    assert len(results) >= 1
+    assert results[0].permalink == "test/root"
+
 
 @pytest.mark.asyncio
 async def test_text_search_features(search_service, test_graph):
@@ -113,7 +120,7 @@ async def test_after_date(search_service, test_graph):
         )
     )
     for r in results:
-        assert datetime.fromisoformat(r.metadata["created_at"]) > past_date
+        assert datetime.fromisoformat(r.created_at) > past_date
 
     # Should not find with future date
     future_date = datetime(2030, 1, 1)
@@ -166,9 +173,9 @@ async def test_update_index(search_service, full_entity):
     await search_service.index_entity(full_entity)
 
     # Update entity
-    full_entity.summary = "Updated description with new terms"
+    full_entity.title = "OMG I AM UPDATED"
     await search_service.index_entity(full_entity)
 
-    # Search for new terms
-    results = await search_service.search(SearchQuery(text="new terms"))
-    assert len(results) == 1
+    # Search for new title
+    results = await search_service.search(SearchQuery(text="OMG I AM UPDATED"))
+    assert len(results) > 1 
