@@ -14,7 +14,7 @@ __all__ = ["init", "status", "sync"]
 from basic_memory.config import config
 
 
-def setup_logging(home_dir: str = config.home, log_file: str = "./basic-memory/basic-memory-tools.log"):
+def setup_logging(home_dir: str = config.home, log_file: str = ".basic-memory/basic-memory-tools.log"):
     """Configure logging for the application."""
 
     # Remove default handler and any existing handlers

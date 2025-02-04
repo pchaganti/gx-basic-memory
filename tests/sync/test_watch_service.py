@@ -74,7 +74,7 @@ async def test_handle_file_moved(test_config, watch_service, sync_service, sampl
     assert len(watch_service.state.recent_events) == 2
     assert watch_service.state.synced_files == 1
     event = watch_service.state.recent_events[0]
-    assert event.path == "test.md"
+    assert event.path == "test.md -> moved.md"
     assert event.action == "moved"
     assert event.status == "success"
 

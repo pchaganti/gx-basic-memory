@@ -44,7 +44,7 @@ async def test_unicode_content(tmp_path):
     assert "🧪" in entity.content
 
     # Verify Unicode in observations
-    assert any(o.content == "Emoji test 👍" for o in entity.observations)
+    assert any(o.content == "Emoji test 👍 #emoji #test" for o in entity.observations)
     assert any(o.category == "中文" for o in entity.observations)
     assert any(o.category == "русский" for o in entity.observations)
 

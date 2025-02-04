@@ -68,7 +68,7 @@ async def test_create_entity_observations_relations(client: AsyncClient, file_se
 
     assert len(entity.observations) == 1
     assert entity.observations[0].category == "note"
-    assert entity.observations[0].content == "This is notable"
+    assert entity.observations[0].content == "This is notable #tag1"
     assert entity.observations[0].tags == ["tag1"]
     assert entity.observations[0].context == "testing"
 

@@ -65,7 +65,7 @@ async def test_parse_complete_file(test_config, entity_parser, valid_entity_cont
     assert len(entity.observations) == 3
     obs = entity.observations[0]
     assert obs.category == "design"
-    assert obs.content == "Stateless authentication"
+    assert obs.content == "Stateless authentication #security #architecture"
     assert set(obs.tags or []) == {"security", "architecture"}
     assert obs.context == "JWT based"
 
@@ -174,7 +174,7 @@ async def test_parse_file_without_section_headers(test_config, entity_parser):
     
     assert len(entity.observations) == 1
     assert entity.observations[0].category == "note"
-    assert entity.observations[0].content == "Basic observation"
+    assert entity.observations[0].content == "Basic observation #test"
     assert entity.observations[0].tags == ["test"]
     
     assert len(entity.relations) == 2
