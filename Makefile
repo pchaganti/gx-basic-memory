@@ -28,6 +28,12 @@ clean:
 	find . -type f -name '*.pyc' -delete
 	find . -type d -name '__pycache__' -exec rm -r {} +
 
+format:
+	uv run ruff format .
+
+format: format-python
+#format: format-python format-prettier
+
 # run inspector tool
 run-dev:
 	uv run mcp dev src/basic_memory/mcp/main.py

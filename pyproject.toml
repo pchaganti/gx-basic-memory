@@ -1,10 +1,13 @@
 [project]
 name = "basic-memory"
-version = "0.1.0"
+version = "0.0.1"
 description = "Local-first knowledge management combining Zettelkasten with knowledge graphs"
 readme = "README.md"
 requires-python = ">=3.12.1"
 license = { text = "AGPL-3.0-or-later" }
+authors = [
+    { name = "Basic Machines", email = "hello@basic-machines.co" }
+]
 dependencies = [
     "sqlalchemy>=2.0.0",
     "pyyaml>=6.0.1",
@@ -35,6 +38,10 @@ dev = [
     "ruff>=0.1.6",
 ]
 
+[project.urls]
+Homepage = "https://github.com/basicmachines-co/basic-memory"
+Repository = "https://github.com/basicmachines-co/basic-memory"
+Documentation = "https://github.com/basicmachines-co/basic-memory#readme"
 
 [project.scripts]
 basic-memory = "basic_memory.cli.main:app"
@@ -44,16 +51,11 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
-pythonpath = [
-    "src",
-    "tests"
-]
+pythonpath = ["src", "tests"]
 addopts = "--cov=basic_memory --cov-report term-missing -ra -q"
 testpaths = ["tests"]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
-# Add this line to ensure pytest-mock is loaded
-#required_plugins = ["pytest-asyncio", "pytest-cov", "pytest-mock"]
 
 [tool.ruff]
 line-length = 100
@@ -68,16 +70,25 @@ dev-dependencies = [
 basic-foundation = { path = "../basic-foundation", editable = true }
 
 [tool.pyright]
-include = [
-    "src/",
-]
-exclude = [
-    "**/__pycache__",
-]
-ignore = [
-    "test/",
-]
+include = ["src/"]
+exclude = ["**/__pycache__"]
+ignore = ["test/"]
 defineConstant = { DEBUG = true }
 reportMissingImports = "error"
 reportMissingTypeStubs = false
 pythonVersion = "3.12"
+
+
+[tool.semantic_release]
+version_variable = "src/basic_memory/__init__.py:__version__"
+version_toml = [
+    "pyproject.toml:project.version",
+]
+major_on_zero = false
+branch = "main"
+changelog_file = "CHANGELOG.md"
+build_command = "pip install uv && uv build"
+dist_path = "dist/"
+upload_to_pypi = true
+commit_message = "chore(release): {version} [skip ci]"
+
