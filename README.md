@@ -1,9 +1,10 @@
 # Basic Memory
 
 Basic Memory lets you build persistent knowledge through natural conversations with Large Language Models (LLMs) like
-Claude, while keeping everything in simple markdown files on your computer.
+Claude, while keeping everything in simple markdown files on your computer. It uses the Model Context Protocol (MCP) to
+enable any compatible LLM to read and write to your local knowledge base.
 
-## What Problem Does This Solve?
+## What is Basic Memory?
 
 Most people use LLMs like calculators - paste in some text, expect to get an answer back, repeat. Each conversation
 starts fresh,
@@ -97,12 +98,22 @@ The note embeds semantic content (Observations) and links to other topics (Relat
 "Claude, look at memory://auth-system-design for context about our auth system"
 ```
 
-Claude can now:
+Claude can now build rich context from the knowledge graph. For example:
 
-- Read your original requirements
-- See your added decisions
-- Follow links to related documents
-- Build rich context from the knowledge graph
+```
+Following relation 'implements [[Security Requirements]]':
+- Found authentication best practices
+- OWASP guidelines for JWT
+- Rate limiting requirements
+
+Following relation 'relates_to [[Platform Support]]':
+- Mobile auth requirements 
+- Browser security considerations
+- JWT storage strategies
+```
+
+Each related document can lead to more context, building a rich semantic understanding of your knowledge base. All of
+this context comes from standard markdown files that both humans and LLMs can read and write.h
 
 Everything stays in local markdown files that you can:
 
@@ -172,7 +183,25 @@ Regular markdown content...
 - implements [[Some Spec]]
 ```
 
-Basic Memory will parse the markdown and derive the semantic relationships in the content.
+Basic Memory will parse the markdown and derive the semantic relationships in the content. When you run
+`basic-memory sync`:
+
+1. New and changed files are detected
+2. Markdown patterns become semantic knowledge:
+
+- `[tech]` becomes a categorized observation
+- `[[WikiLink]]` creates a relation in the knowledge graph
+- Tags and metadata are indexed for search
+
+3. A SQLite database maintains these relationships for fast querying
+4. Claude and other MCP-compatible LLMs can access this knowledge via memory:// URLs
+
+This creates a two-way flow where:
+
+- Humans write and edit markdown files
+- LLMs read and write through the MCP protocol
+- Sync keeps everything consistent
+- All knowledge stays in local files.
 
 ## Using with Claude
 
