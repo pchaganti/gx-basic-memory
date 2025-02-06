@@ -170,79 +170,44 @@ def remove_frontmatter(content: str) -> str:
         raise
 
 
-def remove_frontmatter_lenient(content: str) -> str:
-    """
-    Remove frontmatter markers and anything between them without validation.
-    
-    This is a more permissive version of remove_frontmatter that doesn't
-    try to validate the YAML content. It simply removes everything between
-    the first two '---' markers if they exist.
+async def update_frontmatter(path: Path, updates: Dict[str, Any]) -> str:
+    """Update frontmatter fields in a file while preserving all content.
+
+    Only modifies the frontmatter section, leaving all content untouched.
+    Creates frontmatter section if none exists.
+    Returns checksum of updated file.
 
     Args:
-        content: Content that may contain frontmatter
+        path: Path to markdown file
+        updates: Dict of frontmatter fields to update
 
     Returns:
-        Content with any frontmatter markers and content removed
-    """
-    content = content.strip()
-    if not content.startswith("---"):
-        return content
-
-    # Find the second marker
-    rest = content[3:].strip()
-    if "---" not in rest:
-        return content
-
-    # Split on the second marker and take everything after
-    parts = rest.split("---", 1)
-    return parts[1].strip()
-
-
-async def add_frontmatter(content: str, frontmatter: Dict[str, Any]) -> str:
-    """
-    Add YAML frontmatter to content.
-    
-    Args:
-        content: Main content text
-        frontmatter: Key-value pairs for frontmatter
-        
-    Returns:
-        Content with YAML frontmatter prepended
-        
-    Raises:
-        ParseError: If YAML serialization fails
-    """
-    try:
-        yaml_fm = yaml.dump(frontmatter, sort_keys=False)
-        return f"---\n{yaml_fm}---\n\n{content.strip()}"
-    except yaml.YAMLError as e:
-        logger.error(f"Failed to add frontmatter: {e}")
-        raise ParseError(f"Failed to add frontmatter: {e}")
-
-
-async def parse_content_with_frontmatter(content: str) -> Tuple[Dict[str, Any], str]:
-    """
-    Parse both frontmatter and content.
-
-    Args:
-        content: Text content with optional frontmatter
-
-    Returns:
-        Tuple of (frontmatter dict, content without frontmatter)
+        Checksum of updated file
 
     Raises:
-        ParseError: If parsing fails
+        FileError: If file operations fail
+        ParseError: If frontmatter parsing fails
     """
     try:
-        if not has_frontmatter(content):
-            return {}, content.strip()
+        # Read current content
+        content = path.read_text()
 
-        frontmatter = parse_frontmatter(content)
-        remaining = remove_frontmatter(content)
-        return frontmatter, remaining
+        # Parse current frontmatter
+        current_fm = {}
+        if has_frontmatter(content):
+            current_fm = parse_frontmatter(content)
+            content = remove_frontmatter(content)
+
+        # Update frontmatter
+        new_fm = {**current_fm, **updates}
+
+        # Write new file with updated frontmatter
+        yaml_fm = yaml.dump(new_fm, sort_keys=False)
+        final_content = f"---\n{yaml_fm}---\n\n{content.strip()}"
+
+        await write_file_atomic(path, final_content)
+        return await compute_checksum(final_content)
 
     except Exception as e:
-        if not isinstance(e, ParseError):
-            logger.error(f"Failed to parse content with frontmatter: {e}")
-            raise ParseError(f"Failed to parse content with frontmatter: {e}")
-        raise
+        logger.error(f"Failed to update frontmatter in {path}: {e}")
+        raise FileError(f"Failed to update frontmatter: {e}")

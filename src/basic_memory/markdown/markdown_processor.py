@@ -1,17 +1,3 @@
-"""Process markdown files with structured sections.
-
-This module follows a Read -> Modify -> Write pattern for all file operations:
-1. Read entire file and parse into EntityMarkdown schema
-2. Modify the schema (add relation, update content, etc)
-3. Write entire file atomically using temp file + swap
-
-No in-place updates are performed. Each write reconstructs the entire file from the schema.
-The file format has two distinct types of content:
-1. User content - Free form text that is preserved exactly as written
-2. Structured sections - Observations and Relations that are always formatted
-   in a standard way and can be overwritten since they're tracked in our schema
-"""
-
 from pathlib import Path
 from typing import Optional
 from collections import OrderedDict
@@ -33,6 +19,8 @@ class DirtyFileError(Exception):
 
 class MarkdownProcessor:
     """Process markdown files while preserving content and structure.
+    
+    used only for import
 
     This class handles the file I/O aspects of our markdown processing. It:
     1. Uses EntityParser for reading/parsing files into our schema

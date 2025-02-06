@@ -5,6 +5,7 @@ from typing import Dict
 
 from loguru import logger
 
+from basic_memory import file_utils
 from basic_memory.markdown import EntityParser, EntityMarkdown
 from basic_memory.repository import EntityRepository, RelationRepository
 from basic_memory.services import EntityService
@@ -100,13 +101,17 @@ class SyncService:
             )
 
             if permalink != entity_markdown.frontmatter.permalink:
-                # Permalink changed - update markdown and rewrite file
-                entity_markdown.frontmatter.metadata["permalink"] = permalink
-
-                # update file
+                # Add/update permalink in frontmatter
                 logger.info(f"Adding permalink '{permalink}' to file: {file_path}")
-                updated_checksum = await self.entity_service.file_service.markdown_processor.write_file(
-                    directory / file_path, entity_markdown)
+
+                # update markdown
+                entity_markdown.frontmatter.metadata["permalink"] = permalink
+                
+                # update file frontmatter
+                updated_checksum = await file_utils.update_frontmatter(
+                    directory / file_path,
+                    {"permalink": permalink}
+                )
 
                 # Update checksum in changes report since file was modified
                 changes.checksums[file_path] = updated_checksum
