@@ -49,20 +49,31 @@ class EntityService(BaseService[EntityModel]):
         """Get or generate unique permalink for an entity.
 
         Priority:
-        1. Use explicit permalink from markdown frontmatter if present
-        2. For existing files, keep current permalink
-        3. Generate new unique permalink for new files
+        1. If markdown has permalink and it's not used by another file -> use as is
+        2. If markdown has permalink but it's used by another file -> make unique
+        3. For existing files, keep current permalink from db
+        4. Generate new unique permalink from file path
         """
-        # If markdown has explicit permalink, try to use it
+        file_path = str(file_path)
+
+        # If markdown has explicit permalink, try to validate it
+        if markdown and markdown.frontmatter.permalink:
+            desired_permalink = markdown.frontmatter.permalink
+            existing = await self.repository.get_by_permalink(desired_permalink)
+
+            # If no conflict or it's our own file, use as is
+            if not existing or existing.file_path == file_path:
+                return desired_permalink
+
+        # For existing files, try to find current permalink
+        existing = await self.repository.get_by_file_path(file_path)
+        if existing:
+            return existing.permalink
+
+        # New file - generate permalink
         if markdown and markdown.frontmatter.permalink:
             desired_permalink = markdown.frontmatter.permalink
         else:
-            # For existing files, try to find current permalink
-            existing = await self.repository.get_by_file_path(str(file_path))
-            if existing:
-                return existing.permalink
-
-            # New file - generate permalink
             desired_permalink = generate_permalink(file_path)
 
         # Make unique if needed
@@ -72,7 +83,7 @@ class EntityService(BaseService[EntityModel]):
             permalink = f"{desired_permalink}-{suffix}"
             suffix += 1
             logger.debug(f"creating unique permalink: {permalink}")
-            
+
         return permalink
     
     async def create_or_update_entity(self, schema: EntitySchema) -> (EntityModel, bool):

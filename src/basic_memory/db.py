@@ -14,8 +14,7 @@ from sqlalchemy.ext.asyncio import (
     async_scoped_session,
 )
 
-from basic_memory.models import Base
-
+from basic_memory.models import Base, SCHEMA_VERSION
 
 # Module level state
 _engine: Optional[AsyncEngine] = None
@@ -69,12 +68,31 @@ async def scoped_session(
         await factory.remove()
 
 
-async def init_db(session: AsyncSession):
+async def init_db() -> None:
     """Initialize database with required tables."""
-    await session.execute(text("PRAGMA foreign_keys=ON"))
-    conn = await session.connection()
-    await conn.run_sync(Base.metadata.create_all)
-    await session.commit()
+
+    logger.info("Initializing database...")
+
+    async with scoped_session(_session_maker) as session:
+        await session.execute(text("PRAGMA foreign_keys=ON"))
+        conn = await session.connection()
+        await conn.run_sync(Base.metadata.create_all)
+        
+        await session.commit()
+
+async def drop_db():
+    """Drop all database tables."""
+    global _engine, _session_maker
+    
+    logger.info("Dropping tables...")
+    async with scoped_session(_session_maker) as session:
+        conn = await session.connection()
+        await conn.run_sync(Base.metadata.drop_all)
+        await session.commit()
+        
+    # reset global engine and session_maker
+    _engine = None
+    _session_maker = None
 
 
 async def get_or_create_db(
@@ -83,7 +101,7 @@ async def get_or_create_db(
 ) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
     """Get or create database engine and session maker."""
     global _engine, _session_maker
-    
+
     if _engine is None:
         db_url = DatabaseType.get_db_url(db_path, db_type)
         logger.debug(f"Creating engine for db_url: {db_url}")
@@ -91,9 +109,7 @@ async def get_or_create_db(
         _session_maker = async_sessionmaker(_engine, expire_on_commit=False)
 
         # Initialize database
-        logger.debug("Initializing database...")
-        async with scoped_session(_session_maker) as db_session:
-            await init_db(db_session)
+        await init_db()
 
     return _engine, _session_maker
 
@@ -101,35 +117,38 @@ async def get_or_create_db(
 async def shutdown_db():
     """Clean up database connections."""
     global _engine, _session_maker
-    
+
     if _engine:
         await _engine.dispose()
         _engine = None
         _session_maker = None
 
 
+
 @asynccontextmanager
 async def engine_session_factory(
     db_path: Path,
-    db_type: DatabaseType = DatabaseType.FILESYSTEM,
+    db_type: DatabaseType = DatabaseType.MEMORY,
     init: bool = True,
 ) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
     """Create engine and session factory.
-    
+
     Note: This is primarily used for testing where we want a fresh database
     for each test. For production use, use get_or_create_db() instead.
     """
+
+    global _engine, _session_maker
+    
     db_url = DatabaseType.get_db_url(db_path, db_type)
     logger.debug(f"Creating engine for db_url: {db_url}")
-    engine = create_async_engine(db_url, connect_args={"check_same_thread": False})
+    
+    _engine = create_async_engine(db_url, connect_args={"check_same_thread": False})
     try:
-        factory = async_sessionmaker(engine, expire_on_commit=False)
+        _session_maker = async_sessionmaker(_engine, expire_on_commit=False)
 
         if init:
-            logger.debug("Initializing database...")
-            async with scoped_session(factory) as db_session:
-                await init_db(db_session)
+            await init_db()
 
-        yield engine, factory
+        yield _engine, _session_maker
     finally:
-        await engine.dispose()
+        await _engine.dispose()

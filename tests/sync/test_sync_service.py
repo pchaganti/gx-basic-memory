@@ -777,5 +777,70 @@ test content
     await sync_service.sync(test_config.home)
 
     # Check permalinks
-    file_one_content, _ = await file_service.read_file(two_file)
-    assert "permalink: one-1" in file_one_content
+    file_two_content, _ = await file_service.read_file(two_file)
+    assert "permalink: two" in file_two_content
+
+    # new content with duplicate permalink
+    new_content = """
+---
+title: new.md
+type: note
+permalink: one
+tags: []
+---
+
+test content
+"""
+    new_file = project_dir / "new.md"
+    await create_test_file(new_file)
+
+    # Run another time 
+    await sync_service.sync(test_config.home)
+
+    # Should still have same permalink
+    new_file_content, _ = await file_service.read_file(new_file)
+    assert "permalink: new" in new_file_content
+
+    
+
+
+@pytest.mark.asyncio
+async def test_sync_duplicate_observations(
+        sync_service: SyncService,
+        test_config: ProjectConfig,
+        file_service: FileService,
+):
+    """Test that sync resolves permalink conflicts on update."""
+    project_dir = test_config.home
+
+    content = """
+---
+title: a note
+type: note
+tags: []
+---
+
+test content
+
+- [note] one observation
+"""
+
+    note_file = project_dir / "note.md"
+    await create_test_file(note_file, content)
+
+    # Run sync
+    await sync_service.sync(test_config.home)
+
+    # Check permalinks
+    file_one_content, _ = await file_service.read_file(note_file)
+    assert """---
+title: a note
+type: note
+tags: []
+permalink: note
+---
+
+test content
+
+- [note] one observation
+""".strip() == file_one_content

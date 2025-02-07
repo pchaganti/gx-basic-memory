@@ -116,7 +116,7 @@ class EntityParser:
 
         metadata = post.metadata
         metadata["title"] = post.metadata.get("title", file_path.name)
-        metadata["type"] = metadata.get("type", "note")
+        metadata["type"] = post.metadata.get("type", "note")
         metadata["tags"] = parse_tags(post.metadata.get("tags", []))
 
         # frontmatter

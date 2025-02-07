@@ -27,6 +27,7 @@ dependencies = [
     "dateparser>=1.2.0",
     "watchfiles>=1.0.4",
     "fastapi[standard]>=0.115.8",
+    "alembic>=1.14.1",
 ]
 
 [project.optional-dependencies]

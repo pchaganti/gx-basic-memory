@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, async_sessionmaker
 
 from basic_memory import db
 from basic_memory.config import ProjectConfig
-from basic_memory.db import DatabaseType
+from basic_memory.db import DatabaseType, init_db
 from basic_memory.markdown import EntityParser
 from basic_memory.markdown.markdown_processor import MarkdownProcessor
 from basic_memory.models import Base
@@ -21,7 +21,8 @@ from basic_memory.repository.observation_repository import ObservationRepository
 from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services import (
-    EntityService,
+EntityService,
+DatabaseService,
 )
 from basic_memory.services.file_service import FileService
 from basic_memory.services.link_resolver import LinkResolver
@@ -392,4 +393,3 @@ def watch_service(sync_service, file_service, test_config):
         file_service=file_service,
         config=test_config
     )
-

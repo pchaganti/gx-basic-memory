@@ -113,12 +113,12 @@ Following relation 'relates_to [[Platform Support]]':
 ```
 
 Each related document can lead to more context, building a rich semantic understanding of your knowledge base. All of
-this context comes from standard markdown files that both humans and LLMs can read and write.h
+this context comes from standard markdown files that both humans and LLMs can read and write.
 
 Everything stays in local markdown files that you can:
 
 - Edit in any text editor
-- Put in git
+- Version via git
 - Back up normally
 - Share when you want to
 

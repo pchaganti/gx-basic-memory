@@ -8,14 +8,12 @@ from basic_memory.file_utils import (
     compute_checksum,
     ensure_directory,
     write_file_atomic,
-    add_frontmatter,
     parse_frontmatter,
     has_frontmatter,
     remove_frontmatter,
-    parse_content_with_frontmatter,
     FileError,
     FileWriteError,
-    ParseError,
+    ParseError, update_frontmatter,
 )
 
 
@@ -67,26 +65,6 @@ async def test_write_file_atomic_error(tmp_path: Path):
 
     with pytest.raises(FileWriteError):
         await write_file_atomic(test_file, "test content")
-
-
-@pytest.mark.asyncio
-async def test_add_frontmatter():
-    """Test adding frontmatter."""
-    content = "test content"
-    metadata = {"title": "Test", "tags": ["a", "b"]}
-
-    result = await add_frontmatter(content, metadata)
-
-    # Should have frontmatter delimiters
-    assert result.startswith("---\n")
-    assert "---\n\n" in result
-
-    # Should include metadata
-    assert "title: Test" in result
-    assert "- a\n- b" in result or "['a', 'b']" in result
-
-    # Should preserve content
-    assert result.endswith("test content")
 
 
 def test_has_frontmatter():
@@ -186,69 +164,72 @@ content""")
 
 
 @pytest.mark.asyncio
-async def test_parse_content_with_frontmatter():
-    """Test combined frontmatter and content parsing."""
-    # Full document
-    content = """---
-title: Test
-tags:
-  - a
-  - b
----
-test content"""
+async def test_update_frontmatter(tmp_path: Path):
+    """Test updating frontmatter in a file."""
+    test_file = tmp_path / "test.md"
 
-    frontmatter, body = await parse_content_with_frontmatter(content)
-    assert frontmatter == {"title": "Test", "tags": ["a", "b"]}
-    assert body == "test content"
+    # Test 1: Add frontmatter to file without any
+    content = "# Test Content\n\nSome content here"
+    test_file.write_text(content)
 
-    # No frontmatter
-    content = "test content"
-    frontmatter, body = await parse_content_with_frontmatter(content)
-    assert frontmatter == {}
-    assert body == "test content"
+    updates = {"title": "Test", "type": "note"}
+    checksum = await update_frontmatter(test_file, updates)
 
-    # Empty document
-    frontmatter, body = await parse_content_with_frontmatter("")
-    assert frontmatter == {}
-    assert body == ""
+    # Verify content
+    updated = test_file.read_text()
+    assert "title: Test" in updated
+    assert "type: note" in updated
+    assert "Test Content" in updated
+    assert "Some content here" in updated
 
-    # Only frontmatter
-    content = """---
-title: Test
----
-"""
-    frontmatter, body = await parse_content_with_frontmatter(content)
-    assert frontmatter == {"title": "Test"}
-    assert body == ""
+    # Verify structure
+    fm = parse_frontmatter(updated)
+    assert fm == updates
+    assert remove_frontmatter(updated).strip() == content
+
+    # Test 2: Update existing frontmatter
+    updates = {"type": "doc", "tags": ["test"]}
+    new_checksum = await update_frontmatter(test_file, updates)
+
+    # Verify checksum changed
+    assert new_checksum != checksum
+
+    # Verify content
+    updated = test_file.read_text()
+    fm = parse_frontmatter(updated)
+    assert fm == {"title": "Test", "type": "doc", "tags": ["test"]}
+    assert "Test Content" in updated
+
+    # Test 3: Update with empty dict shouldn't change anything
+    checksum_before = await compute_checksum(test_file.read_text())
+    new_checksum = await update_frontmatter(test_file, {})
+    assert new_checksum == checksum_before
+
+    # Test 4: Handle multi-line content properly
+    content = """# Heading
+
+Some content
+
+## Section
+- Point 1
+- Point 2
+
+### Subsection
+More content here"""
+
+    test_file.write_text(content)
+    await update_frontmatter(test_file, {"title": "Test"})
+
+    updated = test_file.read_text()
+    assert remove_frontmatter(updated).strip() == content
 
 
 @pytest.mark.asyncio
-async def test_frontmatter_whitespace_handling():
-    """Test frontmatter handling with various whitespace."""
-    # Extra newlines before frontmatter
-    content = """
+async def test_update_frontmatter_errors(tmp_path: Path):
+    """Test error handling in update_frontmatter."""
+    test_file = tmp_path / "test.md"
 
----
-title: Test
----
-content"""
-    assert has_frontmatter(content.strip())
-    frontmatter = parse_frontmatter(content.strip())
-    assert frontmatter == {"title": "Test"}
-
-    # Extra newlines after frontmatter
-    content = """---
-title: Test
----
-
-
-content"""
-    result = await add_frontmatter("content", {"title": "Test"})
-    assert result.count("\n\n") == 1  # Should normalize to single blank line
-
-    # Spaces around content
-    content = """---
-title: Test
----
-   content   """
-    assert remove_frontmatter(content).strip() == "content"
+    # Test 1: Invalid file path
+    nonexistent = tmp_path / "nonexistent" / "test.md"
+    with pytest.raises(FileError):
+        await update_frontmatter(nonexistent, {"title": "Test"})
