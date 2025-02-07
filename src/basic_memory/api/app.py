@@ -9,7 +9,7 @@ from loguru import logger
 from basic_memory import db
 from basic_memory.api.routers import knowledge, search, memory, resource
 from basic_memory.config import config
-from basic_memory.services import DbVersionService
+from basic_memory.services import DatabaseService
 
 
 @asynccontextmanager
@@ -28,7 +28,7 @@ async def check_db(app: FastAPI):
     logger.info("Checking database state")
 
     # Initialize DB management service
-    db_service = DbVersionService(
+    db_service = DatabaseService(
         config=config,
     )
 

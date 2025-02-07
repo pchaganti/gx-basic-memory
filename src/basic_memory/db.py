@@ -68,7 +68,7 @@ async def scoped_session(
         await factory.remove()
 
 
-async def init_db() -> str:
+async def init_db() -> None:
     """Initialize database with required tables."""
 
     logger.info("Initializing database...")
@@ -78,10 +78,7 @@ async def init_db() -> str:
         conn = await session.connection()
         await conn.run_sync(Base.metadata.create_all)
         
-        version = await set_schema_version(session, SCHEMA_VERSION)
         await session.commit()
-
-    return version
 
 async def drop_db():
     """Drop all database tables."""
@@ -126,26 +123,6 @@ async def shutdown_db():
         _engine = None
         _session_maker = None
 
-
-async def get_schema_version(session: AsyncSession) -> Optional[str]:
-    """Get current schema version from DB."""
-    try:
-        result = await session.execute(text("SELECT version FROM schema_version LIMIT 1"))
-        row = result.first()
-        return row[0] if row else None
-    except Exception as e:
-        logger.error(f"Error getting schema version: {e}")
-        return None
-
-
-async def set_schema_version(session: AsyncSession, version: str):
-    """Set schema version in DB."""
-    await session.execute(text("DELETE FROM schema_version"))
-    await session.execute(
-        text("INSERT INTO schema_version (version) VALUES (:version)"), {"version": version}
-    )    
-    await session.commit()
-    logger.info(f"Set schema version to {version}")
 
 
 @asynccontextmanager

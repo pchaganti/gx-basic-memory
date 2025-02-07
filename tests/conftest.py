@@ -22,7 +22,7 @@ from basic_memory.repository.relation_repository import RelationRepository
 from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services import (
 EntityService,
-DbVersionService,
+DatabaseService,
 )
 from basic_memory.services.file_service import FileService
 from basic_memory.services.link_resolver import LinkResolver
@@ -392,16 +392,4 @@ def watch_service(sync_service, file_service, test_config):
         sync_service=sync_service,
         file_service=file_service,
         config=test_config
-    )
-
-
-@pytest_asyncio.fixture
-async def db_version_service(
-    test_config: ProjectConfig,
-    sync_service: SyncService,
-) -> DbVersionService:
-    """Create DatabaseManagementService instance for testing."""
-    return DbVersionService(
-        config=test_config,
-        db_type = DatabaseType.FILESYSTEM
     )

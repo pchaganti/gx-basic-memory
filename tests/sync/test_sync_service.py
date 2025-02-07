@@ -777,8 +777,8 @@ test content
     await sync_service.sync(test_config.home)
 
     # Check permalinks
-    file_one_content, _ = await file_service.read_file(two_file)
-    assert "permalink: one-1" in file_one_content
+    file_two_content, _ = await file_service.read_file(two_file)
+    assert "permalink: one-1" in file_two_content
 
     # Run another time 
     await sync_service.sync(test_config.home)
