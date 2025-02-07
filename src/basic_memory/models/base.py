@@ -1,5 +1,5 @@
 """Base model class for SQLAlchemy models."""
-from sqlalchemy import String
+from sqlalchemy import String, Integer
 from sqlalchemy.ext.asyncio import AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
