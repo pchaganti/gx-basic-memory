@@ -5,11 +5,10 @@ import typer
 from loguru import logger
 
 from basic_memory.cli.app import app
-from basic_memory.cli.commands.init import init
 
 # Register commands
-from basic_memory.cli.commands import init, status, sync
-__all__ = ["init", "status", "sync"]
+from basic_memory.cli.commands import status, sync
+__all__ = ["status", "sync"]
 
 from basic_memory.config import config
 

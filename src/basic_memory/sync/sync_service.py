@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict
 
 from loguru import logger
+from sqlalchemy.exc import IntegrityError
 
 from basic_memory import file_utils
 from basic_memory.markdown import EntityParser, EntityMarkdown
@@ -153,10 +154,14 @@ class SyncService:
             # check we found a link that is not the source
             if target_entity and target_entity.id != relation.from_id:
                 logger.debug(f"Resolved forward reference: {relation.to_name} -> {target_entity.permalink}")
-                await self.relation_repository.update(relation.id, {
-                    "to_id": target_entity.id,
-                    "to_name": target_entity.title  # Update to actual title
-                })
+
+                try:
+                    await self.relation_repository.update(relation.id, {
+                        "to_id": target_entity.id,
+                        "to_name": target_entity.title  # Update to actual title
+                    })
+                except IntegrityError as e:
+                        logger.info(f"Ignoring duplicate relation {relation}")
 
                 # update search index
                 await self.search_service.index_entity(target_entity)

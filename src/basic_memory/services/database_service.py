@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from basic_memory import db
 from basic_memory.config import ProjectConfig
 from basic_memory.models import Base
+from basic_memory.repository.search_repository import SearchRepository
 
 
 async def check_schema_matches_models(session: AsyncSession) -> Tuple[bool, List[str]]:
@@ -127,7 +128,7 @@ class DatabaseService:
                     for diff in differences:
                         logger.warning(f"  {diff}")
                     logger.info("Rebuilding database to match current models...")
-                    await self.initialize_db()
+                    await self.initialize_db()                    
                     return True
                     
                 logger.info("Database schema matches models")

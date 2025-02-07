@@ -70,6 +70,8 @@ class SearchRepository:
 
     async def init_search_index(self):
         """Create or recreate the search index."""
+        
+        logger.info("Initializing search index")
         async with db.scoped_session(self.session_maker) as session:
             await session.execute(CREATE_SEARCH_INDEX)
             await session.commit()

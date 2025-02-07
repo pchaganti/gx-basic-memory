@@ -15,6 +15,8 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from basic_memory.models import Base, SCHEMA_VERSION
+from basic_memory.models.search import CREATE_SEARCH_INDEX
+from basic_memory.repository.search_repository import SearchRepository
 
 # Module level state
 _engine: Optional[AsyncEngine] = None
@@ -77,7 +79,10 @@ async def init_db() -> None:
         await session.execute(text("PRAGMA foreign_keys=ON"))
         conn = await session.connection()
         await conn.run_sync(Base.metadata.create_all)
-        
+
+        # recreate search index
+        await session.execute(CREATE_SEARCH_INDEX)
+
         await session.commit()
 
 async def drop_db():
