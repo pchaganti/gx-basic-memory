@@ -37,7 +37,11 @@ class ProjectConfig(BaseSettings):
     @property
     def database_path(self) -> Path:
         """Get SQLite database path."""
-        return self.home / DATA_DIR_NAME / DATABASE_NAME
+        database_path = self.home / DATA_DIR_NAME / DATABASE_NAME
+        if not database_path.exists():
+            database_path.parent.mkdir(parents=True, exist_ok=True)
+            database_path.touch()
+        return database_path
 
     @field_validator("home")
     @classmethod
