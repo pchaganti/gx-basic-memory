@@ -1,6 +1,9 @@
 # CHANGELOG
 
 
+## v0.1.1 (2025-02-07)
+
+
 ## v0.1.0 (2025-02-07)
 
 ### Bug Fixes
@@ -16,6 +19,9 @@
 
 - Install fastapi deps after removing basic-foundation
   ([`51a741e`](https://github.com/basicmachines-co/basic-memory/commit/51a741e7593a1ea0e5eb24e14c70ff61670f9663))
+
+- Recreate search index on db reset
+  ([`1fee436`](https://github.com/basicmachines-co/basic-memory/commit/1fee436bf903a35c9ebb7d87607fc9cc9f5ff6e7))
 
 - Remove basic-foundation from deps
   ([`b8d0c71`](https://github.com/basicmachines-co/basic-memory/commit/b8d0c7160f29c97cdafe398a7e6a5240473e0c89))
