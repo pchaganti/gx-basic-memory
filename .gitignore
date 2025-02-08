@@ -1,8 +1,10 @@
-# Python
-__pycache__/
 *.py[cod]
-*$py.class
-*.so
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -20,7 +22,12 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Installer artifacts
+installer/build/
+installer/dist/
+rw.*.dmg  # Temporary disk images
+
+# Virtual environments
 .env
 .venv
 env/
@@ -30,15 +37,8 @@ ENV/
 # IDE
 .idea/
 .vscode/
+*.swp
+*.swo
 
-# Project specific
-projects/*.db
-projects/*.db-journal
-/.coverage
-
-**/.DS_Store
-
-*.log
-/.coverage.*
-
-installer/build/
+# macOS
+.DS_Store
