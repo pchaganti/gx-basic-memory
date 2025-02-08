@@ -40,3 +40,5 @@ projects/*.db-journal
 
 *.log
 /.coverage.*
+
+installer/build/

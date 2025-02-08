@@ -37,3 +37,4 @@ format: format-python
 # run inspector tool
 run-dev:
 	uv run mcp dev src/basic_memory/mcp/main.py
+
