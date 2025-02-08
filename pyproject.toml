@@ -62,6 +62,7 @@ dev-dependencies = [
     "pytest-asyncio>=0.24.0",
     "ruff>=0.1.6",
     "cx-freeze>=7.2.10",
+    "pyqt6>=6.8.1",
 ]
 
 [tool.pyright]
