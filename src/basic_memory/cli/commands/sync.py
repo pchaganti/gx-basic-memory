@@ -97,51 +97,7 @@ def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[V
     return dict(grouped)
 
 
-def display_validation_errors(issues: List[ValidationIssue]):
-    """Display validation errors in a rich, organized format."""
-    # Create header
-    console.print()
-    console.print(
-        Panel("[red bold]Error:[/red bold] Invalid frontmatter in knowledge files", expand=False)
-    )
-    console.print()
 
-    # Group issues by directory
-    grouped_issues = group_issues_by_directory(issues)
-
-    # Create tree structure
-    tree = Tree("Knowledge Files")
-    for dir_name, dir_issues in sorted(grouped_issues.items()):
-        # Create branch for directory
-        branch = tree.add(
-            f"[bold blue]{dir_name}/[/bold blue] ([yellow]{len(dir_issues)} files[/yellow])"
-        )
-
-        # Add each file issue
-        for issue in sorted(dir_issues, key=lambda x: x.file_path):
-            file_name = Path(issue.file_path).name
-            branch.add(
-                Text.assemble(("└─ ", "dim"), (file_name, "yellow"), ": ", (issue.error, "red"))
-            )
-
-    # Display tree
-    console.print(Padding(tree, (1, 2)))
-
-    # Add help text
-    console.print()
-    console.print(
-        Panel(
-            Text.assemble(
-                ("To fix:", "bold"),
-                "\n1. Add required frontmatter fields to each file",
-                "\n2. Run ",
-                ("basic-memory sync", "bold cyan"),
-                " again",
-            ),
-            expand=False,
-        )
-    )
-    console.print()
 
 
 def display_sync_summary(knowledge: SyncReport):

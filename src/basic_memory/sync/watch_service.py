@@ -131,13 +131,36 @@ class WatchService:
 
         return table
 
-    async def run(self):
+    async def run(self, console_status: bool = False):
         """Watch for file changes and sync them"""
+        logger.info("Watching for sync changes")
         self.state.running = True
         self.state.start_time = datetime.now()
         await self.write_status()
 
-        with Live(self.generate_table(), refresh_per_second=4, console=self.console) as live:
+        if console_status:
+            with Live(self.generate_table(), refresh_per_second=4, console=self.console) as live:
+                try:
+                    async for changes in awatch(
+                        self.config.home,
+                        watch_filter=self.filter_changes,
+                        debounce=self.config.sync_delay,
+                        recursive=True,
+                    ):
+                        # Process changes
+                        await self.handle_changes(self.config.home)
+                        # Update display
+                        live.update(self.generate_table())
+
+                except Exception as e:
+                    self.state.record_error(str(e))
+                    await self.write_status()
+                    raise
+                finally:
+                    self.state.running = False
+                    await self.write_status()
+
+        else:
             try:
                 async for changes in awatch(
                     self.config.home,
@@ -148,7 +171,6 @@ class WatchService:
                     # Process changes
                     await self.handle_changes(self.config.home)
                     # Update display
-                    live.update(self.generate_table())
 
             except Exception as e:
                 self.state.record_error(str(e))
