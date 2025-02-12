@@ -49,8 +49,6 @@ class SearchQuery(BaseModel):
     @classmethod
     def validate_date(cls, v: Optional[Union[datetime, str]]) -> Optional[str]:
         """Convert datetime to ISO format if needed."""
-        if v is None:
-            return None
         if isinstance(v, datetime):
             return v.isoformat()
         return v
@@ -71,12 +69,11 @@ class SearchResult(BaseModel):
 
     id: int
     type: SearchItemType
-    score: Optional[float] = None
-    metadata: Optional[dict] = None
+    score: float
+    permalink: str
+    file_path: str
 
-    # Common fields
-    permalink: Optional[str] = None
-    file_path: Optional[str] = None
+    metadata: Optional[dict] = None
 
     # Type-specific fields
     entity_id: Optional[int] = None  # For observations

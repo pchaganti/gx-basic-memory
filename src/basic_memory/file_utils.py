@@ -1,7 +1,8 @@
 """Utilities for file operations."""
+
 import hashlib
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
 
 import yaml
 from loguru import logger
@@ -9,35 +10,38 @@ from loguru import logger
 
 class FileError(Exception):
     """Base exception for file operations."""
+
     pass
 
 
 class FileWriteError(FileError):
     """Raised when file operations fail."""
+
     pass
 
 
 class ParseError(FileError):
     """Raised when parsing file content fails."""
+
     pass
 
 
 async def compute_checksum(content: str) -> str:
     """
     Compute SHA-256 checksum of content.
-    
+
     Args:
         content: Text content to hash
-        
+
     Returns:
         SHA-256 hex digest
-        
+
     Raises:
         FileError: If checksum computation fails
     """
     try:
         return hashlib.sha256(content.encode()).hexdigest()
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         logger.error(f"Failed to compute checksum: {e}")
         raise FileError(f"Failed to compute checksum: {e}")
 
@@ -45,16 +49,16 @@ async def compute_checksum(content: str) -> str:
 async def ensure_directory(path: Path) -> None:
     """
     Ensure directory exists, creating if necessary.
-    
+
     Args:
         path: Directory path to ensure
-        
+
     Raises:
         FileWriteError: If directory creation fails
     """
     try:
         path.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         logger.error(f"Failed to create directory: {path}: {e}")
         raise FileWriteError(f"Failed to create directory {path}: {e}")
 
@@ -62,22 +66,20 @@ async def ensure_directory(path: Path) -> None:
 async def write_file_atomic(path: Path, content: str) -> None:
     """
     Write file with atomic operation using temporary file.
-    
+
     Args:
         path: Target file path
         content: Content to write
-        
+
     Raises:
         FileWriteError: If write operation fails
     """
     temp_path = path.with_suffix(".tmp")
     try:
         temp_path.write_text(content)
-        
-        # TODO check for path.exists()
         temp_path.replace(path)
         logger.debug(f"wrote file: {path}")
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         temp_path.unlink(missing_ok=True)
         logger.error(f"Failed to write file: {path}: {e}")
         raise FileWriteError(f"Failed to write file {path}: {e}")
@@ -85,16 +87,19 @@ async def write_file_atomic(path: Path, content: str) -> None:
 
 def has_frontmatter(content: str) -> bool:
     """
-    Check if content contains YAML frontmatter.
+    Check if content contains valid YAML frontmatter.
 
     Args:
         content: Content to check
 
     Returns:
-        True if content has frontmatter delimiter (---), False otherwise
+        True if content has valid frontmatter markers (---), False otherwise
     """
     content = content.strip()
-    return content.startswith("---") and "---" in content[3:]
+    if not content.startswith("---"):
+        return False
+
+    return "---" in content[3:]
 
 
 def parse_frontmatter(content: str) -> Dict[str, Any]:
@@ -111,7 +116,7 @@ def parse_frontmatter(content: str) -> Dict[str, Any]:
         ParseError: If frontmatter is invalid or parsing fails
     """
     try:
-        if not has_frontmatter(content):
+        if not content.strip().startswith("---"):
             raise ParseError("Content has no frontmatter")
 
         # Split on first two occurrences of ---
@@ -132,7 +137,7 @@ def parse_frontmatter(content: str) -> Dict[str, Any]:
         except yaml.YAMLError as e:
             raise ParseError(f"Invalid YAML in frontmatter: {e}")
 
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         if not isinstance(e, ParseError):
             logger.error(f"Failed to parse frontmatter: {e}")
             raise ParseError(f"Failed to parse frontmatter: {e}")
@@ -147,27 +152,23 @@ def remove_frontmatter(content: str) -> str:
         content: Content with frontmatter
 
     Returns:
-        Content with frontmatter removed
+        Content with frontmatter removed, or original content if no frontmatter
 
     Raises:
-        ParseError: If frontmatter format is invalid
+        ParseError: If content starts with frontmatter marker but is malformed
     """
-    try:
-        if not has_frontmatter(content):
-            return content.strip()
+    content = content.strip()
 
-        # Split on first two occurrences of ---
-        parts = content.split("---", 2)
-        if len(parts) < 3:
-            raise ParseError("Invalid frontmatter format")
+    # Return as-is if no frontmatter marker
+    if not content.startswith("---"):
+        return content
 
-        return parts[2].strip()
+    # Split on first two occurrences of ---
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        raise ParseError("Invalid frontmatter format")
 
-    except Exception as e:
-        if not isinstance(e, ParseError):
-            logger.error(f"Failed to remove frontmatter: {e}")
-            raise ParseError(f"Failed to remove frontmatter: {e}")
-        raise
+    return parts[2].strip()
 
 
 async def update_frontmatter(path: Path, updates: Dict[str, Any]) -> str:
@@ -208,6 +209,6 @@ async def update_frontmatter(path: Path, updates: Dict[str, Any]) -> str:
         await write_file_atomic(path, final_content)
         return await compute_checksum(final_content)
 
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         logger.error(f"Failed to update frontmatter in {path}: {e}")
         raise FileError(f"Failed to update frontmatter: {e}")

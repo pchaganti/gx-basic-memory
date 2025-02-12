@@ -1,47 +1,16 @@
-"""Main CLI entry point for basic-memory."""
-import sys
+"""Main CLI entry point for basic-memory."""  # pragma: no cover
 
-import typer
-from loguru import logger
-
-from basic_memory.cli.app import app
+from basic_memory.cli.app import app  # pragma: no cover
+from basic_memory.utils import setup_logging  # pragma: no cover
 
 # Register commands
-from basic_memory.cli.commands import status, sync
-__all__ = ["status", "sync"]
+from basic_memory.cli.commands import status, sync  # pragma: no cover
 
-from basic_memory.config import config
+__all__ = ["status", "sync"]  # pragma: no cover
 
-
-def setup_logging(home_dir: str = config.home, log_file: str = ".basic-memory/basic-memory-tools.log"):
-    """Configure logging for the application."""
-
-    # Remove default handler and any existing handlers
-    logger.remove()
-
-    # Add file handler for debug level logs
-    log = f"{home_dir}/{log_file}"
-    logger.add(
-        log,
-        level="DEBUG",
-        rotation="100 MB",
-        retention="10 days",
-        backtrace=True,
-        diagnose=True,
-        enqueue=True,
-        colorize=False,
-    )
-
-    # Add stderr handler for warnings and errors only
-    logger.add(
-        sys.stderr,
-        level="WARNING",
-        backtrace=True,
-        diagnose=True
-    )
 
 # Set up logging when module is imported
-setup_logging()
+setup_logging(log_file=".basic-memory/basic-memory-cli.log")  # pragma: no cover
 
 if __name__ == "__main__":  # pragma: no cover
     app()

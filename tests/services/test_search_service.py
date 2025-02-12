@@ -14,7 +14,7 @@ async def test_search_permalink(search_service, test_graph):
     """Exact permalink"""
     results = await search_service.search(SearchQuery(permalink="test/root"))
     assert len(results) == 1
-    
+
     for r in results:
         assert "test/root" in r.permalink
 
@@ -28,13 +28,14 @@ async def test_search_permalink_observations_wildcard(search_service, test_graph
     assert "test/root/observations/note/root-note-1" in permalinks
     assert "test/root/observations/tech/root-tech-note" in permalinks
 
+
 @pytest.mark.asyncio
 async def test_search_permalink_relation_wildcard(search_service, test_graph):
     """Pattern matching"""
     results = await search_service.search(SearchQuery(permalink_match="test/root/connects_to/*"))
     assert len(results) == 1
     permalinks = {r.permalink for r in results}
-    assert "test/root/connects-to/test/connected1" in permalinks
+    assert "test/root/connects-to/test/connected-entity-1" in permalinks
 
 
 @pytest.mark.skip("search prefix see:'https://sqlite.org/fts5.html#FTS5 Prefix Queries'")
@@ -51,9 +52,12 @@ async def test_search_permalink_wildcard2(search_service, test_graph):
 @pytest.mark.asyncio
 async def test_search_text(search_service, test_graph):
     """Full-text search"""
-    results = await search_service.search(SearchQuery(text="Root Entity", types=[SearchItemType.ENTITY]))
+    results = await search_service.search(
+        SearchQuery(text="Root Entity", types=[SearchItemType.ENTITY])
+    )
     assert len(results) >= 1
     assert results[0].permalink == "test/root"
+
 
 @pytest.mark.asyncio
 async def test_search_title(search_service, test_graph):
@@ -68,12 +72,12 @@ async def test_text_search_features(search_service, test_graph):
     """Test text search functionality."""
     # Case insensitive
     results = await search_service.search(SearchQuery(text="ENTITY"))
-    assert any( "test/root" in r.permalink for r in results)
+    assert any("test/root" in r.permalink for r in results)
 
     # Partial word match
     results = await search_service.search(SearchQuery(text="Connect"))
     assert len(results) > 0
-    assert any(r.file_path == "test/connected2.md" for r in results)
+    assert any(r.file_path == "test/Connected Entity 2.md" for r in results)
 
     # Multiple terms
     results = await search_service.search(SearchQuery(text="root note"))
@@ -178,4 +182,4 @@ async def test_update_index(search_service, full_entity):
 
     # Search for new title
     results = await search_service.search(SearchQuery(text="OMG I AM UPDATED"))
-    assert len(results) > 1 
+    assert len(results) > 1

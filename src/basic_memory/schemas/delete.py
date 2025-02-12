@@ -21,7 +21,7 @@ from typing import List, Annotated
 from annotated_types import MinLen
 from pydantic import BaseModel
 
-from basic_memory.schemas.base import Relation, Observation, PathId
+from basic_memory.schemas.base import Permalink
 
 
 class DeleteEntitiesRequest(BaseModel):
@@ -34,5 +34,4 @@ class DeleteEntitiesRequest(BaseModel):
     4. Deletes the corresponding markdown file
     """
 
-    permalinks: Annotated[List[PathId], MinLen(1)]
-
+    permalinks: Annotated[List[Permalink], MinLen(1)]

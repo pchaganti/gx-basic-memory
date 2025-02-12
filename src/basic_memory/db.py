@@ -14,9 +14,8 @@ from sqlalchemy.ext.asyncio import (
     async_scoped_session,
 )
 
-from basic_memory.models import Base, SCHEMA_VERSION
+from basic_memory.models import Base
 from basic_memory.models.search import CREATE_SEARCH_INDEX
-from basic_memory.repository.search_repository import SearchRepository
 
 # Module level state
 _engine: Optional[AsyncEngine] = None
@@ -72,6 +71,8 @@ async def scoped_session(
 
 async def init_db() -> None:
     """Initialize database with required tables."""
+    if _session_maker is None:  # pragma: no cover
+        raise RuntimeError("Database session maker not initialized")
 
     logger.info("Initializing database...")
 
@@ -85,16 +86,21 @@ async def init_db() -> None:
 
         await session.commit()
 
-async def drop_db():
+
+async def drop_db() -> None:
     """Drop all database tables."""
     global _engine, _session_maker
-    
+
+    if _session_maker is None:  # pragma: no cover
+        logger.warning("No database session maker to drop")
+        return
+
     logger.info("Dropping tables...")
     async with scoped_session(_session_maker) as session:
         conn = await session.connection()
         await conn.run_sync(Base.metadata.drop_all)
         await session.commit()
-        
+
     # reset global engine and session_maker
     _engine = None
     _session_maker = None
@@ -116,10 +122,12 @@ async def get_or_create_db(
         # Initialize database
         await init_db()
 
+    assert _engine is not None  # for type checker
+    assert _session_maker is not None  # for type checker
     return _engine, _session_maker
 
 
-async def shutdown_db():
+async def shutdown_db() -> None:  # pragma: no cover
     """Clean up database connections."""
     global _engine, _session_maker
 
@@ -127,7 +135,6 @@ async def shutdown_db():
         await _engine.dispose()
         _engine = None
         _session_maker = None
-
 
 
 @asynccontextmanager
@@ -143,10 +150,10 @@ async def engine_session_factory(
     """
 
     global _engine, _session_maker
-    
+
     db_url = DatabaseType.get_db_url(db_path, db_type)
     logger.debug(f"Creating engine for db_url: {db_url}")
-    
+
     _engine = create_async_engine(db_url, connect_args={"check_same_thread": False})
     try:
         _session_maker = async_sessionmaker(_engine, expire_on_commit=False)
@@ -154,6 +161,11 @@ async def engine_session_factory(
         if init:
             await init_db()
 
+        assert _engine is not None  # for type checker
+        assert _session_maker is not None  # for type checker
         yield _engine, _session_maker
     finally:
-        await _engine.dispose()
+        if _engine:
+            await _engine.dispose()
+            _engine = None
+            _session_maker = None

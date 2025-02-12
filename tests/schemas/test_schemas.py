@@ -23,7 +23,6 @@ def test_entity():
     assert entity.entity_type == "knowledge"
 
 
-
 def test_entity_in_validation():
     """Test validation errors for EntityIn."""
     with pytest.raises(ValidationError):
@@ -63,7 +62,6 @@ def test_relation_response():
     assert relation.to_id == "test/456"
     assert relation.relation_type == "test"
     assert relation.context is None
-
 
 
 def test_entity_out_from_attributes():
@@ -159,6 +157,8 @@ def test_permalink_generation():
         ("next week", False),
         ("", False),
         ("0d", True),
+        ("366d", False),
+        (1, False),
     ],
 )
 def test_timeframe_validation(timeframe: str, expected_valid: bool):

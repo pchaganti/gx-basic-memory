@@ -6,16 +6,10 @@ from annotated_types import MaxLen, MinLen
 from pydantic import BaseModel
 
 from basic_memory.schemas.base import (
-    Observation,
-    Entity,
     Relation,
-    PathId,
-    ObservationCategory,
+    Permalink,
     EntityType,
 )
-
-
-
 
 
 class SearchNodesRequest(BaseModel):
@@ -47,7 +41,7 @@ class SearchNodesRequest(BaseModel):
     """
 
     query: Annotated[str, MinLen(1), MaxLen(200)]
-    category: Optional[ObservationCategory] = None
+    category: Optional[str] = None
 
 
 class GetEntitiesRequest(BaseModel):
@@ -58,7 +52,7 @@ class GetEntitiesRequest(BaseModel):
     discovered through search.
     """
 
-    permalinks: Annotated[List[PathId], MinLen(1)]
+    permalinks: Annotated[List[Permalink], MinLen(1)]
 
 
 class CreateRelationsRequest(BaseModel):
@@ -66,6 +60,7 @@ class CreateRelationsRequest(BaseModel):
 
 
 ## update
+
 
 # TODO remove UpdateEntityRequest
 class UpdateEntityRequest(BaseModel):

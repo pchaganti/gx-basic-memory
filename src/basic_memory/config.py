@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from loguru import logger
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -27,6 +26,8 @@ class ProjectConfig(BaseSettings):
         default=500, description="Milliseconds to wait after changes before syncing", gt=0
     )
 
+    log_level: str = "INFO"
+
     model_config = SettingsConfigDict(
         env_prefix="BASIC_MEMORY_",
         extra="ignore",
@@ -45,7 +46,7 @@ class ProjectConfig(BaseSettings):
 
     @field_validator("home")
     @classmethod
-    def ensure_path_exists(cls, v: Path) -> Path:
+    def ensure_path_exists(cls, v: Path) -> Path:  # pragma: no cover
         """Ensure project path exists."""
         if not v.exists():
             v.mkdir(parents=True)
@@ -54,4 +55,3 @@ class ProjectConfig(BaseSettings):
 
 # Load project config
 config = ProjectConfig()
-logger.info(f"project config home: {config.home}")

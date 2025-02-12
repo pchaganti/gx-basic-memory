@@ -1,20 +1,23 @@
 """Service for file operations with checksum tracking."""
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple, Union
 
 from loguru import logger
 
 from basic_memory import file_utils
 from basic_memory.markdown.markdown_processor import MarkdownProcessor
-from basic_memory.markdown.utils import entity_model_to_markdown
 from basic_memory.models import Entity as EntityModel
-from basic_memory.services.exceptions import FileOperationError
 from basic_memory.schemas import Entity as EntitySchema
+from basic_memory.services.exceptions import FileOperationError
+
 
 class FileService:
-    """
-    Service for handling file operations.
+    """Service for handling file operations.
+
+    All paths are handled as Path objects internally. Strings are converted to
+    Path objects when passed in. Relative paths are assumed to be relative to
+    base_path.
 
     Features:
     - Consistent file writing with checksums
@@ -28,105 +31,66 @@ class FileService:
         base_path: Path,
         markdown_processor: MarkdownProcessor,
     ):
-        self.base_path = base_path
+        self.base_path = base_path.resolve()  # Get absolute path
         self.markdown_processor = markdown_processor
 
-    def get_entity_path(self, entity: EntityModel| EntitySchema) -> Path:
-        """Generate absolute filesystem path for entity."""
-        return self.base_path / f"{entity.file_path}"
-
-    async def write_entity_file(
-        self,
-        entity: EntityModel,
-        content: Optional[str] = None,
-        expected_checksum: Optional[str] = None,
-    ) -> Tuple[Path, str]:
-        """Write entity to filesystem and return path and checksum.
-
-        Uses read->modify->write pattern:
-        1. Read existing file if it exists
-        2. Update with new content if provided
-        3. Write back atomically
+    def get_entity_path(self, entity: Union[EntityModel, EntitySchema]) -> Path:
+        """Generate absolute filesystem path for entity.
 
         Args:
-            entity: Entity model to write
-            content: Optional new content (preserves existing if None)
-            expected_checksum: Optional checksum to verify file hasn't changed
+            entity: Entity model or schema with file_path attribute
 
         Returns:
-            Tuple of (file path, new checksum)
-
-        Raises:
-            FileOperationError: If write fails
+            Absolute Path to the entity file
         """
-        try:
-            path = self.get_entity_path(entity)
-
-            # Read current state if file exists
-            if path.exists():
-                # read the existing file
-                existing_markdown = await self.markdown_processor.read_file(path)
-
-                # if content is supplied use it or existing content
-                content=content or existing_markdown.content
-            
-            # Create new file structure with provided content
-            markdown = entity_model_to_markdown(entity, content=content)
-
-            # Write back atomically
-            checksum = await self.markdown_processor.write_file(
-                path=path, markdown=markdown, expected_checksum=expected_checksum
-            )
-
-            return path, checksum
-
-        except Exception as e:
-            logger.exception(f"Failed to write entity file: {e}")
-            raise FileOperationError(f"Failed to write entity file: {e}")
+        return self.base_path / entity.file_path
 
     async def read_entity_content(self, entity: EntityModel) -> str:
-        """Get entity's content without frontmatter or structured sections (used to index for search)
+        """Get entity's content without frontmatter or structured sections.
+
+        Used to index for search. Returns raw content without frontmatter,
+        observations, or relations.
 
         Args:
             entity: Entity to read content for
 
         Returns:
-            Raw content without frontmatter, observations, or relations
-
-        Raises:
-            FileOperationError: If entity file doesn't exist
+            Raw content string without metadata sections
         """
         logger.debug(f"Reading entity with permalink: {entity.permalink}")
 
-        try:
-            file_path = self.get_entity_path(entity)
-            markdown = await self.markdown_processor.read_file(file_path)
-            return markdown.content or ""
-
-        except Exception as e:
-            logger.error(f"Failed to read entity content: {e}")
-            raise FileOperationError(f"Failed to read entity content: {e}")
+        file_path = self.get_entity_path(entity)
+        markdown = await self.markdown_processor.read_file(file_path)
+        return markdown.content or ""
 
     async def delete_entity_file(self, entity: EntityModel) -> None:
-        """Delete entity file from filesystem."""
-        try:
-            path = self.get_entity_path(entity)
-            await self.delete_file(path)
-        except Exception as e:
-            logger.error(f"Failed to delete entity file: {e}")
-            raise FileOperationError(f"Failed to delete entity file: {e}")
-
-    async def exists(self, path: Path) -> bool:
-        """
-        Check if file exists at the provided path. If path is relative, it is assumed to be relative to base_path.
+        """Delete entity file from filesystem.
 
         Args:
-            path: Path to check
+            entity: Entity model whose file should be deleted
+
+        Raises:
+            FileOperationError: If deletion fails
+        """
+        path = self.get_entity_path(entity)
+        await self.delete_file(path)
+
+    async def exists(self, path: Union[Path, str]) -> bool:
+        """Check if file exists at the provided path.
+
+        If path is relative, it is assumed to be relative to base_path.
+
+        Args:
+            path: Path to check (Path object or string)
 
         Returns:
             True if file exists, False otherwise
+
+        Raises:
+            FileOperationError: If check fails
         """
         try:
+            path = Path(path)
             if path.is_absolute():
                 return path.exists()
             else:
@@ -135,12 +99,14 @@ class FileService:
             logger.error(f"Failed to check file existence {path}: {e}")
             raise FileOperationError(f"Failed to check file existence: {e}")
 
-    async def write_file(self, path: Path, content: str) -> str:
-        """
-        Write content to file and return checksum.
+    async def write_file(self, path: Union[Path, str], content: str) -> str:
+        """Write content to file and return checksum.
+
+        Handles both absolute and relative paths. Relative paths are resolved
+        against base_path.
 
         Args:
-            path: Path where to write
+            path: Where to write (Path object or string)
             content: Content to write
 
         Returns:
@@ -149,30 +115,33 @@ class FileService:
         Raises:
             FileOperationError: If write fails
         """
-        
-        path = path if path.is_absolute() else self.base_path / path
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+
         try:
             # Ensure parent directory exists
-            await file_utils.ensure_directory(path.parent)
+            await file_utils.ensure_directory(full_path.parent)
 
             # Write content atomically
-            await file_utils.write_file_atomic(path, content)
+            await file_utils.write_file_atomic(full_path, content)
 
             # Compute and return checksum
             checksum = await file_utils.compute_checksum(content)
-            logger.debug(f"wrote file: {path}, checksum: {checksum} content: \n{content}")
+            logger.debug(f"wrote file: {full_path}, checksum: {checksum}")
             return checksum
 
         except Exception as e:
-            logger.error(f"Failed to write file {path}: {e}")
+            logger.error(f"Failed to write file {full_path}: {e}")
             raise FileOperationError(f"Failed to write file: {e}")
 
-    async def read_file(self, path: Path) -> Tuple[str, str]:
-        """
-        Read file and compute checksum.
+    async def read_file(self, path: Union[Path, str]) -> Tuple[str, str]:
+        """Read file and compute checksum.
+
+        Handles both absolute and relative paths. Relative paths are resolved
+        against base_path.
 
         Args:
-            path: Path to read
+            path: Path to read (Path object or string)
 
         Returns:
             Tuple of (content, checksum)
@@ -180,33 +149,28 @@ class FileService:
         Raises:
             FileOperationError: If read fails
         """
-        path = path if path.is_absolute() else self.base_path / path
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+
         try:
             content = path.read_text()
             checksum = await file_utils.compute_checksum(content)
-            logger.debug(f"read file: {path}, checksum: {checksum}")
+            logger.debug(f"read file: {full_path}, checksum: {checksum}")
             return content, checksum
 
         except Exception as e:
-            logger.error(f"Failed to read file {path}: {e}")
+            logger.error(f"Failed to read file {full_path}: {e}")
             raise FileOperationError(f"Failed to read file: {e}")
 
-    async def delete_file(self, path: Path) -> None:
-        """
-        Delete file if it exists.
+    async def delete_file(self, path: Union[Path, str]) -> None:
+        """Delete file if it exists.
+
+        Handles both absolute and relative paths. Relative paths are resolved
+        against base_path.
 
         Args:
-            path: Path to delete
-
-        Raises:
-            FileOperationError: If deletion fails
+            path: Path to delete (Path object or string)
         """
-        path = path if path.is_absolute() else self.base_path / path
-        try:
-            path.unlink(missing_ok=True)
-        except Exception as e:
-            logger.error(f"Failed to delete file {path}: {e}")
-            raise FileOperationError(f"Failed to delete file: {e}")
-
-    def path(self, path_string: str, absolute: bool = False):
-        return Path( self.base_path / path_string ) if absolute else Path(path_string).relative_to(self.base_path)
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+        full_path.unlink(missing_ok=True)

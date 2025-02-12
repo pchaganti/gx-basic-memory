@@ -50,8 +50,8 @@ class ContextService:
 
     async def build_context(
         self,
-        memory_url: MemoryUrl = None,
-        types: List[SearchItemType] = None,
+        memory_url: Optional[MemoryUrl] = None,
+        types: Optional[List[SearchItemType]] = None,
         depth: int = 1,
         since: Optional[datetime] = None,
         max_results: int = 10,
@@ -66,9 +66,7 @@ class ContextService:
             # Pattern matching - use search
             if "*" in path:
                 logger.debug(f"Pattern search for '{path}'")
-                primary = await self.search_repository.search(
-                    permalink_match=path
-                )
+                primary = await self.search_repository.search(permalink_match=path)
 
             # Direct lookup for exact path
             else:
@@ -120,11 +118,19 @@ class ContextService:
         - Connected entities
         - Their observations
         - Relations that connect them
+
+        Note on depth:
+        Each traversal step requires two depth levels - one to find the relation,
+        and another to follow that relation to an entity. So a max_depth of 4 allows
+        traversal through two entities (relation->entity->relation->entity), while reaching
+        an entity three steps away requires max_depth=6 (relation->entity->relation->entity->relation->entity).
         """
+        max_depth = max_depth * 2
+
         if not type_id_pairs:
             return []
 
-        logger.debug(f"Finding connected items for {len(type_id_pairs)} with depth {max_depth}")
+        logger.debug(f"Finding connected items for {type_id_pairs} with depth {max_depth}")
 
         # Build the VALUES clause directly since SQLite doesn't handle parameterized IN well
         values = ", ".join([f"('{t}', {i})" for t, i in type_id_pairs])
@@ -132,7 +138,7 @@ class ContextService:
         # Parameters for bindings
         params = {"max_depth": max_depth, "max_results": max_results}
         if since:
-            params["since_date"] = since.isoformat()
+            params["since_date"] = since.isoformat()  # pyright: ignore
 
         # Build date filter
         date_filter = "AND base.created_at >= :since_date" if since else ""
@@ -140,113 +146,113 @@ class ContextService:
         related_date_filter = "AND e.created_at >= :since_date" if since else ""
 
         query = text(f"""
-WITH RECURSIVE context_graph AS (
-    -- Base case: seed items (unchanged)
-    SELECT 
-        id,
-        type,
-        title, 
-        permalink,
-        file_path,
-        from_id,
-        to_id,
-        relation_type,
-        content,
-        category,
-        entity_id,
-        0 as depth,
-        id as root_id,
-        created_at,
-        created_at as relation_date,
-        0 as is_incoming
-    FROM search_index base
-    WHERE (base.type, base.id) IN ({values})
-    {date_filter}
+        WITH RECURSIVE context_graph AS (
+            -- Base case: seed items 
+            SELECT 
+                id,
+                type,
+                title, 
+                permalink,
+                file_path,
+                from_id,
+                to_id,
+                relation_type,
+                content,
+                category,
+                entity_id,
+                0 as depth,
+                id as root_id,
+                created_at,
+                created_at as relation_date,
+                0 as is_incoming
+            FROM search_index base
+            WHERE (base.type, base.id) IN ({values})
+            {date_filter}
 
-    UNION  -- Changed from UNION ALL
+            UNION ALL  -- Allow same paths at different depths
 
-    -- Get relations from current entities 
-    SELECT DISTINCT
-        r.id,
-        r.type,
-        r.title,
-        r.permalink,
-        r.file_path,
-        r.from_id,
-        r.to_id,
-        r.relation_type,
-        r.content,
-        r.category,
-        r.entity_id,
-        cg.depth + 1,
-        cg.root_id,
-        r.created_at,
-        r.created_at as relation_date,
-        CASE WHEN r.from_id = cg.id THEN 0 ELSE 1 END as is_incoming
-    FROM context_graph cg
-    JOIN search_index r ON (
-        cg.type = 'entity' AND
-        r.type = 'relation' AND 
-        (r.from_id = cg.id OR r.to_id = cg.id)
-        {r1_date_filter}
-    )
-    WHERE cg.depth < :max_depth
+            -- Get relations from current entities 
+            SELECT DISTINCT
+                r.id,
+                r.type,
+                r.title,
+                r.permalink,
+                r.file_path,
+                r.from_id,
+                r.to_id,
+                r.relation_type,
+                r.content,
+                r.category,
+                r.entity_id,
+                cg.depth + 1,
+                cg.root_id,
+                r.created_at,
+                r.created_at as relation_date,
+                CASE WHEN r.from_id = cg.id THEN 0 ELSE 1 END as is_incoming
+            FROM context_graph cg
+            JOIN search_index r ON (
+                cg.type = 'entity' AND
+                r.type = 'relation' AND 
+                (r.from_id = cg.id OR r.to_id = cg.id)
+                {r1_date_filter}
+            )
+            WHERE cg.depth < :max_depth
 
-    UNION  -- Changed from UNION ALL
+            UNION ALL
 
-    -- Get entities connected by relations
-    SELECT DISTINCT
-        e.id,
-        e.type,
-        e.title,
-        e.permalink,
-        e.file_path,
-        e.from_id,
-        e.to_id,
-        e.relation_type,
-        e.content,
-        e.category,
-        e.entity_id,
-        cg.depth,
-        cg.root_id,
-        e.created_at,
-        cg.relation_date,
-        cg.is_incoming
-    FROM context_graph cg
-    JOIN search_index e ON (
-        cg.type = 'relation' AND 
-        e.type = 'entity' AND
-        e.id = CASE 
-            WHEN cg.from_id = cg.id THEN cg.to_id  
-            ELSE cg.from_id                             
-        END
-        {related_date_filter}
-    )
-    WHERE cg.depth < :max_depth
-)
-SELECT DISTINCT 
-    type,
-    id,
-    title,
-    permalink,
-    file_path,
-    from_id,
-    to_id,
-    relation_type,
-    content,
-    category,
-    entity_id,
-    MIN(depth) as depth,
-    root_id,
-    created_at
-FROM context_graph
-WHERE (type, id) NOT IN ({values})
-GROUP BY
-    type, id, title, permalink, from_id, to_id,
-    relation_type, category, entity_id,
-    root_id, created_at
-ORDER BY depth, type, id
-LIMIT :max_results
+            -- Get entities connected by relations
+            SELECT DISTINCT
+                e.id,
+                e.type,
+                e.title,
+                e.permalink,
+                e.file_path,
+                e.from_id,
+                e.to_id,
+                e.relation_type,
+                e.content,
+                e.category,
+                e.entity_id,
+                cg.depth + 1,  -- Increment depth for entities
+                cg.root_id,
+                e.created_at,
+                cg.relation_date,
+                cg.is_incoming
+            FROM context_graph cg
+            JOIN search_index e ON (
+                cg.type = 'relation' AND 
+                e.type = 'entity' AND
+                e.id = CASE 
+                    WHEN cg.is_incoming = 0 THEN cg.to_id  -- Fixed entity lookup
+                    ELSE cg.from_id                             
+                END
+                {related_date_filter}
+            )
+            WHERE cg.depth < :max_depth
+        )
+        SELECT DISTINCT 
+            type,
+            id,
+            title,
+            permalink,
+            file_path,
+            from_id,
+            to_id,
+            relation_type,
+            content,
+            category,
+            entity_id,
+            MIN(depth) as depth,
+            root_id,
+            created_at
+        FROM context_graph
+        WHERE (type, id) NOT IN ({values})
+        GROUP BY
+            type, id, title, permalink, from_id, to_id,
+            relation_type, category, entity_id,
+            root_id, created_at
+        ORDER BY depth, type, id
+        LIMIT :max_results
        """)
 
         result = await self.search_repository.execute_query(query, params=params)

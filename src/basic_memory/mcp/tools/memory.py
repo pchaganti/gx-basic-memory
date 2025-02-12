@@ -7,9 +7,13 @@ from loguru import logger
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_get
-from basic_memory.schemas.memory import GraphContext, MemoryUrl, memory_url, memory_url_path, normalize_memory_url
+from basic_memory.schemas.memory import (
+    GraphContext,
+    MemoryUrl,
+    memory_url_path,
+    normalize_memory_url,
+)
 from basic_memory.schemas.base import TimeFrame
-from basic_memory.schemas.search import SearchItemType
 
 
 @mcp.tool(
@@ -84,7 +88,7 @@ async def build_context(
     """,
 )
 async def recent_activity(
-    type: List[Literal["entity", "observation", "relation"]] = None,
+    type: List[Literal["entity", "observation", "relation"]] = [],
     depth: Optional[int] = 1,
     timeframe: Optional[TimeFrame] = "7d",
     max_results: int = 10,
@@ -136,7 +140,7 @@ async def recent_activity(
         "timeframe": timeframe,
         "max_results": max_results,
     }
-    if type: 
+    if type:
         params["type"] = type
 
     response = await call_get(

@@ -1,15 +1,13 @@
 """Tests for search schemas."""
 
 from datetime import datetime
-import pytest
-from pydantic import ValidationError
 
 from basic_memory.schemas.search import (
-    SearchItemType, 
+    SearchItemType,
     SearchQuery,
     SearchResult,
     SearchResponse,
-    AdvancedSearchQuery
+    AdvancedSearchQuery,
 )
 
 
@@ -37,7 +35,7 @@ def test_search_filters():
         text="search",
         types=[SearchItemType.ENTITY],
         entity_types=["component"],
-        after_date=datetime(2024, 1, 1)
+        after_date=datetime(2024, 1, 1),
     )
     assert query.types == [SearchItemType.ENTITY]
     assert query.entity_types == ["component"]
@@ -52,7 +50,7 @@ def test_search_result():
         score=0.8,
         metadata={"entity_type": "component"},
         permalink="specs/search",
-        file_path="specs/search.md"
+        file_path="specs/search.md",
     )
     assert result.id == 1
     assert result.type == SearchItemType.ENTITY
@@ -64,11 +62,13 @@ def test_observation_result():
     """Test observation result fields."""
     result = SearchResult(
         id=1,
+        permalink="specs/search",
+        file_path="specs/search.md",
         type=SearchItemType.OBSERVATION,
         score=0.5,
         metadata={},
         entity_id=123,
-        category="tech"
+        category="tech",
     )
     assert result.entity_id == 123
     assert result.category == "tech"
@@ -78,12 +78,14 @@ def test_relation_result():
     """Test relation result fields."""
     result = SearchResult(
         id=1,
+        permalink="specs/search",
+        file_path="specs/search.md",
         type=SearchItemType.RELATION,
         score=0.5,
         metadata={},
         from_id=123,
         to_id=456,
-        relation_type="depends_on"
+        relation_type="depends_on",
     )
     assert result.from_id == 123
     assert result.to_id == 456
@@ -95,16 +97,20 @@ def test_search_response():
     results = [
         SearchResult(
             id=1,
+            permalink="specs/search",
+            file_path="specs/search.md",
             type=SearchItemType.ENTITY,
             score=0.8,
-            metadata={}
+            metadata={},
         ),
         SearchResult(
             id=2,
+            permalink="specs/search",
+            file_path="specs/search.md",
             type=SearchItemType.ENTITY,
             score=0.6,
-            metadata={}
-        )
+            metadata={},
+        ),
     ]
     response = SearchResponse(results=results)
     assert len(response.results) == 2
@@ -114,8 +120,7 @@ def test_search_response():
 def test_advanced_search():
     """Test advanced search query."""
     query = AdvancedSearchQuery(
-        query="title:search AND content:implementation",
-        types=[SearchItemType.ENTITY]
+        query="title:search AND content:implementation", types=[SearchItemType.ENTITY]
     )
     assert query.query == "title:search AND content:implementation"
     assert query.types == [SearchItemType.ENTITY]

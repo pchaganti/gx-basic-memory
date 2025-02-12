@@ -1,6 +1,5 @@
 """Knowledge graph models."""
 
-import re
 from datetime import datetime
 from typing import Optional
 
@@ -23,8 +22,7 @@ from basic_memory.utils import generate_permalink
 
 
 class Entity(Base):
-    """
-    Core entity in the knowledge graph.
+    """Core entity in the knowledge graph.
 
     Entities represent semantic nodes maintained by the AI layer. Each entity:
     - Has a unique numeric ID (database-generated)
@@ -79,44 +77,15 @@ class Entity(Base):
 
     @property
     def relations(self):
+        """Get all relations (incoming and outgoing) for this entity."""
         return self.incoming_relations + self.outgoing_relations
-
-    @validates("permalink")
-    def validate_permalink(self, key, value):
-        """Validate permalink format.
-
-        Requirements:
-        1. Must be valid URI path component
-        2. Only lowercase letters, numbers, and hyphens (no underscores)
-        3. Path segments separated by forward slashes
-        4. No leading/trailing hyphens in segments
-        """
-        if not value:
-            raise ValueError("Permalink must not be None")
-
-        if not re.match(r"^[a-z0-9][a-z0-9\-/]*[a-z0-9]$", value):
-            raise ValueError(
-                f"Invalid permalink format: {value}. "
-                "Use only lowercase letters, numbers, and hyphens."
-            )
-        return value
 
     def __repr__(self) -> str:
         return f"Entity(id={self.id}, name='{self.title}', type='{self.entity_type}'"
 
 
-class ObservationCategory(str, Enum):
-    TECH = "tech"
-    DESIGN = "design"
-    FEATURE = "feature"
-    NOTE = "note"
-    ISSUE = "issue"
-    TODO = "todo"
-
-
 class Observation(Base):
-    """
-    An observation about an entity.
+    """An observation about an entity.
 
     Observations are atomic facts or notes about an entity.
     """
@@ -130,13 +99,8 @@ class Observation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     entity_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
     content: Mapped[str] = mapped_column(Text)
-    category: Mapped[str] = mapped_column(
-        String,
-        nullable=False,
-        default=ObservationCategory.NOTE.value,
-        server_default=ObservationCategory.NOTE.value,
-    )
-    context: Mapped[str] = mapped_column(Text, nullable=True)
+    category: Mapped[str] = mapped_column(String, nullable=False, default="note")
+    context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tags: Mapped[Optional[list[str]]] = mapped_column(
         JSON, nullable=True, default=list, server_default="[]"
     )
@@ -146,23 +110,21 @@ class Observation(Base):
 
     @property
     def permalink(self) -> str:
-        """
-        Create synthetic permalink for the observation
-            We can construct these because observations are always
-            defined in and owned by a single entity
+        """Create synthetic permalink for the observation.
+
+        We can construct these because observations are always defined in
+        and owned by a single entity.
         """
         return generate_permalink(
             f"{self.entity.permalink}/observations/{self.category}/{self.content}"
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return f"Observation(id={self.id}, entity_id={self.entity_id}, content='{self.content}')"
 
 
 class Relation(Base):
-    """
-    A directed relation between two entities.
-    """
+    """A directed relation between two entities."""
 
     __tablename__ = "relation"
     __table_args__ = (
@@ -174,12 +136,12 @@ class Relation(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     from_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
-    to_id: Mapped[int] = mapped_column(
+    to_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("entity.id", ondelete="CASCADE"), nullable=True
     )
     to_name: Mapped[str] = mapped_column(String)
     relation_type: Mapped[str] = mapped_column(String)
-    context: Mapped[str] = mapped_column(Text, nullable=True)
+    context: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relationships
     from_entity = relationship(
@@ -189,15 +151,17 @@ class Relation(Base):
 
     @property
     def permalink(self) -> str:
-        """Create relation permalink showing the semantic connection:
-        source/relation_type/target
-        e.g., "specs/search/implements/features/search-ui"
-        """
+        """Create relation permalink showing the semantic connection.
 
+        Format: source/relation_type/target
+        Example: "specs/search/implements/features/search-ui"
+        """
+        if self.to_entity:
+            return generate_permalink(
+                f"{self.from_entity.permalink}/{self.relation_type}/{self.to_entity.permalink}"
+            )
         return generate_permalink(
-            f"{self.from_entity.permalink}/{self.relation_type}/{self.to_entity.permalink}"
-            if self.to_entity
-            else f"{self.from_entity.permalink}/{self.relation_type}/{self.to_name}"
+            f"{self.from_entity.permalink}/{self.relation_type}/{self.to_name}"
         )
 
     def __repr__(self) -> str:

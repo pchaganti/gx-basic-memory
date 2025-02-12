@@ -5,9 +5,10 @@ from typing import Optional, Tuple, List
 from loguru import logger
 
 from basic_memory.repository.entity_repository import EntityRepository
+from basic_memory.repository.search_repository import SearchIndexRow
 from basic_memory.services.search_service import SearchService
 from basic_memory.models import Entity
-from basic_memory.schemas.search import SearchQuery, SearchResult, SearchItemType
+from basic_memory.schemas.search import SearchQuery, SearchItemType
 
 
 class LinkResolver:
@@ -45,18 +46,19 @@ class LinkResolver:
             return entity
 
         if use_search:
-            
             # 3. Fall back to search for fuzzy matching on title if specified
             results = await self.search_service.search(
                 query=SearchQuery(title=clean_text, types=[SearchItemType.ENTITY]),
             )
-    
+
             if results:
                 # Look for best match
                 best_match = self._select_best_match(clean_text, results)
-                logger.debug(f"Selected best match from {len(results)} results: {best_match.permalink}")
+                logger.debug(
+                    f"Selected best match from {len(results)} results: {best_match.permalink}"
+                )
                 return await self.entity_repository.get_by_permalink(best_match.permalink)
-    
+
             # if we couldn't find anything then return None
         return None
 
@@ -85,7 +87,7 @@ class LinkResolver:
 
         return text, alias
 
-    def _select_best_match(self, search_text: str, results: List[SearchResult]) -> Entity:
+    def _select_best_match(self, search_text: str, results: List[SearchIndexRow]) -> Entity:
         """Select best match from search results.
 
         Uses multiple criteria:
@@ -93,9 +95,6 @@ class LinkResolver:
         2. Word matches in path
         3. Overall search score
         """
-        if not results:
-            raise ValueError("Cannot select from empty results")
-
         # Get search terms for matching
         terms = search_text.lower().split()
 
@@ -104,6 +103,7 @@ class LinkResolver:
         for result in results:
             # Start with base score (lower is better)
             score = result.score
+            assert score is not None
 
             # Parse path components
             path_parts = result.permalink.lower().split("/")

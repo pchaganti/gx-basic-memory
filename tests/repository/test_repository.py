@@ -1,6 +1,6 @@
 """Test repository implementation."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
@@ -9,7 +9,7 @@ from basic_memory.models import Base
 from basic_memory.repository.repository import Repository
 
 
-class TestModel(Base):
+class ModelTest(Base):
     """Test model for repository tests."""
 
     __tablename__ = "test_model"
@@ -19,23 +19,21 @@ class TestModel(Base):
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, 
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
 
 @pytest.fixture
 def repository(session_maker):
     """Create a test repository."""
-    return Repository(session_maker, TestModel)
+    return Repository(session_maker, ModelTest)
 
 
 @pytest.mark.asyncio
 async def test_add(repository):
     """Test bulk creation of entities."""
     # Create test instances
-    instance = TestModel(id="test_add", name="Test Add")
+    instance = ModelTest(id="test_add", name="Test Add")
     await repository.add(instance)
 
     # Verify we can find in db
@@ -48,7 +46,7 @@ async def test_add(repository):
 async def test_add_all(repository):
     """Test bulk creation of entities."""
     # Create test instances
-    instances = [TestModel(id=f"test_{i}", name=f"Test {i}") for i in range(3)]
+    instances = [ModelTest(id=f"test_{i}", name=f"Test {i}") for i in range(3)]
     await repository.add_all(instances)
 
     # Verify we can find them in db
@@ -61,7 +59,7 @@ async def test_add_all(repository):
 async def test_bulk_create(repository):
     """Test bulk creation of entities."""
     # Create test instances
-    instances = [TestModel(id=f"test_{i}", name=f"Test {i}") for i in range(3)]
+    instances = [ModelTest(id=f"test_{i}", name=f"Test {i}") for i in range(3)]
 
     # Bulk create
     await repository.create_all([instance.__dict__ for instance in instances])
@@ -73,10 +71,21 @@ async def test_bulk_create(repository):
 
 
 @pytest.mark.asyncio
+async def test_find_all(repository):
+    """Test finding multiple entities by IDs."""
+    # Create test data
+    instances = [ModelTest(id=f"test_{i}", name=f"Test {i}") for i in range(5)]
+    await repository.create_all([instance.__dict__ for instance in instances])
+
+    found = await repository.find_all(limit=3)
+    assert len(found) == 3
+
+
+@pytest.mark.asyncio
 async def test_find_by_ids(repository):
     """Test finding multiple entities by IDs."""
     # Create test data
-    instances = [TestModel(id=f"test_{i}", name=f"Test {i}") for i in range(5)]
+    instances = [ModelTest(id=f"test_{i}", name=f"Test {i}") for i in range(5)]
     await repository.create_all([instance.__dict__ for instance in instances])
 
     # Test finding subset of entities
@@ -104,7 +113,7 @@ async def test_find_by_ids(repository):
 async def test_delete_by_ids(repository):
     """Test finding multiple entities by IDs."""
     # Create test data
-    instances = [TestModel(id=f"test_{i}", name=f"Test {i}") for i in range(5)]
+    instances = [ModelTest(id=f"test_{i}", name=f"Test {i}") for i in range(5)]
     await repository.create_all([instance.__dict__ for instance in instances])
 
     # Test delete subset of entities
@@ -127,10 +136,10 @@ async def test_delete_by_ids(repository):
 async def test_update(repository):
     """Test finding entities modified since a timestamp."""
     # Create initial test data
-    instance = TestModel(id="test_add", name="Test Add")
+    instance = ModelTest(id="test_add", name="Test Add")
     await repository.add(instance)
 
-    instance = TestModel(id="test_add", name="Updated")
+    instance = ModelTest(id="test_add", name="Updated")
 
     # Find recently modified
     modified = await repository.update(instance.id, {"name": "Updated"})
@@ -142,7 +151,7 @@ async def test_update(repository):
 async def test_update_model(repository):
     """Test finding entities modified since a timestamp."""
     # Create initial test data
-    instance = TestModel(id="test_add", name="Test Add")
+    instance = ModelTest(id="test_add", name="Test Add")
     await repository.add(instance)
 
     instance.name = "Updated"
@@ -154,40 +163,23 @@ async def test_update_model(repository):
 
 
 @pytest.mark.asyncio
-async def test_find_modified_since(repository):
+async def test_update_model_not_found(repository):
     """Test finding entities modified since a timestamp."""
     # Create initial test data
-    now = datetime.utcnow()
-    base_instances = [
-        TestModel(
-            id=f"test_{i}", 
-            name=f"Test {i}",
-        ) for i in range(5)
-    ]
-    await repository.create_all([instance.__dict__ for instance in base_instances])
+    instance = ModelTest(id="test_add", name="Test Add")
+    await repository.add(instance)
 
-    # Update some instances to have recent changes
-    cutoff_time = now - timedelta(hours=1)
-    recent_updates = ["test_1", "test_3"]
-    
-    for id in recent_updates:
-        await repository.update(id, {"name": f"Updated {id}"})
-
-    # Find recently modified
-    modified = await repository.find_modified_since(cutoff_time)
-    assert len(modified) == 5
+    modified = await repository.update(0, {})
+    assert modified is None
 
 
 @pytest.mark.asyncio
-async def test_find_modified_since_invalid_model():
-    """Test finding modified entities on model without updated_at."""
-    class InvalidModel(Base):
-        __tablename__ = "invalid_model"
-        id: Mapped[str] = mapped_column(String(255), primary_key=True)
-        name: Mapped[str] = mapped_column(String(255))
+async def test_count(repository):
+    """Test bulk creation of entities."""
+    # Create test instances
+    instance = ModelTest(id="test_add", name="Test Add")
+    await repository.add(instance)
 
-    repository = Repository(None, InvalidModel)  # type: ignore
-    
-    with pytest.raises(AttributeError) as exc:
-        await repository.find_modified_since(datetime.utcnow())
-    assert "does not have updated_at column" in str(exc.value)
+    # Verify we can count in db
+    count = await repository.count()
+    assert count == 1
