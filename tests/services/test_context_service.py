@@ -127,6 +127,7 @@ async def test_build_context(context_service, test_graph):
     assert len(related_results) == 2
     assert total_results == len(primary_results) + len(related_results)
 
+
 @pytest.mark.skip("search prefix see:'https://sqlite.org/fts5.html#FTS5 Prefix Queries'")
 @pytest.mark.asyncio
 async def test_build_context_pattern(context_service, test_graph):

@@ -1,6 +1,5 @@
 """Tests for link resolution service."""
 
-
 import pytest
 
 import pytest_asyncio

@@ -1,4 +1,5 @@
 """Basic Memory menubar app - process manager for sync service."""
+
 import os
 import sys
 import subprocess
@@ -11,6 +12,7 @@ from basic_memory.config import config
 
 class StatusWindow(QMainWindow):
     """Window to show sync process output."""
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Basic Memory Status")
@@ -42,35 +44,37 @@ class StatusWindow(QMainWindow):
 
     def update_output(self):
         """Read and display new output from process."""
-        if hasattr(self, 'process') and self.process:
+        if hasattr(self, "process") and self.process:
             while True:
                 line = self.process.stdout.readline()
                 if not line:
                     break
                 self.text_display.append(line.strip())
 
+
 class BasicMemoryTray(QSystemTrayIcon):
     """System tray icon for managing Basic Memory sync."""
+
     def __init__(self):
         super().__init__()
-        
+
         # Set icon
         self.setIcon(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
-        
+
         # Create menu
         menu = QMenu()
         self.status_item = menu.addAction("Status: Idle")
         self.status_item.setEnabled(False)
-        
+
         menu.addSeparator()
         self.sync_action = menu.addAction("Start Sync")
         self.sync_action.triggered.connect(self.toggle_sync)
-        
+
         menu.addAction("Show Status").triggered.connect(self.show_status)
 
         menu.addSeparator()
         menu.addAction("Quit").triggered.connect(self.cleanup_and_quit)
-        
+
         self.setContextMenu(menu)
         self.show()
 
@@ -106,11 +110,16 @@ class BasicMemoryTray(QSystemTrayIcon):
         logger.info("Starting sync process")
         try:
             self.process = subprocess.Popen(
-                ['uvx', ' --directory', '/Users/phernandez/dev/basicmachines/basic-memory', 'basic-memory', 'sync', '--watch'],
+                [
+                    "uvx",
+                    "basic-memory",
+                    "sync",
+                    "--watch",
+                ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=1  # Line buffered
+                bufsize=1,  # Line buffered
             )
             self.sync_action.setText("Stop Sync")
             if self.status_window:
@@ -151,11 +160,12 @@ class BasicMemoryTray(QSystemTrayIcon):
         self.stop_sync()
         QApplication.instance().quit()
 
+
 def ensure_single_instance():
     """Ensure only one instance of the menubar app is running."""
     pid_file = config.home / ".basic-memory" / "menubar.pid"
     pid_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     if pid_file.exists():
         try:
             pid = int(pid_file.read_text())
@@ -172,6 +182,7 @@ def ensure_single_instance():
     logger.debug(f"PID {pid} written to file {pid_file}")
     return pid_file
 
+
 def main():
     """Run the menubar app."""
     # Ensure single instance
@@ -179,11 +190,12 @@ def main():
 
     try:
         app = QApplication(sys.argv)
-        tray = BasicMemoryTray()
+        BasicMemoryTray()
         app.exec()
     finally:
         # Clean up PID file
         pid_file.unlink(missing_ok=True)
+
 
 if __name__ == "__main__":
     main()

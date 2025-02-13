@@ -9,9 +9,6 @@ from typing import List, Dict
 import typer
 from loguru import logger
 from rich.console import Console
-from rich.padding import Padding
-from rich.panel import Panel
-from rich.text import Text
 from rich.tree import Tree
 
 from basic_memory import db
@@ -95,9 +92,6 @@ def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[V
         dir_name = Path(issue.file_path).parent.name
         grouped[dir_name].append(issue)
     return dict(grouped)
-
-
-
 
 
 def display_sync_summary(knowledge: SyncReport):

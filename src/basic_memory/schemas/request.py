@@ -1,6 +1,6 @@
 """Request schemas for interacting with the knowledge graph."""
 
-from typing import List, Optional, Annotated, Dict, Any
+from typing import List, Optional, Annotated
 from annotated_types import MaxLen, MinLen
 
 from pydantic import BaseModel
@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from basic_memory.schemas.base import (
     Relation,
     Permalink,
-    EntityType,
 )
 
 
@@ -57,4 +56,3 @@ class GetEntitiesRequest(BaseModel):
 
 class CreateRelationsRequest(BaseModel):
     relations: List[Relation]
-

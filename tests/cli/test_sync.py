@@ -35,7 +35,6 @@ def test_group_issues_by_directory():
     assert grouped["dir2"][0].error == "error3"
 
 
-
 def test_display_sync_summary_no_changes():
     """Test displaying sync summary with no changes."""
     changes = SyncReport(set(), set(), set(), {}, {})

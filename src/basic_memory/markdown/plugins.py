@@ -195,7 +195,6 @@ def relation_plugin(md: MarkdownIt) -> None:
         for idx in range(len(tokens)):
             token = tokens[idx]
 
-
             # Track list nesting
             if token.type == "list_item_open":
                 in_list_item = True

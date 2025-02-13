@@ -86,7 +86,7 @@ async def test_write_status(watch_service):
 
     assert watch_service.status_path.exists()
     data = json.loads(watch_service.status_path.read_text())
-    assert not data["running"] 
+    assert not data["running"]
     assert data["error_count"] == 0
 
 
