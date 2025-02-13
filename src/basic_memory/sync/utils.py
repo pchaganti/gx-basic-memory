@@ -6,20 +6,6 @@ from typing import Set, Dict, Optional
 from watchfiles import Change
 
 
-@dataclass
-class FileChange:
-    """A change to a file detected by the watch service.
-
-    Attributes:
-        change_type: Type of change (added, modified, deleted)
-        path: Path to the file
-        checksum: File checksum (None for deleted files)
-    """
-
-    change_type: Change
-    path: str
-    checksum: Optional[str] = None
-
 
 @dataclass
 class SyncReport:
