@@ -11,10 +11,19 @@ def ensure_uv_installed():
         print("Installing uv package manager...")
         subprocess.run(['curl', '-LsSf', 'https://github.com/astral-sh/uv/releases/download/0.1.23/uv-installer.sh', '|', 'sh'], shell=True)
 
+def get_config_path():
+"""Get Claude Desktop config path for current platform."""
+if sys.platform == "darwin":
+return Path.home() / 'Library/Application Support/Claude/claude_desktop_config.json'
+elif sys.platform == "win32":
+return Path.home() / 'AppData/Roaming/Claude/claude_desktop_config.json'
+else:
+raise RuntimeError(f"Unsupported platform: {sys.platform}")
+
 def update_claude_config():
-    """Update Claude Desktop config to include basic-memory."""
-    config_path = Path.home() / 'Library/Application Support/Claude/claude_desktop_config.json'
-    config_path.parent.mkdir(parents=True, exist_ok=True)
+"""Update Claude Desktop config to include basic-memory."""
+config_path = get_config_path()
+config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Load existing config or create new
     if config_path.exists():

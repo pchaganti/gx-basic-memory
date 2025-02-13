@@ -1,4 +1,4 @@
-.PHONY: install test lint clean format type-check installer
+.PHONY: install test lint clean format type-check installer-mac installer-win
 
 install:
 	pip install -e ".[dev]"
@@ -21,7 +21,7 @@ clean:
 	rm -rf dist
 	rm -rf installer/build
 	rm -rf installer/dist
-	rm .coverage.*
+	rm -f .coverage.*
 
 format:
 	uv run ruff format .
@@ -31,8 +31,12 @@ run-dev:
 	uv run mcp dev src/basic_memory/mcp/main.py
 
 # Build app installer
-installer:
+installer-mac:
 	cd installer && uv run python setup.py bdist_mac
+
+installer-win:
+	cd installer && uv run python setup.py bdist_win32
+
 
 update-deps:
 	uv lock f--upgrade
