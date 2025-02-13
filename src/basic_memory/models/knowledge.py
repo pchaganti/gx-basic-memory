@@ -13,10 +13,9 @@ from sqlalchemy import (
     Index,
     JSON,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from basic_memory.models.base import Base
-from enum import Enum
 
 from basic_memory.utils import generate_permalink
 

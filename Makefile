@@ -7,8 +7,7 @@ test:
 	pytest -p pytest_mock -v
 
 lint:
-	black .
-	ruff check .
+	ruff check . --fix
 
 type-check:
 	uv run pyright
@@ -16,6 +15,7 @@ type-check:
 clean:
 	find . -type f -name '*.pyc' -delete
 	find . -type d -name '__pycache__' -exec rm -r {} +
+	rm -rf dist
 
 format:
 	uv run ruff format .

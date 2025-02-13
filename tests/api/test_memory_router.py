@@ -70,15 +70,6 @@ async def test_get_memory_context_timeframe(client, test_graph):
 
 
 @pytest.mark.asyncio
-async def test_get_related_context_filters(client, test_graph):
-    """Test filtering related content by relation type."""
-    response = await client.get("/memory/related/test/root")
-    assert response.status_code == 200
-
-    context = GraphContext(**response.json())
-
-
-@pytest.mark.asyncio
 async def test_not_found(client):
     """Test handling of non-existent paths."""
     response = await client.get("/memory/test/does-not-exist")

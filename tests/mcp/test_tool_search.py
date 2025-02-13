@@ -1,7 +1,7 @@
 """Tests for search MCP tools."""
 
 import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 
 from basic_memory.mcp.tools import notes
 from basic_memory.mcp.tools.search import search

@@ -1,6 +1,6 @@
 """Base service class."""
 
-from typing import TypeVar, Generic, List, Sequence
+from typing import TypeVar, Generic
 
 from basic_memory.models import Base
 

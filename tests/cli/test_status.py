@@ -1,7 +1,5 @@
 """Tests for CLI status command."""
 
-import os
-from pathlib import Path
 import pytest
 import pytest_asyncio
 from typer.testing import CliRunner
@@ -13,7 +11,6 @@ from basic_memory.cli.commands.status import (
     group_changes_by_directory,
     run_status,
     display_changes,
-    get_file_change_scanner,
 )
 from basic_memory.sync.utils import SyncReport
 from basic_memory.sync import FileChangeScanner

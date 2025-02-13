@@ -236,7 +236,6 @@ More content here"""
 @pytest.mark.asyncio
 async def test_update_frontmatter_errors(tmp_path: Path):
     """Test error handling in update_frontmatter."""
-    test_file = tmp_path / "test.md"
 
     # Test 1: Invalid file path
     nonexistent = tmp_path / "nonexistent" / "test.md"

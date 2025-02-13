@@ -211,7 +211,7 @@ async def test_create_entity_with_special_chars(entity_service: EntityService):
     assert entity.title == name
 
     # Verify after retrieval using permalink
-    retrieved = await entity_service.get_by_permalink(entity_data.permalink)
+    await entity_service.get_by_permalink(entity_data.permalink)
 
 
 @pytest.mark.asyncio

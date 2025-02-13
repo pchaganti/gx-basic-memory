@@ -1,7 +1,6 @@
 """Tests for MemoryUrl parsing."""
 
-import pytest
-from basic_memory.schemas.memory import MemoryUrl, memory_url, memory_url_path
+from basic_memory.schemas.memory import memory_url, memory_url_path
 
 
 def test_basic_permalink():

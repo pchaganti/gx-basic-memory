@@ -2,12 +2,9 @@
 
 from pathlib import Path
 from unittest.mock import patch
-from textwrap import dedent
 
 import pytest
 
-from basic_memory.models import Entity, Relation, Observation
-from basic_memory.repository import RelationRepository, EntityRepository, ObservationRepository
 from basic_memory.services.exceptions import FileOperationError
 from basic_memory.services.file_service import FileService
 

@@ -8,7 +8,6 @@ from basic_memory.markdown.plugins import (
     observation_plugin,
     relation_plugin,
     is_observation,
-    parse_observation,
     is_explicit_relation,
     parse_relation,
     parse_inline_relations,

@@ -785,14 +785,14 @@ tags: []
 test content
 """
     new_file = project_dir / "new.md"
-    await create_test_file(new_file)
+    await create_test_file(new_file, new_content)
 
     # Run another time
     await sync_service.sync(test_config.home)
 
-    # Should still have same permalink
+    # Should have deduplicated permalink
     new_file_content, _ = await file_service.read_file(new_file)
-    assert "permalink: new" in new_file_content
+    assert "permalink: one-1" in new_file_content
 
 
 @pytest.mark.asyncio

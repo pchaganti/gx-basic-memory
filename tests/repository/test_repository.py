@@ -1,6 +1,6 @@
 """Test repository implementation."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import pytest
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column

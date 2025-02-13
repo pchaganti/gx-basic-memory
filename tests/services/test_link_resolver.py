@@ -1,14 +1,11 @@
 """Tests for link resolution service."""
 
-from textwrap import dedent
 
 import pytest
-from datetime import datetime, timezone
 
 import pytest_asyncio
 
 from basic_memory.schemas.base import Entity as EntitySchema
-from basic_memory.models.knowledge import Entity
 from basic_memory.services.link_resolver import LinkResolver
 
 

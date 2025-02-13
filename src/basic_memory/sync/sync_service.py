@@ -156,7 +156,7 @@ class SyncService:
                             "to_name": target_entity.title,  # Update to actual title
                         },
                     )
-                except IntegrityError as e:
+                except IntegrityError:
                     logger.info(f"Ignoring duplicate relation {relation}")
 
                 # update search index

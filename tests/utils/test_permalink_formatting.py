@@ -44,7 +44,7 @@ async def test_permalink_formatting(
 
     # Create test files
     for filename, _ in test_cases:
-        content = f"""
+        content = """
 ---
 type: knowledge
 created: 2024-01-01

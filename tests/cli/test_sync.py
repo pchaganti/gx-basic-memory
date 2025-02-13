@@ -1,9 +1,7 @@
 """Tests for CLI sync command."""
 
 import asyncio
-from pathlib import Path
 import pytest
-import pytest_asyncio
 from typer.testing import CliRunner
 
 from basic_memory.cli.app import app
@@ -14,10 +12,8 @@ from basic_memory.cli.commands.sync import (
     run_sync,
     group_issues_by_directory,
     ValidationIssue,
-    get_sync_service,
 )
 from basic_memory.config import config
-from basic_memory.db import DatabaseType
 from basic_memory.sync.utils import SyncReport
 
 # Set up CLI runner

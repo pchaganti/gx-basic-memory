@@ -1,7 +1,6 @@
 """Tests for import_memory_json command."""
 
 import json
-from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 

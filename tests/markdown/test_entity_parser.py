@@ -1,14 +1,13 @@
 """Tests for entity markdown parsing."""
 
-import os
-from datetime import datetime, timedelta, UTC
+from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
 
 from basic_memory.markdown.schemas import EntityMarkdown, EntityFrontmatter, Relation
-from basic_memory.markdown.entity_parser import parse, parse_tags, EntityParser
+from basic_memory.markdown.entity_parser import parse
 
 
 @pytest.fixture

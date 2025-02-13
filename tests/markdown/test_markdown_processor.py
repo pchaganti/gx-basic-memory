@@ -38,7 +38,7 @@ async def test_write_new_minimal_file(markdown_processor: MarkdownProcessor, tmp
     )
 
     # Write file
-    checksum = await markdown_processor.write_file(path, markdown)
+    await markdown_processor.write_file(path, markdown)
 
     # Read back and verify
     content = path.read_text()
@@ -87,7 +87,7 @@ async def test_write_new_file_with_content(markdown_processor: MarkdownProcessor
     )
 
     # Write file
-    checksum = await markdown_processor.write_file(path, markdown)
+    await markdown_processor.write_file(path, markdown)
 
     # Read back and verify
     content = path.read_text()
@@ -135,7 +135,7 @@ async def test_update_preserves_content(markdown_processor: MarkdownProcessor, t
     )
 
     # Update file
-    new_checksum = await markdown_processor.write_file(path, updated, expected_checksum=checksum)
+    await markdown_processor.write_file(path, updated, expected_checksum=checksum)
 
     # Read back and verify
     result = await markdown_processor.read_file(path)

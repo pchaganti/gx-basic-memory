@@ -1,15 +1,12 @@
 """Tests for watch service."""
 
 import json
-from datetime import datetime
-from pathlib import Path
 import pytest
 from watchfiles import Change
 
-from basic_memory.config import ProjectConfig
 from basic_memory.services.file_service import FileService
 from basic_memory.sync.sync_service import SyncService
-from basic_memory.sync.watch_service import WatchService, WatchServiceState, WatchEvent
+from basic_memory.sync.watch_service import WatchService, WatchServiceState
 from basic_memory.sync.utils import SyncReport
 
 
@@ -89,7 +86,7 @@ async def test_write_status(watch_service):
 
     assert watch_service.status_path.exists()
     data = json.loads(watch_service.status_path.read_text())
-    assert data["running"] == False
+    assert not data["running"] 
     assert data["error_count"] == 0
 
 

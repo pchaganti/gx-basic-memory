@@ -160,23 +160,9 @@ def observation_plugin(md: MarkdownIt) -> None:
     def observation_rule(state: Any) -> None:
         """Process observations in token stream."""
         tokens = state.tokens
-        current_section = None
-        in_list_item = False
 
         for idx in range(len(tokens)):
             token = tokens[idx]
-
-            # Track current section by headings
-            if token.type == "heading_open":
-                next_token = tokens[idx + 1] if idx + 1 < len(tokens) else None
-                if next_token and next_token.type == "inline":
-                    current_section = next_token.content.lower()
-
-            # Track list nesting
-            elif token.type == "list_item_open":
-                in_list_item = True
-            elif token.type == "list_item_close":
-                in_list_item = False
 
             # Initialize meta for all tokens
             token.meta = token.meta or {}
@@ -204,20 +190,14 @@ def relation_plugin(md: MarkdownIt) -> None:
     def relation_rule(state: Any) -> None:
         """Process relations in token stream."""
         tokens = state.tokens
-        current_section = None
         in_list_item = False
 
         for idx in range(len(tokens)):
             token = tokens[idx]
 
-            # Track current section by headings
-            if token.type == "heading_open":
-                next_token = tokens[idx + 1] if idx + 1 < len(tokens) else None
-                if next_token and next_token.type == "inline":
-                    current_section = next_token.content.lower()
 
             # Track list nesting
-            elif token.type == "list_item_open":
+            if token.type == "list_item_open":
                 in_list_item = True
             elif token.type == "list_item_close":
                 in_list_item = False

@@ -44,13 +44,15 @@ async def test_search_with_type_filter(client, indexed_entity):
     )
     assert response.status_code == 200
     search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) > 0
 
-    # Should not find with wrong type
+    # Should find with relation type
     response = await client.post(
         "/search/", json={"text": "test", "types": [SearchItemType.RELATION.value]}
     )
     assert response.status_code == 200
     search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) == 2
 
 
 @pytest.mark.asyncio
