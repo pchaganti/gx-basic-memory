@@ -14,7 +14,7 @@ def ensure_uv_installed():
             [
                 "curl",
                 "-LsSf",
-                "https://github.com/astral-sh/uv/releases/download/0.1.23/uv-installer.sh",
+                "https://astral.sh/uv/install.sh",
                 "|",
                 "sh",
             ],
