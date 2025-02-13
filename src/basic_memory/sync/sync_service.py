@@ -157,7 +157,7 @@ class SyncService:
                         },
                     )
                 except IntegrityError:
-                    logger.info(f"Ignoring duplicate relation {relation}")
+                    logger.debug(f"Ignoring duplicate relation {relation}")
 
                 # update search index
                 await self.search_service.index_entity(target_entity)
