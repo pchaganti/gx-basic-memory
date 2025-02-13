@@ -58,15 +58,3 @@ class GetEntitiesRequest(BaseModel):
 class CreateRelationsRequest(BaseModel):
     relations: List[Relation]
 
-
-## update
-
-
-# TODO remove UpdateEntityRequest
-class UpdateEntityRequest(BaseModel):
-    """Request to update an existing entity."""
-
-    title: Optional[str] = None
-    entity_type: Optional[EntityType] = None
-    content: Optional[str] = None
-    entity_metadata: Optional[Dict[str, Any]] = None

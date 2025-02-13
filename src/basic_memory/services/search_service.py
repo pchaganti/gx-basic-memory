@@ -149,7 +149,6 @@ class SearchService:
         title_variants = self._generate_variants(entity.title)
         content_parts.extend(title_variants)
 
-        # TODO should we do something to content on indexing?
         content = await self.file_service.read_entity_content(entity)
         if content:
             content_parts.append(content)

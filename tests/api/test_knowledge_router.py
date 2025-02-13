@@ -77,8 +77,6 @@ async def test_create_entity_observations_relations(client: AsyncClient, file_se
     assert entity.relations[0].from_id == "test/test-entity"
     assert entity.relations[0].to_id is None
 
-    # TODO Relation.to_id should be name from link
-
     # Verify file has new content but preserved metadata
     file_path = file_service.get_entity_path(entity)
     file_content, _ = await file_service.read_file(file_path)

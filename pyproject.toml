@@ -28,7 +28,10 @@ dependencies = [
     "watchfiles>=1.0.4",
     "fastapi[standard]>=0.115.8",
     "alembic>=1.14.1",
+    "rumps>=0.4.0",
+    "qasync>=0.27.1",
 ]
+
 
 [project.urls]
 Homepage = "https://github.com/basicmachines-co/basic-memory"
@@ -62,8 +65,14 @@ dev-dependencies = [
     "pytest-mock>=3.12.0",
     "pytest-asyncio>=0.24.0",
     "ruff>=0.1.6",
+    "pytest>=8.3.4",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.1.6",
+    "cx-freeze>=7.2.10",
+    "pyqt6>=6.8.1",
 ]
-
 
 [tool.pyright]
 include = ["src/"]

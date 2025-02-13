@@ -6,7 +6,6 @@ from typer.testing import CliRunner
 
 from basic_memory.cli.app import app
 from basic_memory.cli.commands.sync import (
-    display_validation_errors,
     display_sync_summary,
     display_detailed_sync_results,
     run_sync,
@@ -35,17 +34,6 @@ def test_group_issues_by_directory():
     assert grouped["dir1"][0].error == "error1"
     assert grouped["dir2"][0].error == "error3"
 
-
-def test_display_validation_errors():
-    """Test displaying validation errors."""
-    issues = [
-        ValidationIssue("dir1/file1.md", "Missing title"),
-        ValidationIssue("dir1/file2.md", "Invalid date"),
-        ValidationIssue("dir2/file3.md", "Missing tags"),
-    ]
-
-    # Just verify it runs without error
-    display_validation_errors(issues)
 
 
 def test_display_sync_summary_no_changes():

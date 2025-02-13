@@ -24,7 +24,6 @@ from basic_memory.schemas.request import (
     SearchNodesRequest,
     GetEntitiesRequest,
     CreateRelationsRequest,
-    UpdateEntityRequest,
 )
 
 # Response models
@@ -57,7 +56,6 @@ __all__ = [
     "SearchNodesRequest",
     "GetEntitiesRequest",
     "CreateRelationsRequest",
-    "UpdateEntityRequest",
     # Responses
     "SQLAlchemyModel",
     "ObservationResponse",
