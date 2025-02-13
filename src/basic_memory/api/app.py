@@ -7,37 +7,40 @@ from fastapi.exception_handlers import http_exception_handler
 from loguru import logger
 
 from basic_memory import db
+from basic_memory.config import config as app_config
 from basic_memory.api.routers import knowledge, search, memory, resource
-from basic_memory.config import config
-from basic_memory.services import DatabaseService
+from alembic import command
+from alembic.config import Config
+
+from basic_memory.db import DatabaseType
+from basic_memory.repository.search_repository import SearchRepository
+
+
+async def run_migrations():  # pragma: no cover
+    """Run any pending alembic migrations."""
+    logger.info("Running database migrations...")
+    try:
+        config = Config("alembic.ini")
+        command.upgrade(config, "head")
+        logger.info("Migrations completed successfully")
+
+        _, session_maker = await db.get_or_create_db(
+            app_config.database_path, DatabaseType.FILESYSTEM
+        )
+        await SearchRepository(session_maker).init_search_index()
+    except Exception as e:
+        logger.error(f"Error running migrations: {e}")
+        raise
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # pragma: no cover
     """Lifecycle manager for the FastAPI app."""
     logger.info("Starting Basic Memory API")
-
-    # check the db state
-    await check_db(app)
+    await run_migrations()
     yield
     logger.info("Shutting down Basic Memory API")
     await db.shutdown_db()
-
-
-async def check_db(app: FastAPI):  # pragma: no cover
-    logger.info("Checking database state")
-
-    # Initialize DB management service
-    db_service = DatabaseService(
-        config=config,
-    )
-
-    # Check and initialize DB if needed
-    if not await db_service.check_db():
-        raise RuntimeError("Database initialization failed")
-
-    # Clean up old backups on shutdown
-    await db_service.cleanup_backups()
 
 
 # Initialize FastAPI app
