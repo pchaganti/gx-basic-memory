@@ -103,6 +103,7 @@ jobs:
           echo "Build structure:"
           ls -la installer/build/Basic\ Memory\ Installer.app/Contents/MacOS/
 
+
       #      - name: Zip macOS installer
       #        run: |
       #          cd installer/build
