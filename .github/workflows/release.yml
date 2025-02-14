@@ -85,7 +85,7 @@ jobs:
           cd installer
           uv run python setup.py bdist_mac
           # Remove quarantine attribute
-          xattr -dr com.apple.quarantine "dist/Basic Memory Installer.app"
+          xattr -dr com.apple.quarantine "build/Basic Memory Installer.app"
 
       - name: Zip macOS installer
         run: |
