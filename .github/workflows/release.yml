@@ -64,11 +64,8 @@ jobs:
 
       - name: Install uv
         run: |
-          pip install uv
-
-      - name: Create virtual env
-        run: |
-          uv venv
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Install librsvg
         run: brew install librsvg
@@ -84,6 +81,8 @@ jobs:
           uv pip install -e ".[dev]"
           cd installer
           uv run python setup.py bdist_mac
+          # Remove quarantine attribute
+          xattr -dr com.apple.quarantine "dist/Basic Memory Installer.app"
 
       - name: Zip macOS installer
         run: |
