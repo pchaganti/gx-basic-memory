@@ -101,7 +101,7 @@ jobs:
       - name: Inspect build
         run: |
           echo "Build structure:"
-          ls -R installer/build/Basic\ Memory\ Installer.app
+          ls -la installer/build/Basic\ Memory\ Installer.app/Contents/MacOS/
 
       - name: Zip macOS installer
         run: |
