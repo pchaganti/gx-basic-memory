@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.12 (2025-02-14)
+
+### Bug Fixes
+
+- Fix cx_freeze options for installer
+  ([`854cf83`](https://github.com/basicmachines-co/basic-memory/commit/854cf8302e2f83578030db05e29b8bdc4348795a))
+
+
 ## v0.2.11 (2025-02-14)
 
 ### Bug Fixes
