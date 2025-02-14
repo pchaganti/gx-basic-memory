@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.1 (2025-02-14)
+
+### Bug Fixes
+
+- Trigger installer build on release
+  ([`f11bf78`](https://github.com/basicmachines-co/basic-memory/commit/f11bf78f3f600d0e1b01996cf8e1f9c39e3dd218))
+
+
 ## v0.2.0 (2025-02-14)
 
 ### Features
