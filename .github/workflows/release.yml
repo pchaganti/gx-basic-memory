@@ -64,8 +64,11 @@ jobs:
 
       - name: Install uv
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          pip install uv
+
+      - name: Create virtual env
+        run: |
+          uv venv
 
       - name: Install librsvg
         run: brew install librsvg
