@@ -49,18 +49,21 @@ jobs:
           tag: ${{ steps.release.outputs.tag }}
 
   build-macos:
-    needs: release
-    if: needs.release.outputs.released == 'true'
+    #needs: release
+    #if: needs.release.outputs.released == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.release.outputs.tag }}
+        #with:
+        #  ref: ${{ needs.release.outputs.tag }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Install librsvg
+        run: brew install librsvg
 
       - name: Install uv
         run: |
@@ -73,15 +76,6 @@ jobs:
       - name: Install dependencies
         run: |
           uv pip install -e .[dev]
-
-      - name: Install librsvg
-        run: brew install librsvg
-
-      - name: Create icon
-        run: |
-          cd installer
-          chmod +x make_icons.sh
-          ./make_icons.sh
 
       - name: Build macOS installer
         run: |

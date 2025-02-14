@@ -32,6 +32,7 @@ run-dev:
 
 # Build app installer
 installer-mac:
+	cd installer && chmod +x make_icons.sh && ./make_icons.sh
 	cd installer && uv run python setup.py bdist_mac
 
 installer-win:
