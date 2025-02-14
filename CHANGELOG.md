@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.2.3 (2025-02-14)
+
+
 ## v0.2.2 (2025-02-14)
+
+### Bug Fixes
+
+- Fix path to intaller app artifact
+  ([`53d220d`](https://github.com/basicmachines-co/basic-memory/commit/53d220df585561f9edd0d49a9e88f1d4055059cf))
 
 
 ## v0.2.1 (2025-02-14)
