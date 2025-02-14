@@ -4,7 +4,11 @@ import sys
 # Build options for all platforms
 build_exe_options = {
     "packages": ["json", "pathlib"],
-    "excludes": [],
+    "excludes": [
+        "unittest", 
+        "pydoc",
+        "test"
+    ],
 }
 
 # Platform-specific options
@@ -35,7 +39,9 @@ setup(
         "build_exe": build_exe_options,
         "bdist_mac": {
             "bundle_name": "Basic Memory Installer",
-            "iconfile": "Basic.icns"
+            "iconfile": "Basic.icns",
+            "codesign_identity": "-",  # Force ad-hoc signing
+            "codesign_allocate": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/codesign_allocate"
         }
     },
     executables=executables,

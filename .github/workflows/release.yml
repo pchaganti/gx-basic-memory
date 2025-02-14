@@ -73,40 +73,35 @@ jobs:
         run: |
           uv venv
 
-      - name: Install dependencies
+      - name: Check library paths
         run: |
-          uv pip install -e .[dev]
-
-      - name: Build macOS installer
-        run: |
-          # Debug info
-          echo "Environment Info:"
-          uv pip list
-          python --version
-          which uv
-          which python
-          ls -la $(dirname $(which python))
-          echo "PYTHONPATH=$PYTHONPATH" 
+          otool -L installer/build/Basic\ Memory\ Installer.app/Contents/MacOS/Basic\ Memory\ Installer
+          otool -l installer/build/Basic\ Memory\ Installer.app/Contents/MacOS/Basic\ Memory\ Installer
           
-          # Build
-          make installer-mac
-          #xattr -dr com.apple.quarantine "installer/build/Basic Memory Installer.app"
-
       - name: Inspect build
         run: |
           echo "Build structure:"
           ls -la installer/build/Basic\ Memory\ Installer.app/Contents/MacOS/
 
-
-      #      - name: Zip macOS installer
-      #        run: |
-      #          cd installer/build
-      #          zip -ry "Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip" "Basic Memory Installer.app"
+#      - name: Zip macOS installer
+#        run: |
+#          cd installer/build
+#          zip -ry "Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip" "Basic Memory Installer.app"
+#
+#      - name: Upload macOS installer
+#        uses: softprops/action-gh-release@v1
+#        with:
+#          files: installer/build/Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip
+#          tag_name: ${{ needs.release.outputs.tag }}
+#          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Zip macOS installer
+        run: |
+          cd installer/build
+          zip -ry "Basic-Memory-Installer.zip" "Basic Memory Installer.app"
 
       - name: Upload macOS installer
         uses: softprops/action-gh-release@v1
         with:
-          #files: installer/build/Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip
-          files: installer/build/*
-          tag_name: ${{ needs.release.outputs.tag }}
+          files: installer/build/Basic-Memory-Installer.zip
           token: ${{ secrets.GITHUB_TOKEN }}
