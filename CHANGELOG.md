@@ -1,12 +1,18 @@
 # CHANGELOG
 
 
+## v0.2.7 (2025-02-14)
+
+
 ## v0.2.6 (2025-02-14)
 
 ### Bug Fixes
 
 - Bump project patch version
   ([`01d4672`](https://github.com/basicmachines-co/basic-memory/commit/01d46727b40c24b017ea9db4b741daef565ac73e))
+
+- Fix installer setup.py change ci to use make
+  ([`3e78fcc`](https://github.com/basicmachines-co/basic-memory/commit/3e78fcc2c208d83467fe7199be17174d7ffcad1a))
 
 
 ## v0.2.5 (2025-02-14)
