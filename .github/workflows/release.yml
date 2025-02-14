@@ -96,21 +96,22 @@ jobs:
           
           # Build
           make installer-mac
-          xattr -dr com.apple.quarantine "installer/build/Basic Memory Installer.app"
+          #xattr -dr com.apple.quarantine "installer/build/Basic Memory Installer.app"
 
       - name: Inspect build
         run: |
           echo "Build structure:"
           ls -la installer/build/Basic\ Memory\ Installer.app/Contents/MacOS/
 
-      - name: Zip macOS installer
-        run: |
-          cd installer/build
-          zip -ry "Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip" "Basic Memory Installer.app"
+      #      - name: Zip macOS installer
+      #        run: |
+      #          cd installer/build
+      #          zip -ry "Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip" "Basic Memory Installer.app"
 
       - name: Upload macOS installer
         uses: softprops/action-gh-release@v1
         with:
-          files: installer/build/Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip
+          #files: installer/build/Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip
+          files: installer/build/*.app
           tag_name: ${{ needs.release.outputs.tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
