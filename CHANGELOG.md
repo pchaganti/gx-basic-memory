@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.15 (2025-02-14)
+
+### Bug Fixes
+
+- Debug installer ci
+  ([`dab9573`](https://github.com/basicmachines-co/basic-memory/commit/dab957314aec9ed0e12abca2265552494ae733a2))
+
+
 ## v0.2.14 (2025-02-14)
 
 
