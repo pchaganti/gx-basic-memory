@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.17 (2025-02-14)
+
+### Bug Fixes
+
+- Fix app zip in installer release
+  ([`8fa197e`](https://github.com/basicmachines-co/basic-memory/commit/8fa197e2ec8a1b6caaf6dbb39c3c6626bba23e2e))
+
+
 ## v0.2.16 (2025-02-14)
 
 ### Bug Fixes
