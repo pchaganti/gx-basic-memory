@@ -9,10 +9,11 @@ build_exe_options = {
         "pydoc",
         "test"
     ],
-    # Control file copying behavior
-    "copy_dependent_files": False,
-    "create_library_zip": True,
-    "copy_to_same_dir": False,
+    # Prevent duplication across dirs
+    "bin_includes": [],
+    "bin_excludes": [],
+    "zip_include_packages": ["*"],
+    "zip_exclude_packages": [],
 }
 
 # Platform-specific options
