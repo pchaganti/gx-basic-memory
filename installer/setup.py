@@ -41,7 +41,6 @@ setup(
             "bundle_name": "Basic Memory Installer",
             "iconfile": "Basic.icns",
             "codesign_identity": "-",  # Force ad-hoc signing
-            "codesign_allocate": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/codesign_allocate"
         }
     },
     executables=executables,
