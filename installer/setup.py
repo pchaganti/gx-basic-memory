@@ -1,7 +1,7 @@
 from cx_Freeze import setup, Executable
 import sys
 
-# Build options for all platforms - keep it simple and don't exclude too much
+# Build options for all platforms
 build_exe_options = {
     "packages": ["json", "pathlib"],
     "excludes": [
@@ -9,23 +9,22 @@ build_exe_options = {
         "pydoc",
         "test"
     ],
-    # Prevent duplication across dirs
-    "bin_includes": [],
-    "bin_excludes": [],
-    "zip_include_packages": ["*"],
-    "zip_exclude_packages": [],
 }
 
 # Platform-specific options
 if sys.platform == "win32":
     base = "Win32GUI"  # Use GUI base for Windows
     build_exe_options.update({
-        "include_msvcr": True,  # Include Visual C++ runtime
+        "include_msvcr": True,
     })
     target_name = "Basic Memory Installer.exe"
 else:  # darwin
     base = None  # Don't use GUI base for macOS
     target_name = "Basic Memory Installer"
+    # Use symlinks on macOS instead of copying
+    build_exe_options.update({
+        "no_copy_deps": True,
+    })
 
 executables = [
     Executable(
