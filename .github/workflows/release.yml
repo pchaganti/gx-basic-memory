@@ -54,16 +54,14 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-        #with:
-        #  ref: ${{ needs.release.outputs.tag }}
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          submodules: true
 
-      - name: Install librsvg
-        run: brew install librsvg
+      - name: Set up Python "3.12"
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+          cache: 'pip'
 
       - name: Install uv
         run: |
@@ -71,9 +69,11 @@ jobs:
 
       - name: Create virtual env
         run: |
-          ls -la
           uv venv
-          uv pip install -e "..[dev]"
+
+      - name: Install dependencies
+        run: |
+          uv pip install -e .[dev]
 
       - name: Build macOS installer
         run: |
