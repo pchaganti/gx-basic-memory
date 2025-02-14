@@ -4,11 +4,7 @@ import sys
 # Build options for all platforms
 build_exe_options = {
     "packages": ["json", "pathlib"],
-    "excludes": [
-        "unittest", 
-        "pydoc",
-        "test"
-    ],
+    "excludes": [],
 }
 
 # Platform-specific options
@@ -21,10 +17,6 @@ if sys.platform == "win32":
 else:  # darwin
     base = None  # Don't use GUI base for macOS
     target_name = "Basic Memory Installer"
-    # Use symlinks on macOS instead of copying
-    build_exe_options.update({
-        "no_copy_deps": True,
-    })
 
 executables = [
     Executable(

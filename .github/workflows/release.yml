@@ -85,8 +85,23 @@ jobs:
 
       - name: Build macOS installer
         run: |
+          # Debug info
+          echo "Environment Info:"
+          uv pip list
+          python --version
+          which uv
+          which python
+          ls -la $(dirname $(which python))
+          echo "PYTHONPATH=$PYTHONPATH" 
+          
+          # Build
           make installer-mac
           xattr -dr com.apple.quarantine "installer/build/Basic Memory Installer.app"
+
+      - name: Inspect build
+        run: |
+          echo "Build structure:"
+          ls -R installer/build/Basic\ Memory\ Installer.app
 
       - name: Zip macOS installer
         run: |
