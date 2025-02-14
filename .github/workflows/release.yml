@@ -113,6 +113,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           #files: installer/build/Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip
-          files: installer/build/*.app
+          files: installer/build/Basic\ Memory\ Installer.app
           tag_name: ${{ needs.release.outputs.tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
