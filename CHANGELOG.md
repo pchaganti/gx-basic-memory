@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.6 (2025-02-14)
+
+### Bug Fixes
+
+- Bump project patch version
+  ([`01d4672`](https://github.com/basicmachines-co/basic-memory/commit/01d46727b40c24b017ea9db4b741daef565ac73e))
+
+
 ## v0.2.5 (2025-02-14)
 
 ### Bug Fixes
