@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.20 (2025-02-14)
+
+### Bug Fixes
+
+- Fix installer artifact
+  ([`8de84c0`](https://github.com/basicmachines-co/basic-memory/commit/8de84c0221a1ee32780aa84dac4d3ea60895e05c))
+
+
 ## v0.2.19 (2025-02-14)
 
 ### Bug Fixes
