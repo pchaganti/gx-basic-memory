@@ -84,7 +84,8 @@ jobs:
           uv pip install -e ".[dev]"
           make installer-mac
           # Remove quarantine attribute
-          xattr -dr com.apple.quarantine "build/Basic Memory Installer.app"
+          cd installer/build
+          xattr -dr com.apple.quarantine "Basic Memory Installer.app"
 
       - name: Zip macOS installer
         run: |
