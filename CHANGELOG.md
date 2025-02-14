@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.2.8 (2025-02-14)
+
+
 ## v0.2.7 (2025-02-14)
+
+### Bug Fixes
+
+- Try to fix installer ci
+  ([`230738e`](https://github.com/basicmachines-co/basic-memory/commit/230738ee9c110c0509e0a09cb0e101a92cfcb729))
 
 
 ## v0.2.6 (2025-02-14)
