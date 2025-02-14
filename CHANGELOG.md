@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.2.9 (2025-02-14)
+
+
 ## v0.2.8 (2025-02-14)
+
+### Bug Fixes
+
+- Fix installer on ci, maybe
+  ([`edbc04b`](https://github.com/basicmachines-co/basic-memory/commit/edbc04be601d234bb1f5eb3ba24d6ad55244b031))
 
 
 ## v0.2.7 (2025-02-14)
