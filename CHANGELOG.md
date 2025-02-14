@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.16 (2025-02-14)
+
+### Bug Fixes
+
+- Debug inspect build on ci
+  ([`1d6054d`](https://github.com/basicmachines-co/basic-memory/commit/1d6054d30a477a4e6a5d6ac885632e50c01945d3))
+
+
 ## v0.2.15 (2025-02-14)
 
 ### Bug Fixes
