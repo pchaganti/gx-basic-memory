@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.11 (2025-02-14)
+
+### Bug Fixes
+
+- Ci installer app fix #37
+  ([`2e215fe`](https://github.com/basicmachines-co/basic-memory/commit/2e215fe83ca421b921186c7f1989dc2cb5cca278))
+
+
 ## v0.2.10 (2025-02-14)
 
 ### Bug Fixes
