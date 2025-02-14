@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.19 (2025-02-14)
+
+### Bug Fixes
+
+- Get app artifact for installer
+  ([`fe8c3d8`](https://github.com/basicmachines-co/basic-memory/commit/fe8c3d87b003166252290a87cbe958301cccf797))
+
+
 ## v0.2.18 (2025-02-14)
 
 ### Bug Fixes
