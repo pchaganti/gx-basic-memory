@@ -78,7 +78,12 @@ jobs:
 
       - name: Build macOS installer
         run: |
-          cd installer && uv run python setup.py bdist_mac
+          cd installer
+          uv pip install -e "..[dev]"
+          # Use system Python paths to match local environment
+          PYTHONHOME=/Library/Frameworks/Python.framework/Versions/3.12 \
+          PYTHONPATH=/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12 \
+          uv run python setup.py bdist_mac
           xattr -dr com.apple.quarantine "build/Basic Memory Installer.app"
 
       - name: Zip macOS installer
