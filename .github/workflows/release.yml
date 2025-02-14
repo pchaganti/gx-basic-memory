@@ -82,8 +82,7 @@ jobs:
       - name: Build macOS installer
         run: |
           uv pip install -e ".[dev]"
-          cd installer
-          uv run python setup.py bdist_mac
+          make installer-mac
           # Remove quarantine attribute
           xattr -dr com.apple.quarantine "build/Basic Memory Installer.app"
 
