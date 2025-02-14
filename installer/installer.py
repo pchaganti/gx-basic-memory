@@ -3,6 +3,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Use tkinter for GUI alerts on macOS
+if sys.platform == "darwin":
+    import tkinter as tk
+    from tkinter import messagebox
 
 def ensure_uv_installed():
     """Check if uv is installed, install if not."""
@@ -52,12 +56,25 @@ def update_claude_config():
 
 def print_completion_message():
     """Show completion message with helpful tips."""
-    print("\nInstallation complete! Basic Memory is now available in Claude Desktop.")
-    print("Please restart Claude Desktop for changes to take effect.")
-    print("\nQuick Start:")
-    print("1. You can run sync directly using: uvx basic-memory sync")
-    print("2. Optionally, install globally with: uv pip install basic-memory")
-    print("\nBuilt with ♥️ by Basic Machines.")
+    message = """Installation complete! Basic Memory is now available in Claude Desktop.
+
+Please restart Claude Desktop for changes to take effect.
+
+Quick Start:
+1. You can run sync directly using: uvx basic-memory sync
+2. Optionally, install globally with: uv pip install basic-memory
+
+Built with ♥️ by Basic Machines."""
+
+    if sys.platform == "darwin":
+        # Show GUI message on macOS
+        root = tk.Tk()
+        root.withdraw()  # Hide the main window
+        messagebox.showinfo("Basic Memory", message)
+        root.destroy()
+    else:
+        # Fallback to console output
+        print(message)
 
 
 def main():

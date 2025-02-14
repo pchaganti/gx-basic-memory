@@ -9,21 +9,19 @@ build_exe_options = {
 
 # Platform-specific options
 if sys.platform == "win32":
-    base = "Win32GUI"
-    build_exe_options.update(
-        {
-            "include_msvcr": True,  # Include Visual C++ runtime
-        }
-    )
+    base = "Win32GUI"  # Use GUI base for Windows
+    build_exe_options.update({
+        "include_msvcr": True,  # Include Visual C++ runtime
+    })
     target_name = "Basic Memory Installer.exe"
 else:  # darwin
-    base = "gui"
+    base = None  # Don't use GUI base for macOS
     target_name = "Basic Memory Installer"
 
 executables = [
     Executable(
         script="installer.py",
-        target_name="Basic Memory Installer",
+        target_name=target_name,
         base=base,
     )
 ]
@@ -36,7 +34,7 @@ setup(
         "build_exe": build_exe_options,
         "bdist_mac": {
             "bundle_name": "Basic Memory Installer",
-        },
+        }
     },
     executables=executables,
 )
