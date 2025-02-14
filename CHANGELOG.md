@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.5 (2025-02-14)
+
+### Bug Fixes
+
+- Refix vitual env in installer build
+  ([`052f491`](https://github.com/basicmachines-co/basic-memory/commit/052f491fff629e8ead629c9259f8cb46c608d584))
+
+
 ## v0.2.4 (2025-02-14)
 
 
