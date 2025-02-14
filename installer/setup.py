@@ -1,21 +1,18 @@
 from cx_Freeze import setup, Executable
 import sys
 
-# Build options for all platforms
+# Build options for all platforms - keep it simple and don't exclude too much
 build_exe_options = {
     "packages": ["json", "pathlib"],
     "excludes": [
-        "tkinter",
         "unittest", 
-        "email",
-        "html",
-        "http",
-        "xml",
         "pydoc",
-        "_tkinter",
         "test"
     ],
-    "include_msvcr": False,
+    # Control file copying behavior
+    "copy_dependent_files": False,
+    "create_library_zip": True,
+    "copy_to_same_dir": False,
 }
 
 # Platform-specific options
