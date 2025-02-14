@@ -1,7 +1,15 @@
 # CHANGELOG
 
 
+## v0.2.4 (2025-02-14)
+
+
 ## v0.2.3 (2025-02-14)
+
+### Bug Fixes
+
+- Workaround unsigned app
+  ([`41d4d81`](https://github.com/basicmachines-co/basic-memory/commit/41d4d81c1ad1dc2923ba0e903a57454a0c8b6b5c))
 
 
 ## v0.2.2 (2025-02-14)
