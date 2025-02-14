@@ -1,6 +1,20 @@
 # CHANGELOG
 
 
+## v0.1.2 (2025-02-14)
+
+### Bug Fixes
+
+- Fix installer for mac
+  ([`dde9ff2`](https://github.com/basicmachines-co/basic-memory/commit/dde9ff228b72852b5abc58faa1b5e7c6f8d2c477))
+
+- Remove unused FileChange dataclass
+  ([`eb3360c`](https://github.com/basicmachines-co/basic-memory/commit/eb3360cc221f892b12a17137ae740819d48248e8))
+
+- Update uv installer url
+  ([`2f9178b`](https://github.com/basicmachines-co/basic-memory/commit/2f9178b0507b3b69207d5c80799f2d2f573c9a04))
+
+
 ## v0.1.1 (2025-02-07)
 
 
