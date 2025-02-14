@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.18 (2025-02-14)
+
+### Bug Fixes
+
+- Don't zip app on release
+  ([`8664c57`](https://github.com/basicmachines-co/basic-memory/commit/8664c57bb331d7f3f7e0239acb5386c7a3c6144e))
+
+
 ## v0.2.17 (2025-02-14)
 
 ### Bug Fixes
