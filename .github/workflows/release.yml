@@ -111,7 +111,9 @@ jobs:
           zip -ry "Basic-Memory-Installer.zip" "Basic Memory Installer.app"
 
       - name: Upload macOS installer
-        uses: softprops/action-gh-release@v1
+        uses: actions/upload-artifact@v4
         with:
-          files: installer/build/Basic-Memory-Installer.zip
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: installer
+          path: |
+            installer/build/Basic-Memory-Installer.zip
+            installer/build/Basic-Memory-Installer.app
