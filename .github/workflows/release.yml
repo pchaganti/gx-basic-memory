@@ -20,6 +20,9 @@ jobs:
     permissions:
       id-token: write
       contents: write
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      tag: ${{ steps.release.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v4
@@ -63,6 +66,15 @@ jobs:
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install librsvg
+        run: brew install librsvg
+
+      - name: Create icon
+        run: |
+          cd installer
+          chmod +x make_icons.sh
+          ./make_icons.sh
 
       - name: Build macOS installer
         run: |
