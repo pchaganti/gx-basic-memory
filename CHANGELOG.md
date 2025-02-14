@@ -1,6 +1,24 @@
 # CHANGELOG
 
 
+## v0.2.0 (2025-02-14)
+
+### Features
+
+- Build installer via github action ([#7](https://github.com/basicmachines-co/basic-memory/pull/7),
+  [`7c381a5`](https://github.com/basicmachines-co/basic-memory/commit/7c381a59c962053c78da096172e484f28ab47e96))
+
+* feat(ci): build installer via github action
+
+* enforce conventional commits in PR titles
+
+* feat: add icon to installer
+
+---------
+
+Co-authored-by: phernandez <phernandez@basicmachines.co>
+
+
 ## v0.1.2 (2025-02-14)
 
 ### Bug Fixes
