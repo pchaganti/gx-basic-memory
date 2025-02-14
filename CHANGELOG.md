@@ -1,12 +1,18 @@
 # CHANGELOG
 
 
+## v0.2.14 (2025-02-14)
+
+
 ## v0.2.13 (2025-02-14)
 
 ### Bug Fixes
 
 - Refactor release.yml installer
   ([`a152657`](https://github.com/basicmachines-co/basic-memory/commit/a15265783e47c22d8c7931396281d023b3694e27))
+
+- Try using symlinks in installer build
+  ([`8dd923d`](https://github.com/basicmachines-co/basic-memory/commit/8dd923d5bc0587276f92b5f1db022ad9c8687e45))
 
 
 ## v0.2.12 (2025-02-14)
