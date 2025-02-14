@@ -81,7 +81,7 @@ jobs:
       - name: Build macOS installer
         run: |
           make installer-mac
-          xattr -dr com.apple.quarantine "build/Basic Memory Installer.app"
+          #xattr -dr com.apple.quarantine "installer/build/Basic Memory Installer.app"
 
       - name: Check library paths
         run: |
