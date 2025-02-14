@@ -106,7 +106,7 @@ jobs:
       - name: Zip macOS installer
         run: |
           cd installer/build
-          zip -r "Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip" "Basic Memory Installer.app"
+          zip -ry "Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip" "Basic Memory Installer.app"
 
       - name: Upload macOS installer
         uses: softprops/action-gh-release@v1
