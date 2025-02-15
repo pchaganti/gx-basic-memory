@@ -49,13 +49,13 @@ jobs:
           tag: ${{ steps.release.outputs.tag }}
 
   build-macos:
-    #needs: release
-    #if: needs.release.outputs.released == 'true'
+    needs: release
+    if: needs.release.outputs.released == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
+          ref: ${{ needs.release.outputs.tag }}
 
       - name: Set up Python "3.12"
         uses: actions/setup-python@v4
@@ -83,36 +83,14 @@ jobs:
           make installer-mac
           xattr -dr com.apple.quarantine "installer/build/Basic Memory Installer.app"
 
-      - name: Check library paths
-        run: |
-          otool -L installer/build/Basic\ Memory\ Installer.app/Contents/MacOS/Basic\ Memory\ Installer
-          otool -l installer/build/Basic\ Memory\ Installer.app/Contents/MacOS/Basic\ Memory\ Installer
-
-      - name: Inspect build
-        run: |
-          echo "Build structure:"
-          ls -la installer/build/Basic\ Memory\ Installer.app/Contents/MacOS/
-
-      #      - name: Zip macOS installer
-      #        run: |
-      #          cd installer/build
-      #          zip -ry "Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip" "Basic Memory Installer.app"
-      #
-      #      - name: Upload macOS installer
-      #        uses: softprops/action-gh-release@v1
-      #        with:
-      #          files: installer/build/Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip
-      #          tag_name: ${{ needs.release.outputs.tag }}
-      #          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Zip macOS installer
         run: |
           cd installer/build
-          zip -ry "Basic-Memory-Installer.zip" "Basic Memory Installer.app"
+          zip -ry "Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip" "Basic Memory Installer.app"
 
       - name: Upload macOS installer
-        uses: actions/upload-artifact@v4
+        uses: softprops/action-gh-release@v1
         with:
-          name: installer
-          path: |
-            installer/build/Basic-Memory-Installer.*
+          files: installer/build/Basic-Memory-Installer-${{ needs.release.outputs.tag }}.zip
+          tag_name: ${{ needs.release.outputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
