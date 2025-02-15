@@ -1,12 +1,31 @@
 # CHANGELOG
 
 
+## v0.3.0 (2025-02-15)
+
+### Bug Fixes
+
+- Refactor db schema migrate handling
+  ([`ca632be`](https://github.com/basicmachines-co/basic-memory/commit/ca632beb6fed5881f4d8ba5ce698bb5bc681e6aa))
+
+
 ## v0.2.21 (2025-02-15)
 
 ### Bug Fixes
 
 - Fix osx installer github action
   ([`65ebe5d`](https://github.com/basicmachines-co/basic-memory/commit/65ebe5d19491e5ff047c459d799498ad5dd9cd1a))
+
+- Handle memory:// url format in read_note tool
+  ([`e080373`](https://github.com/basicmachines-co/basic-memory/commit/e0803734e69eeb6c6d7432eea323c7a264cb8347))
+
+- Remove create schema from init_db
+  ([`674dd1f`](https://github.com/basicmachines-co/basic-memory/commit/674dd1fd47be9e60ac17508476c62254991df288))
+
+### Features
+
+- Set version in var, output version at startup
+  ([`a91da13`](https://github.com/basicmachines-co/basic-memory/commit/a91da1396710e62587df1284da00137d156fc05e))
 
 
 ## v0.2.20 (2025-02-14)
