@@ -13,6 +13,7 @@ from basic_memory.mcp.async_client import client
 from basic_memory.schemas import EntityResponse, DeleteEntitiesResponse
 from basic_memory.schemas.base import Entity
 from basic_memory.mcp.tools.utils import call_get, call_put, call_delete
+from basic_memory.schemas.memory import memory_url_path
 
 
 @mcp.tool(
@@ -96,7 +97,9 @@ async def read_note(identifier: str) -> str:
     Raises:
         ValueError: If the note cannot be found
     """
-    response = await call_get(client, f"/resource/{identifier}")
+    logger.info(f"Reading note {identifier}")
+    url = memory_url_path(identifier)
+    response = await call_get(client, f"/resource/{url}")
     return response.text
 
 

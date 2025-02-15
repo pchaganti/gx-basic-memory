@@ -236,3 +236,25 @@ async def test_write_note_verbose(app):
     assert entity.relations[0].from_id == "test/test-note"
     assert entity.relations[0].to_id is None
     assert entity.relations[0].to_name == "Knowledge"
+
+
+@pytest.mark.asyncio
+async def test_read_note_memory_url(app):
+    """Test reading a note using a memory:// URL.
+
+    Should:
+    - Handle memory:// URLs correctly
+    - Normalize the URL before resolving
+    - Return the note content
+    """
+    # First create a note
+    permalink = await notes.write_note(
+        title="Memory URL Test",
+        folder="test",
+        content="Testing memory:// URL handling",
+    )
+
+    # Should be able to read it with a memory:// URL
+    memory_url = f"memory://{permalink}"
+    content = await notes.read_note(memory_url)
+    assert "Testing memory:// URL handling" in content

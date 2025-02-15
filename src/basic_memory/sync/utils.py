@@ -1,9 +1,8 @@
 """Types and utilities for file sync."""
 
 from dataclasses import dataclass, field
-from typing import Set, Dict, Optional
+from typing import Set, Dict
 
-from watchfiles import Change
 
 
 
