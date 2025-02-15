@@ -22,4 +22,4 @@ def reset(
             from basic_memory.cli.commands.sync import sync
 
             logger.info("Rebuilding search index from filesystem...")
-            asyncio.run(sync())  # pyright: ignore
+            sync(watch=False)  # pyright: ignore

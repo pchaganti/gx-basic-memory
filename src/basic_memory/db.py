@@ -4,6 +4,10 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import AsyncGenerator, Optional
 
+from basic_memory.config import ProjectConfig
+from alembic import command
+from alembic.config import Config
+
 from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -14,8 +18,8 @@ from sqlalchemy.ext.asyncio import (
     async_scoped_session,
 )
 
-from basic_memory.models import Base
 from basic_memory.models.search import CREATE_SEARCH_INDEX
+from basic_memory.repository.search_repository import SearchRepository
 
 # Module level state
 _engine: Optional[AsyncEngine] = None
@@ -35,7 +39,7 @@ class DatabaseType(Enum):
             logger.info("Using in-memory SQLite database")
             return "sqlite+aiosqlite://"
 
-        return f"sqlite+aiosqlite:///{db_path}"
+        return f"sqlite+aiosqlite:///{db_path}"  # pragma: no cover
 
 
 def get_scoped_session_factory(
@@ -69,21 +73,6 @@ async def scoped_session(
         await factory.remove()
 
 
-async def init_db() -> None:
-    """Initialize database with required tables."""
-    if _session_maker is None:  # pragma: no cover
-        raise RuntimeError("Database session maker not initialized")
-
-    logger.info("Initializing database...")
-
-    async with scoped_session(_session_maker) as session:
-        await session.execute(text("PRAGMA foreign_keys=ON"))
-
-        # recreate search index
-        await session.execute(CREATE_SEARCH_INDEX)
-
-        await session.commit()
-
 
 async def get_or_create_db(
     db_path: Path,
@@ -97,9 +86,6 @@ async def get_or_create_db(
         logger.debug(f"Creating engine for db_url: {db_url}")
         _engine = create_async_engine(db_url, connect_args={"check_same_thread": False})
         _session_maker = async_sessionmaker(_engine, expire_on_commit=False)
-
-        # Initialize database
-        await init_db()
 
     assert _engine is not None  # for type checker
     assert _session_maker is not None  # for type checker
@@ -120,7 +106,6 @@ async def shutdown_db() -> None:  # pragma: no cover
 async def engine_session_factory(
     db_path: Path,
     db_type: DatabaseType = DatabaseType.MEMORY,
-    init: bool = True,
 ) -> AsyncGenerator[tuple[AsyncEngine, async_sessionmaker[AsyncSession]], None]:
     """Create engine and session factory.
 
@@ -137,9 +122,6 @@ async def engine_session_factory(
     try:
         _session_maker = async_sessionmaker(_engine, expire_on_commit=False)
 
-        if init:
-            await init_db()
-
         assert _engine is not None  # for type checker
         assert _session_maker is not None  # for type checker
         yield _engine, _session_maker
@@ -148,3 +130,18 @@ async def engine_session_factory(
             await _engine.dispose()
             _engine = None
             _session_maker = None
+
+
+async def run_migrations(app_config: ProjectConfig, database_type=DatabaseType.FILESYSTEM):
+    """Run any pending alembic migrations."""
+    logger.info("Running database migrations...")
+    try:
+        config = Config("alembic.ini")
+        command.upgrade(config, "head")
+        logger.info("Migrations completed successfully")
+
+        _, session_maker = await get_or_create_db(app_config.database_path, database_type)
+        await SearchRepository(session_maker).init_search_index()
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error running migrations: {e}")
+        raise

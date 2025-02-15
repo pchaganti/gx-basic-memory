@@ -25,13 +25,11 @@ async def get_file_change_scanner(
     db_type=DatabaseType.FILESYSTEM,
 ) -> FileChangeScanner:  # pragma: no cover
     """Get sync service instance."""
-    async with db.engine_session_factory(db_path=config.database_path, db_type=db_type) as (
-        engine,
-        session_maker,
-    ):
-        entity_repository = EntityRepository(session_maker)
-        file_change_scanner = FileChangeScanner(entity_repository)
-        return file_change_scanner
+    _, session_maker = await db.get_or_create_db(db_path=config.database_path, db_type=db_type)
+    
+    entity_repository = EntityRepository(session_maker)
+    file_change_scanner = FileChangeScanner(entity_repository)
+    return file_change_scanner
 
 
 def add_files_to_tree(

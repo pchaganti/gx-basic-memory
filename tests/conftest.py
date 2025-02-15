@@ -59,12 +59,10 @@ async def engine_factory(
     async with db.engine_session_factory(
         db_path=test_config.database_path, db_type=DatabaseType.MEMORY
     ) as (engine, session_maker):
-        # Initialize database
-        async with db.scoped_session(session_maker) as session:
-            await session.execute(text("PRAGMA foreign_keys=ON"))
-            conn = await session.connection()
+        # Create all tables for the DB the engine is connected to
+        async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-
+            
         yield engine, session_maker
 
 

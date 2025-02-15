@@ -39,50 +39,48 @@ class ValidationIssue:
     error: str
 
 
-async def get_sync_service(db_type=DatabaseType.FILESYSTEM):  # pragma: no cover
+async def get_sync_service():  # pragma: no cover
     """Get sync service instance with all dependencies."""
-    async with db.engine_session_factory(db_path=config.database_path, db_type=db_type) as (
-        engine,
-        session_maker,
-    ):
-        entity_parser = EntityParser(config.home)
-        markdown_processor = MarkdownProcessor(entity_parser)
-        file_service = FileService(config.home, markdown_processor)
+    _, session_maker = await db.get_or_create_db(db_path=config.database_path, db_type=db.DatabaseType.FILESYSTEM)
 
-        # Initialize repositories
-        entity_repository = EntityRepository(session_maker)
-        observation_repository = ObservationRepository(session_maker)
-        relation_repository = RelationRepository(session_maker)
-        search_repository = SearchRepository(session_maker)
+    entity_parser = EntityParser(config.home)
+    markdown_processor = MarkdownProcessor(entity_parser)
+    file_service = FileService(config.home, markdown_processor)
 
-        # Initialize services
-        search_service = SearchService(search_repository, entity_repository, file_service)
-        link_resolver = LinkResolver(entity_repository, search_service)
+    # Initialize repositories
+    entity_repository = EntityRepository(session_maker)
+    observation_repository = ObservationRepository(session_maker)
+    relation_repository = RelationRepository(session_maker)
+    search_repository = SearchRepository(session_maker)
+    
+    # Initialize services
+    search_service = SearchService(search_repository, entity_repository, file_service)
+    link_resolver = LinkResolver(entity_repository, search_service)
 
-        # Initialize scanner
-        file_change_scanner = FileChangeScanner(entity_repository)
+    # Initialize scanner
+    file_change_scanner = FileChangeScanner(entity_repository)
 
-        # Initialize services
-        entity_service = EntityService(
-            entity_parser,
-            entity_repository,
-            observation_repository,
-            relation_repository,
-            file_service,
-            link_resolver,
-        )
+    # Initialize services
+    entity_service = EntityService(
+        entity_parser,
+        entity_repository,
+        observation_repository,
+        relation_repository,
+        file_service,
+        link_resolver,
+    )
 
-        # Create sync service
-        sync_service = SyncService(
-            scanner=file_change_scanner,
-            entity_service=entity_service,
-            entity_parser=entity_parser,
-            entity_repository=entity_repository,
-            relation_repository=relation_repository,
-            search_service=search_service,
-        )
+    # Create sync service
+    sync_service = SyncService(
+        scanner=file_change_scanner,
+        entity_service=entity_service,
+        entity_parser=entity_parser,
+        entity_repository=entity_repository,
+        relation_repository=relation_repository,
+        search_service=search_service,
+    )
 
-        return sync_service
+    return sync_service
 
 
 def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[ValidationIssue]]:
@@ -154,6 +152,8 @@ def display_detailed_sync_results(knowledge: SyncReport):
 
 async def run_sync(verbose: bool = False, watch: bool = False):
     """Run sync operation."""
+    
+    
     sync_service = await get_sync_service()
 
     # Start watching if requested
