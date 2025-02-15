@@ -84,7 +84,9 @@ pythonVersion = "3.12"
 
 
 [tool.semantic_release]
-version_variable = "src/basic_memory/__init__.py:__version__"
+version_variables = [
+    "src/basic_memory/__init__.py:__version__",
+]
 version_toml = [
     "pyproject.toml:project.version",
 ]

@@ -15,6 +15,6 @@ import basic_memory.mcp.tools  # noqa: F401  # pragma: no cover
 def mcp():  # pragma: no cover
     """Run the MCP server for Claude Desktop integration."""
     home_dir = config.home
-    logger.info("Starting Basic Memory MCP server")
+    logger.info(f"Starting Basic Memory MCP server {basic_memory.__version__}")
     logger.info(f"Home directory: {home_dir}")
     mcp_server.run()

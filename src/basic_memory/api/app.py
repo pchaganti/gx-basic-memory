@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import http_exception_handler
 from loguru import logger
 
+import basic_memory
 from basic_memory import db
 from basic_memory.config import config as app_config
 from basic_memory.api.routers import knowledge, search, memory, resource
@@ -36,7 +37,7 @@ async def run_migrations():  # pragma: no cover
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # pragma: no cover
     """Lifecycle manager for the FastAPI app."""
-    logger.info("Starting Basic Memory API")
+    logger.info(f"Starting Basic Memory API {basic_memory.__version__}")
     await run_migrations()
     yield
     logger.info("Shutting down Basic Memory API")
