@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.21 (2025-02-15)
+
+### Bug Fixes
+
+- Fix osx installer github action
+  ([`65ebe5d`](https://github.com/basicmachines-co/basic-memory/commit/65ebe5d19491e5ff047c459d799498ad5dd9cd1a))
+
+
 ## v0.2.20 (2025-02-14)
 
 ### Bug Fixes
