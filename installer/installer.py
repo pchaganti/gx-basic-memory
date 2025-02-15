@@ -8,6 +8,7 @@ if sys.platform == "darwin":
     import tkinter as tk
     from tkinter import messagebox
 
+
 def ensure_uv_installed():
     """Check if uv is installed, install if not."""
     try:

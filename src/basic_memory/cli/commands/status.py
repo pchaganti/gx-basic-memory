@@ -26,7 +26,7 @@ async def get_file_change_scanner(
 ) -> FileChangeScanner:  # pragma: no cover
     """Get sync service instance."""
     _, session_maker = await db.get_or_create_db(db_path=config.database_path, db_type=db_type)
-    
+
     entity_repository = EntityRepository(session_maker)
     file_change_scanner = FileChangeScanner(entity_repository)
     return file_change_scanner

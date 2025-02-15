@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import (
     async_scoped_session,
 )
 
-from basic_memory.models.search import CREATE_SEARCH_INDEX
 from basic_memory.repository.search_repository import SearchRepository
 
 # Module level state
@@ -71,7 +70,6 @@ async def scoped_session(
     finally:
         await session.close()
         await factory.remove()
-
 
 
 async def get_or_create_db(

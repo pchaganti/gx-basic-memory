@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 import pytest
 import pytest_asyncio
 from loguru import logger
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, async_sessionmaker
 
 from basic_memory import db
@@ -62,7 +61,7 @@ async def engine_factory(
         # Create all tables for the DB the engine is connected to
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-            
+
         yield engine, session_maker
 
 

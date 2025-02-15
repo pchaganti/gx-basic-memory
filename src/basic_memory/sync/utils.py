@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 from typing import Set, Dict
 
 
-
-
 @dataclass
 class SyncReport:
     """Report of file changes found compared to database state.

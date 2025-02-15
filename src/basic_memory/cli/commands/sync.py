@@ -14,7 +14,6 @@ from rich.tree import Tree
 from basic_memory import db
 from basic_memory.cli.app import app
 from basic_memory.config import config
-from basic_memory.db import DatabaseType
 from basic_memory.markdown import EntityParser
 from basic_memory.markdown.markdown_processor import MarkdownProcessor
 from basic_memory.repository import (
@@ -41,7 +40,9 @@ class ValidationIssue:
 
 async def get_sync_service():  # pragma: no cover
     """Get sync service instance with all dependencies."""
-    _, session_maker = await db.get_or_create_db(db_path=config.database_path, db_type=db.DatabaseType.FILESYSTEM)
+    _, session_maker = await db.get_or_create_db(
+        db_path=config.database_path, db_type=db.DatabaseType.FILESYSTEM
+    )
 
     entity_parser = EntityParser(config.home)
     markdown_processor = MarkdownProcessor(entity_parser)
@@ -52,7 +53,7 @@ async def get_sync_service():  # pragma: no cover
     observation_repository = ObservationRepository(session_maker)
     relation_repository = RelationRepository(session_maker)
     search_repository = SearchRepository(session_maker)
-    
+
     # Initialize services
     search_service = SearchService(search_repository, entity_repository, file_service)
     link_resolver = LinkResolver(entity_repository, search_service)
@@ -152,8 +153,7 @@ def display_detailed_sync_results(knowledge: SyncReport):
 
 async def run_sync(verbose: bool = False, watch: bool = False):
     """Run sync operation."""
-    
-    
+
     sync_service = await get_sync_service()
 
     # Start watching if requested
