@@ -78,8 +78,6 @@ async def init_db() -> None:
 
     async with scoped_session(_session_maker) as session:
         await session.execute(text("PRAGMA foreign_keys=ON"))
-        conn = await session.connection()
-        await conn.run_sync(Base.metadata.create_all)
 
         # recreate search index
         await session.execute(CREATE_SEARCH_INDEX)
