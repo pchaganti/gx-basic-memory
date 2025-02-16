@@ -1,6 +1,25 @@
 # CHANGELOG
 
 
+## v0.4.0 (2025-02-16)
+
+### Features
+
+- Import chatgpt conversation data ([#9](https://github.com/basicmachines-co/basic-memory/pull/9),
+  [`56f47d6`](https://github.com/basicmachines-co/basic-memory/commit/56f47d6812982437f207629e6ac9a82e0e56514e))
+
+Co-authored-by: phernandez <phernandez@basicmachines.co>
+
+- Import claude.ai data ([#8](https://github.com/basicmachines-co/basic-memory/pull/8),
+  [`a15c346`](https://github.com/basicmachines-co/basic-memory/commit/a15c346d5ebd44344b76bad877bb4d1073fcbc3b))
+
+Import Claude.ai conversation and project data to basic-memory Markdown format.
+
+---------
+
+Co-authored-by: phernandez <phernandez@basicmachines.co>
+
+
 ## v0.3.0 (2025-02-15)
 
 ### Bug Fixes
