@@ -266,7 +266,7 @@ including
 Import Claude.ai conversation data
 
 ```bash
- basic-memory import claude conversations conversations.json
+ basic-memory import claude conversations 
 ```
 
 The conversations will be turned into Markdown files and placed in the "conversations" folder by default (this can be
