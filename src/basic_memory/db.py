@@ -137,8 +137,14 @@ async def run_migrations(app_config: ProjectConfig, database_type=DatabaseType.F
         # Get the absolute path to the alembic directory relative to this file
         alembic_dir = Path(__file__).parent / "alembic"
         config = Config()
+
+        # Set required Alembic config options programmatically
         config.set_main_option("script_location", str(alembic_dir))
-        config.set_main_option("sqlalchemy.url", "driver://user:pass@localhost/dbname")
+        config.set_main_option("file_template",
+                               "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s")
+        config.set_main_option("timezone", "UTC")
+        config.set_main_option("revision_environment", "false")
+        config.set_main_option("sqlalchemy.url", DatabaseType.get_db_url(app_config.database_path, database_type))
 
         command.upgrade(config, "head")
         logger.info("Migrations completed successfully")
