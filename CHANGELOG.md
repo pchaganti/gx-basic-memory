@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.4.1 (2025-02-17)
+
+### Bug Fixes
+
+- Fix alemic config
+  ([`71de8ac`](https://github.com/basicmachines-co/basic-memory/commit/71de8acfd0902fc60f27deb3638236a3875787ab))
+
+
 ## v0.4.0 (2025-02-16)
 
 ### Features
