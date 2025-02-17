@@ -134,7 +134,12 @@ async def run_migrations(app_config: ProjectConfig, database_type=DatabaseType.F
     """Run any pending alembic migrations."""
     logger.info("Running database migrations...")
     try:
-        config = Config("alembic.ini")
+        # Get the absolute path to the alembic directory relative to this file
+        alembic_dir = Path(__file__).parent / "alembic"
+        config = Config()
+        config.set_main_option("script_location", str(alembic_dir))
+        config.set_main_option("sqlalchemy.url", "driver://user:pass@localhost/dbname")
+
         command.upgrade(config, "head")
         logger.info("Migrations completed successfully")
 
