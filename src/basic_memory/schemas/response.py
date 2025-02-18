@@ -11,6 +11,7 @@ Key Features:
 4. Bulk operations return all affected items
 """
 
+from datetime import datetime
 from typing import List, Optional, Dict
 
 from pydantic import BaseModel, ConfigDict, Field, AliasPath, AliasChoices
@@ -43,6 +44,8 @@ class ObservationResponse(Observation, SQLAlchemyModel):
     }
     """
 
+    permalink: Permalink
+
 
 class RelationResponse(Relation, SQLAlchemyModel):
     """Response schema for relation operations.
@@ -58,6 +61,8 @@ class RelationResponse(Relation, SQLAlchemyModel):
         "context": "Comprehensive test suite"
     }
     """
+
+    permalink: Permalink
 
     from_id: Permalink = Field(
         # use the permalink from the associated Entity
@@ -131,9 +136,12 @@ class EntityResponse(SQLAlchemyModel):
     file_path: str
     entity_type: EntityType
     entity_metadata: Optional[Dict] = None
+    checksum: Optional[str] = None
     content_type: ContentType
     observations: List[ObservationResponse] = []
     relations: List[RelationResponse] = []
+    created_at: datetime
+    updated_at: datetime
 
 
 class EntityListResponse(SQLAlchemyModel):
