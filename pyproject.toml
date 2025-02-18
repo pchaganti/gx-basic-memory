@@ -1,6 +1,6 @@
 [project]
 name = "basic-memory"
-version = "0.4.2"
+version = "0.4.3"
 description = "Local-first knowledge management combining Zettelkasten with knowledge graphs"
 readme = "README.md"
 requires-python = ">=3.12.1"

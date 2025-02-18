@@ -1,6 +1,16 @@
 # CHANGELOG
 
 
+## v0.4.3 (2025-02-18)
+
+### Bug Fixes
+
+- Re do enhanced read note format ([#10](https://github.com/basicmachines-co/basic-memory/pull/10),
+  [`39bd5ca`](https://github.com/basicmachines-co/basic-memory/commit/39bd5ca08fd057220b95a8b5d82c5e73a1f5722b))
+
+Co-authored-by: phernandez <phernandez@basicmachines.co>
+
+
 ## v0.4.2 (2025-02-17)
 
 
