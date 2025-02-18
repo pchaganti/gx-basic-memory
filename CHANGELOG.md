@@ -1,6 +1,16 @@
 # CHANGELOG
 
 
+## v0.6.0 (2025-02-18)
+
+### Features
+
+- Configure logfire telemetry ([#12](https://github.com/basicmachines-co/basic-memory/pull/12),
+  [`6da1438`](https://github.com/basicmachines-co/basic-memory/commit/6da143898bd45cdab8db95b5f2b75810fbb741ba))
+
+Co-authored-by: phernandez <phernandez@basicmachines.co>
+
+
 ## v0.5.0 (2025-02-18)
 
 ### Features
