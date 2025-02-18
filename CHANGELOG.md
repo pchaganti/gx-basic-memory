@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.5.0 (2025-02-18)
+
+### Features
+
+- Return semantic info in markdown after write_note
+  ([#11](https://github.com/basicmachines-co/basic-memory/pull/11),
+  [`0689e7a`](https://github.com/basicmachines-co/basic-memory/commit/0689e7a730497827bf4e16156ae402ddc5949077))
+
+Co-authored-by: phernandez <phernandez@basicmachines.co>
+
+
 ## v0.4.3 (2025-02-18)
 
 ### Bug Fixes
