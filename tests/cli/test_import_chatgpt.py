@@ -220,7 +220,7 @@ async def test_hidden_messages(tmp_path, sample_conversation_with_hidden):
 def test_import_chatgpt_command_file_not_found(tmp_path):
     """Test error handling for nonexistent file."""
     nonexistent = tmp_path / "nonexistent.json"
-    result = runner.invoke(app, ["import", "chatgpt", "--conversations-json", str(nonexistent)])
+    result = runner.invoke(app, ["import", "chatgpt", str(nonexistent)])
     assert result.exit_code == 1
     assert "File not found" in result.output
 
@@ -231,9 +231,7 @@ def test_import_chatgpt_command_success(tmp_path, sample_chatgpt_json, monkeypat
     monkeypatch.setenv("HOME", str(tmp_path))
 
     # Run import
-    result = runner.invoke(
-        import_app, ["chatgpt", "--conversations-json", str(sample_chatgpt_json)]
-    )
+    result = runner.invoke(import_app, ["chatgpt", str(sample_chatgpt_json)])
     assert result.exit_code == 0
     assert "Import complete" in result.output
     assert "Imported 1 conversations" in result.output
@@ -246,7 +244,7 @@ def test_import_chatgpt_command_invalid_json(tmp_path):
     invalid_file = tmp_path / "invalid.json"
     invalid_file.write_text("not json")
 
-    result = runner.invoke(import_app, ["chatgpt", "--conversations-json", str(invalid_file)])
+    result = runner.invoke(import_app, ["chatgpt", str(invalid_file)])
     assert result.exit_code == 1
     assert "Error during import" in result.output
 
@@ -263,7 +261,6 @@ def test_import_chatgpt_with_custom_folder(tmp_path, sample_chatgpt_json, monkey
         [
             "import",
             "chatgpt",
-            "--conversations-json",
             str(sample_chatgpt_json),
             "--folder",
             conversations_folder,

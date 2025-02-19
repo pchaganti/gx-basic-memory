@@ -94,11 +94,8 @@ async def get_entity(
     try:
         entity = await entity_service.get_by_permalink(permalink)
         result = EntityResponse.model_validate(entity)
-
-        logger.info(f"response: get_entity with result={result}")
         return result
     except EntityNotFoundError:
-        logger.error(f"Error: Entity with {permalink} not found")
         raise HTTPException(status_code=404, detail=f"Entity with {permalink} not found")
 
 
@@ -114,8 +111,6 @@ async def get_entities(
     result = EntityListResponse(
         entities=[EntityResponse.model_validate(entity) for entity in entities]
     )
-
-    logger.info(f"response: get_entities with result={result}")
     return result
 
 
@@ -135,7 +130,6 @@ async def delete_entity(
 
     entity = await link_resolver.resolve_link(identifier)
     if entity is None:
-        logger.info("response: delete_entity with result=DeleteEntitiesResponse(deleted=False)")
         return DeleteEntitiesResponse(deleted=False)
 
     # Delete the entity
@@ -145,7 +139,6 @@ async def delete_entity(
     background_tasks.add_task(search_service.delete_by_permalink, entity.permalink)
 
     result = DeleteEntitiesResponse(deleted=deleted)
-    logger.info(f"response: delete_entity with result={result}")
     return result
 
 
@@ -166,5 +159,4 @@ async def delete_entities(
         background_tasks.add_task(search_service.delete_by_permalink, permalink)
 
     result = DeleteEntitiesResponse(deleted=deleted)
-    logger.info(f"response: delete_entities with result={result}")
     return result

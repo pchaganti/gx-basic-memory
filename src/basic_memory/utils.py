@@ -65,13 +65,14 @@ def generate_permalink(file_path: Union[Path, str]) -> str:
 
 
 def setup_logging(
-    home_dir: Path = config.home, log_file: Optional[str] = None
+    home_dir: Path = config.home, log_file: Optional[str] = None, console: bool = True
 ) -> None:  # pragma: no cover
     """
     Configure logging for the application.
     :param home_dir: the root directory for the application
     :param log_file: the name of the log file to write to
     :param app: the fastapi application instance
+    :param console: whether to log to the console
     """
 
     # Remove default handler and any existing handlers

@@ -210,7 +210,7 @@ async def get_markdown_processor() -> MarkdownProcessor:
 @import_app.command(name="chatgpt", help="Import conversations from ChatGPT JSON export.")
 def import_chatgpt(
     conversations_json: Annotated[
-        Path, typer.Option(..., help="Path to ChatGPT conversations.json file")
+        Path, typer.Argument(help="Path to ChatGPT conversations.json file")
     ] = Path("conversations.json"),
     folder: Annotated[
         str, typer.Option(help="The folder to place the files in.")

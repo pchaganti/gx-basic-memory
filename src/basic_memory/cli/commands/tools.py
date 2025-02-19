@@ -1,0 +1,157 @@
+"""Database management commands."""
+
+import asyncio
+from typing import Optional, List, Annotated
+
+import typer
+from rich import print as rprint
+
+from basic_memory.cli.app import app
+from basic_memory.mcp.tools import build_context as mcp_build_context
+from basic_memory.mcp.tools import get_entity as mcp_get_entity
+from basic_memory.mcp.tools import read_note as mcp_read_note
+from basic_memory.mcp.tools import recent_activity as mcp_recent_activity
+from basic_memory.mcp.tools import search as mcp_search
+from basic_memory.mcp.tools import write_note as mcp_write_note
+from basic_memory.schemas.base import TimeFrame
+from basic_memory.schemas.memory import MemoryUrl
+from basic_memory.schemas.search import SearchQuery
+
+tool_app = typer.Typer()
+app.add_typer(tool_app, name="tools", help="cli versions mcp tools")
+
+
+@tool_app.command()
+def write_note(
+    title: Annotated[str, typer.Option(help="The title of the note")],
+    content: Annotated[str, typer.Option(help="The content of the note")],
+    folder: Annotated[str, typer.Option(help="The folder to create the note in")],
+    tags: Annotated[
+        Optional[List[str]], typer.Option(help="A list of tags to apply to the note")
+    ] = None,
+):  # pragma: no cover
+    try:
+        note = asyncio.run(mcp_write_note(title, content, folder, tags))
+        rprint(note)
+    except Exception as e:
+        if not isinstance(e, typer.Exit):
+            typer.echo(f"Error during write_note: {e}", err=True)
+            raise typer.Exit(1)
+        raise
+
+
+@tool_app.command()
+def read_note(identifier: str, page: int = 1, page_size: int = 10):  # pragma: no cover
+    try:
+        note = asyncio.run(mcp_read_note(identifier, page, page_size))
+        rprint(note)
+    except Exception as e:
+        if not isinstance(e, typer.Exit):
+            typer.echo(f"Error during read_note: {e}", err=True)
+            raise typer.Exit(1)
+        raise
+
+
+@tool_app.command()
+def build_context(
+    url: MemoryUrl,
+    depth: Optional[int] = 1,
+    timeframe: Optional[TimeFrame] = "7d",
+    page: int = 1,
+    page_size: int = 10,
+    max_related: int = 10,
+):  # pragma: no cover
+    try:
+        context = asyncio.run(
+            mcp_build_context(
+                url=url,
+                depth=depth,
+                timeframe=timeframe,
+                page=page,
+                page_size=page_size,
+                max_related=max_related,
+            )
+        )
+        rprint(context.model_dump())
+    except Exception as e:  # pragma: no cover
+        if not isinstance(e, typer.Exit):
+            typer.echo(f"Error during build_context: {e}", err=True)
+            raise typer.Exit(1)
+        raise
+
+
+@tool_app.command()
+def recent_activity(
+    type: Annotated[Optional[List[str]], typer.Option()] = ["entity", "observation", "relation"],
+    depth: Optional[int] = 1,
+    timeframe: Optional[TimeFrame] = "7d",
+    page: int = 1,
+    page_size: int = 10,
+    max_related: int = 10,
+):  # pragma: no cover
+    
+    if type not in ["entity", "observation", "relation"]:
+        print("type must be one of ['entity', 'observation', 'relation']")
+        raise typer.Abort()
+
+    try:
+        context = asyncio.run(
+            mcp_recent_activity(
+                type=type,
+                depth=depth,
+                timeframe=timeframe,
+                page=page,
+                page_size=page_size,
+                max_related=max_related,
+            )
+        )
+        rprint(context.model_dump())
+    except Exception as e:  # pragma: no cover
+        if not isinstance(e, typer.Exit):
+            typer.echo(f"Error during build_context: {e}", err=True)
+            raise typer.Exit(1)
+        raise
+
+
+@tool_app.command()
+def search(
+    query: str,
+    permalink: Annotated[bool, typer.Option("--permalink", help="Search permalink values")] = False,
+    title: Annotated[bool, typer.Option("--title", help="Search title values")] = False,
+    after_date: Annotated[
+        Optional[str],
+        typer.Option("--after_date", help="Search results after date, eg. '2d', '1 week'"),
+    ] = None,
+    page: int = 1,
+    page_size: int = 10,
+):
+    if permalink and title:
+        print("Cannot search both permalink and title")
+        raise typer.Abort()
+
+    try:
+        search_query = SearchQuery(
+            permalink_match=query if permalink else None,
+            text=query if query else None,
+            title=query if title else None,
+            after_date=after_date,
+        )
+        results = asyncio.run(mcp_search(query=search_query, page=page, page_size=page_size))
+        rprint(results.model_dump())
+    except Exception as e:  # pragma: no cover
+        if not isinstance(e, typer.Exit):
+            typer.echo(f"Error during search: {e}", err=True)
+            raise typer.Exit(1)
+        raise
+
+
+@tool_app.command()
+def get_entity(identifier: str):
+    try:
+        entity = asyncio.run(mcp_get_entity(identifier=identifier))
+        rprint(entity.model_dump())
+    except Exception as e:  # pragma: no cover
+        if not isinstance(e, typer.Exit):
+            typer.echo(f"Error during get_entity: {e}", err=True)
+            raise typer.Exit(1)
+        raise
