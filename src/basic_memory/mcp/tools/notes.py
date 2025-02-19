@@ -116,7 +116,7 @@ async def write_note(
 
 
 @mcp.tool(description="Read note content by title, permalink, relation, or pattern")
-async def read_note(identifier: str) -> str:
+async def read_note(identifier: str, page: int = 1, page_size: int = 10) -> str:
     """Get note content in unified diff format.
 
     The content is returned in a unified diff inspired format:
@@ -134,6 +134,8 @@ async def read_note(identifier: str) -> str:
             - Note permalink ("docs/example")
             - Relation path ("docs/example/depends-on/other-doc")
             - Pattern match ("docs/*-architecture")
+        page: the page number of results to return (default 1)
+        page_size: the number of results to return per page (default 10)
 
     Returns:
         Document content in unified diff format. For single documents, returns
@@ -171,7 +173,9 @@ async def read_note(identifier: str) -> str:
     with logfire.span("Reading note", identifier=identifier):  # pyright: ignore [reportGeneralTypeIssues]
         logger.info(f"Reading note {identifier}")
         url = memory_url_path(identifier)
-        response = await call_get(client, f"/resource/{url}")
+        response = await call_get(
+            client, f"/resource/{url}", params={"page": page, "page_size": page_size}
+        )
         return response.text
 
 

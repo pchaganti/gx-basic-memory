@@ -44,6 +44,8 @@ async def get_resource_content(
     file_service: FileServiceDep,
     background_tasks: BackgroundTasks,
     identifier: str,
+    page: int = 1,
+    page_size: int = 10,
 ) -> FileResponse:
     """Get resource content by identifier: name or permalink."""
     logger.debug(f"Getting content for: {identifier}")
@@ -51,6 +53,10 @@ async def get_resource_content(
     # Find single entity by permalink
     entity = await link_resolver.resolve_link(identifier)
     results = [entity] if entity else []
+
+    # pagination for multiple results
+    limit = page_size
+    offset = (page - 1) * page_size
 
     # search using the identifier as a permalink
     if not results:
@@ -60,7 +66,7 @@ async def get_resource_content(
             if "*" in identifier
             else SearchQuery(permalink=identifier)
         )
-        search_results = await search_service.search(query)
+        search_results = await search_service.search(query, limit, offset)
         if not search_results:
             raise HTTPException(status_code=404, detail=f"Resource not found: {identifier}")
 

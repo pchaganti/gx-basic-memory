@@ -38,6 +38,35 @@ async def test_get_resource_content(client, test_config, entity_repository):
 
 
 @pytest.mark.asyncio
+async def test_get_resource_pagination(client, test_config, entity_repository):
+    """Test getting content by permalink with pagination."""
+    # Create a test file
+    content = "# Test Content\n\nThis is a test file."
+    test_file = Path(test_config.home) / "test" / "test.md"
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text(content)
+
+    # Create entity referencing the file
+    entity = await entity_repository.create(
+        {
+            "title": "Test Entity",
+            "entity_type": "test",
+            "permalink": "test/test",
+            "file_path": "test/test.md",  # Relative to config.home
+            "content_type": "text/markdown",
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+
+    # Test getting the content
+    response = await client.get(f"/resource/{entity.permalink}", params={"page": 1, "page_size": 1})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/markdown; charset=utf-8"
+    assert response.text == content
+
+
+@pytest.mark.asyncio
 async def test_get_resource_by_title(client, test_config, entity_repository):
     """Test getting content by permalink."""
     # Create a test file
@@ -175,6 +204,54 @@ async def test_get_resource_entities(client, test_config, entity_repository):
 - links to [[Test Entity]]
 
     """.strip()
+        in response.text
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_resource_entities_pagination(client, test_config, entity_repository):
+    """Test getting content by permalink match."""
+    # Create entity
+    content1 = "# Test Content\n"
+    data = {
+        "title": "Test Entity",
+        "folder": "test",
+        "entity_type": "test",
+        "content": f"{content1}",
+    }
+    response = await client.post("/knowledge/entities", json=data)
+    entity_response = response.json()
+    entity1 = EntityResponse(**entity_response)
+    assert entity1
+
+    content2 = "# Related Content\n- links to [[Test Entity]]"
+    data = {
+        "title": "Related Entity",
+        "folder": "test",
+        "entity_type": "test",
+        "content": f"{content2}",
+    }
+    response = await client.post("/knowledge/entities", json=data)
+    entity_response = response.json()
+    entity2 = EntityResponse(**entity_response)
+
+    assert len(entity2.relations) == 1
+
+    # Test getting second result
+    response = await client.get("/resource/test/*", params={"page": 2, "page_size": 1})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/markdown; charset=utf-8"
+    assert (
+        """
+---
+title: Related Entity
+type: test
+permalink: test/related-entity
+---
+
+# Related Content
+- links to [[Test Entity]]
+""".strip()
         in response.text
     )
 

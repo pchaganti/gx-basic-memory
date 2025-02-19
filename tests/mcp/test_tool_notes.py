@@ -221,6 +221,34 @@ async def test_multiple_notes(app):
     assert "--- memory://test/note-3" in result
     assert "Content 3" in result
 
+@pytest.mark.asyncio
+async def test_multiple_notes_pagination(app):
+    """Test creating and managing multiple notes."""
+    # Create several notes
+    notes_data = [
+        ("test/note-1", "Note 1", "test", "Content 1", ["tag1"]),
+        ("test/note-2", "Note 2", "test", "Content 2", ["tag1", "tag2"]),
+        ("test/note-3", "Note 3", "test", "Content 3", []),
+    ]
+
+    for _, title, folder, content, tags in notes_data:
+        await notes.write_note(title=title, folder=folder, content=content, tags=tags)
+
+    # Should be able to read each one
+    for permalink, title, folder, content, _ in notes_data:
+        note = await notes.read_note(permalink)
+        assert content in note
+
+    # read multiple notes at once with pagination
+    result = await notes.read_note("test/*", page=1, page_size=2)
+
+    # note we can't compare times
+    assert "--- memory://test/note-1" in result
+    assert "Content 1" in result
+
+    assert "--- memory://test/note-2" in result
+    assert "Content 2" in result
+
 
 @pytest.mark.asyncio
 async def test_delete_note_existing(app):

@@ -27,7 +27,7 @@ async def search(query: SearchQuery, page: int = 1, page_size: int = 10) -> Sear
     Returns:
         SearchResponse with search results and metadata
     """
-    with logfire.span("Searching for {query}", qurey=query):  # pyright: ignore [reportGeneralTypeIssues]
+    with logfire.span("Searching for {query}", query=query):  # pyright: ignore [reportGeneralTypeIssues]
         logger.info(f"Searching for {query}")
         response = await call_post(
             client, f"/search/?page={page}&page_size={page_size}", json=query.model_dump()
