@@ -1,4 +1,5 @@
 """Search tools for Basic Memory MCP server."""
+
 import logfire
 from loguru import logger
 
@@ -24,7 +25,7 @@ async def search(query: SearchQuery) -> SearchResponse:
     Returns:
         SearchResponse with search results and metadata
     """
-    with logfire.span("Searching for {query}", qurey=query):
+    with logfire.span("Searching for {query}", qurey=query):  # pyright: ignore [reportGeneralTypeIssues]
         logger.info(f"Searching for {query}")
         response = await call_post(client, "/search/", json=query.model_dump())
         return SearchResponse.model_validate(response.json())

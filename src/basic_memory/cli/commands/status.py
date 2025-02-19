@@ -3,6 +3,7 @@
 import asyncio
 from typing import Set, Dict
 
+import logfire
 import typer
 from loguru import logger
 from rich.console import Console
@@ -146,9 +147,10 @@ def status(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed file information"),
 ):
     """Show sync status between files and database."""
-    try:
-        sync_service = asyncio.run(get_file_change_scanner())
-        asyncio.run(run_status(sync_service, verbose))  # pragma: no cover
-    except Exception as e:
-        logger.exception(f"Error checking status: {e}")
-        raise typer.Exit(code=1)  # pragma: no cover
+    with logfire.span("status"):  # pyright: ignore [reportGeneralTypeIssues]
+        try:
+            sync_service = asyncio.run(get_file_change_scanner())
+            asyncio.run(run_status(sync_service, verbose))  # pragma: no cover
+        except Exception as e:
+            logger.exception(f"Error checking status: {e}")
+            raise typer.Exit(code=1)  # pragma: no cover

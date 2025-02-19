@@ -66,7 +66,7 @@ async def build_context(
         # Research the history of a feature
         build_context("memory://features/knowledge-graph", timeframe="3 months ago")
     """
-    with logfire.span("Building context", url=url, depth=depth, timeframe=timeframe) as s:
+    with logfire.span("Building context", url=url, depth=depth, timeframe=timeframe):  # pyright: ignore [reportGeneralTypeIssues]
         logger.info(f"Building context from {url}")
         url = normalize_memory_url(url)
         response = await call_get(
@@ -134,7 +134,7 @@ async def recent_activity(
         - For focused queries, consider using build_context with a specific URI
         - Max timeframe is 1 year in the past
     """
-    with logfire.span("Getting recent activity", type=type, depth=depth, timeframe=timeframe) as s:
+    with logfire.span("Getting recent activity", type=type, depth=depth, timeframe=timeframe):  # pyright: ignore [reportGeneralTypeIssues]
         logger.info(
             f"Getting recent activity from {type}, depth={depth}, timeframe={timeframe}, max_results={max_results}"
         )

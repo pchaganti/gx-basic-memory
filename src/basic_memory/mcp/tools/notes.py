@@ -62,7 +62,7 @@ async def write_note(
         - Relation counts (resolved/unresolved)
         - Tags if present
     """
-    with logfire.span("Writing note", title=title, folder=folder) as s:
+    with logfire.span("Writing note", title=title, folder=folder):  # pyright: ignore [reportGeneralTypeIssues]
         logger.info(f"Writing note folder:'{folder}' title: '{title}'")
 
         # Create the entity request
@@ -81,25 +81,29 @@ async def write_note(
         url = f"/knowledge/entities/{entity.permalink}"
         response = await call_put(client, url, json=entity.model_dump())
         result = EntityResponse.model_validate(response.json())
-        
+
         # Format semantic summary based on status code
         action = "Created" if response.status_code == 201 else "Updated"
-        summary = [f"# {action} {result.file_path} ({result.checksum[:8]})", f"permalink: {result.permalink}"]
+        assert result.checksum is not None
+        summary = [
+            f"# {action} {result.file_path} ({result.checksum[:8]})",
+            f"permalink: {result.permalink}",
+        ]
 
         if result.observations:
             categories = {}
             for obs in result.observations:
                 categories[obs.category] = categories.get(obs.category, 0) + 1
-            
+
             summary.append("\n## Observations")
             for category, count in sorted(categories.items()):
                 summary.append(f"- {category}: {count}")
-                
+
         if result.relations:
             unresolved = sum(1 for r in result.relations if not r.to_id)
             resolved = len(result.relations) - unresolved
-            
-            summary.append("\n## Relations") 
+
+            summary.append("\n## Relations")
             summary.append(f"- Resolved: {resolved}")
             if unresolved:
                 summary.append(f"- Unresolved: {unresolved}")
@@ -164,7 +168,7 @@ async def read_note(identifier: str) -> str:
     - Last modified timestamp
     - Content checksum
     """
-    with logfire.span("Reading note", identifier=identifier) as s:
+    with logfire.span("Reading note", identifier=identifier):  # pyright: ignore [reportGeneralTypeIssues]
         logger.info(f"Reading note {identifier}")
         url = memory_url_path(identifier)
         response = await call_get(client, f"/resource/{url}")
@@ -188,7 +192,7 @@ async def delete_note(identifier: str) -> bool:
         # Delete by permalink
         delete_note("notes/project-planning")
     """
-    with logfire.span("Deleting note", identifier=identifier) as s:
+    with logfire.span("Deleting note", identifier=identifier):  # pyright: ignore [reportGeneralTypeIssues]
         response = await call_delete(client, f"/knowledge/entities/{identifier}")
         result = DeleteEntitiesResponse.model_validate(response.json())
         return result.deleted

@@ -4,7 +4,6 @@ import logfire
 
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_get, call_post
-from basic_memory.schemas.base import Permalink
 from basic_memory.schemas.memory import memory_url_path
 from basic_memory.schemas.request import (
     GetEntitiesRequest,
@@ -25,7 +24,7 @@ async def get_entity(identifier: str) -> EntityResponse:
     Args:
         identifier: Path identifier for the entity
     """
-    with logfire.span("Getting entity", permalink=identifier) as s:
+    with logfire.span("Getting entity", permalink=identifier):  # pyright: ignore [reportGeneralTypeIssues]
         permalink = memory_url_path(identifier)
         url = f"/knowledge/entities/{permalink}"
         response = await call_get(client, url)
@@ -44,10 +43,14 @@ async def get_entities(request: GetEntitiesRequest) -> EntityListResponse:
     Returns:
         EntityListResponse containing complete details for each requested entity
     """
-    with logfire.span("Getting multiple entities", permalink_count=len(request.permalinks)) as s:
+    with logfire.span("Getting multiple entities", permalink_count=len(request.permalinks)):  # pyright: ignore [reportGeneralTypeIssues]
         url = "/knowledge/entities"
         response = await call_get(
-            client, url, params=[("permalink", memory_url_path(identifier)) for identifier in request.permalinks]
+            client,
+            url,
+            params=[
+                ("permalink", memory_url_path(identifier)) for identifier in request.permalinks
+            ],
         )
         return EntityListResponse.model_validate(response.json())
 
@@ -57,9 +60,9 @@ async def get_entities(request: GetEntitiesRequest) -> EntityListResponse:
 )
 async def delete_entities(request: DeleteEntitiesRequest) -> DeleteEntitiesResponse:
     """Delete entities from the knowledge graph."""
-    with logfire.span("Deleting entities", permalink_count=len(request.permalinks)) as s:
+    with logfire.span("Deleting entities", permalink_count=len(request.permalinks)):  # pyright: ignore [reportGeneralTypeIssues]
         url = "/knowledge/entities/delete"
-        
+
         request.permalinks = [memory_url_path(permlink) for permlink in request.permalinks]
         response = await call_post(client, url, json=request.model_dump())
         return DeleteEntitiesResponse.model_validate(response.json())

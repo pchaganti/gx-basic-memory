@@ -32,6 +32,7 @@ async def test_get_single_entity(client):
     assert entity.permalink == "test/test-note"
     assert len(entity.observations) == 1
 
+
 @pytest.mark.asyncio
 async def test_get_single_entity_memory_url(client):
     """Test retrieving a single entity."""
@@ -81,6 +82,7 @@ async def test_get_multiple_entities(client):
     assert "test/test-note-1" in permalinks
     assert "test/test-note-2" in permalinks
 
+
 @pytest.mark.asyncio
 async def test_get_multiple_entities_memory_ur(client):
     """Test retrieving multiple entities."""
@@ -97,7 +99,9 @@ async def test_get_multiple_entities_memory_ur(client):
     )
 
     # Get both entities
-    request = GetEntitiesRequest(permalinks=["memory://test/test-note-1", "memory://test/test-note-2"])
+    request = GetEntitiesRequest(
+        permalinks=["memory://test/test-note-1", "memory://test/test-note-2"]
+    )
     response = await get_entities(request)
 
     # Verify we got both entities
@@ -127,6 +131,7 @@ async def test_delete_entities(client):
     # Verify entity no longer exists
     with pytest.raises(ToolError):
         await get_entity("test/test-note")
+
 
 @pytest.mark.asyncio
 async def test_delete_entities_memory_url(client):

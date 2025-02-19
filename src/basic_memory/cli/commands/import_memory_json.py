@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Annotated
 
+import logfire
 import typer
 from loguru import logger
 from rich.console import Console
@@ -113,32 +114,33 @@ def memory_json(
     After importing, run 'basic-memory sync' to index the new files.
     """
 
-    if not json_path.exists():
-        typer.echo(f"Error: File not found: {json_path}", err=True)
-        raise typer.Exit(1)
+    with logfire.span("import memory_json"):  # pyright: ignore [reportGeneralTypeIssues]
+        if not json_path.exists():
+            typer.echo(f"Error: File not found: {json_path}", err=True)
+            raise typer.Exit(1)
 
-    try:
-        # Get markdown processor
-        markdown_processor = asyncio.run(get_markdown_processor())
+        try:
+            # Get markdown processor
+            markdown_processor = asyncio.run(get_markdown_processor())
 
-        # Process the file
-        base_path = config.home
-        console.print(f"\nImporting from {json_path}...writing to {base_path}")
-        results = asyncio.run(process_memory_json(json_path, base_path, markdown_processor))
+            # Process the file
+            base_path = config.home
+            console.print(f"\nImporting from {json_path}...writing to {base_path}")
+            results = asyncio.run(process_memory_json(json_path, base_path, markdown_processor))
 
-        # Show results
-        console.print(
-            Panel(
-                f"[green]Import complete![/green]\n\n"
-                f"Created {results['entities']} entities\n"
-                f"Added {results['relations']} relations",
-                expand=False,
+            # Show results
+            console.print(
+                Panel(
+                    f"[green]Import complete![/green]\n\n"
+                    f"Created {results['entities']} entities\n"
+                    f"Added {results['relations']} relations",
+                    expand=False,
+                )
             )
-        )
 
-        console.print("\nRun 'basic-memory sync' to index the new files.")
+            console.print("\nRun 'basic-memory sync' to index the new files.")
 
-    except Exception as e:
-        logger.error("Import failed")
-        typer.echo(f"Error during import: {e}", err=True)
-        raise typer.Exit(1)
+        except Exception as e:
+            logger.error("Import failed")
+            typer.echo(f"Error during import: {e}", err=True)
+            raise typer.Exit(1)

@@ -4,7 +4,6 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import AsyncGenerator, Optional
 
-import logfire
 
 from basic_memory.config import ProjectConfig
 from alembic import command

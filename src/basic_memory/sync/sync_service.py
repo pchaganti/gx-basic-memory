@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Dict
 
+import logfire
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
@@ -61,105 +62,113 @@ class SyncService:
 
     async def sync(self, directory: Path) -> SyncReport:
         """Sync knowledge files with database."""
-        changes = await self.scanner.find_knowledge_changes(directory)
-        logger.info(f"Found {changes.total_changes} knowledge changes")
 
-        # Handle moves first
-        for old_path, new_path in changes.moves.items():
-            logger.debug(f"Moving entity: {old_path} -> {new_path}")
-            entity = await self.entity_repository.get_by_file_path(old_path)
-            if entity:
-                # Update file_path but keep the same permalink for link stability
-                updated = await self.entity_repository.update(
-                    entity.id, {"file_path": new_path, "checksum": changes.checksums[new_path]}
-                )
-                # update search index
-                if updated:
-                    await self.search_service.index_entity(updated)
+        with logfire.span("sync", directory=directory):  # pyright: ignore [reportGeneralTypeIssues]
+            changes = await self.scanner.find_knowledge_changes(directory)
+            logger.info(f"Found {changes.total_changes} knowledge changes")
 
-        # Handle deletions next
-        # remove rows from db for files no longer present
-        for path in changes.deleted:
-            await self.handle_entity_deletion(path)
+            # Handle moves first
+            for old_path, new_path in changes.moves.items():
+                logger.debug(f"Moving entity: {old_path} -> {new_path}")
+                entity = await self.entity_repository.get_by_file_path(old_path)
+                if entity:
+                    # Update file_path but keep the same permalink for link stability
+                    updated = await self.entity_repository.update(
+                        entity.id, {"file_path": new_path, "checksum": changes.checksums[new_path]}
+                    )
+                    # update search index
+                    if updated:
+                        await self.search_service.index_entity(updated)
 
-        # Parse files that need updating
-        parsed_entities: Dict[str, EntityMarkdown] = {}
+            # Handle deletions next
+            # remove rows from db for files no longer present
+            for path in changes.deleted:
+                await self.handle_entity_deletion(path)
 
-        for path in [*changes.new, *changes.modified]:
-            entity_markdown = await self.entity_parser.parse_file(directory / path)
-            parsed_entities[path] = entity_markdown
+            # Parse files that need updating
+            parsed_entities: Dict[str, EntityMarkdown] = {}
 
-        # First pass: Create/update entities
-        # entities will have a null checksum to indicate they are not complete
-        for path, entity_markdown in parsed_entities.items():
-            # Get unique permalink and update markdown if needed
-            permalink = await self.entity_service.resolve_permalink(
-                Path(path), markdown=entity_markdown
-            )
+            for path in [*changes.new, *changes.modified]:
+                entity_markdown = await self.entity_parser.parse_file(directory / path)
+                parsed_entities[path] = entity_markdown
 
-            if permalink != entity_markdown.frontmatter.permalink:
-                # Add/update permalink in frontmatter
-                logger.info(f"Adding permalink '{permalink}' to file: {path}")
-
-                # update markdown
-                entity_markdown.frontmatter.metadata["permalink"] = permalink
-
-                # update file frontmatter
-                updated_checksum = await file_utils.update_frontmatter(
-                    directory / path, {"permalink": permalink}
+            # First pass: Create/update entities
+            # entities will have a null checksum to indicate they are not complete
+            for path, entity_markdown in parsed_entities.items():
+                # Get unique permalink and update markdown if needed
+                permalink = await self.entity_service.resolve_permalink(
+                    Path(path), markdown=entity_markdown
                 )
 
-                # Update checksum in changes report since file was modified
-                changes.checksums[path] = updated_checksum
+                if permalink != entity_markdown.frontmatter.permalink:
+                    # Add/update permalink in frontmatter
+                    logger.info(f"Adding permalink '{permalink}' to file: {path}")
 
-            # if the file is new, create an entity
-            if path in changes.new:
-                # Create entity with final permalink
-                logger.debug(f"Creating new entity_markdown: {path}")
-                await self.entity_service.create_entity_from_markdown(Path(path), entity_markdown)
-            # otherwise we need to update the entity and observations
-            else:
-                logger.debug(f"Updating entity_markdown: {path}")
-                await self.entity_service.update_entity_and_observations(
+                    # update markdown
+                    entity_markdown.frontmatter.metadata["permalink"] = permalink
+
+                    # update file frontmatter
+                    updated_checksum = await file_utils.update_frontmatter(
+                        directory / path, {"permalink": permalink}
+                    )
+
+                    # Update checksum in changes report since file was modified
+                    changes.checksums[path] = updated_checksum
+
+                # if the file is new, create an entity
+                if path in changes.new:
+                    # Create entity with final permalink
+                    logger.debug(f"Creating new entity_markdown: {path}")
+                    await self.entity_service.create_entity_from_markdown(
+                        Path(path), entity_markdown
+                    )
+                # otherwise we need to update the entity and observations
+                else:
+                    logger.debug(f"Updating entity_markdown: {path}")
+                    await self.entity_service.update_entity_and_observations(
+                        Path(path), entity_markdown
+                    )
+
+            # Second pass
+            for path, entity_markdown in parsed_entities.items():
+                logger.debug(f"Updating relations for: {path}")
+
+                # Process relations
+                checksum = changes.checksums[path]
+                entity = await self.entity_service.update_entity_relations(
                     Path(path), entity_markdown
                 )
 
-        # Second pass
-        for path, entity_markdown in parsed_entities.items():
-            logger.debug(f"Updating relations for: {path}")
+                # add to search index
+                await self.search_service.index_entity(entity)
 
-            # Process relations
-            checksum = changes.checksums[path]
-            entity = await self.entity_service.update_entity_relations(Path(path), entity_markdown)
+                # Set final checksum to mark sync complete
+                await self.entity_repository.update(entity.id, {"checksum": checksum})
 
-            # add to search index
-            await self.search_service.index_entity(entity)
-
-            # Set final checksum to mark sync complete
-            await self.entity_repository.update(entity.id, {"checksum": checksum})
-
-        # Third pass: Try to resolve any forward references
-        logger.debug("Attempting to resolve forward references")
-        for relation in await self.relation_repository.find_unresolved_relations():
-            target_entity = await self.entity_service.link_resolver.resolve_link(relation.to_name)
-            # check we found a link that is not the source
-            if target_entity and target_entity.id != relation.from_id:
-                logger.debug(
-                    f"Resolved forward reference: {relation.to_name} -> {target_entity.permalink}"
+            # Third pass: Try to resolve any forward references
+            logger.debug("Attempting to resolve forward references")
+            for relation in await self.relation_repository.find_unresolved_relations():
+                target_entity = await self.entity_service.link_resolver.resolve_link(
+                    relation.to_name
                 )
-
-                try:
-                    await self.relation_repository.update(
-                        relation.id,
-                        {
-                            "to_id": target_entity.id,
-                            "to_name": target_entity.title,  # Update to actual title
-                        },
+                # check we found a link that is not the source
+                if target_entity and target_entity.id != relation.from_id:
+                    logger.debug(
+                        f"Resolved forward reference: {relation.to_name} -> {target_entity.permalink}"
                     )
-                except IntegrityError:
-                    logger.debug(f"Ignoring duplicate relation {relation}")
 
-                # update search index
-                await self.search_service.index_entity(target_entity)
+                    try:
+                        await self.relation_repository.update(
+                            relation.id,
+                            {
+                                "to_id": target_entity.id,
+                                "to_name": target_entity.title,  # Update to actual title
+                            },
+                        )
+                    except IntegrityError:
+                        logger.debug(f"Ignoring duplicate relation {relation}")
 
-        return changes
+                    # update search index
+                    await self.search_service.index_entity(target_entity)
+
+            return changes
