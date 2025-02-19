@@ -20,6 +20,25 @@ async def test_search_permalink(search_service, test_graph):
 
 
 @pytest.mark.asyncio
+async def test_search_limit_offset(search_service, test_graph):
+    """Exact permalink"""
+    results = await search_service.search(SearchQuery(permalink_match="test/*"))
+    assert len(results) > 1
+
+    results = await search_service.search(SearchQuery(permalink_match="test/*"), limit=1)
+    assert len(results) == 1
+
+    results = await search_service.search(SearchQuery(permalink_match="test/*"), limit=100)
+    num_results = len(results)
+
+    # assert offset
+    offset_results = await search_service.search(
+        SearchQuery(permalink_match="test/*"), limit=100, offset=1
+    )
+    assert len(offset_results) == num_results - 1
+
+
+@pytest.mark.asyncio
 async def test_search_permalink_observations_wildcard(search_service, test_graph):
     """Pattern matching"""
     results = await search_service.search(SearchQuery(permalink_match="test/root/observations/*"))

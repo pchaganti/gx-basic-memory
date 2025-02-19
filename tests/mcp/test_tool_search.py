@@ -30,6 +30,27 @@ async def test_search_basic(client):
 
 
 @pytest.mark.asyncio
+async def test_search_pagination(client):
+    """Test basic search functionality."""
+    # Create a test note
+    result = await notes.write_note(
+        title="Test Search Note",
+        folder="test",
+        content="# Test\nThis is a searchable test note",
+        tags=["test", "search"],
+    )
+    assert result
+
+    # Search for it
+    query = SearchQuery(text="searchable")
+    response = await search(query, page=1, page_size=1)
+
+    # Verify results
+    assert len(response.results) == 1
+    assert any(r.permalink == "test/test-search-note" for r in response.results)
+
+
+@pytest.mark.asyncio
 async def test_search_with_type_filter(client):
     """Test search with entity type filter."""
     # Create test content

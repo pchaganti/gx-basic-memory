@@ -66,15 +66,19 @@ class ContextService:
             # Pattern matching - use search
             if "*" in path:
                 logger.debug(f"Pattern search for '{path}'")
-                primary = await self.search_repository.search(permalink_match=path)
+                primary = await self.search_repository.search(
+                    permalink_match=path, limit=max_results
+                )
 
             # Direct lookup for exact path
             else:
                 logger.debug(f"Direct lookup for '{path}'")
-                primary = await self.search_repository.search(permalink=path)
+                primary = await self.search_repository.search(permalink=path, limit=max_results)
         else:
             logger.debug(f"Build context for '{types}'")
-            primary = await self.search_repository.search(types=types, after_date=since)
+            primary = await self.search_repository.search(
+                types=types, after_date=since, limit=max_results
+            )
 
         # Get type_id pairs for traversal
 

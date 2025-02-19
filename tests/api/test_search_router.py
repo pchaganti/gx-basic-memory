@@ -36,6 +36,18 @@ async def test_search_basic(client, indexed_entity):
 
 
 @pytest.mark.asyncio
+async def test_search_basic_pagination(client, indexed_entity):
+    """Test basic text search."""
+    response = await client.post("/search/?page=3&page_size=1", json={"text": "search"})
+    assert response.status_code == 200
+    search_results = SearchResponse.model_validate(response.json())
+    assert len(search_results.results) == 1
+
+    assert search_results.current_page == 3
+    assert search_results.page_size == 1
+
+
+@pytest.mark.asyncio
 async def test_search_with_type_filter(client, indexed_entity):
     """Test search with type filter."""
     # Should find with correct type

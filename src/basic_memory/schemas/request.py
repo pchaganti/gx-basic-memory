@@ -51,7 +51,7 @@ class GetEntitiesRequest(BaseModel):
     discovered through search.
     """
 
-    permalinks: Annotated[List[Permalink], MinLen(1)]
+    permalinks: Annotated[List[Permalink], MinLen(1), MaxLen(10)]
 
 
 class CreateRelationsRequest(BaseModel):

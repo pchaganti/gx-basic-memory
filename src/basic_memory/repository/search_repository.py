@@ -114,6 +114,7 @@ class SearchRepository:
         after_date: Optional[datetime] = None,
         entity_types: Optional[List[str]] = None,
         limit: int = 10,
+        offset: int = 0,
     ) -> List[SearchIndexRow]:
         """Search across all indexed content with fuzzy matching."""
         conditions = []
@@ -169,6 +170,7 @@ class SearchRepository:
 
         # set limit on search query
         params["limit"] = limit
+        params["offset"] = offset
 
         # Build WHERE clause
         where_clause = " AND ".join(conditions) if conditions else "1=1"
@@ -194,6 +196,7 @@ class SearchRepository:
             WHERE {where_clause}
             ORDER BY score ASC {order_by_clause}
             LIMIT :limit
+            OFFSET :offset
         """
 
         logger.debug(f"Search {sql} params: {params}")

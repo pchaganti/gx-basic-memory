@@ -51,7 +51,7 @@ class SearchService:
 
         logger.info("Reindex complete")
 
-    async def search(self, query: SearchQuery) -> List[SearchIndexRow]:
+    async def search(self, query: SearchQuery, limit=10, offset=0) -> List[SearchIndexRow]:
         """Search across all indexed content.
 
         Supports three modes:
@@ -84,6 +84,8 @@ class SearchService:
             types=query.types,
             entity_types=query.entity_types,
             after_date=after_date,
+            limit=limit,
+            offset=offset,
         )
 
         return results

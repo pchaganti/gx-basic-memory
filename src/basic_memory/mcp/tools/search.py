@@ -12,7 +12,7 @@ from basic_memory.mcp.async_client import client
 @mcp.tool(
     description="Search across all content in basic-memory, including documents and entities",
 )
-async def search(query: SearchQuery) -> SearchResponse:
+async def search(query: SearchQuery, page: int = 1, page_size: int = 10) -> SearchResponse:
     """Search across all content in basic-memory.
 
     Args:
@@ -21,11 +21,15 @@ async def search(query: SearchQuery) -> SearchResponse:
             - types: Optional list of content types to search ("document" or "entity")
             - entity_types: Optional list of entity types to filter by
             - after_date: Optional date filter for recent content
+        page: the page number of results to return (default 1)
+        page_size: the number of results to return per page (default 10)
 
     Returns:
         SearchResponse with search results and metadata
     """
     with logfire.span("Searching for {query}", qurey=query):  # pyright: ignore [reportGeneralTypeIssues]
         logger.info(f"Searching for {query}")
-        response = await call_post(client, "/search/", json=query.model_dump())
+        response = await call_post(
+            client, f"/search/?page={page}&page_size={page_size}", json=query.model_dump()
+        )
         return SearchResponse.model_validate(response.json())

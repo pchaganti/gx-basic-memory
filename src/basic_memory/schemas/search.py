@@ -102,6 +102,8 @@ class SearchResponse(BaseModel):
     """Wrapper for search results."""
 
     results: List[SearchResult]
+    current_page: int
+    page_size: int
 
 
 # Schema for future advanced search endpoint
