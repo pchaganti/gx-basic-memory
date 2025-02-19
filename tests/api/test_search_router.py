@@ -104,28 +104,6 @@ async def test_search_with_date_filter(client, indexed_entity):
     assert len(search_results.results) == 0
 
 
-@pytest.mark.skip("search scoring is not implemented yet")
-@pytest.mark.asyncio
-async def test_search_scoring(client, indexed_entity):
-    """Test search result scoring."""
-    # Exact match should score higher
-    exact_response = await client.post("/search/", json={"text": "TestComponent"})
-
-    # Partial match should score lower
-    partial_response = await client.post("/search/", json={"text": "test"})
-
-    assert exact_response.status_code == 200
-    assert partial_response.status_code == 200
-
-    exact_result = SearchResponse.model_validate(exact_response.json())
-    partial_result = SearchResponse.model_validate(partial_response.json())
-
-    exact_score = exact_result.results[0].score
-    partial_score = partial_result.results[0].score
-
-    assert exact_score > partial_score
-
-
 @pytest.mark.asyncio
 async def test_search_empty(search_service, client):
     """Test search with no matches."""

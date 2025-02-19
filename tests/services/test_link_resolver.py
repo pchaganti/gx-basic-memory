@@ -92,14 +92,6 @@ async def test_exact_title_match(link_resolver, test_entities):
     assert entity.permalink == "components/core-service"
 
 
-@pytest.mark.skip(reason="Fuzzy misspelling not yet implemented")
-@pytest.mark.asyncio
-async def test_fuzzy_title_match_misspelling(link_resolver):
-    # Test slight misspelling
-    result = await link_resolver.resolve_link("Core Servise")
-    assert result.permalink == "components/core-service"
-
-
 @pytest.mark.asyncio
 async def test_fuzzy_title_partial_match(link_resolver):
     # Test partial match

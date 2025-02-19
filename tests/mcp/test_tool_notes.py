@@ -221,6 +221,7 @@ async def test_multiple_notes(app):
     assert "--- memory://test/note-3" in result
     assert "Content 3" in result
 
+
 @pytest.mark.asyncio
 async def test_multiple_notes_pagination(app):
     """Test creating and managing multiple notes."""

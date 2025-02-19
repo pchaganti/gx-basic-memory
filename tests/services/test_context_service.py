@@ -128,18 +128,6 @@ async def test_build_context(context_service, test_graph):
     assert total_results == len(primary_results) + len(related_results)
 
 
-@pytest.mark.skip("search prefix see:'https://sqlite.org/fts5.html#FTS5 Prefix Queries'")
-@pytest.mark.asyncio
-async def test_build_context_pattern(context_service, test_graph):
-    """Test permalink wildcard lookup."""
-    # url = memory_url.validate_strings("memory://test/connected*")
-    # results = await context_service.build_context(url)
-    # matched_results = results["metadata"]["matched_results"]
-    # primary_results = results["primary_results"]
-    # related_results = results["related_results"]
-    # total_results = results["metadata"]["total_results"]
-
-
 @pytest.mark.asyncio
 async def test_build_context_not_found(context_service):
     """Test handling non-existent permalinks."""
