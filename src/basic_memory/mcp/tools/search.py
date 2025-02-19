@@ -29,7 +29,5 @@ async def search(query: SearchQuery, page: int = 1, page_size: int = 10) -> Sear
     """
     with logfire.span("Searching for {query}", query=query):  # pyright: ignore [reportGeneralTypeIssues]
         logger.info(f"Searching for {query}")
-        response = await call_post(
-            client, f"/search/?page={page}&page_size={page_size}", json=query.model_dump()
-        )
+        response = await call_post(client, "/search/", json=query.model_dump(), params={"page": page, "page_size": page_size})
         return SearchResponse.model_validate(response.json())

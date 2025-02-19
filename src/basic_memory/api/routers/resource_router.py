@@ -21,16 +21,16 @@ from basic_memory.schemas.search import SearchQuery, SearchItemType
 router = APIRouter(prefix="/resource", tags=["resources"])
 
 
-def get_entity_ids(item: SearchIndexRow) -> list[int]:
+def get_entity_ids(item: SearchIndexRow) -> set[int]:
     match item.type:
         case SearchItemType.ENTITY:
-            return [item.id]
+            return {item.id}
         case SearchItemType.OBSERVATION:
-            return [item.entity_id]  # pyright: ignore [reportReturnType]
+            return {item.entity_id}  # pyright: ignore [reportReturnType]
         case SearchItemType.RELATION:
             from_entity = item.from_id
             to_entity = item.to_id  # pyright: ignore [reportReturnType]
-            return [from_entity, to_entity] if to_entity else [from_entity]  # pyright: ignore [reportReturnType]
+            return {from_entity, to_entity} if to_entity else {from_entity}  # pyright: ignore [reportReturnType]
         case _:  # pragma: no cover
             raise ValueError(f"Unexpected type: {item.type}")
 
@@ -70,9 +70,9 @@ async def get_resource_content(
         if not search_results:
             raise HTTPException(status_code=404, detail=f"Resource not found: {identifier}")
 
-        # get the entities related to the search results
-        entity_ids = [id for result in search_results for id in get_entity_ids(result)]
-        results = await entity_service.get_entities_by_id(entity_ids)
+        # get the deduplicated entities related to the search results
+        entity_ids = {id for result in search_results for id in get_entity_ids(result)}
+        results = await entity_service.get_entities_by_id(list(entity_ids))
 
     # return single response
     if len(results) == 1:
