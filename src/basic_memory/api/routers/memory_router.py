@@ -24,7 +24,7 @@ from basic_memory.services.context_service import ContextResultRow
 router = APIRouter(prefix="/memory", tags=["memory"])
 
 
-async def to_graph_context(context, entity_repository: EntityRepository):
+async def to_graph_context(context, entity_repository: EntityRepository, page: int, page_size: int):
     # return results
     async def to_summary(item: SearchIndexRow | ContextResultRow):
         match item.type:
@@ -66,7 +66,11 @@ async def to_graph_context(context, entity_repository: EntityRepository):
     metadata = MemoryMetadata.model_validate(context["metadata"])
     # Transform to GraphContext
     return GraphContext(
-        primary_results=primary_results, related_results=related_results, metadata=metadata
+        primary_results=primary_results,
+        related_results=related_results,
+        metadata=metadata,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -77,7 +81,9 @@ async def recent(
     type: Annotated[list[SearchItemType] | None, Query()] = None,
     depth: int = 1,
     timeframe: TimeFrame = "7d",
-    max_results: int = 10,
+    page: int = 1,
+    page_size: int = 10,
+    max_related: int = 10,
 ) -> GraphContext:
     # return all types by default
     types = (
@@ -87,16 +93,20 @@ async def recent(
     )
 
     logger.debug(
-        f"Getting recent context: `{types}` depth: `{depth}` timeframe: `{timeframe}` max_results: `{max_results}`"
+        f"Getting recent context: `{types}` depth: `{depth}` timeframe: `{timeframe}` page: `{page}` page_size: `{page_size}` max_related: `{max_related}`"
     )
     # Parse timeframe
     since = parse(timeframe)
+    limit = page_size
+    offset = (page - 1) * page_size
 
     # Build context
     context = await context_service.build_context(
-        types=types, depth=depth, since=since, max_results=max_results
+        types=types, depth=depth, since=since, limit=limit, offset=offset, max_related=max_related
     )
-    return await to_graph_context(context, entity_repository=entity_repository)
+    return await to_graph_context(
+        context, entity_repository=entity_repository, page=page, page_size=page_size
+    )
 
 
 # get_memory_context needs to be declared last so other paths can match
@@ -109,21 +119,27 @@ async def get_memory_context(
     uri: str,
     depth: int = 1,
     timeframe: TimeFrame = "7d",
-    max_results: int = 10,
+    page: int = 1,
+    page_size: int = 10,
+    max_related: int = 10,
 ) -> GraphContext:
     """Get rich context from memory:// URI."""
     # add the project name from the config to the url as the "host
     # Parse URI
     logger.debug(
-        f"Getting context for URI: `{uri}` depth: `{depth}` timeframe: `{timeframe}` max_results: `{max_results}`"
+        f"Getting context for URI: `{uri}` depth: `{depth}` timeframe: `{timeframe}` page: `{page}` page_size: `{page_size}` max_related: `{max_related}`"
     )
     memory_url = normalize_memory_url(uri)
 
     # Parse timeframe
     since = parse(timeframe)
+    limit = page_size
+    offset = (page - 1) * page_size
 
     # Build context
     context = await context_service.build_context(
-        memory_url, depth=depth, since=since, max_results=max_results
+        memory_url, depth=depth, since=since, limit=limit, offset=offset, max_related=max_related
     )
-    return await to_graph_context(context, entity_repository=entity_repository)
+    return await to_graph_context(
+        context, entity_repository=entity_repository, page=page, page_size=page_size
+    )

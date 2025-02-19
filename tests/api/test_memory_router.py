@@ -27,6 +27,25 @@ async def test_get_memory_context(client, test_graph):
 
 
 @pytest.mark.asyncio
+async def test_get_memory_context_pagination(client, test_graph):
+    """Test getting context from memory URL."""
+    response = await client.get("/memory/test/root?page=1&page_size=1")
+    assert response.status_code == 200
+
+    context = GraphContext(**response.json())
+    assert len(context.primary_results) == 1
+    assert context.primary_results[0].permalink == "test/root"
+    assert len(context.related_results) > 0
+
+    # Verify metadata
+    assert context.metadata.uri == "test/root"
+    assert context.metadata.depth == 1  # default depth
+    # assert context.metadata["timeframe"] == "7d"  # default timeframe
+    assert isinstance(context.metadata.generated_at, datetime)
+    assert context.metadata.total_results == 3
+
+
+@pytest.mark.asyncio
 async def test_get_memory_context_pattern(client, test_graph):
     """Test getting context with pattern matching."""
     response = await client.get("/memory/test/*")
@@ -88,6 +107,17 @@ async def test_recent_activity(client, test_graph):
 
     context = GraphContext(**response.json())
     assert len(context.primary_results) > 0
+    assert len(context.related_results) > 0
+
+
+@pytest.mark.asyncio
+async def test_recent_activity_pagination(client, test_graph):
+    """Test handling of paths."""
+    response = await client.get("/memory/recent?page=1&page_size=1")
+    assert response.status_code == 200
+
+    context = GraphContext(**response.json())
+    assert len(context.primary_results) == 1
     assert len(context.related_results) > 0
 
 

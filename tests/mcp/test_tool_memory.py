@@ -89,7 +89,9 @@ async def test_recent_activity_timeframe_formats(client, test_graph):
     # Test each valid timeframe
     for timeframe in valid_timeframes:
         try:
-            result = await recent_activity(type=["entity"], timeframe=timeframe, max_results=1)
+            result = await recent_activity(
+                type=["entity"], timeframe=timeframe, page=1, page_size=10, max_related=10
+            )
             assert result is not None
         except Exception as e:
             pytest.fail(f"Failed with valid timeframe '{timeframe}': {str(e)}")
@@ -136,7 +138,9 @@ async def test_build_context_timeframe_formats(client, test_graph):
     # Test each valid timeframe
     for timeframe in valid_timeframes:
         try:
-            result = await build_context(url=test_url, timeframe=timeframe, max_results=1)
+            result = await build_context(
+                url=test_url, timeframe=timeframe, page=1, page_size=10, max_related=10
+            )
             assert result is not None
         except Exception as e:
             pytest.fail(f"Failed with valid timeframe '{timeframe}': {str(e)}")

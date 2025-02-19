@@ -33,7 +33,9 @@ async def build_context(
     url: MemoryUrl,
     depth: Optional[int] = 1,
     timeframe: Optional[TimeFrame] = "7d",
-    max_results: int = 10,
+    page: int = 1,
+    page_size: int = 10,
+    max_related: int = 10,
 ) -> GraphContext:
     """Get context needed to continue a discussion.
 
@@ -45,7 +47,9 @@ async def build_context(
         url: memory:// URI pointing to discussion content (e.g. memory://specs/search)
         depth: How many relation hops to traverse (1-3 recommended for performance)
         timeframe: How far back to look. Supports natural language like "2 days ago", "last week"
-        max_results: Maximum number of results to return (default: 10)
+        page: Page number of results to return (default: 1)
+        page_size: Number of results to return per page (default: 10)
+        max_related: Maximum number of related results to return (default: 10)
 
     Returns:
         GraphContext containing:
@@ -72,7 +76,13 @@ async def build_context(
         response = await call_get(
             client,
             f"/memory/{memory_url_path(url)}",
-            params={"depth": depth, "timeframe": timeframe, "max_results": max_results},
+            params={
+                "depth": depth,
+                "timeframe": timeframe,
+                "page": page,
+                "page_size": page_size,
+                "max_related": max_related,
+            },
         )
         return GraphContext.model_validate(response.json())
 
@@ -93,7 +103,9 @@ async def recent_activity(
     type: List[Literal["entity", "observation", "relation"]] = [],
     depth: Optional[int] = 1,
     timeframe: Optional[TimeFrame] = "7d",
-    max_results: int = 10,
+    page: int = 1,
+    page_size: int = 10,
+    max_related: int = 10,
 ) -> GraphContext:
     """Get recent activity across the knowledge base.
 
@@ -108,7 +120,9 @@ async def recent_activity(
             - Relative: "2 days ago", "last week", "yesterday"
             - Points in time: "2024-01-01", "January 1st"
             - Standard format: "7d", "24h"
-        max_results: Maximum number of results to return (default: 10)
+        page: Page number of results to return (default: 1)
+        page_size: Number of results to return per page (default: 10)
+        max_related: Maximum number of related results to return (default: 10)
 
     Returns:
         GraphContext containing:
@@ -136,12 +150,14 @@ async def recent_activity(
     """
     with logfire.span("Getting recent activity", type=type, depth=depth, timeframe=timeframe):  # pyright: ignore [reportGeneralTypeIssues]
         logger.info(
-            f"Getting recent activity from {type}, depth={depth}, timeframe={timeframe}, max_results={max_results}"
+            f"Getting recent activity from {type}, depth={depth}, timeframe={timeframe}, page={page}, page_size={page_size}, max_related={max_related}"
         )
         params = {
             "depth": depth,
             "timeframe": timeframe,
-            "max_results": max_results,
+            "page": page,
+            "page_size": page_size,
+            "max_related": max_related,
         }
         if type:
             params["type"] = type

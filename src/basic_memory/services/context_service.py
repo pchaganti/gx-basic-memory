@@ -54,11 +54,13 @@ class ContextService:
         types: Optional[List[SearchItemType]] = None,
         depth: int = 1,
         since: Optional[datetime] = None,
-        max_results: int = 10,
+        limit=10,
+        offset=0,
+        max_related: int = 10,
     ):
         """Build rich context from a memory:// URI."""
         logger.debug(
-            f"Building context for URI: '{memory_url}' depth: '{depth}' since: '{since}' max_results: '{max_results}'"
+            f"Building context for URI: '{memory_url}' depth: '{depth}' since: '{since}' limit: '{limit}' offset: '{offset}'  max_related: '{max_related}'"
         )
 
         if memory_url:
@@ -67,17 +69,19 @@ class ContextService:
             if "*" in path:
                 logger.debug(f"Pattern search for '{path}'")
                 primary = await self.search_repository.search(
-                    permalink_match=path, limit=max_results
+                    permalink_match=path, limit=limit, offset=offset
                 )
 
             # Direct lookup for exact path
             else:
                 logger.debug(f"Direct lookup for '{path}'")
-                primary = await self.search_repository.search(permalink=path, limit=max_results)
+                primary = await self.search_repository.search(
+                    permalink=path, limit=limit, offset=offset
+                )
         else:
             logger.debug(f"Build context for '{types}'")
             primary = await self.search_repository.search(
-                types=types, after_date=since, limit=max_results
+                types=types, after_date=since, limit=limit, offset=offset
             )
 
         # Get type_id pairs for traversal
@@ -87,7 +91,7 @@ class ContextService:
 
         # Find related content
         related = await self.find_related(
-            type_id_pairs, max_depth=depth, since=since, max_results=max_results
+            type_id_pairs, max_depth=depth, since=since, max_results=max_related
         )
         logger.debug(f"Found {len(related)} related results")
         for r in related:
