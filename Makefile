@@ -1,4 +1,4 @@
-.PHONY: install test lint clean format type-check installer-mac installer-win
+.PHONY: install test lint clean format type-check installer-mac installer-win check
 
 install:
 	pip install -e ".[dev]"
@@ -41,3 +41,5 @@ installer-win:
 
 update-deps:
 	uv lock f--upgrade
+
+check: lint  format type-check test

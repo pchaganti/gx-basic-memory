@@ -29,11 +29,11 @@ def write_note(
     tags: Annotated[
         Optional[List[str]], typer.Option(help="A list of tags to apply to the note")
     ] = None,
-):  # pragma: no cover
+):
     try:
         note = asyncio.run(mcp_write_note(title, content, folder, tags))
         rprint(note)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
             typer.echo(f"Error during write_note: {e}", err=True)
             raise typer.Exit(1)
@@ -41,11 +41,11 @@ def write_note(
 
 
 @tool_app.command()
-def read_note(identifier: str, page: int = 1, page_size: int = 10):  # pragma: no cover
+def read_note(identifier: str, page: int = 1, page_size: int = 10):
     try:
         note = asyncio.run(mcp_read_note(identifier, page, page_size))
         rprint(note)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
             typer.echo(f"Error during read_note: {e}", err=True)
             raise typer.Exit(1)
@@ -60,7 +60,7 @@ def build_context(
     page: int = 1,
     page_size: int = 10,
     max_related: int = 10,
-):  # pragma: no cover
+):
     try:
         context = asyncio.run(
             mcp_build_context(
@@ -88,16 +88,16 @@ def recent_activity(
     page: int = 1,
     page_size: int = 10,
     max_related: int = 10,
-):  # pragma: no cover
-    
-    if type not in ["entity", "observation", "relation"]:
+):
+    assert type is not None, "type is required"
+    if any(t not in ["entity", "observation", "relation"] for t in type):  # pragma: no cover
         print("type must be one of ['entity', 'observation', 'relation']")
         raise typer.Abort()
 
     try:
         context = asyncio.run(
             mcp_recent_activity(
-                type=type,
+                type=type,  # pyright: ignore [reportArgumentType]
                 depth=depth,
                 timeframe=timeframe,
                 page=page,
@@ -125,7 +125,7 @@ def search(
     page: int = 1,
     page_size: int = 10,
 ):
-    if permalink and title:
+    if permalink and title:  # pragma: no cover
         print("Cannot search both permalink and title")
         raise typer.Abort()
 
