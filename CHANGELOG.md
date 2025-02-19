@@ -1,7 +1,48 @@
 # CHANGELOG
 
 
+## v0.7.0 (2025-02-19)
+
+### Bug Fixes
+
+- Add logfire instrumentation to tools
+  ([`3e8e3e8`](https://github.com/basicmachines-co/basic-memory/commit/3e8e3e8961eae2e82839746e28963191b0aef0a0))
+
+- Add logfire spans to cli
+  ([`00d23a5`](https://github.com/basicmachines-co/basic-memory/commit/00d23a5ee15ddac4ea45e702dcd02ab9f0509276))
+
+- Add logfire spans to cli
+  ([`812136c`](https://github.com/basicmachines-co/basic-memory/commit/812136c8c22ad191d14ff32dcad91aae076d4120))
+
+- Search query pagination params
+  ([`bc9ca07`](https://github.com/basicmachines-co/basic-memory/commit/bc9ca0744ffe4296d7d597b4dd9b7c73c2d63f3f))
+
+### Chores
+
+- Fix tests
+  ([`57984aa`](https://github.com/basicmachines-co/basic-memory/commit/57984aa912625dcde7877afb96d874c164af2896))
+
+- Remove unused tests
+  ([`2c8ed17`](https://github.com/basicmachines-co/basic-memory/commit/2c8ed1737d6769fe1ef5c96f8a2bd75b9899316a))
+
+### Features
+
+- Add cli commands for mcp tools
+  ([`f5a7541`](https://github.com/basicmachines-co/basic-memory/commit/f5a7541da17e97403b7a702720a05710f68b223a))
+
+- Add pagination to build_context and recent_activity
+  ([`0123544`](https://github.com/basicmachines-co/basic-memory/commit/0123544556513af943d399d70b849b142b834b15))
+
+- Add pagination to read_notes
+  ([`02f8e86`](https://github.com/basicmachines-co/basic-memory/commit/02f8e866923d5793d2620076c709c920d99f2c4f))
+
+
 ## v0.6.0 (2025-02-18)
+
+### Chores
+
+- Re-add sync status console on watch
+  ([`66b57e6`](https://github.com/basicmachines-co/basic-memory/commit/66b57e682f2e9c432bffd4af293b0d1db1d3469b))
 
 ### Features
 
