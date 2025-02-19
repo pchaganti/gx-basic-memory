@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 DATABASE_NAME = "memory.db"
 DATA_DIR_NAME = ".basic-memory"
 
-Environment = Literal["test", "dev", "prod"]
+Environment = Literal["test", "dev", "user"]
 
 
 class ProjectConfig(BaseSettings):

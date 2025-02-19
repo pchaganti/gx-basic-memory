@@ -3,6 +3,7 @@
 from typing import Optional, Literal, List
 
 from loguru import logger
+import logfire
 
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
@@ -65,14 +66,15 @@ async def build_context(
         # Research the history of a feature
         build_context("memory://features/knowledge-graph", timeframe="3 months ago")
     """
-    logger.info(f"Building context from {url}")
-    url = normalize_memory_url(url)
-    response = await call_get(
-        client,
-        f"/memory/{memory_url_path(url)}",
-        params={"depth": depth, "timeframe": timeframe, "max_results": max_results},
-    )
-    return GraphContext.model_validate(response.json())
+    with logfire.span("Building context", url=url, depth=depth, timeframe=timeframe) as s:
+        logger.info(f"Building context from {url}")
+        url = normalize_memory_url(url)
+        response = await call_get(
+            client,
+            f"/memory/{memory_url_path(url)}",
+            params={"depth": depth, "timeframe": timeframe, "max_results": max_results},
+        )
+        return GraphContext.model_validate(response.json())
 
 
 @mcp.tool(
@@ -132,20 +134,21 @@ async def recent_activity(
         - For focused queries, consider using build_context with a specific URI
         - Max timeframe is 1 year in the past
     """
-    logger.info(
-        f"Getting recent activity from {type}, depth={depth}, timeframe={timeframe}, max_results={max_results}"
-    )
-    params = {
-        "depth": depth,
-        "timeframe": timeframe,
-        "max_results": max_results,
-    }
-    if type:
-        params["type"] = type
+    with logfire.span("Getting recent activity", type=type, depth=depth, timeframe=timeframe) as s:
+        logger.info(
+            f"Getting recent activity from {type}, depth={depth}, timeframe={timeframe}, max_results={max_results}"
+        )
+        params = {
+            "depth": depth,
+            "timeframe": timeframe,
+            "max_results": max_results,
+        }
+        if type:
+            params["type"] = type
 
-    response = await call_get(
-        client,
-        "/memory/recent",
-        params=params,
-    )
-    return GraphContext.model_validate(response.json())
+        response = await call_get(
+            client,
+            "/memory/recent",
+            params=params,
+        )
+        return GraphContext.model_validate(response.json())

@@ -2,6 +2,7 @@
 
 from typing import Annotated
 
+import logfire
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -43,7 +44,10 @@ async def get_engine_factory(
     project_config: ProjectConfigDep,
 ) -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:  # pragma: no cover
     """Get engine and session maker."""
-    return await db.get_or_create_db(project_config.database_path)
+    engine, session_maker = await db.get_or_create_db(project_config.database_path)
+    if project_config.env != "test":
+        logfire.instrument_sqlalchemy(engine=engine)
+    return engine, session_maker
 
 
 EngineFactoryDep = Annotated[

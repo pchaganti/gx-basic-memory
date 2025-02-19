@@ -87,17 +87,13 @@ def setup_logging(
                 root_path="/src/basic_memory",
             ),
             environment=config.env,
+            console=False,
         )
         logger.configure(handlers=[logfire.loguru_handler()])
 
         # instrument code spans
         logfire.instrument_sqlite3()
-        logfire.instrument_pydantic()
-
-        from basic_memory.db import _engine as engine
-
-        if engine:
-            logfire.instrument_sqlalchemy(engine=engine)
+        logfire.instrument_httpx()
 
         # setup logger
         log_path = home_dir / log_file

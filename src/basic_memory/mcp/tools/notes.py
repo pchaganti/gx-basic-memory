@@ -7,6 +7,7 @@ while leveraging the underlying knowledge graph structure.
 from typing import Optional, List
 
 from loguru import logger
+import logfire
 
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.async_client import client
@@ -60,71 +61,54 @@ async def write_note(
         - Observation counts by category
         - Relation counts (resolved/unresolved)
         - Tags if present
-
-    Examples:
-        write_note(
-            title="Search Implementation",
-            content="# Search Component\\n\\n"
-                   "Implementation of the search feature, building on [[Core Search]].\\n\\n"
-                   "## Observations\\n"
-                   "- [tech] Using FTS5 for full-text search #implementation\\n"
-                   "- [design] Need pagination support #todo\\n\\n"
-                   "## Relations\\n"
-                   "- implements [[Search Spec]]\\n"
-                   "- depends_on [[Database Schema]]",
-            folder="docs/components"
-        )
     """
-    logger.info(f"Writing note folder:'{folder}' title: '{title}'")
+    with logfire.span("Writing note", title=title, folder=folder) as s:
+        logger.info(f"Writing note folder:'{folder}' title: '{title}'")
 
-    # Create the entity request
-    metadata = {"tags": [f"#{tag}" for tag in tags]} if tags else None
-    entity = Entity(
-        title=title,
-        folder=folder,
-        entity_type="note",
-        content_type="text/markdown",
-        content=content,
-        entity_metadata=metadata,
-    )
+        # Create the entity request
+        metadata = {"tags": [f"#{tag}" for tag in tags]} if tags else None
+        entity = Entity(
+            title=title,
+            folder=folder,
+            entity_type="note",
+            content_type="text/markdown",
+            content=content,
+            entity_metadata=metadata,
+        )
 
-    # Create or update via knowledge API
-    logger.info(f"Creating {entity.permalink}")
-    url = f"/knowledge/entities/{entity.permalink}"
-    response = await call_put(client, url, json=entity.model_dump())
-    result = EntityResponse.model_validate(response.json())
+        # Create or update via knowledge API
+        logger.info(f"Creating {entity.permalink}")
+        url = f"/knowledge/entities/{entity.permalink}"
+        response = await call_put(client, url, json=entity.model_dump())
+        result = EntityResponse.model_validate(response.json())
+        
+        # Format semantic summary based on status code
+        action = "Created" if response.status_code == 201 else "Updated"
+        summary = [f"# {action} {result.file_path} ({result.checksum[:8]})", f"permalink: {result.permalink}"]
 
-    # Format semantic summary based on status code
-    action = "Created" if response.status_code == 201 else "Updated"
-    assert result.checksum is not None
-    summary = [
-        f"# {action} {result.file_path} ({result.checksum[:8]})",
-        f"permalink: {result.permalink}",
-    ]
+        if result.observations:
+            categories = {}
+            for obs in result.observations:
+                categories[obs.category] = categories.get(obs.category, 0) + 1
+            
+            summary.append("\n## Observations")
+            for category, count in sorted(categories.items()):
+                summary.append(f"- {category}: {count}")
+                
+        if result.relations:
+            unresolved = sum(1 for r in result.relations if not r.to_id)
+            resolved = len(result.relations) - unresolved
+            
+            summary.append("\n## Relations") 
+            summary.append(f"- Resolved: {resolved}")
+            if unresolved:
+                summary.append(f"- Unresolved: {unresolved}")
+                summary.append("\nUnresolved relations will be retried on next sync.")
 
-    if result.observations:
-        categories = {}
-        for obs in result.observations:
-            categories[obs.category] = categories.get(obs.category, 0) + 1
+        if tags:
+            summary.append(f"\n## Tags\n- {', '.join(tags)}")
 
-        summary.append("\n## Observations")
-        for category, count in sorted(categories.items()):
-            summary.append(f"- {category}: {count}")
-
-    if result.relations:
-        unresolved = sum(1 for r in result.relations if not r.to_id)
-        resolved = len(result.relations) - unresolved
-
-        summary.append("\n## Relations")
-        summary.append(f"- Resolved: {resolved}")
-        if unresolved:
-            summary.append(f"- Unresolved: {unresolved}")
-            summary.append("\nUnresolved relations will be retried on next sync.")
-
-    if tags:
-        summary.append(f"\n## Tags\n- {', '.join(tags)}")
-
-    return "\n".join(summary)
+        return "\n".join(summary)
 
 
 @mcp.tool(description="Read note content by title, permalink, relation, or pattern")
@@ -180,10 +164,11 @@ async def read_note(identifier: str) -> str:
     - Last modified timestamp
     - Content checksum
     """
-    logger.info(f"Reading note {identifier}")
-    url = memory_url_path(identifier)
-    response = await call_get(client, f"/resource/{url}")
-    return response.text
+    with logfire.span("Reading note", identifier=identifier) as s:
+        logger.info(f"Reading note {identifier}")
+        url = memory_url_path(identifier)
+        response = await call_get(client, f"/resource/{url}")
+        return response.text
 
 
 @mcp.tool(description="Delete a note by title or permalink")
@@ -203,6 +188,7 @@ async def delete_note(identifier: str) -> bool:
         # Delete by permalink
         delete_note("notes/project-planning")
     """
-    response = await call_delete(client, f"/knowledge/entities/{identifier}")
-    result = DeleteEntitiesResponse.model_validate(response.json())
-    return result.deleted
+    with logfire.span("Deleting note", identifier=identifier) as s:
+        response = await call_delete(client, f"/knowledge/entities/{identifier}")
+        result = DeleteEntitiesResponse.model_validate(response.json())
+        return result.deleted
