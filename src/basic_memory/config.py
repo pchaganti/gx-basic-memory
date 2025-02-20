@@ -3,8 +3,12 @@
 from pathlib import Path
 from typing import Literal
 
+from loguru import logger
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+import basic_memory
+from basic_memory.utils import setup_logging
 
 DATABASE_NAME = "memory.db"
 DATA_DIR_NAME = ".basic-memory"
@@ -60,3 +64,13 @@ class ProjectConfig(BaseSettings):
 
 # Load project config
 config = ProjectConfig()
+
+# setup logging
+setup_logging(
+    env=config.env,
+    home_dir=config.home,
+    log_level=config.log_level,
+    log_file=".basic-memory/basic-memory.log",
+    console=False,
+)
+logger.info(f"Starting Basic Memory {basic_memory.__version__}")

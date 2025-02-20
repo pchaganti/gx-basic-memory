@@ -15,6 +15,5 @@ from basic_memory.cli.commands import (  # noqa: F401  # pragma: no cover
     tools,
 )
 
-
 if __name__ == "__main__":  # pragma: no cover
     app()
