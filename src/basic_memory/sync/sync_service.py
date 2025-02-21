@@ -1,28 +1,25 @@
 """Service for syncing files between filesystem and database."""
 
+import mimetypes
 from pathlib import Path
-from typing import Dict
+from typing import Tuple
 
 import logfire
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
 from basic_memory import file_utils
-from basic_memory.markdown import EntityParser, EntityMarkdown
+from basic_memory.markdown import EntityParser
 from basic_memory.repository import EntityRepository, RelationRepository
-from basic_memory.services import EntityService
+from basic_memory.services import EntityService, FileService
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.utils import SyncReport
+from basic_memory.models import Entity
 
 
 class SyncService:
-    """Syncs documents and knowledge files with database.
-
-    Implements two-pass sync strategy for knowledge files to handle relations:
-    1. First pass creates/updates entities without relations
-    2. Second pass processes relations after all entities exist
-    """
+    """Syncs documents and knowledge files with database."""
 
     def __init__(
         self,
@@ -32,6 +29,7 @@ class SyncService:
         entity_repository: EntityRepository,
         relation_repository: RelationRepository,
         search_service: SearchService,
+        file_service: FileService,
     ):
         self.scanner = scanner
         self.entity_service = entity_service
@@ -39,9 +37,87 @@ class SyncService:
         self.entity_repository = entity_repository
         self.relation_repository = relation_repository
         self.search_service = search_service
+        self.file_service = file_service
+
+    async def sync_file(self, path: str) -> Tuple[Entity, str]:
+        """Sync a single file completely."""
+
+        try:
+            if self.file_service.is_markdown(path):
+                entity, checksum = await self.sync_markdown_file(path)
+            else:
+                entity, checksum = await self.sync_regular_file(path)
+            await self.search_service.index_entity(entity)
+            return entity, checksum
+
+        except Exception as e:
+            logger.error(f"Failed to sync {path}: {e}")
+            raise
+
+    async def sync_markdown_file(self, path: str) -> Tuple[Entity, str]:
+        """Sync a markdown file with full processing."""
+
+        # Parse markdown first to get any existing permalink
+        entity_markdown = await self.entity_parser.parse_file(path)
+
+        # Resolve permalink - this handles all the cases including conflicts
+        permalink = await self.entity_service.resolve_permalink(path, markdown=entity_markdown)
+
+        # If permalink changed, update the file
+        if permalink != entity_markdown.frontmatter.permalink:
+            logger.info(f"Updating permalink in {path}: {permalink}")
+            entity_markdown.frontmatter.metadata["permalink"] = permalink
+            checksum = await self.file_service.update_frontmatter(path, {"permalink": permalink})
+        else:
+            checksum = await self.file_service.compute_checksum(path)
+
+        # Create/update entity with resolved permalink
+        entity = await self.entity_service.create_entity_from_markdown(path, entity_markdown)
+
+        # Update relations and search index
+        entity = await self.entity_service.update_entity_relations(path, entity_markdown)
+
+        return entity, checksum
+
+    async def sync_regular_file(self, path: Path) -> Tuple[Entity, str]:
+        """Sync a non-markdown file with basic tracking."""
+
+        checksum = await self.file_service.compute_checksum(path)
+        existing = await self.entity_repository.get_by_file_path(path)
+        if not existing:
+            # Generate permalink from path
+            permalink = await self.entity_service.resolve_permalink(path)
+
+            # get file timestamps
+            file_stats = self.file_service.file_stats(path)
+
+            # get mime type
+            mime_type, _ = mimetypes.guess_type(path.name)
+            content_type = mime_type or "text/plain"
+
+            entity = await self.entity_repository.add(
+                Entity(
+                    entity_type="file",
+                    file_path=path,
+                    permalink=permalink,
+                    checksum=checksum,
+                    title=path.name,
+                    created_at=file_stats.st_ctime,
+                    updated_at=file_stats.st_mtime,
+                    content_type=content_type,
+                )
+            )
+        else:
+            entity = await self.entity_repository.update(
+                existing.id, {"file_path": path, "checksum": checksum}
+            )
+
+        await self.search_service.index_entity(entity)
+        return entity, checksum
 
     async def handle_entity_deletion(self, file_path: str):
         """Handle complete entity deletion including search index cleanup."""
+
         # First get entity to get permalink before deletion
         entity = await self.entity_repository.get_by_file_path(file_path)
         if entity:
@@ -61,9 +137,9 @@ class SyncService:
                 await self.search_service.delete_by_permalink(permalink)
 
     async def sync(self, directory: Path) -> SyncReport:
-        """Sync knowledge files with database."""
+        """Sync all files with database."""
 
-        with logfire.span("sync", directory=directory):  # pyright: ignore [reportGeneralTypeIssues]
+        with logfire.span("sync", directory=directory):
             changes = await self.scanner.find_knowledge_changes(directory)
             logger.info(f"Found {changes.total_changes} knowledge changes")
 
@@ -73,102 +149,47 @@ class SyncService:
                 entity = await self.entity_repository.get_by_file_path(old_path)
                 if entity:
                     # Update file_path but keep the same permalink for link stability
-                    updated = await self.entity_repository.update(
+                    await self.entity_repository.update(
                         entity.id, {"file_path": new_path, "checksum": changes.checksums[new_path]}
                     )
                     # update search index
-                    if updated:
-                        await self.search_service.index_entity(updated)
+                    await self.search_service.index_entity(entity)
 
             # Handle deletions next
-            # remove rows from db for files no longer present
             for path in changes.deleted:
                 await self.handle_entity_deletion(path)
 
-            # Parse files that need updating
-            parsed_entities: Dict[str, EntityMarkdown] = {}
-
+            # Handle new and modified files
             for path in [*changes.new, *changes.modified]:
-                entity_markdown = await self.entity_parser.parse_file(directory / path)
-                parsed_entities[path] = entity_markdown
+                logger.debug(f"Syncing file: {path}")
+                entity, checksum = await self.sync_file(path)
+                changes.checksums[path] = checksum
 
-            # First pass: Create/update entities
-            # entities will have a null checksum to indicate they are not complete
-            for path, entity_markdown in parsed_entities.items():
-                # Get unique permalink and update markdown if needed
-                permalink = await self.entity_service.resolve_permalink(
-                    Path(path), markdown=entity_markdown
-                )
-
-                if permalink != entity_markdown.frontmatter.permalink:
-                    # Add/update permalink in frontmatter
-                    logger.info(f"Adding permalink '{permalink}' to file: {path}")
-
-                    # update markdown
-                    entity_markdown.frontmatter.metadata["permalink"] = permalink
-
-                    # update file frontmatter
-                    updated_checksum = await file_utils.update_frontmatter(
-                        directory / path, {"permalink": permalink}
-                    )
-
-                    # Update checksum in changes report since file was modified
-                    changes.checksums[path] = updated_checksum
-
-                # if the file is new, create an entity
-                if path in changes.new:
-                    # Create entity with final permalink
-                    logger.debug(f"Creating new entity_markdown: {path}")
-                    await self.entity_service.create_entity_from_markdown(
-                        Path(path), entity_markdown
-                    )
-                # otherwise we need to update the entity and observations
-                else:
-                    logger.debug(f"Updating entity_markdown: {path}")
-                    await self.entity_service.update_entity_and_observations(
-                        Path(path), entity_markdown
-                    )
-
-            # Second pass
-            for path, entity_markdown in parsed_entities.items():
-                logger.debug(f"Updating relations for: {path}")
-
-                # Process relations
-                checksum = changes.checksums[path]
-                entity = await self.entity_service.update_entity_relations(
-                    Path(path), entity_markdown
-                )
-
-                # add to search index
-                await self.search_service.index_entity(entity)
-
-                # Set final checksum to mark sync complete
-                await self.entity_repository.update(entity.id, {"checksum": checksum})
-
-            # Third pass: Try to resolve any forward references
-            logger.debug("Attempting to resolve forward references")
-            for relation in await self.relation_repository.find_unresolved_relations():
-                target_entity = await self.entity_service.link_resolver.resolve_link(
-                    relation.to_name
-                )
-                # check we found a link that is not the source
-                if target_entity and target_entity.id != relation.from_id:
-                    logger.debug(
-                        f"Resolved forward reference: {relation.to_name} -> {target_entity.permalink}"
-                    )
-
-                    try:
-                        await self.relation_repository.update(
-                            relation.id,
-                            {
-                                "to_id": target_entity.id,
-                                "to_name": target_entity.title,  # Update to actual title
-                            },
-                        )
-                    except IntegrityError:
-                        logger.debug(f"Ignoring duplicate relation {relation}")
-
-                    # update search index
-                    await self.search_service.index_entity(target_entity)
-
+            await self.resolve_relations()
             return changes
+
+    async def resolve_relations(self):
+        """Try to resolve any unresolved relations"""
+
+        logger.debug("Attempting to resolve forward references")
+        for relation in await self.relation_repository.find_unresolved_relations():
+            resolved_entity = await self.entity_service.link_resolver.resolve_link(relation.to_name)
+
+            # ignore reference to self
+            if resolved_entity and resolved_entity.id != relation.from_id:
+                logger.debug(
+                    f"Resolved forward reference: {relation.to_name} -> {resolved_entity.title}"
+                )
+                try:
+                    await self.relation_repository.update(
+                        relation.id,
+                        {
+                            "to_id": resolved_entity.id,
+                            "to_name": resolved_entity.title,
+                        },
+                    )
+                except IntegrityError:
+                    logger.debug(f"Ignoring duplicate relation {relation}")
+
+                # update search index
+                await self.search_service.index_entity(resolved_entity)

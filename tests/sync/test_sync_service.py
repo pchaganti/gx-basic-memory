@@ -74,7 +74,7 @@ Target content
 
 
 @pytest.mark.asyncio
-async def test_sync_knowledge(
+async def test_sync(
     sync_service: SyncService, test_config: ProjectConfig, entity_service: EntityService
 ):
     """Test basic knowledge sync functionality."""

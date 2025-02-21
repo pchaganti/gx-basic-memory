@@ -256,13 +256,13 @@ class EntityService(BaseService[EntityModel]):
 
     async def update_entity_relations(
         self,
-        file_path: Path,
+        path: str,
         markdown: EntityMarkdown,
     ) -> EntityModel:
         """Update relations for entity"""
-        logger.debug(f"Updating relations for entity: {file_path}")
+        logger.debug(f"Updating relations for entity: {path}")
 
-        db_entity = await self.repository.get_by_file_path(str(file_path))
+        db_entity = await self.repository.get_by_file_path(path)
 
         # Clear existing relations first
         await self.relation_repository.delete_outgoing_relations_from_entity(db_entity.id)
@@ -296,4 +296,4 @@ class EntityService(BaseService[EntityModel]):
                 )
                 continue
 
-        return await self.repository.get_by_file_path(str(file_path))
+        return await self.repository.get_by_file_path(path)

@@ -1,7 +1,8 @@
 """Service for file operations with checksum tracking."""
-
+import mimetypes
+from os import stat_result
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict, Any
 
 from loguru import logger
 
@@ -174,3 +175,53 @@ class FileService:
         path = Path(path)
         full_path = path if path.is_absolute() else self.base_path / path
         full_path.unlink(missing_ok=True)
+
+    async def update_frontmatter(self, path: Union[Path, str], updates: Dict[str, Any]) -> str:
+        """
+        Update frontmatter fields in a file while preserving all content.
+        """
+
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+        return await file_utils.update_frontmatter(full_path, updates)
+
+    async def compute_checksum(self, path: Union[Path, str]) -> str:
+        """
+        Compute SHA-256 checksum of content.
+        """
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+        await file_utils.compute_checksum(full_path.read_text())
+        
+
+    async def file_stats(self, path: Union[Path, str]) -> stat_result:
+        """
+        Return file stats for a given path.
+        :param path: 
+        :return: 
+        """
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+        # get file timestamps
+        return full_path.stat()
+
+    async def content_type(self, path: Union[Path, str]) -> stat_result:
+        """
+        Return content_type for a given path.
+        :param path: 
+        :return: 
+        """
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+        # get file timestamps
+        mime_type, _ = mimetypes.guess_type(full_path.name)
+        content_type = mime_type or "text/plain"
+        return content_type
+
+    async def is_markdown(self, path: Union[Path, str]) -> stat_result:
+        """
+        Return content_type for a given path.
+        :param path: 
+        :return: 
+        """
+        return self.content_type(path) == "text/markdown"

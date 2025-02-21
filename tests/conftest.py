@@ -152,6 +152,7 @@ async def sync_service(
     entity_repository: EntityRepository,
     relation_repository: RelationRepository,
     search_service: SearchService,
+    file_service: FileService,
 ) -> SyncService:
     """Create sync service for testing."""
     return SyncService(
@@ -161,6 +162,7 @@ async def sync_service(
         relation_repository=relation_repository,
         entity_parser=entity_parser,
         search_service=search_service,
+        file_service=file_service,
     )
 
 

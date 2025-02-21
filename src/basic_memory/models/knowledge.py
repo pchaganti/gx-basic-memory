@@ -79,6 +79,11 @@ class Entity(Base):
         """Get all relations (incoming and outgoing) for this entity."""
         return self.incoming_relations + self.outgoing_relations
 
+    @property
+    def is_markdown(self):
+        """Check if the entity is a markdown file."""
+        return self.content_type == "text/markdown"
+
     def __repr__(self) -> str:
         return f"Entity(id={self.id}, name='{self.title}', type='{self.entity_type}'"
 
