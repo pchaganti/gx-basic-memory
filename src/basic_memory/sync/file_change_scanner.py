@@ -27,6 +27,10 @@ class ScanResult:
 
     # file_path -> checksum
     files: Dict[str, str] = field(default_factory=dict)
+
+    # checksum -> file_path
+    checksums: Dict[str, str] = field(default_factory=dict)
+    
     # file_path -> error message
     errors: Dict[str, str] = field(default_factory=dict)
 

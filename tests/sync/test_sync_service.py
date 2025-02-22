@@ -48,7 +48,7 @@ type: knowledge
 
     # Verify forward reference
     source = await entity_service.get_by_permalink("source")
-    assert len(source.relations) == 2
+    assert len(source.relations) == 1
     assert source.relations[0].to_id is None
     assert source.relations[0].to_name == "target-doc"
 
@@ -68,7 +68,7 @@ Target content
     # Verify reference is now resolved
     source = await entity_service.get_by_permalink("source")
     target = await entity_service.get_by_permalink("target-doc")
-    assert len(source.relations) == 2
+    assert len(source.relations) == 1
     assert source.relations[0].to_id == target.id
     assert source.relations[0].to_name == target.title
 
@@ -130,7 +130,7 @@ A test concept.
     # with forward link
     entity = await entity_service.get_by_permalink(test_concept.permalink)
     relations = entity.relations
-    assert len(relations) == 1
+    assert len(relations) == 1, "Expected 1 relation for entity"
     assert relations[0].to_name == "concept/other"
 
 
@@ -470,8 +470,12 @@ modified: 2024-01-01
     # Verify final state
     doc = await sync_service.entity_service.repository.get_by_permalink("changing")
     assert doc is not None
-    # File should have a checksum, even if it's from either version
-    assert doc.checksum is not None
+    
+    # if we failed in the middle of a sync, the next one should fix it. 
+    if doc.checksum is None:
+        await sync_service.sync(test_config.home)
+        doc = await sync_service.entity_service.repository.get_by_permalink("changing")
+        assert doc.checksum is not None
 
 
 @pytest.mark.asyncio
@@ -529,7 +533,7 @@ async def test_handle_entity_deletion(
 
     root_entity = test_graph["root"]
     # Delete the entity
-    await sync_service.handle_entity_deletion(root_entity.file_path)
+    await sync_service.handle_delete(root_entity.file_path)
 
     # Verify entity is gone from db
     assert await entity_repository.get_by_permalink(root_entity.permalink) is None

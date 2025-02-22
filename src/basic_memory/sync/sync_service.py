@@ -1,21 +1,72 @@
 """Service for syncing files between filesystem and database."""
 
 import mimetypes
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
+from typing import Set, Dict, Sequence
 from typing import Tuple
 
 import logfire
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
-from basic_memory import file_utils
 from basic_memory.markdown import EntityParser
+from basic_memory.models import Entity
 from basic_memory.repository import EntityRepository, RelationRepository
 from basic_memory.services import EntityService, FileService
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.utils import SyncReport
-from basic_memory.models import Entity
+
+
+@dataclass
+class SyncReport:
+    """Report of file changes found compared to database state.
+
+    Attributes:
+        total: Total number of files in directory being synced
+        new: Files that exist on disk but not in database
+        modified: Files that exist in both but have different checksums
+        deleted: Files that exist in database but not on disk
+        moves: Files that have been moved from one location to another
+        checksums: Current checksums for files on disk
+    """
+
+    total: int = 0
+    # We keep paths as strings in sets/dicts for easier serialization
+    new: Set[str] = field(default_factory=set)
+    modified: Set[str] = field(default_factory=set)
+    deleted: Set[str] = field(default_factory=set)
+    moves: Dict[str, str] = field(default_factory=dict)  # old_path -> new_path
+
+    @property
+    def total_changes(self) -> int:
+        """Total number of changes."""
+        return len(self.new) + len(self.modified) + len(self.deleted) + len(self.moves)
+
+
+@dataclass
+class ScanResult:
+    """Result of scanning a directory."""
+
+    # file_path -> checksum
+    files: Dict[str, str] = field(default_factory=dict)
+
+    # checksum -> file_path
+    checksums: Dict[str, str] = field(default_factory=dict)
+
+    # file_path -> error message
+    errors: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class FileState:
+    """State of a file including file path, permalink and checksum info."""
+
+    file_path: str
+    permalink: str
+    checksum: str
 
 
 class SyncService:
@@ -39,14 +90,97 @@ class SyncService:
         self.search_service = search_service
         self.file_service = file_service
 
-    async def sync_file(self, path: str) -> Tuple[Entity, str]:
-        """Sync a single file completely."""
+    async def get_db_file_state(self) -> Dict[str, FileState]:
+        """Get file_path and checksums from database.
+        Args:
+            db_records: database records
+        Returns:
+            Dict mapping file paths to FileState
+            :param db_records: the data from the db
+        """
+        db_records = await self.entity_repository.find_all()
+        return {
+            r.file_path: FileState(
+                file_path=r.file_path, permalink=r.permalink, checksum=r.checksum or ""
+            )
+            for r in db_records
+        }
+
+    async def sync(self, directory: Path) -> SyncReport:
+        """Sync all files with database."""
+
+        with logfire.span("sync", directory=directory):
+            # initial paths from db to sync
+            # path -> FileState
+            db_paths = await self.get_db_file_state()
+
+            # Track potentially moved files by checksum
+
+            scan_result = await self.scan_directory(directory)
+
+            files_by_checksum = scan_result.checksums
+
+            report = SyncReport()
+
+            # First find potential new files and record checksums
+            # if a path is not present in the db, it could be new or could be the destination of a move
+            for file_path, checksum in scan_result.files.items():
+                if file_path not in db_paths:
+                    report.new.add(file_path)
+
+            # Now detect moves and deletions
+            for db_path, db_state in db_paths.items():
+                local_checksum_for_db_path = scan_result.files.get(db_path)
+
+                # file not modified
+                if db_state.checksum == local_checksum_for_db_path:
+                    pass
+
+                # if checksums don't match for the same path, its modified
+                if local_checksum_for_db_path and db_state.checksum != local_checksum_for_db_path:
+                    report.modified.add(db_path)
+
+                # check if it's moved or deleted
+                if not local_checksum_for_db_path:
+                    # if we find the checksum in another file, it's a move
+                    if db_state.checksum in files_by_checksum:
+                        new_path = files_by_checksum[db_state.checksum]
+                        report.moves[db_path] = new_path
+                        # Remove from new files since it's a move
+                        report.new.remove(new_path)
+
+                    # deleted
+                    else:
+                        report.deleted.add(db_path)
+
+            # order of sync matters to resolve relations effectively
+            
+            # sync moves first
+            for old_path, new_path in report.moves.items():
+                await self.handle_move(old_path, new_path)
+            
+            # deleted next
+            for path in report.deleted:
+                await self.handle_delete(path)
+
+            # then new and modified
+            for path in report.new:
+                await self.sync_file(path, new=True)
+
+            for path in report.modified:
+                await self.sync_file(path, new=False)
+
+            await self.resolve_relations()
+            return report
+
+    async def sync_file(self, path: str, new: bool = True) -> Tuple[Entity, str]:
+        """Sync a single file."""
 
         try:
             if self.file_service.is_markdown(path):
-                entity, checksum = await self.sync_markdown_file(path)
+                entity, checksum = await self.sync_markdown_file(path, new)
             else:
-                entity, checksum = await self.sync_regular_file(path)
+                entity, checksum = await self.sync_regular_file(path, new)
             await self.search_service.index_entity(entity)
             return entity, checksum
 
@@ -54,7 +188,7 @@ class SyncService:
             logger.error(f"Failed to sync {path}: {e}")
             raise
 
-    async def sync_markdown_file(self, path: str) -> Tuple[Entity, str]:
+    async def sync_markdown_file(self, path: str, new: bool = True) -> Tuple[Entity, str]:
         """Sync a markdown file with full processing."""
 
         # Parse markdown first to get any existing permalink
@@ -71,20 +205,34 @@ class SyncService:
         else:
             checksum = await self.file_service.compute_checksum(path)
 
-        # Create/update entity with resolved permalink
-        entity = await self.entity_service.create_entity_from_markdown(path, entity_markdown)
+        # if the file is new, create an entity
+        if new:
+            # Create entity with final permalink
+            logger.debug(f"Creating new entity from markdown: {path}")
+            await self.entity_service.create_entity_from_markdown(
+                Path(path), entity_markdown
+            )
 
+
+        # otherwise we need to update the entity and observations
+        else:
+            logger.debug(f"Updating entity from markdown: {path}")
+            await self.entity_service.update_entity_and_observations(
+                Path(path), entity_markdown
+            )
+            
         # Update relations and search index
         entity = await self.entity_service.update_entity_relations(path, entity_markdown)
-
+        
+        # set checksum
+        await self.entity_repository.update(entity.id, {"checksum": checksum})
         return entity, checksum
 
-    async def sync_regular_file(self, path: Path) -> Tuple[Entity, str]:
+    async def sync_regular_file(self, path: Path, new: bool = True) -> Tuple[Entity, str]:
         """Sync a non-markdown file with basic tracking."""
 
         checksum = await self.file_service.compute_checksum(path)
-        existing = await self.entity_repository.get_by_file_path(path)
-        if not existing:
+        if new:
             # Generate permalink from path
             permalink = await self.entity_service.resolve_permalink(path)
 
@@ -108,14 +256,15 @@ class SyncService:
                 )
             )
         else:
+            entity = await self.entity_repository.get_by_file_path(path)
             entity = await self.entity_repository.update(
-                existing.id, {"file_path": path, "checksum": checksum}
+                entity.id, {"file_path": path, "checksum": checksum}
             )
 
         await self.search_service.index_entity(entity)
         return entity, checksum
 
-    async def handle_entity_deletion(self, file_path: str):
+    async def handle_delete(self, file_path: str):
         """Handle complete entity deletion including search index cleanup."""
 
         # First get entity to get permalink before deletion
@@ -136,37 +285,16 @@ class SyncService:
             for permalink in permalinks:
                 await self.search_service.delete_by_permalink(permalink)
 
-    async def sync(self, directory: Path) -> SyncReport:
-        """Sync all files with database."""
-
-        with logfire.span("sync", directory=directory):
-            changes = await self.scanner.find_knowledge_changes(directory)
-            logger.info(f"Found {changes.total_changes} knowledge changes")
-
-            # Handle moves first
-            for old_path, new_path in changes.moves.items():
-                logger.debug(f"Moving entity: {old_path} -> {new_path}")
-                entity = await self.entity_repository.get_by_file_path(old_path)
-                if entity:
-                    # Update file_path but keep the same permalink for link stability
-                    await self.entity_repository.update(
-                        entity.id, {"file_path": new_path, "checksum": changes.checksums[new_path]}
-                    )
-                    # update search index
-                    await self.search_service.index_entity(entity)
-
-            # Handle deletions next
-            for path in changes.deleted:
-                await self.handle_entity_deletion(path)
-
-            # Handle new and modified files
-            for path in [*changes.new, *changes.modified]:
-                logger.debug(f"Syncing file: {path}")
-                entity, checksum = await self.sync_file(path)
-                changes.checksums[path] = checksum
-
-            await self.resolve_relations()
-            return changes
+    async def handle_move(self, old_path, new_path ):
+        logger.debug(f"Moving entity: {old_path} -> {new_path}")
+        entity = await self.entity_repository.get_by_file_path(old_path)
+        if entity:
+            # Update file_path but keep the same permalink for link stability
+            updated = await self.entity_repository.update(
+                entity.id, {"file_path": new_path}
+            )
+            # update search index
+            await self.search_service.index_entity(updated)
 
     async def resolve_relations(self):
         """Try to resolve any unresolved relations"""
@@ -193,3 +321,45 @@ class SyncService:
 
                 # update search index
                 await self.search_service.index_entity(resolved_entity)
+
+    async def scan_directory(self, directory: Path) -> ScanResult:
+        """
+        Scan directory for markdown files and their checksums.
+        Only processes .md files, logs and skips others.
+
+        Args:
+            directory: Directory to scan
+
+        Returns:
+            ScanResult containing found files and any errors
+        """
+        logger.debug(f"Scanning directory: {directory}")
+        result = ScanResult()
+
+        if not directory.exists():
+            logger.debug(f"Directory does not exist: {directory}")
+            return result
+
+        for path in directory.rglob("*"):
+            if not path.is_file() or not path.name.endswith(".md"):
+                if path.is_file():
+                    logger.debug(f"Skipping non-markdown file: {path}")
+                continue
+                
+            try:
+                # Get relative path first - used in error reporting if needed
+                rel_path = str(path.relative_to(directory))
+                checksum = await self.file_service.compute_checksum(rel_path)
+                result.files[rel_path] = checksum
+                result.checksums[checksum] = rel_path
+
+            except Exception as e:
+                rel_path = str(path.relative_to(directory))
+                result.errors[rel_path] = str(e)
+                logger.error(f"Failed to read {rel_path}: {e}")
+
+        logger.debug(f"Found {len(result.files)} markdown files")
+        if result.errors:
+            logger.warning(f"Encountered {len(result.errors)} errors while scanning")
+
+        return result

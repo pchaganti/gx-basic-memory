@@ -132,7 +132,8 @@ class Relation(Base):
 
     __tablename__ = "relation"
     __table_args__ = (
-        UniqueConstraint("from_id", "to_id", "relation_type", name="uix_relation"),
+        UniqueConstraint("from_id", "to_id", "relation_type", name="uix_relation_from_id_to_id"),
+        UniqueConstraint("from_id", "to_name", "relation_type", name="uix_relation_from_id_to_name"),
         Index("ix_relation_type", "relation_type"),
         Index("ix_relation_from_id", "from_id"),  # Add FK indexes
         Index("ix_relation_to_id", "to_id"),

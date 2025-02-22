@@ -191,7 +191,9 @@ class FileService:
         """
         path = Path(path)
         full_path = path if path.is_absolute() else self.base_path / path
-        await file_utils.compute_checksum(full_path.read_text())
+        
+        # TODO checksum for binary files
+        return await file_utils.compute_checksum(full_path.read_text())
         
 
     async def file_stats(self, path: Union[Path, str]) -> stat_result:
