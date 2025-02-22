@@ -26,7 +26,7 @@ from basic_memory.services import EntityService, FileService
 from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
 from basic_memory.sync import SyncService
-from basic_memory.sync.utils import SyncReport
+from basic_memory.sync.sync_service import SyncReport
 from basic_memory.sync.watch_service import WatchService
 
 console = Console()
@@ -58,7 +58,6 @@ async def get_sync_service():  # pragma: no cover
     search_service = SearchService(search_repository, entity_repository, file_service)
     link_resolver = LinkResolver(entity_repository, search_service)
 
-
     # Initialize services
     entity_service = EntityService(
         entity_parser,
@@ -76,7 +75,7 @@ async def get_sync_service():  # pragma: no cover
         entity_repository=entity_repository,
         relation_repository=relation_repository,
         search_service=search_service,
-        file_service=file_service
+        file_service=file_service,
     )
 
     return sync_service

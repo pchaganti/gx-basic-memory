@@ -14,11 +14,10 @@ from basic_memory.cli.app import app
 from basic_memory.cli.commands.sync import get_sync_service
 from basic_memory.config import config
 from basic_memory.sync import SyncService
-from basic_memory.sync.utils import SyncReport
+from basic_memory.sync.sync_service import SyncReport
 
 # Create rich console
 console = Console()
-
 
 
 def add_files_to_tree(

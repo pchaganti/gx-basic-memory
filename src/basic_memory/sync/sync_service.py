@@ -59,14 +59,6 @@ class ScanResult:
     errors: Dict[str, str] = field(default_factory=dict)
 
 
-@dataclass
-class FileState:
-    """State of a file including file path, permalink and checksum info."""
-
-    file_path: str
-    permalink: str
-    checksum: str
-
 
 class SyncService:
     """Syncs documents and knowledge files with database."""
@@ -87,7 +79,7 @@ class SyncService:
         self.search_service = search_service
         self.file_service = file_service
 
-    async def get_db_file_state(self) -> Dict[str, FileState]:
+    async def get_db_file_state(self) -> Dict[str, str]:
         """Get file_path and checksums from database.
         Args:
             db_records: database records
@@ -97,9 +89,7 @@ class SyncService:
         """
         db_records = await self.entity_repository.find_all()
         return {
-            r.file_path: FileState(
-                file_path=r.file_path, permalink=r.permalink, checksum=r.checksum or ""
-            )
+            r.file_path: r.checksum or ""
             for r in db_records
         }
 
@@ -108,7 +98,7 @@ class SyncService:
 
         with logfire.span("sync", directory=directory):
             # initial paths from db to sync
-            # path -> FileState
+            # path -> checksum
             db_paths = await self.get_db_file_state()
 
             # Track potentially moved files by checksum
@@ -124,24 +114,24 @@ class SyncService:
                     report.checksums[file_path] = checksum
 
             # Now detect moves and deletions
-            for db_path, db_state in db_paths.items():
+            for db_path, db_checksum in db_paths.items():
                 report.checksums[file_path] = checksum
                 local_checksum_for_db_path = scan_result.files.get(db_path)
 
                 # file not modified
-                if db_state.checksum == local_checksum_for_db_path:
+                if db_checksum == local_checksum_for_db_path:
                     pass
 
                 # if checksums don't match for the same path, its modified
-                if local_checksum_for_db_path and db_state.checksum != local_checksum_for_db_path:
+                if local_checksum_for_db_path and db_checksum != local_checksum_for_db_path:
                     report.modified.add(db_path)
                     
 
                 # check if it's moved or deleted
                 if not local_checksum_for_db_path:
                     # if we find the checksum in another file, it's a move
-                    if db_state.checksum in scan_result.checksums:
-                        new_path = scan_result.checksums[db_state.checksum]
+                    if db_checksum in scan_result.checksums:
+                        new_path = scan_result.checksums[db_checksum]
                         report.moves[db_path] = new_path
                         # Remove from new files since it's a move
                         report.new.remove(new_path)

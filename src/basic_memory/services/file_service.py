@@ -196,7 +196,7 @@ class FileService:
         return await file_utils.compute_checksum(full_path.read_text())
         
 
-    async def file_stats(self, path: Union[Path, str]) -> stat_result:
+    def file_stats(self, path: Union[Path, str]) -> stat_result:
         """
         Return file stats for a given path.
         :param path: 

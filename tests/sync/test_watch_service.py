@@ -1,13 +1,14 @@
 """Tests for watch service."""
 
 import json
+
 import pytest
 from watchfiles import Change
 
 from basic_memory.services.file_service import FileService
+from basic_memory.sync.sync_service import SyncReport
 from basic_memory.sync.sync_service import SyncService
 from basic_memory.sync.watch_service import WatchService, WatchServiceState
-from basic_memory.sync.utils import SyncReport
 
 
 @pytest.fixture

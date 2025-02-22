@@ -1,7 +1,6 @@
 """Tests for CLI status command."""
 
 import pytest
-import pytest_asyncio
 from typer.testing import CliRunner
 
 from basic_memory.cli.app import app
@@ -9,16 +8,12 @@ from basic_memory.cli.commands.status import (
     add_files_to_tree,
     build_directory_summary,
     group_changes_by_directory,
-    run_status,
     display_changes,
 )
-from basic_memory.sync.utils import SyncReport
-from basic_memory.repository import EntityRepository
+from basic_memory.sync.sync_service import SyncReport
 
 # Set up CLI runner
 runner = CliRunner()
-
-
 
 
 @pytest.mark.asyncio
