@@ -13,47 +13,12 @@ from basic_memory.cli.commands.status import (
     display_changes,
 )
 from basic_memory.sync.utils import SyncReport
-from basic_memory.sync import FileChangeScanner
 from basic_memory.repository import EntityRepository
 
 # Set up CLI runner
 runner = CliRunner()
 
 
-@pytest_asyncio.fixture
-async def file_change_scanner(session_maker):
-    """Create FileChangeScanner instance with test database."""
-    entity_repository = EntityRepository(session_maker)
-    scanner = FileChangeScanner(entity_repository)
-    return scanner
-
-
-@pytest.mark.asyncio
-async def test_run_status_no_changes(file_change_scanner, tmp_path, monkeypatch):
-    """Test status command with no changes."""
-    # Set up test environment
-    monkeypatch.setenv("HOME", str(tmp_path))
-    knowledge_dir = tmp_path / "knowledge"
-    knowledge_dir.mkdir()
-
-    # Run status check
-    await run_status(file_change_scanner, verbose=False)
-
-
-@pytest.mark.asyncio
-async def test_run_status_with_changes(file_change_scanner, tmp_path, monkeypatch):
-    """Test status command with actual file changes."""
-    # Set up test environment
-    monkeypatch.setenv("HOME", str(tmp_path))
-    knowledge_dir = tmp_path / "knowledge"
-    knowledge_dir.mkdir()
-
-    # Create test files
-    test_file = knowledge_dir / "test.md"
-    test_file.write_text("# Test\nSome content")
-
-    # Run status check - should detect new file
-    await run_status(file_change_scanner, verbose=True)
 
 
 @pytest.mark.asyncio

@@ -10,27 +10,15 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.tree import Tree
 
-from basic_memory import db
 from basic_memory.cli.app import app
+from basic_memory.cli.commands.sync import get_sync_service
 from basic_memory.config import config
-from basic_memory.db import DatabaseType
-from basic_memory.repository import EntityRepository
-from basic_memory.sync import FileChangeScanner
+from basic_memory.sync import SyncService
 from basic_memory.sync.utils import SyncReport
 
 # Create rich console
 console = Console()
 
-
-async def get_file_change_scanner(
-    db_type=DatabaseType.FILESYSTEM,
-) -> FileChangeScanner:  # pragma: no cover
-    """Get sync service instance."""
-    _, session_maker = await db.get_or_create_db(db_path=config.database_path, db_type=db_type)
-
-    entity_repository = EntityRepository(session_maker)
-    file_change_scanner = FileChangeScanner(entity_repository)
-    return file_change_scanner
 
 
 def add_files_to_tree(
@@ -135,10 +123,10 @@ def display_changes(title: str, changes: SyncReport, verbose: bool = False):
     console.print(Panel(tree, expand=False))
 
 
-async def run_status(sync_service: FileChangeScanner, verbose: bool = False):
+async def run_status(sync_service: SyncService, verbose: bool = False):
     """Check sync status of files vs database."""
     # Check knowledge/ directory
-    knowledge_changes = await sync_service.find_knowledge_changes(config.home)
+    knowledge_changes = await sync_service.f(config.home)
     display_changes("Knowledge Files", knowledge_changes, verbose)
 
 
@@ -149,7 +137,7 @@ def status(
     """Show sync status between files and database."""
     with logfire.span("status"):  # pyright: ignore [reportGeneralTypeIssues]
         try:
-            sync_service = asyncio.run(get_file_change_scanner())
+            sync_service = asyncio.run(get_sync_service())
             asyncio.run(run_status(sync_service, verbose))  # pragma: no cover
         except Exception as e:
             logger.exception(f"Error checking status: {e}")

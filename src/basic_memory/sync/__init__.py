@@ -1,5 +1,6 @@
-from .file_change_scanner import FileChangeScanner
+"""Basic Memory sync services."""
+
 from .sync_service import SyncService
 from .watch_service import WatchService
 
-__all__ = ["SyncService", "FileChangeScanner", "WatchService"]
+__all__ = ["SyncService", "WatchService"]

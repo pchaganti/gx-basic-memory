@@ -16,8 +16,6 @@ from basic_memory.models import Entity
 from basic_memory.repository import EntityRepository, RelationRepository
 from basic_memory.services import EntityService, FileService
 from basic_memory.services.search_service import SearchService
-from basic_memory.sync import FileChangeScanner
-from basic_memory.sync.utils import SyncReport
 
 
 @dataclass
@@ -39,7 +37,8 @@ class SyncReport:
     modified: Set[str] = field(default_factory=set)
     deleted: Set[str] = field(default_factory=set)
     moves: Dict[str, str] = field(default_factory=dict)  # old_path -> new_path
-
+    checksums: Dict[str, str] = field(default_factory=dict)  # path -> checksum
+    
     @property
     def total_changes(self) -> int:
         """Total number of changes."""
@@ -74,7 +73,6 @@ class SyncService:
 
     def __init__(
         self,
-        scanner: FileChangeScanner,
         entity_service: EntityService,
         entity_parser: EntityParser,
         entity_repository: EntityRepository,
@@ -82,7 +80,6 @@ class SyncService:
         search_service: SearchService,
         file_service: FileService,
     ):
-        self.scanner = scanner
         self.entity_service = entity_service
         self.entity_parser = entity_parser
         self.entity_repository = entity_repository
@@ -117,9 +114,6 @@ class SyncService:
             # Track potentially moved files by checksum
 
             scan_result = await self.scan_directory(directory)
-
-            files_by_checksum = scan_result.checksums
-
             report = SyncReport()
 
             # First find potential new files and record checksums
@@ -127,9 +121,11 @@ class SyncService:
             for file_path, checksum in scan_result.files.items():
                 if file_path not in db_paths:
                     report.new.add(file_path)
+                    report.checksums[file_path] = checksum
 
             # Now detect moves and deletions
             for db_path, db_state in db_paths.items():
+                report.checksums[file_path] = checksum
                 local_checksum_for_db_path = scan_result.files.get(db_path)
 
                 # file not modified
@@ -139,12 +135,13 @@ class SyncService:
                 # if checksums don't match for the same path, its modified
                 if local_checksum_for_db_path and db_state.checksum != local_checksum_for_db_path:
                     report.modified.add(db_path)
+                    
 
                 # check if it's moved or deleted
                 if not local_checksum_for_db_path:
                     # if we find the checksum in another file, it's a move
-                    if db_state.checksum in files_by_checksum:
-                        new_path = files_by_checksum[db_state.checksum]
+                    if db_state.checksum in scan_result.checksums:
+                        new_path = scan_result.checksums[db_state.checksum]
                         report.moves[db_path] = new_path
                         # Remove from new files since it's a move
                         report.new.remove(new_path)

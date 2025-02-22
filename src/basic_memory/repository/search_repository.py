@@ -240,10 +240,10 @@ class SearchRepository:
         """Index or update a single item."""
         async with db.scoped_session(self.session_maker) as session:
             # Delete existing record if any
-            # await session.execute(
-            #     text("DELETE FROM search_index WHERE permalink = :permalink"),
-            #     {"permalink": search_index_row.permalink},
-            # )
+            await session.execute(
+                text("DELETE FROM search_index WHERE permalink = :permalink"),
+                {"permalink": search_index_row.permalink},
+            )
 
             # Insert new record
             await session.execute(

@@ -27,7 +27,6 @@ from basic_memory.services import (
 from basic_memory.services.file_service import FileService
 from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
-from basic_memory.sync import FileChangeScanner
 from basic_memory.sync.sync_service import SyncService
 from basic_memory.sync.watch_service import WatchService
 
@@ -138,15 +137,10 @@ def entity_parser(test_config):
     return EntityParser(test_config.home)
 
 
-@pytest_asyncio.fixture
-def file_change_scanner(entity_repository) -> FileChangeScanner:
-    """Create FileChangeScanner instance."""
-    return FileChangeScanner(entity_repository)
 
 
 @pytest_asyncio.fixture
 async def sync_service(
-    file_change_scanner: FileChangeScanner,
     entity_service: EntityService,
     entity_parser: EntityParser,
     entity_repository: EntityRepository,
@@ -156,7 +150,6 @@ async def sync_service(
 ) -> SyncService:
     """Create sync service for testing."""
     return SyncService(
-        scanner=file_change_scanner,
         entity_service=entity_service,
         entity_repository=entity_repository,
         relation_repository=relation_repository,
