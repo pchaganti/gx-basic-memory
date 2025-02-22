@@ -92,7 +92,7 @@ def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[V
 
 def display_sync_summary(knowledge: SyncReport):
     """Display a one-line summary of sync changes."""
-    total_changes = knowledge.total_changes
+    total_changes = knowledge.total
     if total_changes == 0:
         console.print("[green]Everything up to date[/green]")
         return
@@ -118,13 +118,13 @@ def display_sync_summary(knowledge: SyncReport):
 
 def display_detailed_sync_results(knowledge: SyncReport):
     """Display detailed sync results with trees."""
-    if knowledge.total_changes == 0:
+    if knowledge.total == 0:
         console.print("\n[green]Everything up to date[/green]")
         return
 
     console.print("\n[bold]Sync Results[/bold]")
 
-    if knowledge.total_changes > 0:
+    if knowledge.total > 0:
         knowledge_tree = Tree("[bold]Knowledge Files[/bold]")
         if knowledge.new:
             created = knowledge_tree.add("[green]Created[/green]")

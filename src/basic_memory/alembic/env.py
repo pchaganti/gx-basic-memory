@@ -17,7 +17,8 @@ config = context.config
 # Set the SQLAlchemy URL from our app config
 sqlalchemy_url = f"sqlite:///{app_config.database_path}"
 config.set_main_option("sqlalchemy.url", sqlalchemy_url)
-print(f"Using SQLAlchemy URL: {sqlalchemy_url}")
+
+#print(f"Using SQLAlchemy URL: {sqlalchemy_url}")
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:

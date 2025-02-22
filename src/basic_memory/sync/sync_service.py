@@ -1,6 +1,7 @@
 """Service for syncing files between filesystem and database."""
 
 import mimetypes
+import os
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
@@ -43,7 +44,7 @@ class SyncReport:
     def total(self) -> int:
         """Total number of changes."""
         return len(self.new) + len(self.modified) + len(self.deleted) + len(self.moves)
-
+    
 
 @dataclass
 class ScanResult:
@@ -78,62 +79,13 @@ class SyncService:
         self.search_service = search_service
         self.file_service = file_service
 
-    async def get_db_file_state(self) -> Dict[str, str]:
-        """Get file_path and checksums from database.
-        Args:
-            db_records: database records
-        Returns:
-            Dict mapping file paths to FileState
-            :param db_records: the data from the db
-        """
-        db_records = await self.entity_repository.find_all()
-        return {r.file_path: r.checksum or "" for r in db_records}
-
     async def sync(self, directory: Path) -> SyncReport:
         """Sync all files with database."""
 
-        with logfire.span("sync", directory=directory):
+        with logfire.span(f"sync {directory}", directory=directory):
             # initial paths from db to sync
             # path -> checksum
-            db_paths = await self.get_db_file_state()
-
-            # Track potentially moved files by checksum
-
-            scan_result = await self.scan_directory(directory)
-            report = SyncReport()
-
-            # First find potential new files and record checksums
-            # if a path is not present in the db, it could be new or could be the destination of a move
-            for file_path, checksum in scan_result.files.items():
-                if file_path not in db_paths:
-                    report.new.add(file_path)
-                    report.checksums[file_path] = checksum
-
-            # Now detect moves and deletions
-            for db_path, db_checksum in db_paths.items():
-                report.checksums[file_path] = checksum
-                local_checksum_for_db_path = scan_result.files.get(db_path)
-
-                # file not modified
-                if db_checksum == local_checksum_for_db_path:
-                    pass
-
-                # if checksums don't match for the same path, its modified
-                if local_checksum_for_db_path and db_checksum != local_checksum_for_db_path:
-                    report.modified.add(db_path)
-
-                # check if it's moved or deleted
-                if not local_checksum_for_db_path:
-                    # if we find the checksum in another file, it's a move
-                    if db_checksum in scan_result.checksums:
-                        new_path = scan_result.checksums[db_checksum]
-                        report.moves[db_path] = new_path
-                        # Remove from new files since it's a move
-                        report.new.remove(new_path)
-
-                    # deleted
-                    else:
-                        report.deleted.add(db_path)
+            report = await self.scan(directory)
 
             # order of sync matters to resolve relations effectively
 
@@ -154,6 +106,62 @@ class SyncService:
 
             await self.resolve_relations()
             return report
+
+    async def scan(self, directory):
+        """Scan directory for changes compared to database state."""
+        
+        db_paths = await self.get_db_file_state()
+        
+        # Track potentially moved files by checksum
+        scan_result = await self.scan_directory(directory)
+        report = SyncReport()
+        
+        # First find potential new files and record checksums
+        # if a path is not present in the db, it could be new or could be the destination of a move
+        for file_path, checksum in scan_result.files.items():
+            if file_path not in db_paths:
+                report.new.add(file_path)
+                report.checksums[file_path] = checksum
+                
+        # Now detect moves and deletions
+        for db_path, db_checksum in db_paths.items():
+            
+            local_checksum_for_db_path = scan_result.files.get(db_path)
+
+            # file not modified
+            if db_checksum == local_checksum_for_db_path:
+                pass
+
+            # if checksums don't match for the same path, its modified
+            if local_checksum_for_db_path and db_checksum != local_checksum_for_db_path:
+                report.modified.add(db_path)
+                report.checksums[db_path] = checksum
+
+            # check if it's moved or deleted
+            if not local_checksum_for_db_path:
+                # if we find the checksum in another file, it's a move
+                if db_checksum in scan_result.checksums:
+                    new_path = scan_result.checksums[db_checksum]
+                    report.moves[db_path] = new_path
+                    
+                    # Remove from new files since it's a move
+                    report.new.remove(new_path)
+
+                # deleted
+                else:
+                    report.deleted.add(db_path)
+        return report
+
+    async def get_db_file_state(self) -> Dict[str, str]:
+        """Get file_path and checksums from database.
+        Args:
+            db_records: database records
+        Returns:
+            Dict mapping file paths to FileState
+            :param db_records: the data from the db
+        """
+        db_records = await self.entity_repository.find_all()
+        return {r.file_path: r.checksum or "" for r in db_records}
 
     async def sync_file(self, path: str, new: bool = True) -> Tuple[Entity, str]:
         """Sync a single file."""
@@ -215,8 +223,8 @@ class SyncService:
 
             # get file timestamps
             file_stats = self.file_service.file_stats(path)
-            created=datetime.fromtimestamp(file_stats.st_ctime)
-            modified=datetime.fromtimestamp(file_stats.st_mtime)
+            created = datetime.fromtimestamp(file_stats.st_ctime)
+            modified = datetime.fromtimestamp(file_stats.st_mtime)
 
             # get mime type
             content_type = self.file_service.content_type(path)
@@ -308,6 +316,7 @@ class SyncService:
         Returns:
             ScanResult containing found files and any errors
         """
+
         logger.debug(f"Scanning directory: {directory}")
         result = ScanResult()
 
@@ -315,28 +324,21 @@ class SyncService:
             logger.debug(f"Directory does not exist: {directory}")
             return result
 
-        IGNORED_DIRS = {'.git', '__pycache__', 'node_modules', '.basic-memory'}
+        for root, dirnames, filenames in os.walk(str(directory)):
+            # Skip dot directories in-place
+            dirnames[:] = [d for d in dirnames if not d.startswith('.')]
 
-        for path in directory.rglob("*"):
-            # Skip ignored directories
-            if path.is_dir() or path.parent.name in IGNORED_DIRS:
-                continue
-                
-            try:
-                # Get relative path first - used in error reporting if needed
+            for filename in filenames:
+                # Skip dot files
+                if filename.startswith('.'):
+                    continue
+
+                path = Path(root) / filename
                 rel_path = str(path.relative_to(directory))
                 checksum = await self.file_service.compute_checksum(rel_path)
-                logger.debug(f"Found file: {rel_path} with checksum: {checksum}")
                 result.files[rel_path] = checksum
                 result.checksums[checksum] = rel_path
+                logger.debug(f"Found file: {rel_path} with checksum: {checksum}")
 
-            except Exception as e:
-                rel_path = str(path.relative_to(directory))
-                result.errors[rel_path] = str(e)
-                logger.error(f"Failed to read {rel_path}: {e}")
-
-        logger.debug(f"Found {len(result.files)} files")
-        if result.errors:
-            logger.warning(f"Encountered {len(result.errors)} errors while scanning")
 
         return result

@@ -91,7 +91,7 @@ def display_changes(title: str, changes: SyncReport, verbose: bool = False):
     """Display changes using Rich for better visualization."""
     tree = Tree(title)
 
-    if changes.total_changes == 0:
+    if changes.total == 0:
         tree.add("No changes")
         console.print(Panel(tree, expand=False))
         return
@@ -125,8 +125,8 @@ def display_changes(title: str, changes: SyncReport, verbose: bool = False):
 async def run_status(sync_service: SyncService, verbose: bool = False):
     """Check sync status of files vs database."""
     # Check knowledge/ directory
-    knowledge_changes = await sync_service.f(config.home)
-    display_changes("Knowledge Files", knowledge_changes, verbose)
+    knowledge_changes = await sync_service.scan(config.home)
+    display_changes("Status", knowledge_changes, verbose)
 
 
 @app.command()
@@ -140,4 +140,5 @@ def status(
             asyncio.run(run_status(sync_service, verbose))  # pragma: no cover
         except Exception as e:
             logger.exception(f"Error checking status: {e}")
+            typer.echo(f"Error checking status: {e}", err=True)
             raise typer.Exit(code=1)  # pragma: no cover

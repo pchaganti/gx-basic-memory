@@ -137,6 +137,7 @@ class FileService:
             logger.error(f"Failed to write file {full_path}: {e}")
             raise FileOperationError(f"Failed to write file: {e}")
 
+    # TODO remove read_file
     async def read_file(self, path: Union[Path, str]) -> Tuple[str, str]:
         """Read file and compute checksum.
 
@@ -194,7 +195,7 @@ class FileService:
         try:
             if self.is_markdown(path):
                 # read str
-                content = await self.read_file(full_path)
+                content = full_path.read_text()
             else:
                 # read bytes
                 content = full_path.read_bytes()
