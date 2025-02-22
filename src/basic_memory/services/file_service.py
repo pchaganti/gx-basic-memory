@@ -1,4 +1,5 @@
 """Service for file operations with checksum tracking."""
+
 import mimetypes
 from os import stat_result
 from pathlib import Path
@@ -7,6 +8,7 @@ from typing import Tuple, Union, Dict, Any
 from loguru import logger
 
 from basic_memory import file_utils
+from basic_memory.file_utils import FileError
 from basic_memory.markdown.markdown_processor import MarkdownProcessor
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema
@@ -185,33 +187,39 @@ class FileService:
         full_path = path if path.is_absolute() else self.base_path / path
         return await file_utils.update_frontmatter(full_path, updates)
 
-    async def compute_checksum(self, path: Union[Path, str]) -> str:
-        """
-        Compute SHA-256 checksum of content.
-        """
+    async def compute_checksum(self, path: Union[str, Path]) -> str:
+        """Compute checksum for a file."""
         path = Path(path)
         full_path = path if path.is_absolute() else self.base_path / path
-        
-        # TODO checksum for binary files
-        return await file_utils.compute_checksum(full_path.read_text())
-        
+        try:
+            if self.is_markdown(path):
+                # read str
+                content = await self.read_file(full_path)
+            else:
+                # read bytes
+                content = full_path.read_bytes()
+            return await file_utils.compute_checksum(content)
+
+        except Exception as e:
+            logger.error(f"Failed to compute checksum for {path}: {e}")
+            raise FileError(f"Failed to compute checksum for {path}: {e}")
 
     def file_stats(self, path: Union[Path, str]) -> stat_result:
         """
         Return file stats for a given path.
-        :param path: 
-        :return: 
+        :param path:
+        :return:
         """
         path = Path(path)
         full_path = path if path.is_absolute() else self.base_path / path
         # get file timestamps
         return full_path.stat()
 
-    async def content_type(self, path: Union[Path, str]) -> stat_result:
+    def content_type(self, path: Union[Path, str]) -> str:
         """
         Return content_type for a given path.
-        :param path: 
-        :return: 
+        :param path:
+        :return:
         """
         path = Path(path)
         full_path = path if path.is_absolute() else self.base_path / path
@@ -220,10 +228,10 @@ class FileService:
         content_type = mime_type or "text/plain"
         return content_type
 
-    async def is_markdown(self, path: Union[Path, str]) -> stat_result:
+    def is_markdown(self, path: Union[Path, str]) -> stat_result:
         """
         Return content_type for a given path.
-        :param path: 
-        :return: 
+        :param path:
+        :return:
         """
         return self.content_type(path) == "text/markdown"

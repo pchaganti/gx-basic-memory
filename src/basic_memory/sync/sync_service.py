@@ -3,6 +3,7 @@
 import mimetypes
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import datetime
 from pathlib import Path
 from typing import Set, Dict, Sequence
 from typing import Tuple
@@ -31,16 +32,15 @@ class SyncReport:
         checksums: Current checksums for files on disk
     """
 
-    total: int = 0
     # We keep paths as strings in sets/dicts for easier serialization
     new: Set[str] = field(default_factory=set)
     modified: Set[str] = field(default_factory=set)
     deleted: Set[str] = field(default_factory=set)
     moves: Dict[str, str] = field(default_factory=dict)  # old_path -> new_path
     checksums: Dict[str, str] = field(default_factory=dict)  # path -> checksum
-    
+
     @property
-    def total_changes(self) -> int:
+    def total(self) -> int:
         """Total number of changes."""
         return len(self.new) + len(self.modified) + len(self.deleted) + len(self.moves)
 
@@ -57,7 +57,6 @@ class ScanResult:
 
     # file_path -> error message
     errors: Dict[str, str] = field(default_factory=dict)
-
 
 
 class SyncService:
@@ -88,10 +87,7 @@ class SyncService:
             :param db_records: the data from the db
         """
         db_records = await self.entity_repository.find_all()
-        return {
-            r.file_path: r.checksum or ""
-            for r in db_records
-        }
+        return {r.file_path: r.checksum or "" for r in db_records}
 
     async def sync(self, directory: Path) -> SyncReport:
         """Sync all files with database."""
@@ -125,7 +121,6 @@ class SyncService:
                 # if checksums don't match for the same path, its modified
                 if local_checksum_for_db_path and db_checksum != local_checksum_for_db_path:
                     report.modified.add(db_path)
-                    
 
                 # check if it's moved or deleted
                 if not local_checksum_for_db_path:
@@ -141,11 +136,11 @@ class SyncService:
                         report.deleted.add(db_path)
 
             # order of sync matters to resolve relations effectively
-            
+
             # sync moves first
             for old_path, new_path in report.moves.items():
                 await self.handle_move(old_path, new_path)
-            
+
             # deleted next
             for path in report.deleted:
                 await self.handle_delete(path)
@@ -196,26 +191,21 @@ class SyncService:
         if new:
             # Create entity with final permalink
             logger.debug(f"Creating new entity from markdown: {path}")
-            await self.entity_service.create_entity_from_markdown(
-                Path(path), entity_markdown
-            )
-
+            await self.entity_service.create_entity_from_markdown(Path(path), entity_markdown)
 
         # otherwise we need to update the entity and observations
         else:
             logger.debug(f"Updating entity from markdown: {path}")
-            await self.entity_service.update_entity_and_observations(
-                Path(path), entity_markdown
-            )
-            
+            await self.entity_service.update_entity_and_observations(Path(path), entity_markdown)
+
         # Update relations and search index
         entity = await self.entity_service.update_entity_relations(path, entity_markdown)
-        
+
         # set checksum
         await self.entity_repository.update(entity.id, {"checksum": checksum})
         return entity, checksum
 
-    async def sync_regular_file(self, path: Path, new: bool = True) -> Tuple[Entity, str]:
+    async def sync_regular_file(self, path: str, new: bool = True) -> Tuple[Entity, str]:
         """Sync a non-markdown file with basic tracking."""
 
         checksum = await self.file_service.compute_checksum(path)
@@ -225,20 +215,22 @@ class SyncService:
 
             # get file timestamps
             file_stats = self.file_service.file_stats(path)
+            created=datetime.fromtimestamp(file_stats.st_ctime)
+            modified=datetime.fromtimestamp(file_stats.st_mtime)
 
             # get mime type
-            mime_type, _ = mimetypes.guess_type(path.name)
-            content_type = mime_type or "text/plain"
+            content_type = self.file_service.content_type(path)
 
+            file_path = Path(path)
             entity = await self.entity_repository.add(
                 Entity(
                     entity_type="file",
                     file_path=path,
                     permalink=permalink,
                     checksum=checksum,
-                    title=path.name,
-                    created_at=file_stats.st_ctime,
-                    updated_at=file_stats.st_mtime,
+                    title=file_path.name,
+                    created_at=created,
+                    updated_at=modified,
                     content_type=content_type,
                 )
             )
@@ -248,7 +240,6 @@ class SyncService:
                 entity.id, {"file_path": path, "checksum": checksum}
             )
 
-        await self.search_service.index_entity(entity)
         return entity, checksum
 
     async def handle_delete(self, file_path: str):
@@ -272,14 +263,12 @@ class SyncService:
             for permalink in permalinks:
                 await self.search_service.delete_by_permalink(permalink)
 
-    async def handle_move(self, old_path, new_path ):
+    async def handle_move(self, old_path, new_path):
         logger.debug(f"Moving entity: {old_path} -> {new_path}")
         entity = await self.entity_repository.get_by_file_path(old_path)
         if entity:
             # Update file_path but keep the same permalink for link stability
-            updated = await self.entity_repository.update(
-                entity.id, {"file_path": new_path}
-            )
+            updated = await self.entity_repository.update(entity.id, {"file_path": new_path})
             # update search index
             await self.search_service.index_entity(updated)
 
@@ -312,7 +301,6 @@ class SyncService:
     async def scan_directory(self, directory: Path) -> ScanResult:
         """
         Scan directory for markdown files and their checksums.
-        Only processes .md files, logs and skips others.
 
         Args:
             directory: Directory to scan
@@ -327,16 +315,18 @@ class SyncService:
             logger.debug(f"Directory does not exist: {directory}")
             return result
 
+        IGNORED_DIRS = {'.git', '__pycache__', 'node_modules', '.basic-memory'}
+
         for path in directory.rglob("*"):
-            if not path.is_file() or not path.name.endswith(".md"):
-                if path.is_file():
-                    logger.debug(f"Skipping non-markdown file: {path}")
+            # Skip ignored directories
+            if path.is_dir() or path.parent.name in IGNORED_DIRS:
                 continue
                 
             try:
                 # Get relative path first - used in error reporting if needed
                 rel_path = str(path.relative_to(directory))
                 checksum = await self.file_service.compute_checksum(rel_path)
+                logger.debug(f"Found file: {rel_path} with checksum: {checksum}")
                 result.files[rel_path] = checksum
                 result.checksums[checksum] = rel_path
 
@@ -345,7 +335,7 @@ class SyncService:
                 result.errors[rel_path] = str(e)
                 logger.error(f"Failed to read {rel_path}: {e}")
 
-        logger.debug(f"Found {len(result.files)} markdown files")
+        logger.debug(f"Found {len(result.files)} files")
         if result.errors:
             logger.warning(f"Encountered {len(result.errors)} errors while scanning")
 

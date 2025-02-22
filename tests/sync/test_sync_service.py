@@ -15,6 +15,34 @@ from basic_memory.services.search_service import SearchService
 from basic_memory.sync.sync_service import SyncService
 
 
+@pytest.fixture
+def test_files(test_config) -> dict[str, Path]:
+    """Copy test files into the project directory.
+
+    Returns a dict mapping file names to their paths in the project dir.
+    """
+    # Source files relative to tests directory
+    source_files = {
+        "pdf": Path("tests/Non-MarkdownFileSupport.pdf"),
+        "image": Path("tests/Screenshot.png")
+    }
+
+    # Create copies in temp project directory
+    project_files = {}
+    for name, src_path in source_files.items():
+        # Read source file
+        content = src_path.read_bytes()
+
+        # Create destination path and ensure parent dirs exist
+        dest_path = test_config.home / src_path.name
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Write file
+        dest_path.write_bytes(content)
+        project_files[name] = dest_path
+
+    return project_files
+
 async def create_test_file(path: Path, content: str = "test content") -> None:
     """Create a test file with given content."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -842,3 +870,26 @@ test content
 """.strip()
         == file_one_content
     )
+
+
+@pytest.mark.asyncio
+async def test_sync_non_markdown_files(sync_service, test_config, test_files):
+    """Test syncing non-markdown files."""
+    report = await sync_service.sync(test_config.home)
+
+    assert report.total == 2
+    # Check files were detected
+    assert test_files["pdf"].name in [f for f in report.new]
+    assert test_files["image"].name in [f for f in report.new]
+
+    # Verify entities were created
+    pdf_entity = await sync_service.entity_repository.get_by_file_path(
+        str(test_files["pdf"].name)
+    )
+    assert pdf_entity is not None, "PDF entity should have been created"
+    assert pdf_entity.content_type == "application/pdf"
+
+    image_entity = await sync_service.entity_repository.get_by_file_path(
+        str(test_files["image"].name)
+    )
+    assert image_entity.content_type == "image/png"

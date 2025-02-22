@@ -2,7 +2,7 @@
 
 import hashlib
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 import yaml
 from loguru import logger
@@ -26,12 +26,12 @@ class ParseError(FileError):
     pass
 
 
-async def compute_checksum(content: str) -> str:
+async def compute_checksum(content: Union[str, bytes]) -> str:
     """
     Compute SHA-256 checksum of content.
 
     Args:
-        content: Text content to hash
+        content: Content to hash (either text string or bytes)
 
     Returns:
         SHA-256 hex digest
@@ -40,11 +40,12 @@ async def compute_checksum(content: str) -> str:
         FileError: If checksum computation fails
     """
     try:
-        return hashlib.sha256(content.encode()).hexdigest()
+        if isinstance(content, str):
+            content = content.encode()
+        return hashlib.sha256(content).hexdigest()
     except Exception as e:  # pragma: no cover
         logger.error(f"Failed to compute checksum: {e}")
         raise FileError(f"Failed to compute checksum: {e}")
-
 
 async def ensure_directory(path: Path) -> None:
     """
