@@ -13,32 +13,34 @@ from PIL import Image as PILImage
 def resize_image(img, max_size):
     """Resize image maintaining aspect ratio"""
     if img.width > max_size or img.height > max_size:
-        logger.info(f"Image needs resize. Current: {img.width}x{img.height}, Target: {max_size}")
         ratio = min(max_size / img.width, max_size / img.height)
         new_size = (int(img.width * ratio), int(img.height * ratio))
-        logger.info(f"New size will be: {new_size}")
+        logger.debug("Resizing image", original={
+            "width": img.width, 
+            "height": img.height
+        }, target=new_size)
         return img.resize(new_size, PILImage.Resampling.LANCZOS)
-    logger.info(f"No resize needed. Current: {img.width}x{img.height}")
     return img
 
 def optimize_image(img, max_output_bytes=500000):  # 500KB limit
     """Iteratively optimize image until it's under max_output_bytes"""
-    logger.info(f"Starting image optimization. Original size: {img.width}x{img.height}, mode: {img.mode}")
+    logger.debug("Starting optimization", 
+                dimensions={"width": img.width, "height": img.height}, 
+                mode=img.mode,
+                max_bytes=max_output_bytes)
     
     # Convert to RGB if needed
     if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
         img = img.convert('RGB')
-        logger.info("Converted to RGB mode")
+        logger.debug("Converted image to RGB")
     
     quality = 30
     size = 400
     
     while True:
-        logger.info(f"Trying optimization with size={size}, quality={quality}")
         # Try current settings
         buf = io.BytesIO()
         resized = resize_image(img, size)
-        logger.info(f"Resized to: {resized.width}x{resized.height}")
         
         resized.save(buf, format='JPEG',
                     quality=quality,
@@ -47,73 +49,77 @@ def optimize_image(img, max_output_bytes=500000):  # 500KB limit
                     subsampling='4:2:0')
         
         output_size = buf.getbuffer().nbytes
-        logger.info(f"Output size: {output_size} bytes")
+        logger.debug("Optimization attempt", quality=quality, size=size, output_bytes=output_size)
         
         if output_size < max_output_bytes:
-            logger.info("Size acceptable, returning image")
+            logger.info("Image optimization complete", 
+                      final_size=output_size,
+                      quality=quality,
+                      dimensions={"width": resized.width, "height": resized.height})
             return buf.getvalue()
             
         # Try lower quality first
         if quality > 10:
             quality -= 10
-            logger.info(f"Output too big. Reducing quality to {quality}")
+            logger.debug("Reducing quality", new_quality=quality)
         # Then reduce size if quality is already minimum
         elif size > 200:
             size -= 50
-            logger.info(f"Output too big. Reducing size to {size}")
+            logger.debug("Reducing size", new_size=size)
         else:
-            # If we get here, return the smallest possible version
-            logger.info("Reached minimum size/quality, returning anyway")
+            logger.warning("Reached minimum optimization parameters", 
+                         final_size=output_size,
+                         over_limit_by=output_size - max_output_bytes)
             return buf.getvalue()
 
 @mcp.tool(description="Read a single file's content by path or permalink")
 async def read_resource(path: str) -> dict:
     """Get a file's raw content."""
-    with logfire.span("Reading resource", path=path):
-        logger.info(f"Reading resource {path}")
-        url = memory_url_path(path)
-        response = await call_get(client, f"/resource/{url}")
+    logger.info("Reading resource", path=path)
+    
+    url = memory_url_path(path)
+    response = await call_get(client, f"/resource/{url}")
+    content_type = response.headers.get("content-type", "application/octet-stream")
+    content_length = int(response.headers.get("content-length", 0))
+    
+    logger.debug("Resource metadata", 
+                content_type=content_type,
+                size=content_length,
+                path=path)
 
-        content_type = response.headers.get("content-type", "application/octet-stream")
-        logger.info(f"Resource content type: {content_type}")
-
-        # return text or json as text type
-        if content_type.startswith("text/") or content_type == "application/json":
-            return {
-                "type": "text",
-                "text": response.text,
-                "content_type": content_type,
-                "encoding": "utf-8",
+    # Handle text or json
+    if content_type.startswith("text/") or content_type == "application/json":
+        logger.debug("Processing text resource")
+        return {
+            "type": "text",
+            "text": response.text,
+            "content_type": content_type,
+            "encoding": "utf-8",
+        }
+        
+    # Handle images
+    elif content_type.startswith("image/"):
+        logger.debug("Processing image")
+        img = PILImage.open(io.BytesIO(response.content))
+        img_bytes = optimize_image(img)
+        
+        return {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": base64.b64encode(img_bytes).decode("utf-8")
             }
-        # images are returned as "image"
-        elif content_type.startswith("image/"):
-            logger.info("Processing image...")
-            # Load image using PIL
-            img = PILImage.open(io.BytesIO(response.content))
-            logger.info(f"Loaded image: {img.width}x{img.height} {img.mode}")
+        }
             
-            # Optimize image
-            img_bytes = optimize_image(img)
-            logger.info(f"Optimization complete, final size: {len(img_bytes)} bytes")
-
-            result = {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/jpeg",
-                    "data": base64.b64encode(img_bytes).decode("utf-8")
-                }
-            }
-            logger.info("Returning image result")
-            return result
-            
-        # Other types, like pdf are returned as "document"
-        else:             
-            return {
-                "type": "document",
-                "source": {
-                    "type": "base64",
-                    "media_type": content_type,
-                    "data": base64.b64encode(response.content).decode("utf-8"),
-                },
-            }
+    # Handle other file types
+    else:
+        logger.debug("Processing binary resource")
+        return {
+            "type": "document",
+            "source": {
+                "type": "base64",
+                "media_type": content_type,
+                "data": base64.b64encode(response.content).decode("utf-8"),
+            },
+        }
