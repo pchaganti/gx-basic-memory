@@ -30,6 +30,7 @@ dependencies = [
     "alembic>=1.14.1",
     "qasync>=0.27.1",
     "logfire[fastapi,httpx,sqlalchemy,sqlite3]>=3.6.0",
+    "pillow>=11.1.0",
 ]
 
 
