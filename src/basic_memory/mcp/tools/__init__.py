@@ -30,5 +30,4 @@ __all__ = [
     "read_note",
     "write_note",
     # files
-    "read_resource"
 ]
