@@ -10,6 +10,24 @@ import base64
 import io
 from PIL import Image as PILImage
 
+def calculate_target_params(content_length):
+    """Calculate initial quality and size based on input file size"""
+    target_size = 350000  # Reduced target for more safety margin
+    ratio = content_length / target_size
+    
+    logger.debug("Calculating target parameters", 
+                content_length=content_length,
+                ratio=ratio,
+                target_size=target_size)
+                
+    if ratio > 4:
+        # Very large images - start very aggressive
+        return 50, 600  # Lower initial quality and size
+    elif ratio > 2:
+        return 60, 800
+    else:
+        return 70, 1000
+
 def resize_image(img, max_size):
     """Resize image maintaining aspect ratio"""
     original_dimensions = {"width": img.width, "height": img.height}
@@ -26,29 +44,37 @@ def resize_image(img, max_size):
     logger.debug("No resize needed", dimensions=original_dimensions)
     return img
 
-def optimize_image(img, max_output_bytes=500000):  # 500KB limit
-    """Iteratively optimize image until it's under max_output_bytes"""
+def optimize_image(img, content_length, max_output_bytes=350000):
+    """Iteratively optimize image with aggressive size reduction"""
+    stats = {
+        "dimensions": {"width": img.width, "height": img.height},
+        "mode": img.mode,
+        "estimated_memory": (img.width * img.height * len(img.getbands()))
+    }
+    
+    initial_quality, initial_size = calculate_target_params(content_length)
+    
     logger.debug("Starting optimization", 
-                dimensions={"width": img.width, "height": img.height}, 
-                mode=img.mode,
-                max_bytes=max_output_bytes)
+                image_stats=stats,
+                content_length=content_length,
+                initial_quality=initial_quality,
+                initial_size=initial_size,
+                max_output_bytes=max_output_bytes)
     
-    # Start with higher quality for better color preservation
-    quality = 60
-    
-    # Make initial size relative to input dimensions
-    initial_size = min(800, max(img.width, img.height))
+    quality = initial_quality
     size = initial_size
     
-    original_mode = img.mode
+    # Convert to RGB if needed
     if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
-        # Keep original mode info for logging
         img = img.convert('RGB')
-        logger.debug("Converted color mode", 
-                    from_mode=original_mode,
-                    to_mode='RGB')
+        logger.debug("Converted to RGB mode")
+    
+    iteration = 0
+    min_size = 300  # Absolute minimum size
+    min_quality = 20  # Absolute minimum quality
     
     while True:
+        iteration += 1
         buf = io.BytesIO()
         resized = resize_image(img, size)
         
@@ -59,37 +85,42 @@ def optimize_image(img, max_output_bytes=500000):  # 500KB limit
                     subsampling='4:2:0')
         
         output_size = buf.getbuffer().nbytes
+        reduction_ratio = output_size / content_length
+        
         logger.debug("Optimization attempt", 
+                    iteration=iteration,
                     quality=quality, 
                     size=size, 
                     output_bytes=output_size,
-                    target_bytes=max_output_bytes)
+                    target_bytes=max_output_bytes,
+                    reduction_ratio=f"{reduction_ratio:.2f}")
         
         if output_size < max_output_bytes:
-            compression_ratio = output_size / max_output_bytes
             logger.info("Image optimization complete", 
                        final_size=output_size,
                        quality=quality,
                        dimensions={"width": resized.width, "height": resized.height},
-                       compression_ratio=compression_ratio)
+                       reduction_ratio=f"{reduction_ratio:.2f}")
             return buf.getvalue()
-            
-        # More gradual quality reduction for better color preservation
-        if quality > 30:
-            quality_step = 5 if quality > 50 else 10
-            quality -= quality_step
-            logger.debug("Reducing quality", 
-                        new_quality=quality,
-                        step=quality_step)
-        # Smaller size reduction steps
-        elif size > 300:
-            size_step = 25 if size > 600 else 50
-            size -= size_step
-            logger.debug("Reducing size", 
-                        new_size=size,
-                        step=size_step)
+        
+        # Very aggressive reduction for large files
+        if content_length > 2000000:  # 2MB+
+            quality = max(min_quality, quality - 20)
+            size = max(min_size, int(size * 0.6))
+        elif content_length > 1000000:  # 1MB+
+            quality = max(min_quality, quality - 15)
+            size = max(min_size, int(size * 0.7))
         else:
-            logger.warning("Reached minimum optimization parameters", 
+            quality = max(min_quality, quality - 10)
+            size = max(min_size, int(size * 0.8))
+            
+        logger.debug("Reducing parameters",
+                    new_quality=quality,
+                    new_size=size)
+        
+        # If we've hit minimum values and still too big
+        if quality <= min_quality and size <= min_size:
+            logger.warning("Reached minimum parameters", 
                          final_size=output_size,
                          over_limit_by=output_size - max_output_bytes)
             return buf.getvalue()
@@ -123,7 +154,7 @@ async def read_resource(path: str) -> dict:
     elif content_type.startswith("image/"):
         logger.debug("Processing image")
         img = PILImage.open(io.BytesIO(response.content))
-        img_bytes = optimize_image(img)
+        img_bytes = optimize_image(img, content_length)
         
         return {
             "type": "image",
@@ -137,6 +168,13 @@ async def read_resource(path: str) -> dict:
     # Handle other file types
     else:
         logger.debug("Processing binary resource")
+        if content_length > 350000:
+            logger.warning("Document too large for response",
+                         size=content_length)
+            return {
+                "type": "error",
+                "error": f"Document size {content_length} bytes exceeds maximum allowed size"
+            }
         return {
             "type": "document",
             "source": {
