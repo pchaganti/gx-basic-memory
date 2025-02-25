@@ -1,5 +1,6 @@
 """Utility functions for basic-memory."""
 
+import logging
 import os
 import re
 import sys
@@ -10,7 +11,6 @@ from loguru import logger
 from unidecode import unidecode
 
 import basic_memory
-from basic_memory.config import config
 
 import logfire
 
@@ -65,7 +65,11 @@ def generate_permalink(file_path: Union[Path, str]) -> str:
 
 
 def setup_logging(
-    home_dir: Path = config.home, log_file: Optional[str] = None, console: bool = True
+    env: str,
+    home_dir: Path,
+    log_file: Optional[str] = None,
+    log_level: str = "INFO",
+    console: bool = True,
 ) -> None:  # pragma: no cover
     """
     Configure logging for the application.
@@ -79,15 +83,14 @@ def setup_logging(
     logger.remove()
 
     # Add file handler if we are not running tests
-    if log_file and config.env != "test":
+    if log_file and env != "test":
         # enable pydantic logfire
         logfire.configure(
             code_source=logfire.CodeSource(
                 repository="https://github.com/basicmachines-co/basic-memory",
                 revision=basic_memory.__version__,
-                root_path="/src/basic_memory",
             ),
-            environment=config.env,
+            environment=env,
             console=False,
         )
         logger.configure(handlers=[logfire.loguru_handler()])
@@ -100,7 +103,7 @@ def setup_logging(
         log_path = home_dir / log_file
         logger.add(
             str(log_path),
-            level=config.log_level,
+            level=log_level,
             rotation="100 MB",
             retention="10 days",
             backtrace=True,
@@ -109,7 +112,16 @@ def setup_logging(
             colorize=False,
         )
 
-    # Add stderr handler
-    logger.add(sys.stderr, level=config.log_level, backtrace=True, diagnose=True, colorize=True)
+    if env == "test" or console:
+        # Add stderr handler
+        logger.add(sys.stderr, level=log_level, backtrace=True, diagnose=True, colorize=True)
 
-    logger.info(f"ENV: '{config.env}' Log level: '{config.log_level}' Logging to {log_file}")
+    logger.info(f"ENV: '{env}' Log level: '{log_level}' Logging to {log_file}")
+
+    # Get the logger for 'httpx'
+    httpx_logger = logging.getLogger("httpx")
+    # Set the logging level to WARNING to ignore INFO and DEBUG logs
+    httpx_logger.setLevel(logging.WARNING)
+
+    # turn watchfiles to WARNING
+    logging.getLogger("watchfiles.main").setLevel(logging.WARNING)

@@ -88,10 +88,10 @@ class EntityParser:
                 return parsed
         return None
 
-    async def parse_file(self, file_path: Path) -> EntityMarkdown:
+    async def parse_file(self, path: Path | str) -> EntityMarkdown:
         """Parse markdown file into EntityMarkdown."""
 
-        absolute_path = self.base_path / file_path
+        absolute_path = self.base_path / path
         # Parse frontmatter and content using python-frontmatter
         post = frontmatter.load(str(absolute_path))
 
@@ -99,7 +99,7 @@ class EntityParser:
         file_stats = absolute_path.stat()
 
         metadata = post.metadata
-        metadata["title"] = post.metadata.get("title", file_path.name)
+        metadata["title"] = post.metadata.get("title", absolute_path.name)
         metadata["type"] = post.metadata.get("type", "note")
         metadata["tags"] = parse_tags(post.metadata.get("tags", []))
 

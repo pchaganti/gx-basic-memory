@@ -1,11 +1,14 @@
 """Service for file operations with checksum tracking."""
 
+import mimetypes
+from os import stat_result
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict, Any
 
 from loguru import logger
 
 from basic_memory import file_utils
+from basic_memory.file_utils import FileError
 from basic_memory.markdown.markdown_processor import MarkdownProcessor
 from basic_memory.models import Entity as EntityModel
 from basic_memory.schemas import Entity as EntitySchema
@@ -134,6 +137,7 @@ class FileService:
             logger.error(f"Failed to write file {full_path}: {e}")
             raise FileOperationError(f"Failed to write file: {e}")
 
+    # TODO remove read_file
     async def read_file(self, path: Union[Path, str]) -> Tuple[str, str]:
         """Read file and compute checksum.
 
@@ -153,7 +157,7 @@ class FileService:
         full_path = path if path.is_absolute() else self.base_path / path
 
         try:
-            content = path.read_text()
+            content = full_path.read_text()
             checksum = await file_utils.compute_checksum(content)
             logger.debug(f"read file: {full_path}, checksum: {checksum}")
             return content, checksum
@@ -174,3 +178,61 @@ class FileService:
         path = Path(path)
         full_path = path if path.is_absolute() else self.base_path / path
         full_path.unlink(missing_ok=True)
+
+    async def update_frontmatter(self, path: Union[Path, str], updates: Dict[str, Any]) -> str:
+        """
+        Update frontmatter fields in a file while preserving all content.
+        """
+
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+        return await file_utils.update_frontmatter(full_path, updates)
+
+    async def compute_checksum(self, path: Union[str, Path]) -> str:
+        """Compute checksum for a file."""
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+        try:
+            if self.is_markdown(path):
+                # read str
+                content = full_path.read_text()
+            else:
+                # read bytes
+                content = full_path.read_bytes()
+            return await file_utils.compute_checksum(content)
+
+        except Exception as e:  # pragma: no cover
+            logger.error(f"Failed to compute checksum for {path}: {e}")
+            raise FileError(f"Failed to compute checksum for {path}: {e}")
+
+    def file_stats(self, path: Union[Path, str]) -> stat_result:
+        """
+        Return file stats for a given path.
+        :param path:
+        :return:
+        """
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+        # get file timestamps
+        return full_path.stat()
+
+    def content_type(self, path: Union[Path, str]) -> str:
+        """
+        Return content_type for a given path.
+        :param path:
+        :return:
+        """
+        path = Path(path)
+        full_path = path if path.is_absolute() else self.base_path / path
+        # get file timestamps
+        mime_type, _ = mimetypes.guess_type(full_path.name)
+        content_type = mime_type or "text/plain"
+        return content_type
+
+    def is_markdown(self, path: Union[Path, str]) -> bool:
+        """
+        Return content_type for a given path.
+        :param path:
+        :return:
+        """
+        return self.content_type(path) == "text/markdown"

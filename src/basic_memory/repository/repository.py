@@ -97,7 +97,7 @@ class Repository[T: Base]:
             entities = (self.Model,)
         return select(*entities)
 
-    async def find_all(self, skip: int = 0, limit: Optional[int] = 0) -> Sequence[T]:
+    async def find_all(self, skip: int = 0, limit: Optional[int] = None) -> Sequence[T]:
         """Fetch records from the database with pagination."""
         logger.debug(f"Finding all {self.Model.__name__} (skip={skip}, limit={limit})")
 

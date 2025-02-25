@@ -72,7 +72,7 @@ def build_context(
                 max_related=max_related,
             )
         )
-        rprint(context.model_dump())
+        rprint(context.model_dump_json(indent=2))
     except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
             typer.echo(f"Error during build_context: {e}", err=True)
@@ -105,7 +105,7 @@ def recent_activity(
                 max_related=max_related,
             )
         )
-        rprint(context.model_dump())
+        rprint(context.model_dump_json(indent=2))
     except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
             typer.echo(f"Error during build_context: {e}", err=True)
@@ -137,7 +137,7 @@ def search(
             after_date=after_date,
         )
         results = asyncio.run(mcp_search(query=search_query, page=page, page_size=page_size))
-        rprint(results.model_dump())
+        rprint(results.model_dump_json(indent=2))
     except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
             typer.echo(f"Error during search: {e}", err=True)
@@ -149,7 +149,7 @@ def search(
 def get_entity(identifier: str):
     try:
         entity = asyncio.run(mcp_get_entity(identifier=identifier))
-        rprint(entity.model_dump())
+        rprint(entity.model_dump_json(indent=2))
     except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
             typer.echo(f"Error during get_entity: {e}", err=True)

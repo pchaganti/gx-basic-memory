@@ -4,11 +4,11 @@ from typing import Optional, Tuple, List
 
 from loguru import logger
 
+from basic_memory.models import Entity
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.search_repository import SearchIndexRow
-from basic_memory.services.search_service import SearchService
-from basic_memory.models import Entity
 from basic_memory.schemas.search import SearchQuery, SearchItemType
+from basic_memory.services.search_service import SearchService
 
 
 class LinkResolver:
@@ -58,7 +58,8 @@ class LinkResolver:
                 logger.debug(
                     f"Selected best match from {len(results)} results: {best_match.permalink}"
                 )
-                return await self.entity_repository.get_by_permalink(best_match.permalink)
+                if best_match.permalink:
+                    return await self.entity_repository.get_by_permalink(best_match.permalink)
 
         # if we couldn't find anything then return None
         return None
@@ -106,9 +107,12 @@ class LinkResolver:
             score = result.score
             assert score is not None
 
-            # Parse path components
-            path_parts = result.permalink.lower().split("/")
-            last_part = path_parts[-1] if path_parts else ""
+            if result.permalink:
+                # Parse path components
+                path_parts = result.permalink.lower().split("/")
+                last_part = path_parts[-1] if path_parts else ""
+            else:
+                last_part = ""  # pragma: no cover
 
             # Title word match boosts
             term_matches = [term for term in terms if term in last_part]

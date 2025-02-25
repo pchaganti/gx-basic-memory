@@ -119,6 +119,46 @@ class SearchService:
         entity: Entity,
         background_tasks: Optional[BackgroundTasks] = None,
     ) -> None:
+        if background_tasks:
+            background_tasks.add_task(self.index_entity_data, entity)
+        else:
+            await self.index_entity_data(entity)
+
+    async def index_entity_data(
+        self,
+        entity: Entity,
+    ) -> None:
+        # delete all search index data associated with entity
+        await self.repository.delete_by_entity_id(entity_id=entity.id)
+
+        # reindex
+        await self.index_entity_markdown(
+            entity
+        ) if entity.is_markdown else await self.index_entity_file(entity)
+
+    async def index_entity_file(
+        self,
+        entity: Entity,
+    ) -> None:
+        # Index entity file with no content
+        await self.repository.index_item(
+            SearchIndexRow(
+                id=entity.id,
+                type=SearchItemType.ENTITY.value,
+                title=entity.title,
+                file_path=entity.file_path,
+                metadata={
+                    "entity_type": entity.entity_type,
+                },
+                created_at=entity.created_at,
+                updated_at=entity.updated_at,
+            )
+        )
+
+    async def index_entity_markdown(
+        self,
+        entity: Entity,
+    ) -> None:
         """Index an entity and all its observations and relations.
 
         Indexing structure:
@@ -136,16 +176,10 @@ class SearchService:
 
         Each type gets its own row in the search index with appropriate metadata.
         """
-        if background_tasks:
-            background_tasks.add_task(self.index_entity_data, entity)
-        else:
-            await self.index_entity_data(entity)
 
-    async def index_entity_data(
-        self,
-        entity: Entity,
-    ) -> None:
-        """Actually perform the indexing."""
+        assert entity.permalink is not None, (
+            "entity.permalink should not be None for markdown entities"
+        )
 
         content_parts = []
         title_variants = self._generate_variants(entity.title)
@@ -160,6 +194,9 @@ class SearchService:
 
         entity_content = "\n".join(p for p in content_parts if p and p.strip())
 
+        assert entity.permalink is not None, (
+            "entity.permalink should not be None for markdown entities"
+        )
         # Index entity
         await self.repository.index_item(
             SearchIndexRow(
@@ -169,6 +206,7 @@ class SearchService:
                 content=entity_content,
                 permalink=entity.permalink,
                 file_path=entity.file_path,
+                entity_id=entity.id,
                 metadata={
                     "entity_type": entity.entity_type,
                 },
@@ -214,6 +252,7 @@ class SearchService:
                     permalink=rel.permalink,
                     file_path=entity.file_path,
                     type=SearchItemType.RELATION.value,
+                    entity_id=entity.id,
                     from_id=rel.from_id,
                     to_id=rel.to_id,
                     relation_type=rel.relation_type,
@@ -222,6 +261,10 @@ class SearchService:
                 )
             )
 
-    async def delete_by_permalink(self, path_id: str):
+    async def delete_by_permalink(self, permalink: str):
         """Delete an item from the search index."""
-        await self.repository.delete_by_permalink(path_id)
+        await self.repository.delete_by_permalink(permalink)
+
+    async def delete_by_entity_id(self, entity_id: int):
+        """Delete an item from the search index."""
+        await self.repository.delete_by_entity_id(entity_id)

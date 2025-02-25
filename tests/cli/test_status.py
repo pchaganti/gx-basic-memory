@@ -1,7 +1,6 @@
 """Tests for CLI status command."""
 
 import pytest
-import pytest_asyncio
 from typer.testing import CliRunner
 
 from basic_memory.cli.app import app
@@ -9,51 +8,21 @@ from basic_memory.cli.commands.status import (
     add_files_to_tree,
     build_directory_summary,
     group_changes_by_directory,
-    run_status,
     display_changes,
 )
-from basic_memory.sync.utils import SyncReport
-from basic_memory.sync import FileChangeScanner
-from basic_memory.repository import EntityRepository
+from basic_memory.config import config
+from basic_memory.sync.sync_service import SyncReport
 
 # Set up CLI runner
 runner = CliRunner()
 
 
-@pytest_asyncio.fixture
-async def file_change_scanner(session_maker):
-    """Create FileChangeScanner instance with test database."""
-    entity_repository = EntityRepository(session_maker)
-    scanner = FileChangeScanner(entity_repository)
-    return scanner
-
-
-@pytest.mark.asyncio
-async def test_run_status_no_changes(file_change_scanner, tmp_path, monkeypatch):
-    """Test status command with no changes."""
-    # Set up test environment
-    monkeypatch.setenv("HOME", str(tmp_path))
-    knowledge_dir = tmp_path / "knowledge"
-    knowledge_dir.mkdir()
-
-    # Run status check
-    await run_status(file_change_scanner, verbose=False)
-
-
-@pytest.mark.asyncio
-async def test_run_status_with_changes(file_change_scanner, tmp_path, monkeypatch):
-    """Test status command with actual file changes."""
-    # Set up test environment
-    monkeypatch.setenv("HOME", str(tmp_path))
-    knowledge_dir = tmp_path / "knowledge"
-    knowledge_dir.mkdir()
-
-    # Create test files
-    test_file = knowledge_dir / "test.md"
-    test_file.write_text("# Test\nSome content")
-
-    # Run status check - should detect new file
-    await run_status(file_change_scanner, verbose=True)
+def test_status_command(tmp_path, monkeypatch):
+    """Test CLI status command."""
+    config.home = tmp_path
+    # Should exit with code 0
+    result = runner.invoke(app, ["status", "--verbose"])
+    assert result.exit_code == 0
 
 
 @pytest.mark.asyncio

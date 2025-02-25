@@ -25,8 +25,8 @@ from basic_memory.repository.search_repository import SearchRepository
 from basic_memory.services import EntityService, FileService
 from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
-from basic_memory.sync import SyncService, FileChangeScanner
-from basic_memory.sync.utils import SyncReport
+from basic_memory.sync import SyncService
+from basic_memory.sync.sync_service import SyncReport
 from basic_memory.sync.watch_service import WatchService
 
 console = Console()
@@ -58,9 +58,6 @@ async def get_sync_service():  # pragma: no cover
     search_service = SearchService(search_repository, entity_repository, file_service)
     link_resolver = LinkResolver(entity_repository, search_service)
 
-    # Initialize scanner
-    file_change_scanner = FileChangeScanner(entity_repository)
-
     # Initialize services
     entity_service = EntityService(
         entity_parser,
@@ -73,12 +70,12 @@ async def get_sync_service():  # pragma: no cover
 
     # Create sync service
     sync_service = SyncService(
-        scanner=file_change_scanner,
         entity_service=entity_service,
         entity_parser=entity_parser,
         entity_repository=entity_repository,
         relation_repository=relation_repository,
         search_service=search_service,
+        file_service=file_service,
     )
 
     return sync_service
@@ -95,7 +92,7 @@ def group_issues_by_directory(issues: List[ValidationIssue]) -> Dict[str, List[V
 
 def display_sync_summary(knowledge: SyncReport):
     """Display a one-line summary of sync changes."""
-    total_changes = knowledge.total_changes
+    total_changes = knowledge.total
     if total_changes == 0:
         console.print("[green]Everything up to date[/green]")
         return
@@ -121,13 +118,13 @@ def display_sync_summary(knowledge: SyncReport):
 
 def display_detailed_sync_results(knowledge: SyncReport):
     """Display detailed sync results with trees."""
-    if knowledge.total_changes == 0:
+    if knowledge.total == 0:
         console.print("\n[green]Everything up to date[/green]")
         return
 
     console.print("\n[bold]Sync Results[/bold]")
 
-    if knowledge.total_changes > 0:
+    if knowledge.total > 0:
         knowledge_tree = Tree("[bold]Knowledge Files[/bold]")
         if knowledge.new:
             created = knowledge_tree.add("[green]Created[/green]")
@@ -163,8 +160,10 @@ async def run_sync(verbose: bool = False, watch: bool = False, console_status: b
             file_service=sync_service.entity_service.file_service,
             config=config,
         )
-        await watch_service.handle_changes(config.home)
-        await watch_service.run(console_status=console_status)  # pragma: no cover
+        # full sync
+        await sync_service.sync(config.home)
+        # watch changes
+        await watch_service.run()  # pragma: no cover
     else:
         # one time sync
         knowledge_changes = await sync_service.sync(config.home)
@@ -189,14 +188,11 @@ def sync(
         "-w",
         help="Start watching for changes after sync.",
     ),
-    console_status: bool = typer.Option(
-        False, "--console-status", "-c", help="Show live console status"
-    ),
 ) -> None:
     """Sync knowledge files with the database."""
     try:
         # Run sync
-        asyncio.run(run_sync(verbose=verbose, watch=watch, console_status=console_status))
+        asyncio.run(run_sync(verbose=verbose, watch=watch))
 
     except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):

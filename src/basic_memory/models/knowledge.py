@@ -12,6 +12,7 @@ from sqlalchemy import (
     DateTime,
     Index,
     JSON,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,11 +33,18 @@ class Entity(Base):
 
     __tablename__ = "entity"
     __table_args__ = (
-        UniqueConstraint("permalink", name="uix_entity_permalink"),  # Make permalink unique
+        # Regular indexes
         Index("ix_entity_type", "entity_type"),
         Index("ix_entity_title", "title"),
         Index("ix_entity_created_at", "created_at"),  # For timeline queries
         Index("ix_entity_updated_at", "updated_at"),  # For timeline queries
+        # Unique index only for markdown files with non-null permalinks
+        Index(
+            "uix_entity_permalink",
+            "permalink",
+            unique=True,
+            sqlite_where=text("content_type = 'text/markdown' AND permalink IS NOT NULL"),
+        ),
     )
 
     # Core identity
@@ -46,8 +54,8 @@ class Entity(Base):
     entity_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     content_type: Mapped[str] = mapped_column(String)
 
-    # Normalized path for URIs
-    permalink: Mapped[str] = mapped_column(String, unique=True, index=True)
+    # Normalized path for URIs - required for markdown files only
+    permalink: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     # Actual filesystem relative path
     file_path: Mapped[str] = mapped_column(String, unique=True, index=True)
     # checksum of file
@@ -78,6 +86,11 @@ class Entity(Base):
     def relations(self):
         """Get all relations (incoming and outgoing) for this entity."""
         return self.incoming_relations + self.outgoing_relations
+
+    @property
+    def is_markdown(self):
+        """Check if the entity is a markdown file."""
+        return self.content_type == "text/markdown"
 
     def __repr__(self) -> str:
         return f"Entity(id={self.id}, name='{self.title}', type='{self.entity_type}'"
@@ -127,7 +140,10 @@ class Relation(Base):
 
     __tablename__ = "relation"
     __table_args__ = (
-        UniqueConstraint("from_id", "to_id", "relation_type", name="uix_relation"),
+        UniqueConstraint("from_id", "to_id", "relation_type", name="uix_relation_from_id_to_id"),
+        UniqueConstraint(
+            "from_id", "to_name", "relation_type", name="uix_relation_from_id_to_name"
+        ),
         Index("ix_relation_type", "relation_type"),
         Index("ix_relation_from_id", "from_id"),  # Add FK indexes
         Index("ix_relation_to_id", "to_id"),
@@ -155,13 +171,13 @@ class Relation(Base):
         Format: source/relation_type/target
         Example: "specs/search/implements/features/search-ui"
         """
+        # Only create permalinks when both source and target have permalinks
+        from_permalink = self.from_entity.permalink or self.from_entity.file_path
+
         if self.to_entity:
-            return generate_permalink(
-                f"{self.from_entity.permalink}/{self.relation_type}/{self.to_entity.permalink}"
-            )
-        return generate_permalink(
-            f"{self.from_entity.permalink}/{self.relation_type}/{self.to_name}"
-        )
+            to_permalink = self.to_entity.permalink or self.to_entity.file_path
+            return generate_permalink(f"{from_permalink}/{self.relation_type}/{to_permalink}")
+        return generate_permalink(f"{from_permalink}/{self.relation_type}/{self.to_name}")
 
     def __repr__(self) -> str:
-        return f"Relation(id={self.id}, from_id={self.from_id}, to_id={self.to_id}, to_name={self.to_name}, type='{self.relation_type}')"
+        return f"Relation(id={self.id}, from_id={self.from_id}, to_id={self.to_id}, to_name={self.to_name}, type='{self.relation_type}')"  # pragma: no cover

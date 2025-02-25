@@ -1,6 +1,7 @@
 """Tests for CLI sync command."""
 
 import asyncio
+
 import pytest
 from typer.testing import CliRunner
 
@@ -13,7 +14,7 @@ from basic_memory.cli.commands.sync import (
     ValidationIssue,
 )
 from basic_memory.config import config
-from basic_memory.sync.utils import SyncReport
+from basic_memory.sync.sync_service import SyncReport
 
 # Set up CLI runner
 runner = CliRunner()
