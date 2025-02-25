@@ -1,17 +1,15 @@
 """Service for syncing files between filesystem and database."""
 
-import mimetypes
 import os
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
 from pathlib import Path
-from typing import Set, Dict, Sequence
+from typing import Set, Dict
 from typing import Tuple
 
 import logfire
 from loguru import logger
-from sqlalchemy.exc import IntegrityError
 
 from basic_memory.markdown import EntityParser
 from basic_memory.models import Entity
@@ -44,7 +42,7 @@ class SyncReport:
     def total(self) -> int:
         """Total number of changes."""
         return len(self.new) + len(self.modified) + len(self.deleted) + len(self.moves)
-    
+
 
 @dataclass
 class ScanResult:
@@ -82,7 +80,7 @@ class SyncService:
     async def sync(self, directory: Path) -> SyncReport:
         """Sync all files with database."""
 
-        with logfire.span(f"sync {directory}", directory=directory):
+        with logfire.span(f"sync {directory}", directory=directory):  # pyright: ignore [reportGeneralTypeIssues]
             # initial paths from db to sync
             # path -> checksum
             report = await self.scan(directory)
@@ -91,7 +89,12 @@ class SyncService:
 
             # sync moves first
             for old_path, new_path in report.moves.items():
-                await self.handle_move(old_path, new_path)
+                # in the case where a file has been deleted and replaced by another file
+                # it will show up in the move and modified lists, so handle it in modified
+                if new_path in report.modified:
+                    report.modified.remove(new_path)
+                else:
+                    await self.handle_move(old_path, new_path)
 
             # deleted next
             for path in report.deleted:
@@ -109,23 +112,22 @@ class SyncService:
 
     async def scan(self, directory):
         """Scan directory for changes compared to database state."""
-        
+
         db_paths = await self.get_db_file_state()
-        
+
         # Track potentially moved files by checksum
         scan_result = await self.scan_directory(directory)
         report = SyncReport()
-        
+
         # First find potential new files and record checksums
         # if a path is not present in the db, it could be new or could be the destination of a move
         for file_path, checksum in scan_result.files.items():
             if file_path not in db_paths:
                 report.new.add(file_path)
                 report.checksums[file_path] = checksum
-                
+
         # Now detect moves and deletions
         for db_path, db_checksum in db_paths.items():
-            
             local_checksum_for_db_path = scan_result.files.get(db_path)
 
             # file not modified
@@ -135,7 +137,7 @@ class SyncService:
             # if checksums don't match for the same path, its modified
             if local_checksum_for_db_path and db_checksum != local_checksum_for_db_path:
                 report.modified.add(db_path)
-                report.checksums[db_path] = checksum
+                report.checksums[db_path] = local_checksum_for_db_path
 
             # check if it's moved or deleted
             if not local_checksum_for_db_path:
@@ -143,9 +145,10 @@ class SyncService:
                 if db_checksum in scan_result.checksums:
                     new_path = scan_result.checksums[db_checksum]
                     report.moves[db_path] = new_path
-                    
-                    # Remove from new files since it's a move
-                    report.new.remove(new_path)
+
+                    # Remove from new files if present
+                    if new_path in report.new:
+                        report.new.remove(new_path)
 
                 # deleted
                 else:
@@ -174,7 +177,7 @@ class SyncService:
             await self.search_service.index_entity(entity)
             return entity, checksum
 
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logger.error(f"Failed to sync {path}: {e}")
             raise
 
@@ -219,7 +222,7 @@ class SyncService:
         checksum = await self.file_service.compute_checksum(path)
         if new:
             # Generate permalink from path
-            permalink = await self.entity_service.resolve_permalink(path)
+            await self.entity_service.resolve_permalink(path)
 
             # get file timestamps
             file_stats = self.file_service.file_stats(path)
@@ -234,7 +237,6 @@ class SyncService:
                 Entity(
                     entity_type="file",
                     file_path=path,
-                    permalink=permalink,
                     checksum=checksum,
                     title=file_path.name,
                     created_at=created,
@@ -242,13 +244,15 @@ class SyncService:
                     content_type=content_type,
                 )
             )
+            return entity, checksum
         else:
             entity = await self.entity_repository.get_by_file_path(path)
-            entity = await self.entity_repository.update(
+            assert entity is not None, "entity should not be None for existing file"
+            updated = await self.entity_repository.update(
                 entity.id, {"file_path": path, "checksum": checksum}
             )
-
-        return entity, checksum
+            assert updated is not None, "entity should be updated"
+            return updated, checksum
 
     async def handle_delete(self, file_path: str):
         """Handle complete entity deletion including search index cleanup."""
@@ -269,7 +273,10 @@ class SyncService:
             )
             logger.debug(f"Deleting from search index: {permalinks}")
             for permalink in permalinks:
-                await self.search_service.delete_by_permalink(permalink)
+                if permalink:
+                    await self.search_service.delete_by_permalink(permalink)
+                else:
+                    await self.search_service.delete_by_entity_id(entity.id)
 
     async def handle_move(self, old_path, new_path):
         logger.debug(f"Moving entity: {old_path} -> {new_path}")
@@ -277,14 +284,16 @@ class SyncService:
         if entity:
             # Update file_path but keep the same permalink for link stability
             updated = await self.entity_repository.update(entity.id, {"file_path": new_path})
+            assert updated is not None, "entity should be updated"
             # update search index
             await self.search_service.index_entity(updated)
 
     async def resolve_relations(self):
         """Try to resolve any unresolved relations"""
 
-        logger.debug("Attempting to resolve forward references")
-        for relation in await self.relation_repository.find_unresolved_relations():
+        unresolved_relations = await self.relation_repository.find_unresolved_relations()
+        logger.debug(f"Attempting to resolve {len(unresolved_relations)} forward references")
+        for relation in unresolved_relations:
             resolved_entity = await self.entity_service.link_resolver.resolve_link(relation.to_name)
 
             # ignore reference to self
@@ -292,16 +301,13 @@ class SyncService:
                 logger.debug(
                     f"Resolved forward reference: {relation.to_name} -> {resolved_entity.title}"
                 )
-                try:
-                    await self.relation_repository.update(
-                        relation.id,
-                        {
-                            "to_id": resolved_entity.id,
-                            "to_name": resolved_entity.title,
-                        },
-                    )
-                except IntegrityError:
-                    logger.debug(f"Ignoring duplicate relation {relation}")
+                await self.relation_repository.update(
+                    relation.id,
+                    {
+                        "to_id": resolved_entity.id,
+                        "to_name": resolved_entity.title,
+                    },
+                )
 
                 # update search index
                 await self.search_service.index_entity(resolved_entity)
@@ -320,17 +326,13 @@ class SyncService:
         logger.debug(f"Scanning directory: {directory}")
         result = ScanResult()
 
-        if not directory.exists():
-            logger.debug(f"Directory does not exist: {directory}")
-            return result
-
         for root, dirnames, filenames in os.walk(str(directory)):
             # Skip dot directories in-place
-            dirnames[:] = [d for d in dirnames if not d.startswith('.')]
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
 
             for filename in filenames:
                 # Skip dot files
-                if filename.startswith('.'):
+                if filename.startswith("."):
                     continue
 
                 path = Path(root) / filename
@@ -339,6 +341,5 @@ class SyncService:
                 result.files[rel_path] = checksum
                 result.checksums[checksum] = rel_path
                 logger.debug(f"Found file: {rel_path} with checksum: {checksum}")
-
 
         return result

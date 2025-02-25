@@ -15,34 +15,6 @@ from basic_memory.services.search_service import SearchService
 from basic_memory.sync.sync_service import SyncService
 
 
-@pytest.fixture
-def test_files(test_config) -> dict[str, Path]:
-    """Copy test files into the project directory.
-
-    Returns a dict mapping file names to their paths in the project dir.
-    """
-    # Source files relative to tests directory
-    source_files = {
-        "pdf": Path("tests/Non-MarkdownFileSupport.pdf"),
-        "image": Path("tests/Screenshot.png")
-    }
-
-    # Create copies in temp project directory
-    project_files = {}
-    for name, src_path in source_files.items():
-        # Read source file
-        content = src_path.read_bytes()
-
-        # Create destination path and ensure parent dirs exist
-        dest_path = test_config.home / src_path.name
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Write file
-        dest_path.write_bytes(content)
-        project_files[name] = dest_path
-
-    return project_files
-
 async def create_test_file(path: Path, content: str = "test content") -> None:
     """Create a test file with given content."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -160,6 +132,25 @@ A test concept.
     relations = entity.relations
     assert len(relations) == 1, "Expected 1 relation for entity"
     assert relations[0].to_name == "concept/other"
+
+
+@pytest.mark.asyncio
+async def test_sync_hidden_file(
+    sync_service: SyncService, test_config: ProjectConfig, entity_service: EntityService
+):
+    """Test basic knowledge sync functionality."""
+    # Create test files
+    project_dir = test_config.home
+
+    # hidden file
+    await create_test_file(project_dir / "concept/.hidden.md", "hidden")
+
+    # Run sync
+    await sync_service.sync(test_config.home)
+
+    # Verify results
+    entities = await entity_service.repository.find_all()
+    assert len(entities) == 0
 
 
 @pytest.mark.asyncio
@@ -498,8 +489,8 @@ modified: 2024-01-01
     # Verify final state
     doc = await sync_service.entity_service.repository.get_by_permalink("changing")
     assert doc is not None
-    
-    # if we failed in the middle of a sync, the next one should fix it. 
+
+    # if we failed in the middle of a sync, the next one should fix it.
     if doc.checksum is None:
         await sync_service.sync(test_config.home)
         doc = await sync_service.entity_service.repository.get_by_permalink("changing")
@@ -876,16 +867,14 @@ test content
 async def test_sync_non_markdown_files(sync_service, test_config, test_files):
     """Test syncing non-markdown files."""
     report = await sync_service.sync(test_config.home)
-
     assert report.total == 2
+
     # Check files were detected
     assert test_files["pdf"].name in [f for f in report.new]
     assert test_files["image"].name in [f for f in report.new]
 
     # Verify entities were created
-    pdf_entity = await sync_service.entity_repository.get_by_file_path(
-        str(test_files["pdf"].name)
-    )
+    pdf_entity = await sync_service.entity_repository.get_by_file_path(str(test_files["pdf"].name))
     assert pdf_entity is not None, "PDF entity should have been created"
     assert pdf_entity.content_type == "application/pdf"
 
@@ -893,3 +882,140 @@ async def test_sync_non_markdown_files(sync_service, test_config, test_files):
         str(test_files["image"].name)
     )
     assert image_entity.content_type == "image/png"
+
+
+@pytest.mark.asyncio
+async def test_sync_non_markdown_files_modified(
+    sync_service, test_config, test_files, file_service
+):
+    """Test syncing non-markdown files."""
+    report = await sync_service.sync(test_config.home)
+    assert report.total == 2
+
+    # Check files were detected
+    assert test_files["pdf"].name in [f for f in report.new]
+    assert test_files["image"].name in [f for f in report.new]
+
+    test_files["pdf"].write_text("New content")
+    test_files["image"].write_text("New content")
+
+    report = await sync_service.sync(test_config.home)
+    assert len(report.modified) == 2
+
+    pdf_file_content, pdf_checksum = await file_service.read_file(test_files["pdf"].name)
+    image_file_content, img_checksum = await file_service.read_file(test_files["image"].name)
+
+    pdf_entity = await sync_service.entity_repository.get_by_file_path(str(test_files["pdf"].name))
+    image_entity = await sync_service.entity_repository.get_by_file_path(
+        str(test_files["image"].name)
+    )
+
+    assert pdf_entity.checksum == pdf_checksum
+    assert image_entity.checksum == img_checksum
+
+
+@pytest.mark.asyncio
+async def test_sync_non_markdown_files_move(sync_service, test_config, test_files):
+    """Test syncing non-markdown files updates permalink"""
+    report = await sync_service.sync(test_config.home)
+    assert report.total == 2
+
+    # Check files were detected
+    assert test_files["pdf"].name in [f for f in report.new]
+    assert test_files["image"].name in [f for f in report.new]
+
+    test_files["pdf"].rename(test_config.home / "moved_pdf.pdf")
+    report2 = await sync_service.sync(test_config.home)
+    assert len(report2.moves) == 1
+
+    # Verify entity is updated
+    pdf_entity = await sync_service.entity_repository.get_by_file_path("moved_pdf.pdf")
+    assert pdf_entity is not None
+    assert pdf_entity.permalink is None
+
+
+@pytest.mark.asyncio
+async def test_sync_non_markdown_files_deleted(sync_service, test_config, test_files):
+    """Test syncing non-markdown files updates permalink"""
+    report = await sync_service.sync(test_config.home)
+    assert report.total == 2
+
+    # Check files were detected
+    assert test_files["pdf"].name in [f for f in report.new]
+    assert test_files["image"].name in [f for f in report.new]
+
+    test_files["pdf"].unlink()
+    report2 = await sync_service.sync(test_config.home)
+    assert len(report2.deleted) == 1
+
+    # Verify entity is deleted
+    pdf_entity = await sync_service.entity_repository.get_by_file_path("moved_pdf.pdf")
+    assert pdf_entity is None
+
+
+@pytest.mark.asyncio
+async def test_sync_non_markdown_files_move_with_delete(
+    sync_service, test_config, test_files, file_service
+):
+    """Test syncing non-markdown files handles file deletes and renames during sync"""
+
+    # Create initial files
+    await create_test_file(test_config.home / "doc.pdf", "content1")
+    await create_test_file(test_config.home / "other/doc-1.pdf", "content2")
+
+    # Initial sync
+    await sync_service.sync(test_config.home)
+
+    # First move/delete the original file to make way for the move
+    (test_config.home / "doc.pdf").unlink()
+    (test_config.home / "other/doc-1.pdf").rename(test_config.home / "doc.pdf")
+
+    # Sync again
+    await sync_service.sync(test_config.home)
+
+    # Verify the changes
+    moved_entity = await sync_service.entity_repository.get_by_file_path("doc.pdf")
+    assert moved_entity is not None
+    assert moved_entity.permalink is None
+
+    file_content, _ = await file_service.read_file("doc.pdf")
+    assert "content2" in file_content
+
+
+@pytest.mark.asyncio
+async def test_sync_relation_to_non_markdown_file(
+    sync_service: SyncService, test_config: ProjectConfig, file_service: FileService, test_files
+):
+    """Test that sync resolves permalink conflicts on update."""
+    project_dir = test_config.home
+
+    content = f"""
+---
+title: a note
+type: note
+tags: []
+---
+
+- relates_to [[{test_files["pdf"].name}]]
+"""
+
+    note_file = project_dir / "note.md"
+    await create_test_file(note_file, content)
+
+    # Run sync
+    await sync_service.sync(test_config.home)
+
+    # Check permalinks
+    file_one_content, _ = await file_service.read_file(note_file)
+    assert (
+        f"""---
+title: a note
+type: note
+tags: []
+permalink: note
+---
+
+- relates_to [[{test_files["pdf"].name}]]
+""".strip()
+        == file_one_content
+    )
