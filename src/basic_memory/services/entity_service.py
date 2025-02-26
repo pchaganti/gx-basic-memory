@@ -134,7 +134,9 @@ class EntityService(BaseService[EntityModel]):
 
     async def update_entity(self, entity: EntityModel, schema: EntitySchema) -> EntityModel:
         """Update an entity's content and metadata."""
-        logger.debug(f"Updating entity with permalink: {entity.permalink}")
+        logger.debug(
+            f"Updating entity with permalink: {entity.permalink} content-type: {schema.content_type}"
+        )
 
         # Convert file path string to Path
         file_path = Path(entity.file_path)
