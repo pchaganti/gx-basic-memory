@@ -1,6 +1,65 @@
 # CHANGELOG
 
 
+## v0.8.0 (2025-02-28)
+
+### Chores
+
+- Formatting
+  ([`93cc637`](https://github.com/basicmachines-co/basic-memory/commit/93cc6379ebb9ecc6a1652feeeecbf47fc992d478))
+
+- Refactor logging setup
+  ([`f4b703e`](https://github.com/basicmachines-co/basic-memory/commit/f4b703e57f0ddf686de6840ff346b8be2be499ad))
+
+### Features
+
+- Add enhanced prompts and resources
+  ([#15](https://github.com/basicmachines-co/basic-memory/pull/15),
+  [`093dab5`](https://github.com/basicmachines-co/basic-memory/commit/093dab5f03cf7b090a9f4003c55507859bf355b0))
+
+## Summary - Add comprehensive documentation to all MCP prompt modules - Enhance search prompt with
+  detailed contextual output formatting - Implement consistent logging and docstring patterns across
+  prompt utilities - Fix type checking in prompt modules
+
+## Prompts Added/Enhanced - `search.py`: New formatted output with relevance scores, excerpts, and
+  next steps - `recent_activity.py`: Enhanced with better metadata handling and documentation -
+  `continue_conversation.py`: Improved context management
+
+## Resources Added/Enhanced - `ai_assistant_guide`: Resource with description to give to LLM to
+  understand how to use the tools
+
+## Technical improvements - Added detailed docstrings to all prompt modules explaining their purpose
+  and usage - Enhanced the search prompt with rich contextual output that helps LLMs understand
+  results - Created a consistent pattern for formatting output across prompts - Improved error
+  handling in metadata extraction - Standardized import organization and naming conventions - Fixed
+  various type checking issues across the codebase
+
+This PR is part of our ongoing effort to improve the MCP's interaction quality with LLMs, making the
+  system more helpful and intuitive for AI assistants to navigate knowledge bases.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+---------
+
+Co-authored-by: phernandez <phernandez@basicmachines.co>
+
+- Add new `canvas` tool to create json canvas files in obsidian.
+  ([#14](https://github.com/basicmachines-co/basic-memory/pull/14),
+  [`0d7b0b3`](https://github.com/basicmachines-co/basic-memory/commit/0d7b0b3d7ede7555450ddc9728951d4b1edbbb80))
+
+Add new `canvas` tool to create json canvas files in obsidian.
+
+---------
+
+Co-authored-by: phernandez <phernandez@basicmachines.co>
+
+- Incremental sync on watch ([#13](https://github.com/basicmachines-co/basic-memory/pull/13),
+  [`37a01b8`](https://github.com/basicmachines-co/basic-memory/commit/37a01b806d0758029d34a862e76d44c7e5d538a5))
+
+- incremental sync on watch - sync non-markdown files in knowledge base - experimental
+  `read_resource` tool for reading non-markdown files in raw form (pdf, image)
+
+
 ## v0.7.0 (2025-02-19)
 
 ### Bug Fixes
