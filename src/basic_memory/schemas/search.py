@@ -68,9 +68,10 @@ class SearchResult(BaseModel):
     """Search result with score and metadata."""
 
     id: int
+    title: str
     type: SearchItemType
     score: float
-    permalink: str
+    permalink: Optional[str]
     file_path: str
 
     metadata: Optional[dict] = None

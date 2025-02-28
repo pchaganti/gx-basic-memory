@@ -104,8 +104,7 @@ class LinkResolver:
         scored_results = []
         for result in results:
             # Start with base score (lower is better)
-            score = result.score
-            assert score is not None
+            score = result.score or 0
 
             if result.permalink:
                 # Parse path components

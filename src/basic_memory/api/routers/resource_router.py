@@ -98,8 +98,7 @@ async def get_resource_content(
             content = await file_service.read_entity_content(result)
             memory_url = normalize_memory_url(result.permalink)
             modified_date = result.updated_at.isoformat()
-            assert result.checksum
-            checksum = result.checksum[:8]
+            checksum = result.checksum[:8] if result.checksum else ""
 
             # Prepare the delimited content
             response_content = f"--- {memory_url} {modified_date} {checksum}\n"
@@ -192,7 +191,6 @@ async def write_resource(
                     "updated_at": datetime.fromtimestamp(file_stats.st_mtime),
                 },
             )
-            assert entity is not None, "Entity should be returned after update"
             status_code = 200
         else:
             # Create a new entity model
@@ -209,7 +207,7 @@ async def write_resource(
             status_code = 201
 
         # Index the file for search
-        await search_service.index_entity(entity)
+        await search_service.index_entity(entity)  # pyright: ignore
 
         # Return success response
         return JSONResponse(

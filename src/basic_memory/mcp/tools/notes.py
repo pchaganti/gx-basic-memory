@@ -84,9 +84,8 @@ async def write_note(
 
         # Format semantic summary based on status code
         action = "Created" if response.status_code == 201 else "Updated"
-        assert result.checksum is not None
         summary = [
-            f"# {action} {result.file_path} ({result.checksum[:8]})",
+            f"# {action} {result.file_path} ({result.checksum[:8] if result.checksum else 'unknown'})",
             f"permalink: {result.permalink}",
         ]
 

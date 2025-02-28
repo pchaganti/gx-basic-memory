@@ -27,7 +27,7 @@ format:
 	uv run ruff format .
 
 # run inspector tool
-run-dev:
+run-inspector:
 	uv run mcp dev src/basic_memory/mcp/main.py
 
 # Build app installer
@@ -40,7 +40,7 @@ installer-win:
 
 
 update-deps:
-	uv lock f--upgrade
+	uv lock --upgrade
 
 check: lint  format type-check test
 

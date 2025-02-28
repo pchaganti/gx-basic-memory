@@ -1,9 +1,10 @@
-"""Database management commands."""
+"""CLI tool commands for Basic Memory."""
 
 import asyncio
 from typing import Optional, List, Annotated
 
 import typer
+from loguru import logger
 from rich import print as rprint
 
 from basic_memory.cli.app import app
@@ -13,9 +14,15 @@ from basic_memory.mcp.tools import read_note as mcp_read_note
 from basic_memory.mcp.tools import recent_activity as mcp_recent_activity
 from basic_memory.mcp.tools import search as mcp_search
 from basic_memory.mcp.tools import write_note as mcp_write_note
+
+# Import prompts
+from basic_memory.mcp.prompts.continue_conversation import (
+    continue_conversation as mcp_continue_conversation,
+)
+
 from basic_memory.schemas.base import TimeFrame
 from basic_memory.schemas.memory import MemoryUrl
-from basic_memory.schemas.search import SearchQuery
+from basic_memory.schemas.search import SearchQuery, SearchItemType
 
 tool_app = typer.Typer()
 app.add_typer(tool_app, name="tools", help="cli versions mcp tools")
@@ -82,18 +89,13 @@ def build_context(
 
 @tool_app.command()
 def recent_activity(
-    type: Annotated[Optional[List[str]], typer.Option()] = ["entity", "observation", "relation"],
+    type: Annotated[Optional[List[SearchItemType]], typer.Option()] = None,
     depth: Optional[int] = 1,
     timeframe: Optional[TimeFrame] = "7d",
     page: int = 1,
     page_size: int = 10,
     max_related: int = 10,
 ):
-    assert type is not None, "type is required"
-    if any(t not in ["entity", "observation", "relation"] for t in type):  # pragma: no cover
-        print("type must be one of ['entity', 'observation', 'relation']")
-        raise typer.Abort()
-
     try:
         context = asyncio.run(
             mcp_recent_activity(
@@ -132,7 +134,7 @@ def search(
     try:
         search_query = SearchQuery(
             permalink_match=query if permalink else None,
-            text=query if query else None,
+            text=query if not (permalink or title) else None,
             title=query if title else None,
             after_date=after_date,
         )
@@ -140,6 +142,7 @@ def search(
         rprint(results.model_dump_json(indent=2))
     except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
+            logger.exception("Error during search", e)
             typer.echo(f"Error during search: {e}", err=True)
             raise typer.Exit(1)
         raise
@@ -153,5 +156,25 @@ def get_entity(identifier: str):
     except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
             typer.echo(f"Error during get_entity: {e}", err=True)
+            raise typer.Exit(1)
+        raise
+
+
+@tool_app.command(name="continue-conversation")
+def continue_conversation(
+    topic: Annotated[Optional[str], typer.Option(help="Topic or keyword to search for")] = None,
+    timeframe: Annotated[
+        Optional[str], typer.Option(help="How far back to look for activity")
+    ] = None,
+):
+    """Continue a previous conversation or work session."""
+    try:
+        # Prompt functions return formatted strings directly
+        session = asyncio.run(mcp_continue_conversation(topic=topic, timeframe=timeframe))
+        rprint(session)
+    except Exception as e:  # pragma: no cover
+        if not isinstance(e, typer.Exit):
+            logger.exception("Error continuing conversation", e)
+            typer.echo(f"Error continuing conversation: {e}", err=True)
             raise typer.Exit(1)
         raise

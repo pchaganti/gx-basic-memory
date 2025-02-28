@@ -29,36 +29,32 @@ async def to_graph_context(context, entity_repository: EntityRepository, page: i
     async def to_summary(item: SearchIndexRow | ContextResultRow):
         match item.type:
             case SearchItemType.ENTITY:
-                assert item.title is not None
-                assert item.created_at is not None
-
                 return EntitySummary(
-                    title=item.title,
+                    title=item.title,  # pyright: ignore
                     permalink=item.permalink,
                     file_path=item.file_path,
                     created_at=item.created_at,
                 )
             case SearchItemType.OBSERVATION:
-                assert item.category is not None
-                assert item.content is not None
-                assert item.permalink is not None
-
                 return ObservationSummary(
-                    category=item.category, content=item.content, permalink=item.permalink
+                    title=item.title,  # pyright: ignore
+                    file_path=item.file_path,
+                    category=item.category,  # pyright: ignore
+                    content=item.content,  # pyright: ignore
+                    permalink=item.permalink,  # pyright: ignore
+                    created_at=item.created_at,
                 )
             case SearchItemType.RELATION:
-                assert item.from_id is not None
-                assert item.permalink is not None
-                from_entity = await entity_repository.find_by_id(item.from_id)
-                assert from_entity is not None
-                assert from_entity.permalink is not None
-
+                from_entity = await entity_repository.find_by_id(item.from_id)  # pyright: ignore
                 to_entity = await entity_repository.find_by_id(item.to_id) if item.to_id else None
                 return RelationSummary(
-                    permalink=item.permalink,
+                    title=item.title,  # pyright: ignore
+                    file_path=item.file_path,
+                    permalink=item.permalink,  # pyright: ignore
                     relation_type=item.type,
-                    from_id=from_entity.permalink,
+                    from_id=from_entity.permalink,  # pyright: ignore
                     to_id=to_entity.permalink if to_entity else None,
+                    created_at=item.created_at,
                 )
             case _:  # pragma: no cover
                 raise ValueError(f"Unexpected type: {item.type}")
