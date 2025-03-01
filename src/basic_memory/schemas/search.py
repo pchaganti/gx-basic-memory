@@ -11,6 +11,8 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, field_validator
 
+from basic_memory.schemas.base import Permalink
+
 
 class SearchItemType(str, Enum):
     """Types of searchable items."""
@@ -36,7 +38,7 @@ class SearchQuery(BaseModel):
 
     # Primary search modes (use ONE of these)
     permalink: Optional[str] = None  # Exact permalink match
-    permalink_match: Optional[str] = None  # Exact permalink match
+    permalink_match: Optional[str] = None  # Glob permalink match
     text: Optional[str] = None  # Full-text search
     title: Optional[str] = None  # title only search
 
@@ -67,36 +69,21 @@ class SearchQuery(BaseModel):
 class SearchResult(BaseModel):
     """Search result with score and metadata."""
 
-    id: int
     title: str
     type: SearchItemType
     score: float
+    entity: Optional[Permalink]
     permalink: Optional[str]
+    content: Optional[str] = None
     file_path: str
 
     metadata: Optional[dict] = None
 
     # Type-specific fields
-    entity_id: Optional[int] = None  # For observations
     category: Optional[str] = None  # For observations
-    from_id: Optional[int] = None  # For relations
-    to_id: Optional[int] = None  # For relations
+    from_entity: Optional[Permalink] = None  # For relations
+    to_entity: Optional[Permalink] = None  # For relations
     relation_type: Optional[str] = None  # For relations
-
-
-class RelatedResult(BaseModel):
-    type: SearchItemType
-    id: int
-    title: str
-    permalink: str
-    depth: int
-    root_id: int
-    created_at: datetime
-    from_id: Optional[int] = None
-    to_id: Optional[int] = None
-    relation_type: Optional[str] = None
-    category: Optional[str] = None
-    entity_id: Optional[int] = None
 
 
 class SearchResponse(BaseModel):

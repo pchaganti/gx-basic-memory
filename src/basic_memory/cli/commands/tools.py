@@ -9,7 +9,6 @@ from rich import print as rprint
 
 from basic_memory.cli.app import app
 from basic_memory.mcp.tools import build_context as mcp_build_context
-from basic_memory.mcp.tools import get_entity as mcp_get_entity
 from basic_memory.mcp.tools import read_note as mcp_read_note
 from basic_memory.mcp.tools import recent_activity as mcp_recent_activity
 from basic_memory.mcp.tools import search as mcp_search
@@ -79,7 +78,11 @@ def build_context(
                 max_related=max_related,
             )
         )
-        rprint(context.model_dump_json(indent=2))
+        # Use json module for more controlled serialization
+        import json
+
+        context_dict = context.model_dump(exclude_none=True)
+        print(json.dumps(context_dict, indent=2, ensure_ascii=True, default=str))
     except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
             typer.echo(f"Error during build_context: {e}", err=True)
@@ -107,7 +110,11 @@ def recent_activity(
                 max_related=max_related,
             )
         )
-        rprint(context.model_dump_json(indent=2))
+        # Use json module for more controlled serialization
+        import json
+
+        context_dict = context.model_dump(exclude_none=True)
+        print(json.dumps(context_dict, indent=2, ensure_ascii=True, default=str))
     except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
             typer.echo(f"Error during build_context: {e}", err=True)
@@ -139,23 +146,15 @@ def search(
             after_date=after_date,
         )
         results = asyncio.run(mcp_search(query=search_query, page=page, page_size=page_size))
-        rprint(results.model_dump_json(indent=2))
+        # Use json module for more controlled serialization
+        import json
+
+        results_dict = results.model_dump(exclude_none=True)
+        print(json.dumps(results_dict, indent=2, ensure_ascii=True, default=str))
     except Exception as e:  # pragma: no cover
         if not isinstance(e, typer.Exit):
             logger.exception("Error during search", e)
             typer.echo(f"Error during search: {e}", err=True)
-            raise typer.Exit(1)
-        raise
-
-
-@tool_app.command()
-def get_entity(identifier: str):
-    try:
-        entity = asyncio.run(mcp_get_entity(identifier=identifier))
-        rprint(entity.model_dump_json(indent=2))
-    except Exception as e:  # pragma: no cover
-        if not isinstance(e, typer.Exit):
-            typer.echo(f"Error during get_entity: {e}", err=True)
             raise typer.Exit(1)
         raise
 

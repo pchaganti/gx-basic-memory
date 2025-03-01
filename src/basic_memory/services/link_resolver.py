@@ -1,12 +1,11 @@
 """Service for resolving markdown links to permalinks."""
 
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 
 from loguru import logger
 
 from basic_memory.models import Entity
 from basic_memory.repository.entity_repository import EntityRepository
-from basic_memory.repository.search_repository import SearchIndexRow
 from basic_memory.schemas.search import SearchQuery, SearchItemType
 from basic_memory.services.search_service import SearchService
 
@@ -41,8 +40,9 @@ class LinkResolver:
             return entity
 
         # 2. Try exact title match
-        entity = await self.entity_repository.get_by_title(clean_text)
-        if entity:
+        found = await self.entity_repository.get_by_title(clean_text)
+        if found and len(found) == 1:
+            entity = found[0]
             logger.debug(f"Found title match: {entity.title}")
             return entity
 
@@ -54,7 +54,7 @@ class LinkResolver:
 
             if results:
                 # Look for best match
-                best_match = self._select_best_match(clean_text, results)
+                best_match = min(results, key=lambda x: x.score)  # pyright: ignore
                 logger.debug(
                     f"Selected best match from {len(results)} results: {best_match.permalink}"
                 )
@@ -88,43 +88,3 @@ class LinkResolver:
             alias = alias.strip()
 
         return text, alias
-
-    def _select_best_match(self, search_text: str, results: List[SearchIndexRow]) -> SearchIndexRow:
-        """Select best match from search results.
-
-        Uses multiple criteria:
-        1. Word matches in title field
-        2. Word matches in path
-        3. Overall search score
-        """
-        # Get search terms for matching
-        terms = search_text.lower().split()
-
-        # Score each result
-        scored_results = []
-        for result in results:
-            # Start with base score (lower is better)
-            score = result.score or 0
-
-            if result.permalink:
-                # Parse path components
-                path_parts = result.permalink.lower().split("/")
-                last_part = path_parts[-1] if path_parts else ""
-            else:
-                last_part = ""  # pragma: no cover
-
-            # Title word match boosts
-            term_matches = [term for term in terms if term in last_part]
-            if term_matches:
-                score *= 0.5  # Boost for each matching term
-
-            # Exact title match is best
-            if last_part == search_text.lower():
-                score *= 0.2
-
-            scored_results.append((score, result))
-
-        # Sort by score (lowest first) and return best
-        scored_results.sort(key=lambda x: x[0], reverse=True)
-
-        return scored_results[0][1]

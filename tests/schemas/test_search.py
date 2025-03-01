@@ -45,15 +45,14 @@ def test_search_filters():
 def test_search_result():
     """Test search result structure."""
     result = SearchResult(
-        id=1,
         title="test",
         type=SearchItemType.ENTITY,
+        entity="some_entity",
         score=0.8,
         metadata={"entity_type": "component"},
         permalink="specs/search",
         file_path="specs/search.md",
     )
-    assert result.id == 1
     assert result.type == SearchItemType.ENTITY
     assert result.score == 0.8
     assert result.metadata == {"entity_type": "component"}
@@ -62,36 +61,35 @@ def test_search_result():
 def test_observation_result():
     """Test observation result fields."""
     result = SearchResult(
-        id=1,
         title="test",
         permalink="specs/search",
         file_path="specs/search.md",
         type=SearchItemType.OBSERVATION,
         score=0.5,
         metadata={},
-        entity_id=123,
+        entity="some_entity",
         category="tech",
     )
-    assert result.entity_id == 123
+    assert result.entity == "some_entity"
     assert result.category == "tech"
 
 
 def test_relation_result():
     """Test relation result fields."""
     result = SearchResult(
-        id=1,
         title="test",
         permalink="specs/search",
         file_path="specs/search.md",
         type=SearchItemType.RELATION,
+        entity="some_entity",
         score=0.5,
         metadata={},
-        from_id=123,
-        to_id=456,
+        from_entity="123",
+        to_entity="456",
         relation_type="depends_on",
     )
-    assert result.from_id == 123
-    assert result.to_id == 456
+    assert result.from_entity == "123"
+    assert result.to_entity == "456"
     assert result.relation_type == "depends_on"
 
 
@@ -99,20 +97,20 @@ def test_search_response():
     """Test search response wrapper."""
     results = [
         SearchResult(
-            id=1,
             title="test",
             permalink="specs/search",
             file_path="specs/search.md",
             type=SearchItemType.ENTITY,
+            entity="some_entity",
             score=0.8,
             metadata={},
         ),
         SearchResult(
-            id=2,
             title="test",
             permalink="specs/search",
             file_path="specs/search.md",
             type=SearchItemType.ENTITY,
+            entity="some_entity",
             score=0.6,
             metadata={},
         ),

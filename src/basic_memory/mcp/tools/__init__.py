@@ -6,33 +6,22 @@ all tools with the MCP server.
 """
 
 # Import tools to register them with MCP
-from basic_memory.mcp.tools.resource import read_resource
-from basic_memory.mcp.tools.memory import build_context, recent_activity
-from basic_memory.mcp.tools.notes import read_note, write_note
+from basic_memory.mcp.tools.delete_note import delete_note
+from basic_memory.mcp.tools.read_file import read_file
+from basic_memory.mcp.tools.build_context import build_context
+from basic_memory.mcp.tools.recent_activity import recent_activity
+from basic_memory.mcp.tools.read_note import read_note
+from basic_memory.mcp.tools.write_note import write_note
 from basic_memory.mcp.tools.search import search
 from basic_memory.mcp.tools.canvas import canvas
 
-from basic_memory.mcp.tools.knowledge import (
-    delete_entities,
-    get_entity,
-    get_entities,
-)
-
 __all__ = [
-    # Knowledge graph tools
-    "delete_entities",
-    "get_entity",
-    "get_entities",
-    # Search tools
-    "search",
-    # memory tools
     "build_context",
-    "recent_activity",
-    # notes
-    "read_note",
-    "write_note",
-    # files
-    "read_resource",
-    # canvas
     "canvas",
+    "delete_note",
+    "read_file",
+    "read_note",
+    "recent_activity",
+    "search",
+    "write_note",
 ]

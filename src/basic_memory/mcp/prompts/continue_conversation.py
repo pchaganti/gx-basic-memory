@@ -12,15 +12,16 @@ import logfire
 from pydantic import Field
 
 from basic_memory.mcp.server import mcp
-from basic_memory.mcp.tools.memory import build_context, recent_activity
+from basic_memory.mcp.tools.build_context import build_context
+from basic_memory.mcp.tools.recent_activity import recent_activity
 from basic_memory.mcp.tools.search import search
 from basic_memory.schemas.base import TimeFrame
 from basic_memory.schemas.memory import GraphContext
-from basic_memory.schemas.search import SearchQuery
+from basic_memory.schemas.search import SearchQuery, SearchItemType
 
 
 @mcp.prompt(
-    name="continue_conversation",
+    name="continue conversation",
     description="Continue a previous conversation",
 )
 async def continue_conversation(
@@ -47,16 +48,19 @@ async def continue_conversation(
 
         # If topic provided, search for it
         if topic:
-            search_results = await search(SearchQuery(text=topic, after_date=timeframe))
+            search_results = await search(
+                SearchQuery(text=topic, after_date=timeframe, types=[SearchItemType.ENTITY])
+            )
 
-            # Build context from top results
+            # Build context from results
             contexts = []
-            for result in search_results.results[:3]:
+            for result in search_results.results:
                 if hasattr(result, "permalink") and result.permalink:
                     context = await build_context(f"memory://{result.permalink}")
                     contexts.append(context)
 
-            return format_continuation_context(topic, contexts, timeframe)
+            # get context for the top 3 results
+            return format_continuation_context(topic, contexts[:3], timeframe)
 
         # If no topic, get recent activity
         recent = await recent_activity(timeframe=timeframe)
@@ -123,6 +127,12 @@ def format_continuation_context(
                 if hasattr(primary, "created_at"):
                     section += f"- **Created**: {primary.created_at.strftime('%Y-%m-%d %H:%M')}\n"
 
+                # Add content snippet
+                if hasattr(primary, "content") and primary.content:  # pyright: ignore
+                    content = primary.content or ""  # pyright: ignore
+                    if content:
+                        section += f"- **Content Snippet**: {content}\n"
+
                 section += dedent(f"""
                     
                     You can read this document with: `read_note("{primary.permalink}")`
@@ -145,8 +155,8 @@ def format_continuation_context(
                         display_type = rel_type.replace("_", " ").title()
                         section += f"- **{display_type}**:\n"
                         for rel in relations[:3]:  # Limit to avoid overwhelming
-                            if hasattr(rel, "to_id") and rel.to_id:
-                                section += f"  - `{rel.to_id}`\n"
+                            if hasattr(rel, "to_entity") and rel.to_entity:
+                                section += f"  - `{rel.to_entity}`\n"
 
                 sections.append(section)
 

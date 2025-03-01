@@ -10,6 +10,7 @@ from typing import Tuple
 
 import logfire
 from loguru import logger
+from sqlalchemy.exc import IntegrityError
 
 from basic_memory.markdown import EntityParser
 from basic_memory.models import Entity
@@ -178,11 +179,11 @@ class SyncService:
             return entity, checksum
 
         except Exception as e:  # pragma: no cover
-            logger.error(f"Failed to sync {path}: {e}")
-            raise
+            logger.exception(f"Failed to sync {path}: {e}")
+            return None, None  # pyright: ignore
 
     async def sync_markdown_file(self, path: str, new: bool = True) -> Tuple[Entity, str]:
-        """Sync a markdown file with full processing."""
+        """Sync a markdown file with full proces    sing."""
 
         # Parse markdown first to get any existing permalink
         entity_markdown = await self.entity_parser.parse_file(path)
@@ -301,13 +302,16 @@ class SyncService:
                 logger.debug(
                     f"Resolved forward reference: {relation.to_name} -> {resolved_entity.title}"
                 )
-                await self.relation_repository.update(
-                    relation.id,
-                    {
-                        "to_id": resolved_entity.id,
-                        "to_name": resolved_entity.title,
-                    },
-                )
+                try:
+                    await self.relation_repository.update(
+                        relation.id,
+                        {
+                            "to_id": resolved_entity.id,
+                            "to_name": resolved_entity.title,
+                        },
+                    )
+                except IntegrityError:  # pragma: no cover
+                    logger.debug(f"Ignoring duplicate relation {relation}")
 
                 # update search index
                 await self.search_service.index_entity(resolved_entity)
