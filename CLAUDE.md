@@ -8,6 +8,10 @@ be traversed using links between documents.
 
 ## CODEBASE DEVELOPMENT
 
+### Project information
+
+See the [README.md](README.md) file for a project overview.
+
 ### Build and Test Commands
 
 - Install: `make install` or `pip install -e ".[dev]"`
@@ -32,7 +36,7 @@ be traversed using links between documents.
 - CLI uses Typer for command structure
 - API uses FastAPI for endpoints
 - Follow the repository pattern for data access
-- Tools communicate to api routers via the httpx asgi client (in process)
+- Tools communicate to api routers via the httpx ASGI client (in process)
 
 ### Codebase Architecture
 
@@ -53,11 +57,13 @@ be traversed using links between documents.
 - MCP prompts are defined in src/basic_memory/mcp/prompts/
 - MCP tools should be atomic, composable operations
 - Use `textwrap.dedent()` for multi-line string formatting in prompts and tools
-- Prompts are special types of tools that format content for user consumption
+- MCP Prompts are used to invoke tools and format content with instructions for an LLM
 - Schema changes require Alembic migrations
 - SQLite is used for indexing and full text search, files are source of truth
 - Testing uses pytest with asyncio support (strict mode)
 - Test database uses in-memory SQLite
+- Avoid creating mocks in tests in most circumstances.
+- Each test runs in a standalone enviroment with in memory SQLite and tmp_file directory
 
 ## BASIC MEMORY PRODUCT USAGE
 
@@ -87,19 +93,22 @@ be traversed using links between documents.
 
 - Basic Memory exposes these MCP tools to LLMs:
 
-    **Content Management:**
+  **Content Management:**
     - `write_note(title, content, folder, tags)` - Create/update markdown notes with semantic observations and relations
-    - `read_note(identifier, page, page_size)` - Read notes by title, permalink, or memory:// URL with knowledge graph awareness
+    - `read_note(identifier, page, page_size)` - Read notes by title, permalink, or memory:// URL with knowledge graph
+      awareness
     - `read_file(path)` - Read raw file content (text, images, binaries) without knowledge graph processing
 
-    **Knowledge Graph Navigation:**
-    - `build_context(url, depth, timeframe)` - Navigate the knowledge graph via memory:// URLs for conversation continuity
-    - `recent_activity(type, depth, timeframe)` - Get recently updated information with specified timeframe (e.g., "1d", "1 week")
-    
-    **Search & Discovery:**
+  **Knowledge Graph Navigation:**
+    - `build_context(url, depth, timeframe)` - Navigate the knowledge graph via memory:// URLs for conversation
+      continuity
+    - `recent_activity(type, depth, timeframe)` - Get recently updated information with specified timeframe (e.g., "
+      1d", "1 week")
+
+  **Search & Discovery:**
     - `search(query, page, page_size)` - Full-text search across all content with filtering options
-    
-    **Visualization:**
+
+  **Visualization:**
     - `canvas(nodes, edges, title, folder)` - Generate Obsidian canvas files for knowledge graph visualization
 
 - MCP Prompts for better AI interaction:
@@ -111,12 +120,14 @@ be traversed using links between documents.
 
 ## AI-Human Collaborative Development
 
-Basic Memory emerged from and enables a new kind of development process that combines human and AI capabilities. Instead of using AI just for code generation, we've developed a true collaborative workflow:
+Basic Memory emerged from and enables a new kind of development process that combines human and AI capabilities. Instead
+of using AI just for code generation, we've developed a true collaborative workflow:
 
-1. AI (Claude) writes initial implementation based on specifications and context
+1. AI (LLM) writes initial implementation based on specifications and context
 2. Human reviews, runs tests, and commits code with any necessary adjustments
 3. Knowledge persists across conversations using Basic Memory's knowledge graph
 4. Development continues seamlessly across different AI sessions with consistent context
 5. Results improve through iterative collaboration and shared understanding
 
-This approach has allowed us to tackle more complex challenges and build a more robust system than either humans or AI could achieve independently.
+This approach has allowed us to tackle more complex challenges and build a more robust system than either humans or AI
+could achieve independently.

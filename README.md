@@ -1,121 +1,180 @@
 # Basic Memory
 
+```
+██████╗  █████╗ ███████╗██╗ ██████╗    ███╗   ███╗███████╗███╗   ███╗ ██████╗ ██████╗ ██╗   ██╗
+██╔══██╗██╔══██╗██╔════╝██║██╔════╝    ████╗ ████║██╔════╝████╗ ████║██╔═══██╗██╔══██╗╚██╗ ██╔╝
+██████╔╝███████║███████╗██║██║         ██╔████╔██║█████╗  ██╔████╔██║██║   ██║██████╔╝ ╚████╔╝ 
+██╔══██╗██╔══██║╚════██║██║██║         ██║╚██╔╝██║██╔══╝  ██║╚██╔╝██║██║   ██║██╔══██╗  ╚██╔╝  
+██████╔╝██║  ██║███████║██║╚██████╗    ██║ ╚═╝ ██║███████╗██║ ╚═╝ ██║╚██████╔╝██║  ██║   ██║   
+╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝    ╚═╝     ╚═╝╚══════╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   
+```
+
 Basic Memory lets you build persistent knowledge through natural conversations with Large Language Models (LLMs) like
-Claude, while keeping everything in simple markdown files on your computer. It uses the Model Context Protocol (MCP) to
+Claude, while keeping everything in simple Markdown files on your computer. It uses the Model Context Protocol (MCP) to
 enable any compatible LLM to read and write to your local knowledge base.
 
-## What is Basic Memory?
+## Quick Start
 
-Most people use LLMs like calculators - paste in some text, expect to get an answer back, repeat. Each conversation
-starts fresh,
-and any knowledge or context is lost. Some try to work around this by:
+```bash
+# Install with uv (recommended)
+uv install basic-memory
 
-- Saving chat histories (but they're hard to reference)
-- Copying and pasting previous conversations (messy and repetitive)
-- Using RAG systems to query documents (complex and often cloud-based)
+# Configure Claude Desktop (edit ~/Library/Application Support/Claude/claude_desktop_config.json)
+# Add this to your config:
+{
+  "mcpServers": {
+    "basic-memory": {
+      "command": "uvx",
+      "args": [
+        "basic-memory",
+        "mcp"
+      ]
+    }
+  }
+}
 
-Basic Memory takes a different approach by letting both humans and LLMs read and write knowledge naturally using
-standard markdown files. This means:
+# Start real-time sync
+basic-memory sync --watch
 
-- Your knowledge stays in files you control
-- Both you and the LLM can read and write notes
-- Context persists across conversations
-- Context stays local and user controlled
+# Now in Claude Desktop, you can:
+# - Write notes with "Create a note about coffee brewing methods"
+# - Read notes with "What do I know about pour over coffee?"
+# - Search with "Find information about Ethiopian beans"
+
+# View files shared context via files in ~/basic-memory 
+```
+
+## Why Basic Memory?
+
+Most LLM interactions are ephemeral - you ask a question, get an answer, and everything is forgotten. Each conversation
+starts fresh, without the context or knowledge from previous ones. Current workarounds have limitations:
+
+- Chat histories capture conversations but aren't structured knowledge
+- RAG systems can query documents but don't let LLMs write back
+- Vector databases require complex setups and often live in the cloud
+- Knowledge graphs typically need specialized tools to maintain
+
+Basic Memory solves these problems with a simple approach: structured Markdown files that both humans and LLMs can read
+and write to. The key advantages:
+
+- **Local-first:** All knowledge stays in files you control
+- **Bi-directional:** Both you and the LLM read and write to the same files
+- **Structured yet simple:** Uses familiar Markdown with semantic patterns
+- **Traversable knowledge graph:** LLMs can follow links between topics
+- **Standard formats:** Works with existing editors like Obsidian
+- **Lightweight infrastructure:** Just local files indexed in a local SQLite database
+
+With Basic Memory, you can:
+
+- Have conversations that build on previous knowledge
+- Create structured notes during natural conversations
+- Have conversations with LLMs that remember what you've discussed before
+- Navigate your knowledge graph semantically
+- Keep everything local and under your control
+- Use familiar tools like Obsidian to view and edit notes
+- Build a personal knowledge base that grows over time
 
 ## How It Works in Practice
 
-Let's say you're working on a new project and want to capture design decisions. Here's how it works:
+Let's say you're exploring coffee brewing methods and want to capture your knowledge. Here's how it works:
 
 1. Start by chatting normally:
 
-```markdown
-We need to design a new auth system, some key features:
+```
+I've been experimenting with different coffee brewing methods. Key things I've learned:
 
-- local first, don't delegate users to third party system
-- support multiple platforms via jwt
-- want to keep it simple but secure
+- Pour over gives more clarity in flavor than French press
+- Water temperature is critical - around 205°F seems best
+- Freshly ground beans make a huge difference
 ```
 
 ... continue conversation.
 
-2. Ask Claude to help structure this knowledge:
+2. Ask the LLM to help structure this knowledge:
 
 ```
-"Lets write a note about the auth system design."
+"Let's write a note about coffee brewing methods."
 ```
 
-Claude creates a new markdown file on your system (which you can see instantly in Obsidian or your editor):
+LLM creates a new Markdown file on your system (which you can see instantly in Obsidian or your editor):
 
 ```markdown
 ---
-title: Auth System Design
-permalink: auth-system-design
-tags
-- design
-- auth
+title: Coffee Brewing Methods
+permalink: coffee-brewing-methods
+tags:
+- coffee
+- brewing
 ---
 
-# Auth System Design
+# Coffee Brewing Methods
 
 ## Observations
 
-- [requirement] Local-first authentication without third party delegation
-- [tech] JWT-based auth for cross-platform support
-- [principle] Balance simplicity with security
+- [method] Pour over provides more clarity and highlights subtle flavors
+- [technique] Water temperature at 205°F (96°C) extracts optimal compounds
+- [principle] Freshly ground beans preserve aromatics and flavor
 
 ## Relations
 
-- implements [[Security Requirements]]
-- relates_to [[Platform Support]]
-- referenced_by [[JWT Implementation]]
+- relates_to [[Coffee Bean Origins]]
+- requires [[Proper Grinding Technique]]
+- affects [[Flavor Extraction]]
 ```
 
-The note embeds semantic content (Observations) and links to other topics (Relations) via simple markdown formatting.
+The note embeds semantic content and links to other topics via simple Markdown
+formatting.
 
-3. You can edit this file directly in your editor in real time:
+3. You see this file on your computer in real time in the `~/$HOME/basic-memory` directory:
 
 ```markdown
-# Auth System Design
+---
+title: Coffee Brewing Methods
+permalink: coffee-brewing-methods
+type: note
+---
+
+# Coffee Brewing Methods
 
 ## Observations
 
-- [requirement] Local-first authentication without third party delegation
-- [tech] JWT-based auth for cross-platform support
-- [principle] Balance simplicity with security
-- [decision] Will use bcrypt for password hashing # Added by you
+- [method] Pour over provides more clarity and highlights subtle flavors
+- [technique] Water temperature at 205°F (96°C) extracts optimal compounds
+- [principle] Freshly ground beans preserve aromatics and flavor
+- [preference] Medium-light roasts work best for pour over # Added by you
 
 ## Relations
 
-- implements [[Security Requirements]]
-- relates_to [[Platform Support]]
-- referenced_by [[JWT Implementation]]
-- blocks [[User Service]]  # Added by you
+- relates_to [[Coffee Bean Origins]]
+- requires [[Proper Grinding Technique]]
+- affects [[Flavor Extraction]]
+- pairs_with [[Breakfast Pastries]]  # Added by you
 ```
 
-4. In a new chat with Claude, you can reference this knowledge:
+4. In a new chat with the LLM, you can reference this knowledge:
 
 ```
-"Claude, look at memory://auth-system-design for context about our auth system"
+Look at `coffee-brewing-methods` for context about pour over coffee
 ```
 
-Claude can now build rich context from the knowledge graph. For example:
+The LLM can now build rich context from the knowledge graph. For example:
 
 ```
-Following relation 'implements [[Security Requirements]]':
-- Found authentication best practices
-- OWASP guidelines for JWT
-- Rate limiting requirements
+Following relation 'relates_to [[Coffee Bean Origins]]':
+- Found information about Ethiopian Yirgacheffe
+- Notes on Colombian beans' nutty profile
+- Altitude effects on bean characteristics
 
-Following relation 'relates_to [[Platform Support]]':
-- Mobile auth requirements 
-- Browser security considerations
-- JWT storage strategies
+Following relation 'requires [[Proper Grinding Technique]]':
+- Burr vs. blade grinder comparisons
+- Grind size recommendations for different methods
+- Impact of consistent particle size on extraction
 ```
 
 Each related document can lead to more context, building a rich semantic understanding of your knowledge base. All of
-this context comes from standard markdown files that both humans and LLMs can read and write.
+this context comes from standard Markdown files that both humans and LLMs can read and write.
 
-Everything stays in local markdown files that you can:
+Every time the LLM writes notes,they are saved in local Markdown files that you can:
 
 - Edit in any text editor
 - Version via git
@@ -126,64 +185,128 @@ Everything stays in local markdown files that you can:
 
 Under the hood, Basic Memory:
 
-1. Stores everything in markdown files
-2. Uses a SQLite database just for searching and indexing
-3. Extracts semantic meaning from simple markdown patterns
-4. Maintains a local knowledge graph from file content
+1. Stores everything in Markdown files
+2. Uses a SQLite database for searching and indexing
+3. Extracts semantic meaning from simple Markdown patterns
+    - Files become `Entity` objects
+    - Each `Entity` can have `Observations`, or facts associated with it
+    - `Relations` connect entities together to form the knowledge graph
+4. Maintains the local knowledge graph derived from the files
+5. Provides bidirectional synchronization between files and the knowledge graph
+6. Implements the Model Context Protocol (MCP) for AI integration
+7. Exposes tools that let AI assistants traverse and manipulate the knowledge graph
+8. Uses memory:// URLs to reference entities across tools and conversations
 
-The file format is just markdown with some simple markup:
+The file format is just Markdown with some simple markup:
 
-Frontmatter
+Each Markdown file has:
 
-- title
-- type
-- permalink
-- optional metadata
+### Frontmatter
 
-Observations
+```markdown
+title: <Entity title>
+type: <The type of Entity> (e.g. note)
+permalink: <a uri slug>
 
-- facts about a topic
+- <optional metadata> (such as tags) 
+```
+
+### Observations
+
+Observations are facts about a topic.
+They can be added by creating a Markdown list with a special format that can reference a `category`, `tags` using a
+"#" charactor, and an optional `context`.
+
+Observation Markdown format:
 
 ```markdown
 - [category] content #tag (optional context)
 ```
 
-Relations
+Examples of observations:
 
-- links to other topics
+```markdown
+- [method] Pour over extracts more floral notes than French press
+- [tip] Grind size should be medium-fine for pour over #brewing
+- [preference] Ethiopian beans have bright, fruity flavors (especially from Yirgacheffe)
+- [fact] Lighter roasts generally contain more caffeine than dark roasts
+- [experiment] Tried 1:15 coffee-to-water ratio with good results
+- [resource] James Hoffman's V60 technique on YouTube is excellent
+- [question] Does water temperature affect extraction of different compounds differently?
+- [note] My favorite local shop uses a 30-second bloom time
+```
+
+### Relations
+
+Relations are links to other topics. They define how entities connect in the knowledge graph.
+
+Markdown format:
 
 ```markdown
 - relation_type [[WikiLink]] (optional context)
 ```
 
-Example:
+Examples of relations:
+
+```markdown
+- pairs_well_with [[Chocolate Desserts]]
+- grown_in [[Ethiopia]]
+- contrasts_with [[Tea Brewing Methods]]
+- requires [[Burr Grinder]]
+- improves_with [[Fresh Beans]]
+- relates_to [[Morning Routine]]
+- inspired_by [[Japanese Coffee Culture]]
+- documented_in [[Coffee Journal]]
+```
+
+### Complete Example
+
+Here's a complete example of a note with frontmatter, observations, and relations:
 
 ```markdown
 ---
-title: Note tile
+title: Pour Over Coffee Method
 type: note
-permalink: unique/stable/id  # Added automatically
-tags
-- tag1
-- tag2
+permalink: pour-over-coffee-method
+tags:
+- brewing
+- coffee
+- techniques
 ---
 
-# Note Title
+# Pour Over Coffee Method
 
-Regular markdown content...
+This note documents the pour over brewing method and my experiences with it.
+
+## Overview
+
+The pour over method involves pouring hot water through coffee grounds in a filter. The water drains through the coffee
+and filter into a carafe or cup.
 
 ## Observations
 
-- [category] Structured knowledge #tag (optional context)
-- [idea] Another observation
+- [equipment] Hario V60 dripper produces clean, bright cup #gear
+- [technique] Pour in concentric circles to ensure even extraction
+- [ratio] 1:16 coffee-to-water ratio works best for balanced flavor
+- [timing] Total brew time should be 2:30-3:00 minutes for medium roast
+- [temperature] Water at 205°F (96°C) extracts optimal flavor compounds
+- [grind] Medium-fine grind similar to table salt texture
+- [tip] 30-45 second bloom with double the coffee weight in water
+- [result] Produces a cleaner cup with more distinct flavor notes than immersion methods
 
 ## Relations
 
-- links_to [[Other Note]]
-- implements [[Some Spec]]
+- complements [[Light Roast Beans]]
+- requires [[Gooseneck Kettle]]
+- contrasts_with [[French Press Method]]
+- pairs_with [[Breakfast Pastries]]
+- documented_in [[Brewing Journal]]
+- inspired_by [[Japanese Brewing Techniques]]
+- affects [[Flavor Extraction]]
+- part_of [[Morning Ritual]]
 ```
 
-Basic Memory will parse the markdown and derive the semantic relationships in the content. When you run
+Basic Memory will parse the Markdown and derive the semantic relationships in the content. When you run
 `basic-memory sync`:
 
 1. New and changed files are detected
@@ -194,54 +317,67 @@ Basic Memory will parse the markdown and derive the semantic relationships in th
 - Tags and metadata are indexed for search
 
 3. A SQLite database maintains these relationships for fast querying
-4. Claude and other MCP-compatible LLMs can access this knowledge via memory:// URLs
+4. MCP-compatible LLMs can access this knowledge via memory:// URLs
 
 This creates a two-way flow where:
 
-- Humans write and edit markdown files
+- Humans write and edit Markdown files
 - LLMs read and write through the MCP protocol
 - Sync keeps everything consistent
 - All knowledge stays in local files.
 
-## Using with Claude
+## Using with Claude Desktop
 
-Basic Memory works with the Claude desktop app (https://claude.ai/):
+Basic Memory is built using the MCP (Model Context Protocol) and works with the Claude desktop app (https://claude.ai/):
 
-1. Install Basic Memory locally:
+1. Configure Claude Desktop to use Basic Memory:
 
-```bash
+Edit your MCP configuration file (usually located at `~/Library/Application Support/Claude/claude_desktop_config.json`
+for OS X):
+
+```json
 {
   "mcpServers": {
     "basic-memory": {
       "command": "uvx",
       "args": [
-        "basic-memory"
+        "basic-memory",
+        "mcp"
       ]
     }
+  }
 }
 ```
 
-2. Add to Claude Desktop:
-
-```
-Basic Memory is available with these tools:
-- write_note() for creating/updating notes
-- read_note() for loading notes
-- build_context() to load notes via memory:// URLs
-- recent_activity() to find recently updated information
-- search() to search infomation in the knowledge base
-```
-
-3. Install via uv
+2. Sync your knowledge:
 
 ```bash
-uv add  basic-memory
-
-# sync local knowledge updates
+# One-time sync of local knowledge updates
 basic-memory sync
 
-# run realtime sync process
+# Run realtime sync process (recommended)
 basic-memory sync --watch
+```
+
+3. In Claude Desktop, the LLM can now use these tools:
+
+```
+write_note(title, content, folder, tags) - Create or update notes
+read_note(identifier, page, page_size) - Read notes by title or permalink
+build_context(url, depth, timeframe) - Navigate knowledge graph via memory:// URLs
+search(query, page, page_size) - Search across your knowledge base
+recent_activity(type, depth, timeframe) - Find recently updated information
+canvas(nodes, edges, title, folder) - Generate knowledge visualizations
+```
+
+5. Example prompts to try:
+
+```
+"Create a note about our project architecture decisions"
+"Find information about JWT authentication in my notes"
+"Create a canvas visualization of my project components"
+"Read my notes on the authentication system"
+"What have I been working on in the past week?"
 ```
 
 ## Design Philosophy
@@ -252,10 +388,17 @@ Basic Memory is built on some key ideas:
 - Both humans and AI should use natural formats
 - Simple text patterns can capture rich meaning
 - Local-first doesn't mean feature-poor
+- Knowledge should persist across conversations
+- AI assistants should build on past context
+- File formats should be human-readable and editable
+- Semantic structure should emerge from natural patterns
+- Knowledge graphs should be both AI and human navigable
+- Systems should augment human memory, not replace it
 
-## Importing data
+## Importing Existing Data
 
-Basic memory has cli commands to import data from several formats into Markdown files
+Basic Memory provides CLI commands to import data from various sources, converting them into the structured Markdown
+format:
 
 ### Claude.ai
 
@@ -307,7 +450,7 @@ Importing projects from projects.json...writing to .../basic-memory/projects
 Run 'basic-memory sync' to index the new files.
 ```
 
-### Chat Gpt
+### OpenAI ChatGPT
 
 ```bash
  ➜  basic-memory import chatgpt
@@ -324,7 +467,9 @@ Importing chats from conversations.json...writing to .../basic-memory/conversati
 
 ```
 
-### Memory json
+### Knowledge Graph Memory Server
+
+From the MCP Server: https://github.com/modelcontextprotocol/servers/tree/main/src/memory
 
 ```bash
 ➜  basic-memory import memory-json
@@ -339,6 +484,50 @@ Importing from memory.json...writing to .../basic-memory
 ╰──────────────────────╯
 ```
 
+## Working with Your Knowledge Base
+
+Once you've built up a knowledge base, you can interact with it in several ways:
+
+### Command Line Interface
+
+Basic Memory provides a powerful CLI for managing your knowledge:
+
+```bash
+# See all available commands
+basic-memory --help
+
+# Check the status of your knowledge sync
+basic-memory status
+
+# Access specific tool functionality directly
+basic-memory tools
+
+# Start a continuous sync process
+basic-memory sync --watch
+```
+
+### Obsidian Integration
+
+Basic Memory works seamlessly with [Obsidian](https://obsidian.md/), a popular knowledge management app:
+
+1. Point Obsidian to your Basic Memory directory
+2. Use standard Obsidian features like backlinks and graph view
+3. See your knowledge graph visually
+4. Use the canvas visualization generated by Basic Memory
+
+### File Organization
+
+Basic Memory is flexible about how you organize your files:
+
+- Group by topic in folders
+- Use a flat structure with descriptive filenames
+- Add custom metadata in frontmatter
+- Tag files for better searchability
+
+The system will build the semantic knowledge graph regardless of your file organization preference.
+
 ## License
 
 AGPL-3.0
+
+Built with ♥️ by Basic Machines
