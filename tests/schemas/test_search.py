@@ -7,7 +7,6 @@ from basic_memory.schemas.search import (
     SearchQuery,
     SearchResult,
     SearchResponse,
-    AdvancedSearchQuery,
 )
 
 
@@ -118,12 +117,3 @@ def test_search_response():
     response = SearchResponse(results=results, current_page=1, page_size=1)
     assert len(response.results) == 2
     assert response.results[0].score > response.results[1].score
-
-
-def test_advanced_search():
-    """Test advanced search query."""
-    query = AdvancedSearchQuery(
-        query="title:search AND content:implementation", types=[SearchItemType.ENTITY]
-    )
-    assert query.query == "title:search AND content:implementation"
-    assert query.types == [SearchItemType.ENTITY]
