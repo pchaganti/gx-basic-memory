@@ -8,7 +8,6 @@ from textwrap import dedent
 from typing import Optional, Annotated
 
 from loguru import logger
-import logfire
 from pydantic import Field
 
 from basic_memory.mcp.prompts.utils import format_prompt_context, PromptContext, PromptContextItem
@@ -25,7 +24,6 @@ from basic_memory.schemas.search import SearchQuery, SearchItemType
     name="Continue Conversation",
     description="Continue a previous conversation",
 )
-@logfire.instrument(extract_args=False)
 async def continue_conversation(
     topic: Annotated[Optional[str], Field(description="Topic or keyword to search for")] = None,
     timeframe: Annotated[

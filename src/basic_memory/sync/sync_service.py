@@ -1,9 +1,6 @@
 """Service for syncing files between filesystem and database."""
 
-# Suppress logfire warnings
 import os
-
-os.environ["LOGFIRE_IGNORE_NO_CONFIG"] = "1"
 
 from dataclasses import dataclass
 from dataclasses import field
@@ -11,7 +8,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Set, Tuple
 
-import logfire
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
@@ -20,6 +16,8 @@ from basic_memory.models import Entity
 from basic_memory.repository import EntityRepository, RelationRepository
 from basic_memory.services import EntityService, FileService
 from basic_memory.services.search_service import SearchService
+import time
+from rich.progress import Progress, TextColumn, BarColumn, TaskProgressColumn
 
 
 @dataclass
@@ -81,11 +79,8 @@ class SyncService:
         self.search_service = search_service
         self.file_service = file_service
 
-    @logfire.instrument(extract_args=False)
     async def sync(self, directory: Path, show_progress: bool = True) -> SyncReport:
         """Sync all files with database."""
-        import time
-        from rich.progress import Progress, TextColumn, BarColumn, TaskProgressColumn
 
         start_time = time.time()
         console = None
@@ -129,64 +124,64 @@ class SyncService:
                 if report.moves:  # pragma: no cover
                     move_task = progress.add_task("[blue]Moving files...", total=len(report.moves))  # pyright: ignore
 
-                delete_task = None
-                if report.deleted:  # pragma: no cover
-                    delete_task = progress.add_task(  # pyright: ignore
-                        "[red]Deleting files...", total=len(report.deleted)
+            delete_task = None
+            if report.deleted:  # pragma: no cover
+                delete_task = progress.add_task(  # pyright: ignore
+                    "[red]Deleting files...", total=len(report.deleted)
+                )
+
+            new_task = None
+            if report.new:
+                new_task = progress.add_task(  # pyright: ignore
+                    "[green]Adding new files...", total=len(report.new)
+                )
+
+            modify_task = None
+            if report.modified:  # pragma: no cover
+                modify_task = progress.add_task(  # pyright: ignore
+                    "[yellow]Updating modified files...", total=len(report.modified)
+                )
+
+            # sync moves first
+            for i, (old_path, new_path) in enumerate(report.moves.items()):
+                # in the case where a file has been deleted and replaced by another file
+                # it will show up in the move and modified lists, so handle it in modified
+                if new_path in report.modified:  # pragma: no cover
+                    report.modified.remove(new_path)
+                    logger.debug(
+                        "File marked as moved and modified",
+                        old_path=old_path,
+                        new_path=new_path,
+                        action="processing as modified",
                     )
+                else:  # pragma: no cover
+                    await self.handle_move(old_path, new_path)
 
-                new_task = None
-                if report.new:
-                    new_task = progress.add_task(  # pyright: ignore
-                        "[green]Adding new files...", total=len(report.new)
-                    )
+                if move_task is not None:  # pragma: no cover
+                    progress.update(move_task, advance=1)  # pyright: ignore
 
-                modify_task = None
-                if report.modified:  # pragma: no cover
-                    modify_task = progress.add_task(  # pyright: ignore
-                        "[yellow]Updating modified files...", total=len(report.modified)
-                    )
+            # deleted next
+            for i, path in enumerate(report.deleted):  # pragma: no cover
+                await self.handle_delete(path)
+                if delete_task is not None:  # pragma: no cover
+                    progress.update(delete_task, advance=1)  # pyright: ignore
 
-                # sync moves first
-                for i, (old_path, new_path) in enumerate(report.moves.items()):
-                    # in the case where a file has been deleted and replaced by another file
-                    # it will show up in the move and modified lists, so handle it in modified
-                    if new_path in report.modified:  # pragma: no cover
-                        report.modified.remove(new_path)
-                        logger.debug(
-                            "File marked as moved and modified",
-                            old_path=old_path,
-                            new_path=new_path,
-                            action="processing as modified",
-                        )
-                    else:  # pragma: no cover
-                        await self.handle_move(old_path, new_path)
+            # then new and modified
+            for i, path in enumerate(report.new):
+                await self.sync_file(path, new=True)
+                if new_task is not None:
+                    progress.update(new_task, advance=1)  # pyright: ignore
 
-                    if move_task is not None:  # pragma: no cover
-                        progress.update(move_task, advance=1)  # pyright: ignore
+            for i, path in enumerate(report.modified):  # pragma: no cover
+                await self.sync_file(path, new=False)
+                if modify_task is not None:  # pragma: no cover
+                    progress.update(modify_task, advance=1)  # pyright: ignore
 
-                # deleted next
-                for i, path in enumerate(report.deleted):  # pragma: no cover
-                    await self.handle_delete(path)
-                    if delete_task is not None:  # pragma: no cover
-                        progress.update(delete_task, advance=1)  # pyright: ignore
-
-                # then new and modified
-                for i, path in enumerate(report.new):
-                    await self.sync_file(path, new=True)
-                    if new_task is not None:
-                        progress.update(new_task, advance=1)  # pyright: ignore
-
-                for i, path in enumerate(report.modified):  # pragma: no cover
-                    await self.sync_file(path, new=False)
-                    if modify_task is not None:  # pragma: no cover
-                        progress.update(modify_task, advance=1)  # pyright: ignore
-
-                # Final step - resolving relations
-                if report.total > 0:
-                    relation_task = progress.add_task("[cyan]Resolving relations...", total=1)  # pyright: ignore
-                    await self.resolve_relations()
-                    progress.update(relation_task, advance=1)  # pyright: ignore
+            # Final step - resolving relations
+            if report.total > 0:
+                relation_task = progress.add_task("[cyan]Resolving relations...", total=1)  # pyright: ignore
+                await self.resolve_relations()
+                progress.update(relation_task, advance=1)  # pyright: ignore
         else:
             # No progress display - proceed with normal sync
             # sync moves first
@@ -552,8 +547,6 @@ class SyncService:
         Returns:
             ScanResult containing found files and any errors
         """
-        import time
-
         start_time = time.time()
 
         logger.debug("Scanning directory", directory=str(directory))

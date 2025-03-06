@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Annotated
 
-import logfire
 import typer
 from loguru import logger
 from rich.console import Console
@@ -99,7 +98,6 @@ async def get_markdown_processor() -> MarkdownProcessor:
 
 
 @import_app.command()
-@logfire.instrument(extract_args=False)
 def memory_json(
     json_path: Annotated[Path, typer.Argument(..., help="Path to memory.json file")] = Path(
         "memory.json"

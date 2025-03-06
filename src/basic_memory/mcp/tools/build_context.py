@@ -2,22 +2,20 @@
 
 from typing import Optional
 
-import logfire
 from loguru import logger
 
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_get
+from basic_memory.schemas.base import TimeFrame
 from basic_memory.schemas.memory import (
     GraphContext,
     MemoryUrl,
     memory_url_path,
     normalize_memory_url,
 )
-from basic_memory.schemas.base import TimeFrame
 
 
-@logfire.instrument(extract_args=False)
 @mcp.tool(
     description="""Build context from a memory:// URI to continue conversations naturally.
     

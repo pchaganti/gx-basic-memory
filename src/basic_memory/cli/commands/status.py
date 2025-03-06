@@ -3,7 +3,6 @@
 import asyncio
 from typing import Set, Dict
 
-import logfire
 import typer
 from loguru import logger
 from rich.console import Console
@@ -130,7 +129,6 @@ async def run_status(sync_service: SyncService, verbose: bool = False):
 
 
 @app.command()
-@logfire.instrument(extract_args=False)
 def status(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed file information"),
 ):

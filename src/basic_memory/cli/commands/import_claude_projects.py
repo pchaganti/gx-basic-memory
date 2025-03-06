@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Annotated, Optional
 
-import logfire
 import typer
 from loguru import logger
 from rich.console import Console
@@ -144,7 +143,6 @@ async def get_markdown_processor() -> MarkdownProcessor:
 
 
 @claude_app.command(name="projects", help="Import projects from Claude.ai.")
-@logfire.instrument(extract_args=False)
 def import_projects(
     projects_json: Annotated[Path, typer.Argument(..., help="Path to projects.json file")] = Path(
         "projects.json"

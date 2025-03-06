@@ -2,20 +2,18 @@
 
 from typing import Optional, List
 
-import logfire
 from loguru import logger
 
-from basic_memory.mcp.server import mcp
 from basic_memory.mcp.async_client import client
-from basic_memory.schemas.base import Entity
-from basic_memory.schemas import EntityResponse
+from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_put
+from basic_memory.schemas import EntityResponse
+from basic_memory.schemas.base import Entity
 
 
 @mcp.tool(
     description="Create or update a markdown note. Returns a markdown formatted summary of the semantic content.",
 )
-@logfire.instrument(extract_args=False)
 async def write_note(
     title: str,
     content: str,

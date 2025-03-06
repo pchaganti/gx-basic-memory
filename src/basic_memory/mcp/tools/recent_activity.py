@@ -2,14 +2,13 @@
 
 from typing import Optional, List
 
-import logfire
 from loguru import logger
 
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_get
-from basic_memory.schemas.memory import GraphContext
 from basic_memory.schemas.base import TimeFrame
+from basic_memory.schemas.memory import GraphContext
 from basic_memory.schemas.search import SearchItemType
 
 
@@ -25,7 +24,6 @@ from basic_memory.schemas.search import SearchItemType
     Or standard formats like "7d"
     """,
 )
-@logfire.instrument(extract_args=False)
 async def recent_activity(
     type: Optional[List[SearchItemType]] = None,
     depth: Optional[int] = 1,

@@ -1,9 +1,6 @@
 """Utility functions for basic-memory."""
 
-# Set environment variable before importing logfire to suppress warnings
 import os
-
-os.environ["LOGFIRE_IGNORE_NO_CONFIG"] = "1"
 
 import logging
 import re
@@ -13,9 +10,6 @@ from typing import Optional, Protocol, Union, runtime_checkable
 
 from loguru import logger
 from unidecode import unidecode
-
-import basic_memory
-import logfire
 
 
 @runtime_checkable
@@ -104,26 +98,6 @@ def setup_logging(
 
     # Add file handler if we are not running tests and a log file is specified
     if log_file and env != "test":
-        try:
-            # Only configure logfire if API key is set - avoids interactive prompts
-            if "LOGFIRE_TOKEN" in os.environ:
-                # Configure logfire with code source info
-                logfire.configure(
-                    code_source=logfire.CodeSource(
-                        repository="https://github.com/basicmachines-co/basic-memory",
-                        revision=f"v{basic_memory.__version__}" if env != "dev" else "HEAD",
-                    ),
-                    environment=env,
-                    console=False,
-                )
-                logger.configure(handlers=[logfire.loguru_handler()])
-
-                # Instrument code spans for better observability
-                logfire.instrument_sqlite3()
-                logfire.instrument_httpx()
-        except Exception as e:
-            logger.warning(f"Failed to configure logfire: {e}")
-
         # Setup file logger
         log_path = home_dir / log_file
         logger.add(
@@ -149,12 +123,6 @@ def setup_logging(
         "httpx": logging.WARNING,
         # File watching logs
         "watchfiles.main": logging.WARNING,
-        # Instrumentation noise
-        "instrumentor": logging.ERROR,
-        "opentelemetry.instrumentation.instrumentor": logging.ERROR,
-        "opentelemetry.instrumentation": logging.ERROR,
-        "logfire.instrumentor": logging.ERROR,
-        "opentelemetry.sdk.metrics._internal.instrument": logging.ERROR,
     }
 
     # Set log levels for noisy loggers

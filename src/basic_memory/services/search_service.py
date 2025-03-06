@@ -40,10 +40,10 @@ class SearchService:
 
     async def reindex_all(self, background_tasks: Optional[BackgroundTasks] = None) -> None:
         """Reindex all content from database."""
-        
+
         logger.info("Starting full reindex")
         # Clear and recreate search index
-        await self.repository.execute_query(text("DROP TABLE IF EXISTS search_index"), params=None)
+        await self.repository.execute_query(text("DROP TABLE IF EXISTS search_index"), params={})
         await self.init_search_index()
 
         # Reindex all entities

@@ -7,20 +7,18 @@ from textwrap import dedent
 from typing import Annotated, Optional
 
 from loguru import logger
-import logfire
 from pydantic import Field
 
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.search import search as search_tool
-from basic_memory.schemas.search import SearchQuery, SearchResponse
 from basic_memory.schemas.base import TimeFrame
+from basic_memory.schemas.search import SearchQuery, SearchResponse
 
 
 @mcp.prompt(
     name="Search Knowledge Base",
     description="Search across all content in basic-memory",
 )
-@logfire.instrument(extract_args=False)
 async def search_prompt(
     query: str,
     timeframe: Annotated[

@@ -1,6 +1,5 @@
 """Database management commands."""
 
-import logfire
 import typer
 from loguru import logger
 
@@ -8,7 +7,6 @@ from basic_memory.alembic import migrations
 from basic_memory.cli.app import app
 
 
-@logfire.instrument()
 @app.command()
 def reset(
     reindex: bool = typer.Option(False, "--reindex", help="Rebuild db index from filesystem"),

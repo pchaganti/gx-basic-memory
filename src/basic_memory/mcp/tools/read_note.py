@@ -2,7 +2,6 @@
 
 from textwrap import dedent
 
-import logfire
 from loguru import logger
 
 from basic_memory.mcp.async_client import client
@@ -16,7 +15,6 @@ from basic_memory.schemas.search import SearchQuery
 @mcp.tool(
     description="Read a markdown note by title or permalink.",
 )
-@logfire.instrument(extract_args=False)
 async def read_note(identifier: str, page: int = 1, page_size: int = 10) -> str:
     """Read a markdown note from the knowledge base.
 

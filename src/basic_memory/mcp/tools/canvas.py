@@ -6,7 +6,6 @@ This tool creates Obsidian canvas files (.canvas) using the JSON Canvas 1.0 spec
 import json
 from typing import Dict, List, Any
 
-import logfire
 from loguru import logger
 
 from basic_memory.mcp.async_client import client
@@ -17,7 +16,6 @@ from basic_memory.mcp.tools.utils import call_put
 @mcp.tool(
     description="Create an Obsidian canvas file to visualize concepts and connections.",
 )
-@logfire.instrument(extract_args=False)
 async def canvas(
     nodes: List[Dict[str, Any]],
     edges: List[Dict[str, Any]],

@@ -1,13 +1,7 @@
 """FastAPI application for basic-memory knowledge graph API."""
 
-# Suppress logfire warnings
-import os
-
-os.environ["LOGFIRE_IGNORE_NO_CONFIG"] = "1"
-
 from contextlib import asynccontextmanager
 
-import logfire
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import http_exception_handler
 from loguru import logger
@@ -33,9 +27,6 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
-
-if app_config != "test":
-    logfire.instrument_fastapi(app)
 
 
 # Include routers
