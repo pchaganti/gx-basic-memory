@@ -13,6 +13,7 @@
 ██╔══██╗██╔══██║╚════██║██║██║         ██║╚██╔╝██║██╔══╝  ██║╚██╔╝██║██║   ██║██╔══██╗  ╚██╔╝  
 ██████╔╝██║  ██║███████║██║╚██████╗    ██║ ╚═╝ ██║███████╗██║ ╚═╝ ██║╚██████╔╝██║  ██║   ██║   
 ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝    ╚═╝     ╚═╝╚══════╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝   ╚═╝   
+
 ```
 
 Basic Memory lets you build persistent knowledge through natural conversations with Large Language Models (LLMs) like
@@ -355,6 +356,25 @@ for OS X):
 }
 ```
 
+If you want to use a specific project (see [Multiple Projects](#multiple-projects) below), update your Claude Desktop
+config:
+
+```json
+{
+  "mcpServers": {
+    "basic-memory": {
+      "command": "uvx",
+      "args": [
+        "basic-memory",
+        "mcp",
+        "--project",
+        "your-project-name"
+      ]
+    }
+  }
+}
+```
+
 2. Sync your knowledge:
 
 ```bash
@@ -385,6 +405,56 @@ canvas(nodes, edges, title, folder) - Generate knowledge visualizations
 "Read my notes on the authentication system"
 "What have I been working on in the past week?"
 ```
+
+## Multiple Projects
+
+Basic Memory supports managing multiple separate knowledge bases through projects. This feature allows you to maintain
+separate knowledge graphs for different purposes (e.g., personal notes, work projects, research topics).
+
+### Managing Projects
+
+```bash
+# List all configured projects
+basic-memory project list
+
+# Add a new project
+basic-memory project add work ~/work-basic-memory
+
+# Set the default project
+basic-memory project default work
+
+# Remove a project (doesn't delete files)
+basic-memory project remove personal
+
+# Show current project
+basic-memory project current
+```
+
+### Using Projects in Commands
+
+All commands support the `--project` flag to specify which project to use:
+
+```bash
+# Sync a specific project
+basic-memory --project=work sync
+
+# Run MCP server for a specific project
+basic-memory --project=personal mcp
+```
+
+You can also set the `BASIC_MEMORY_PROJECT` environment variable:
+
+```bash
+BASIC_MEMORY_PROJECT=work basic-memory sync
+```
+
+### Project Isolation
+
+Each project maintains:
+
+- Its own collection of markdown files in the specified directory
+- A separate SQLite database for that project
+- Complete knowledge graph isolation from other projects
 
 ## Design Philosophy
 
@@ -531,6 +601,65 @@ Basic Memory is flexible about how you organize your files:
 - Tag files for better searchability
 
 The system will build the semantic knowledge graph regardless of your file organization preference.
+
+## Using stdin with Basic Memory's `write_note` Tool
+
+The `write-note` tool supports reading content from standard input (stdin), allowing for more flexible workflows when
+creating or updating notes in your Basic Memory knowledge base.
+
+### Use Cases
+
+This feature is particularly useful for:
+
+1. **Piping output from other commands** directly into Basic Memory notes
+2. **Creating notes with multi-line content** without having to escape quotes or special characters
+3. **Integrating with AI assistants** like Claude Code that can generate content and pipe it to Basic Memory
+4. **Processing text data** from files or other sources
+
+## Basic Usage
+
+### Method 1: Using a Pipe
+
+You can pipe content from another command into `write_note`:
+
+```bash
+# Pipe output of a command into a new note
+echo "# My Note\n\nThis is a test note" | basic-memory tools write-note --title "Test Note" --folder "notes"
+
+# Pipe output of a file into a new note
+cat README.md | basic-memory tools write-note --title "Project README" --folder "documentation"
+
+# Process text through other tools before saving as a note
+cat data.txt | grep "important" | basic-memory tools write-note --title "Important Data" --folder "data"
+```
+
+### Method 2: Using Heredoc Syntax
+
+For multi-line content, you can use heredoc syntax:
+
+```bash
+# Create a note with heredoc
+cat << EOF | basic-memory tools write_note --title "Project Ideas" --folder "projects"
+# Project Ideas for Q2
+
+## AI Integration
+- Improve recommendation engine
+- Add semantic search to product catalog
+
+## Infrastructure
+- Migrate to Kubernetes
+- Implement CI/CD pipeline
+EOF
+```
+
+### Method 3: Input Redirection
+
+You can redirect input from a file:
+
+```bash
+# Create a note from file content
+basic-memory tools write-note --title "Meeting Notes" --folder "meetings" < meeting_notes.md
+```
 
 ## License
 

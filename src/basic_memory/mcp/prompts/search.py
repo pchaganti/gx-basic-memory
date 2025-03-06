@@ -17,9 +17,10 @@ from basic_memory.schemas.base import TimeFrame
 
 
 @mcp.prompt(
-    name="search",
+    name="Search Knowledge Base",
     description="Search across all content in basic-memory",
 )
+@logfire.instrument(extract_args=False)
 async def search_prompt(
     query: str,
     timeframe: Annotated[
@@ -39,11 +40,10 @@ async def search_prompt(
     Returns:
         Formatted search results with context
     """
-    with logfire.span("Searching knowledge base", query=query, timeframe=timeframe):  # pyright: ignore
-        logger.info(f"Searching knowledge base, query: {query}, timeframe: {timeframe}")
+    logger.info(f"Searching knowledge base, query: {query}, timeframe: {timeframe}")
 
-        search_results = await search_tool(SearchQuery(text=query, after_date=timeframe))
-        return format_search_results(query, search_results, timeframe)
+    search_results = await search_tool(SearchQuery(text=query, after_date=timeframe))
+    return format_search_results(query, search_results, timeframe)
 
 
 def format_search_results(
@@ -65,11 +65,33 @@ def format_search_results(
             
             I couldn't find any results for this query.
             
-            ## Suggestions
+            ## Opportunity to Capture Knowledge!
+            
+            This is an excellent opportunity to create new knowledge on this topic. Consider:
+            
+            ```python
+            await write_note(
+                title="{query.capitalize()}",
+                content=f'''
+                # {query.capitalize()}
+                
+                ## Overview
+                [Summary of what we've discussed about {query}]
+                
+                ## Observations
+                - [category] [First observation about {query}]
+                - [category] [Second observation about {query}]
+                
+                ## Relations
+                - relates_to [[Other Relevant Topic]]
+                '''
+            )
+            ```
+            
+            ## Other Suggestions
             - Try a different search term
             - Broaden your search criteria
             - Check recent activity with `recent_activity(timeframe="1w")`
-            - Create new content with `write_note(...)`
             """)
 
     # Start building our summary with header
@@ -88,32 +110,38 @@ def format_search_results(
     for i, result in enumerate(results.results[:5]):  # Limit to top 5 results
         summary += dedent(f"""
             ## {i + 1}. {result.title}
-            - **Type**: {result.type}
+            - **Type**: {result.type.value}
             """)
 
         # Add creation date if available in metadata
-        if hasattr(result, "metadata") and result.metadata and "created_at" in result.metadata:
+        if result.metadata and "created_at" in result.metadata:
             created_at = result.metadata["created_at"]
             if hasattr(created_at, "strftime"):
-                summary += f"- **Created**: {created_at.strftime('%Y-%m-%d %H:%M')}\n"
+                summary += (
+                    f"- **Created**: {created_at.strftime('%Y-%m-%d %H:%M')}\n"  # pragma: no cover
+                )
             elif isinstance(created_at, str):
                 summary += f"- **Created**: {created_at}\n"
 
         # Add score and excerpt
         summary += f"- **Relevance Score**: {result.score:.2f}\n"
+
         # Add excerpt if available in metadata
-        if hasattr(result, "metadata") and result.metadata and "excerpt" in result.metadata:
-            summary += f"- **Excerpt**: {result.metadata['excerpt']}\n"
+        if result.content:
+            summary += f"- **Excerpt**:\n{result.content}\n"
 
         # Add permalink for retrieving content
-        if hasattr(result, "permalink") and result.permalink:
+        if result.permalink:
             summary += dedent(f"""
-                
                 You can view this content with: `read_note("{result.permalink}")`
                 Or explore its context with: `build_context("memory://{result.permalink}")`
                 """)
+        else:
+            summary += dedent(f"""
+                You can view this file with: `read_file("{result.file_path}")`
+                """)  # pragma: no cover
 
-    # Add next steps
+    # Add next steps with strong write encouragement
     summary += dedent(f"""
         ## Next Steps
         
@@ -122,6 +150,35 @@ def format_search_results(
         - Exclude terms: `search("{query} NOT exclude_term")`
         - View more results: `search("{query}", after_date=None)`
         - Check recent activity: `recent_activity()`
+        
+        ## Synthesize and Capture Knowledge
+        
+        Consider creating a new note that synthesizes what you've learned:
+        
+        ```python
+        await write_note(
+            title="Synthesis of {query.capitalize()} Information",
+            content='''
+            # Synthesis of {query.capitalize()} Information
+            
+            ## Overview
+            [Synthesis of the search results and your conversation]
+            
+            ## Key Insights
+            [Summary of main points learned from these results]
+            
+            ## Observations
+            - [insight] [Important observation from search results]
+            - [connection] [How this connects to other topics]
+            
+            ## Relations
+            - relates_to [[{results.results[0].title if results.results else "Related Topic"}]]
+            - extends [[Another Relevant Topic]]
+            '''
+        )
+        ```
+        
+        Remember that capturing synthesized knowledge is one of the most valuable features of Basic Memory.
         """)
 
     return summary

@@ -5,6 +5,7 @@ from typing import Optional, Any
 
 from frontmatter import Post
 
+from basic_memory.file_utils import has_frontmatter, remove_frontmatter
 from basic_memory.markdown import EntityMarkdown
 from basic_memory.models import Entity, Observation as ObservationModel
 from basic_memory.utils import generate_permalink
@@ -77,6 +78,10 @@ async def schema_to_markdown(schema: Any) -> Post:
     # Extract content and metadata
     content = schema.content or ""
     frontmatter_metadata = dict(schema.entity_metadata or {})
+
+    # if the content contains frontmatter, remove it and merge
+    if has_frontmatter(content):
+        content = remove_frontmatter(content)
 
     # Remove special fields for ordered frontmatter
     for field in ["type", "title", "permalink"]:

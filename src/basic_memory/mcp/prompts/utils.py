@@ -4,95 +4,152 @@ These utilities help format data from various tools into consistent,
 user-friendly markdown summaries.
 """
 
-from basic_memory.schemas.memory import GraphContext
+from dataclasses import dataclass
+from textwrap import dedent
+from typing import List
+
+from basic_memory.schemas.base import TimeFrame
+from basic_memory.schemas.memory import (
+    normalize_memory_url,
+    EntitySummary,
+    RelationSummary,
+    ObservationSummary,
+)
 
 
-def format_context_summary(header: str, context: GraphContext) -> str:
-    """Format GraphContext as a helpful markdown summary.
+@dataclass
+class PromptContextItem:
+    primary_results: List[EntitySummary]
+    related_results: List[EntitySummary | RelationSummary | ObservationSummary]
 
-    This creates a user-friendly markdown response that explains the context
-    and provides guidance on how to explore further.
 
-    Args:
-        header: The title to use for the summary
-        context: The GraphContext object to format
+@dataclass
+class PromptContext:
+    timeframe: TimeFrame
+    topic: str
+    results: List[PromptContextItem]
 
+
+def format_prompt_context(context: PromptContext) -> str:
+    """Format continuation context into a helpful summary.
     Returns:
-        Formatted markdown string with the context summary
+        Formatted continuation summary
     """
-    summary = []
+    if not context.results:
+        return dedent(f"""
+            # Continuing conversation on: {context.topic}
 
-    # Extract URI for reference
-    uri = context.metadata.uri or "a/permalink-value"
-
-    # Add header
-    summary.append(f"{header}")
-    summary.append("")
-
-    # Primary document section
-    if context.primary_results:
-        summary.append(f"## Primary Documents ({len(context.primary_results)})")
-
-        for primary in context.primary_results:
-            summary.append(f"### {primary.title}")
-            summary.append(f"- **Type**: {primary.type}")
-            summary.append(f"- **Path**: {primary.file_path}")
-            summary.append(f"- **Created**: {primary.created_at.strftime('%Y-%m-%d %H:%M')}")
-            summary.append("")
-            summary.append(
-                f'To view this document\'s content: `read_note("{primary.permalink}")` or `read_note("{primary.title}")` '
+            This is a memory retrieval session. 
+            The supplied query did not return any information specifically on this topic.
+            
+            ## Opportunity to Capture New Knowledge!
+            
+            This is an excellent chance to start documenting this topic:
+            
+            ```python
+            await write_note(
+                title="{context.topic}",
+                content=f'''
+                # {context.topic}
+                
+                ## Overview
+                [Summary of what we know about {context.topic}]
+                
+                ## Key Points
+                [Main aspects or components of {context.topic}]
+                
+                ## Observations
+                - [category] [First important observation about {context.topic}]
+                - [category] [Second observation about {context.topic}]
+                
+                ## Relations
+                - relates_to [[Related Topic]]
+                - part_of [[Broader Context]]
+                '''
             )
-            summary.append("")
-    else:
-        summary.append("\nNo primary documents found.")
+            ```
+            
+            ## Other Options
+            
+            Please use the available basic-memory tools to gather relevant context before responding.
+            You can also:
+            - Try a different search term
+            - Check recent activity with `recent_activity(timeframe="1w")`
+            """)
 
-    # Related documents section
-    if context.related_results:
-        summary.append(f"## Related Documents ({len(context.related_results)})")
+    # Start building our summary with header - add knowledge capture emphasis
+    summary = dedent(f"""
+        # Continuing conversation on: {context.topic}
 
-        # Group by relation type for better organization
-        relation_types = {}
-        for rel in context.related_results:
-            if hasattr(rel, "relation_type"):
-                rel_type = rel.relation_type  # pyright: ignore
-                if rel_type not in relation_types:
-                    relation_types[rel_type] = []
-                relation_types[rel_type].append(rel)
+        This is a memory retrieval session. 
+        
+        Please use the available basic-memory tools to gather relevant context before responding. 
+        Start by executing one of the suggested commands below to retrieve content.
 
-        # Display relations grouped by type
-        for rel_type, relations in relation_types.items():
-            summary.append(f"### {rel_type.replace('_', ' ').title()} ({len(relations)})")
+        Here's what I found from previous conversations:
+        
+        > **Knowledge Capture Recommendation:** As you continue this conversation, actively look for opportunities to record new information, decisions, or insights that emerge. Use `write_note()` to document important context.
+        """)
 
-            for rel in relations:
-                if hasattr(rel, "to_id") and rel.to_id:
-                    summary.append(f"- **{rel.to_id}**")
-                    summary.append(f'  - View document: `read_note("{rel.to_id}")` ')
-                    summary.append(
-                        f'  - Explore connections: `build_context("memory://{rel.to_id}")` '
+    # Track what we've added to avoid duplicates
+    added_permalinks = set()
+    sections = []
+
+    # Process each context
+    for context in context.results:  # pyright: ignore
+        for primary in context.primary_results:  # pyright: ignore
+            if primary.permalink not in added_permalinks:
+                primary_permalink = primary.permalink
+
+                added_permalinks.add(primary_permalink)
+
+                memory_url = normalize_memory_url(primary_permalink)
+                section = dedent(f"""
+                    --- {memory_url}
+                
+                    ## {primary.title}
+                    - **Type**: {primary.type}
+                    """)
+
+                # Add creation date
+                section += f"- **Created**: {primary.created_at.strftime('%Y-%m-%d %H:%M')}\n"
+
+                # Add content snippet
+                if hasattr(primary, "content") and primary.content:  # pyright: ignore
+                    content = primary.content or ""  # pyright: ignore
+                    if content:
+                        section += f"\n**Excerpt**:\n{content}\n"
+
+                section += dedent(f"""
+    
+                    You can read this document with: `read_note("{primary_permalink}")`
+                    """)
+                sections.append(section)
+
+        if context.related_results:  # pyright: ignore
+            section += dedent(  # pyright: ignore
+                """   
+                ## Related Context
+                """
+            )
+
+            for related in context.related_results:  # pyright: ignore
+                section_content = dedent(f"""
+                    - type: **{related.type}**
+                    - title: {related.title}
+                    """)
+                if related.permalink:
+                    section_content += (
+                        f'You can view this document with: `read_note("{related.permalink}")`'
                     )
                 else:
-                    summary.append(f"- **Unresolved relation**: {rel.permalink}")
-            summary.append("")
+                    section_content += (
+                        f'You can view this file with: `read_file("{related.file_path}")`'
+                    )
 
-    # Next steps section
-    summary.append("## Next Steps")
-    summary.append("Here are some ways to explore further:")
+                section += section_content
+                sections.append(section)
 
-    search_term = uri.split("/")[-1]
-    summary.append(f'- **Search related topics**: `search({{"text": "{search_term}"}})`')
-
-    summary.append('- **Check recent changes**: `recent_activity(timeframe="3 days")`')
-    summary.append(f'- **Explore all relations**: `build_context("memory://{uri}/*")`')
-
-    # Tips section
-    summary.append("")
-    summary.append("## Tips")
-    summary.append(
-        f'- For more specific context, increase depth: `build_context("memory://{uri}", depth=2)`'
-    )
-    summary.append(
-        "- You can follow specific relation types using patterns like: `memory://document/relation-type/*`"
-    )
-    summary.append("- Look for connected documents by checking relations between them")
-
-    return "\n".join(summary)
+    # Add all sections
+    summary += "\n".join(sections)
+    return summary

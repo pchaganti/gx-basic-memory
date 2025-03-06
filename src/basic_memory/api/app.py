@@ -1,5 +1,10 @@
 """FastAPI application for basic-memory knowledge graph API."""
 
+# Suppress logfire warnings
+import os
+
+os.environ["LOGFIRE_IGNORE_NO_CONFIG"] = "1"
+
 from contextlib import asynccontextmanager
 
 import logfire
@@ -43,6 +48,12 @@ app.include_router(resource.router)
 @app.exception_handler(Exception)
 async def exception_handler(request, exc):  # pragma: no cover
     logger.exception(
-        f"An unhandled exception occurred for request '{request.url}', exception: {exc}"
+        "API unhandled exception",
+        url=str(request.url),
+        method=request.method,
+        client=request.client.host if request.client else None,
+        path=request.url.path,
+        error_type=type(exc).__name__,
+        error=str(exc),
     )
     return await http_exception_handler(request, HTTPException(status_code=500, detail=str(exc)))

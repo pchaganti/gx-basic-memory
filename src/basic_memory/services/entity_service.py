@@ -144,7 +144,7 @@ class EntityService(BaseService[EntityModel]):
         post = await schema_to_markdown(schema)
 
         # write file
-        final_content = frontmatter.dumps(post)
+        final_content = frontmatter.dumps(post, sort_keys=False)
         checksum = await self.file_service.write_file(file_path, final_content)
 
         # parse entity from file
@@ -171,7 +171,13 @@ class EntityService(BaseService[EntityModel]):
                 entity = await self.get_by_permalink(permalink_or_id)
             else:
                 entities = await self.get_entities_by_id([permalink_or_id])
-                assert len(entities) == 1, f"Expected 1 entity, got {len(entities)}"
+                if len(entities) != 1:  # pragma: no cover
+                    logger.error(
+                        "Entity lookup error", entity_id=permalink_or_id, found_count=len(entities)
+                    )
+                    raise ValueError(
+                        f"Expected 1 entity with ID {permalink_or_id}, got {len(entities)}"
+                    )
                 entity = entities[0]
 
             # Delete file first
