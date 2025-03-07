@@ -20,6 +20,14 @@ Basic Memory lets you build persistent knowledge through natural conversations w
 Claude, while keeping everything in simple Markdown files on your computer. It uses the Model Context Protocol (MCP) to
 enable any compatible LLM to read and write to your local knowledge base.
 
+LLMs can build context from local knowledge bases.
+
+![Example Gif](docs/attachments/Obsidian-CoffeeKnowledgeBase-examples-overlays.gif)
+
+Basic Memory provides persistent contextual awareness across sessions through a structured knowledge graph.
+The system enables LLMs to access and reference prior conversations, track semantic relationships between concepts, and
+incorporate human edits made directly to knowledge files.
+
 ## Quick Start
 
 ```bash
@@ -39,17 +47,42 @@ uv install basic-memory
     }
   }
 }
-
-# Start real-time sync
-basic-memory sync --watch
-
 # Now in Claude Desktop, you can:
 # - Write notes with "Create a note about coffee brewing methods"
 # - Read notes with "What do I know about pour over coffee?"
 # - Search with "Find information about Ethiopian beans"
 
-# View files shared context via files in ~/basic-memory 
 ```
+
+You can view shared context via files in `~/basic-memory` (default directory location).
+
+You can also install the cli tools to sync files or manage projects.
+
+```bash 
+uv tool install basic-memory
+
+# create a new project in a different directory
+basic-memory project add coffee ./examples/coffee
+
+# you can set the project to the default 
+basic-memory project default coffee
+```
+
+View available projects
+
+```bash 
+basic-memory project list
+                             Basic Memory Projects
+┏━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┓
+┃ Name   ┃ Path                                             ┃ Default ┃ Active ┃
+┡━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━┩
+│ main   │ ~/basic-memory                                   │ ✓       │ ✓      │
+│ coffee │ ~/dev/basicmachines/basic-memory/examples/coffee │         │        │
+└────────┴──────────────────────────────────────────────────┴─────────┴────────┘
+```
+
+Basic Memory will write notes in Markdown format. Open you project directory in your text editor to view project files
+while you have conversations with an LLM.
 
 ## Why Basic Memory?
 
@@ -61,7 +94,8 @@ starts fresh, without the context or knowledge from previous ones. Current worka
 - Vector databases require complex setups and often live in the cloud
 - Knowledge graphs typically need specialized tools to maintain
 
-Basic Memory solves these problems with a simple approach: structured Markdown files that both humans and LLMs can read
+Basic Memory addresses these problems with a simple approach: structured Markdown files that both humans and LLMs can
+read
 and write to. The key advantages:
 
 - **Local-first:** All knowledge stays in files you control

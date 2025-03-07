@@ -20,7 +20,7 @@ def ai_assistant_guide() -> str:
         A focused guide on Basic Memory usage.
     """
     logger.info("Loading AI assistant guide resource")
-    guide_doc = Path(__file__).parent.parent.parent.parent.parent / "data/ai_assistant_guide.md"
+    guide_doc = Path(__file__).parent.parent.parent.parent.parent / "static" /" ai_assistant_guide.md"
     content = guide_doc.read_text()
     logger.info(f"Loaded AI assistant guide ({len(content)} chars)")
     return content
