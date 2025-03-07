@@ -6,6 +6,7 @@ from typing import List, Optional, Set
 from dateparser import parse
 from fastapi import BackgroundTasks
 from loguru import logger
+from sqlalchemy import text
 
 from basic_memory.models import Entity
 from basic_memory.repository import EntityRepository
@@ -39,9 +40,10 @@ class SearchService:
 
     async def reindex_all(self, background_tasks: Optional[BackgroundTasks] = None) -> None:
         """Reindex all content from database."""
-        logger.info("Starting full reindex")
 
+        logger.info("Starting full reindex")
         # Clear and recreate search index
+        await self.repository.execute_query(text("DROP TABLE IF EXISTS search_index"), params={})
         await self.init_search_index()
 
         # Reindex all entities

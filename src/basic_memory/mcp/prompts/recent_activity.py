@@ -6,7 +6,6 @@ These prompts help users see what has changed in their knowledge base recently.
 from typing import Annotated
 
 from loguru import logger
-import logfire
 from pydantic import Field
 
 from basic_memory.mcp.prompts.utils import format_prompt_context, PromptContext, PromptContextItem
@@ -20,7 +19,6 @@ from basic_memory.schemas.search import SearchItemType
     name="Share Recent Activity",
     description="Get recent activity from across the knowledge base",
 )
-@logfire.instrument(extract_args=False)
 async def recent_activity_prompt(
     timeframe: Annotated[
         TimeFrame,

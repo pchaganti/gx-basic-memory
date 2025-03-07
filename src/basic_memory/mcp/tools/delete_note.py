@@ -1,5 +1,3 @@
-import logfire
-
 from basic_memory.mcp.tools.utils import call_delete
 
 
@@ -9,7 +7,6 @@ from basic_memory.schemas import DeleteEntitiesResponse
 
 
 @mcp.tool(description="Delete a note by title or permalink")
-@logfire.instrument(extract_args=False)
 async def delete_note(identifier: str) -> bool:
     """Delete a note from the knowledge base.
 

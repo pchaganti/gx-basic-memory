@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Annotated, Set, Optional
 
-import logfire
 import typer
 from loguru import logger
 from rich.console import Console
@@ -208,7 +207,6 @@ async def get_markdown_processor() -> MarkdownProcessor:
 
 
 @import_app.command(name="chatgpt", help="Import conversations from ChatGPT JSON export.")
-@logfire.instrument(extract_args=False)
 def import_chatgpt(
     conversations_json: Annotated[
         Path, typer.Argument(help="Path to ChatGPT conversations.json file")
