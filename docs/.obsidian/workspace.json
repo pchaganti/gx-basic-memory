@@ -11,10 +11,14 @@
             "id": "cd58e5dfc86465e3",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "Getting Started with Basic Memory.md",
+                "mode": "preview",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "New tab"
+              "title": "Getting Started with Basic Memory"
             }
           }
         ]
@@ -162,6 +166,8 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "a06f3217ff27ae41",
-  "lastOpenFiles": []
+  "active": "cd58e5dfc86465e3",
+  "lastOpenFiles": [
+    "User Guide.md"
+  ]
 }

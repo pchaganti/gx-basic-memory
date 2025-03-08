@@ -107,16 +107,22 @@ This is useful for:
 
 ### Example
 
-Choose "Continue Conversation"
+Claude Desktop lets you send a prompt to provide context. You can use this at the beginning of a chat to preload context without needing to copy paste all the time. By using one of the supplied prompts, Basic Memory will search the knowledge base and give the AI instructions for how to build context. 
+
+Choose "Continue Conversation":
+
 ![[prompt 1.png|500]]
 
-Enter a topic
+Enter a topic:
+
 ![[prompt2.png|500]]
 
-Give instructions
+Give optional additional instructions:
+
 ![[prompt3.png|500]]
 
-Claude can build context from the supplied topic.
+Claude can build context from the supplied topic. This works independently of Claude Project information. All the context comes from your local knowledge base. 
+
 ![[prompt4.png|500]]
 
 
