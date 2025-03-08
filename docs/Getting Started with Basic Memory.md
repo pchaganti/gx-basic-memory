@@ -117,6 +117,10 @@ Claude will:
 2. Summarize the key findings
 3. Offer to explore specific documents in more detail
 
+<<<<<<< HEAD
+=======
+See [[User Guide#Using Special Prompts]] for further information.
+>>>>>>> pre-beta-prep
 ## Using Your Knowledge Base
 
 ### Referencing Knowledge
