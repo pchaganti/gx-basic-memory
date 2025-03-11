@@ -9,7 +9,7 @@ permalink: docs/getting-started
 This guide will help you install Basic Memory, configure it with Claude Desktop, and create your first knowledge notes
 through conversations.
 
-Basic Memory uses the [Model Context Protol](https://modelcontextprotocol.io/introduction) (MCP) to connect with LLMs. It can be used with any service that supports  the MCP, but Claude Desktop works especially well. 
+Basic Memory uses the [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) to connect with LLMs. It can be used with any service that supports the MCP, but Claude Desktop works especially well. 
 
 ## Installation
 
@@ -23,19 +23,29 @@ uv install basic-memory
 pip install basic-memory
 ```
 
-> **Important**: You need to install Basic Memory using one of the commands above to use the command line tools. The
-`uvx` command mentioned in the Claude Desktop configuration is only for enabling Claude to access Basic Memory.
+> **Important**: You need to install Basic Memory using one of the commands above to use the command line tools.
 
 ### 2. Configure Claude Desktop
 
-To enable Claude to read and write to your knowledge base, edit the Claude Desktop configuration file (usually at
-`~/Library/Application Support/Claude/claude_desktop_config.json`):
+Claude Desktop often has trouble finding executables in your user path. Follow these steps for a reliable setup:
+
+#### Step 1: Find the absolute path to uvx
+
+Open Terminal and run:
+```bash
+which uvx
+```
+This will show you the full path (e.g., `/Users/yourusername/.cargo/bin/uvx`).
+
+#### Step 2: Edit Claude Desktop Configuration
+
+Edit the configuration file located at `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "basic-memory": {
-      "command": "uvx",
+      "command": "/absolute/path/to/uvx",
       "args": [
         "basic-memory",
         "mcp"
@@ -45,7 +55,13 @@ To enable Claude to read and write to your knowledge base, edit the Claude Deskt
 }
 ```
 
-> **Note**: This configuration uses `uvx` to execute Basic Memory without requiring a full installation in the system python environment.
+Replace `/absolute/path/to/uvx` with the actual path you found in Step 1.
+
+> **Note**: Using absolute paths is necessary because Claude Desktop cannot access binaries in your user PATH.
+
+#### Step 3: Restart Claude Desktop
+
+Close and reopen Claude Desktop for the changes to take effect.
 
 ### 3. Start the Sync Service
 
@@ -61,39 +77,81 @@ basic-memory sync --watch
 
 The `--watch` flag enables automatic detection of file changes, keeping your knowledge base current.
 
-### ### Staying Updated
+### 4. Staying Updated
 
 To update Basic Memory when new versions are released:
 
 ```bash
-# Update with uv 
+# Update with uv (recommended)
 uv tool upgrade basic-memory 
 
 # Or with pip 
-pip install --upgrade basic-memory`
+pip install --upgrade basic-memory
 ```
 
-We recommend checking for updates periodically, especially after announcements of new releases.
+> **Note**: After updating, you'll need to restart Claude Desktop and your sync process for changes to take effect.
 
-> **Note**: After updating, you'll need to restart Claude Desktop for it to use the updated version.
+## Troubleshooting Installation
+
+### Common Issues
+
+#### Claude Says "No Basic Memory Tools Available"
+
+If Claude cannot find Basic Memory tools:
+
+1. **Check absolute paths**: Ensure you're using complete absolute paths to uvx in the Claude Desktop configuration
+2. **Verify installation**: Run `basic-memory --version` in Terminal to confirm Basic Memory is installed
+3. **Restart applications**: Restart both Terminal and Claude Desktop after making configuration changes
+4. **Check sync status**: Ensure `basic-memory sync --watch` is running
+
+#### Permission Issues
+
+If you encounter permission errors:
+1. Check that Basic Memory has access to create files in your home directory
+2. Ensure Claude Desktop has permission to execute the uvx command
 
 ## Creating Your First Knowledge Note
 
-1. **Start a conversation in Claude Desktop** about any topic:
+1. **Start the sync process** in a Terminal window:
+   ```bash
+   basic-memory sync --watch
+   ```
+   Keep this running in the background.
+
+2. **Open Claude Desktop** and start a new conversation.
+
+3. **Have a natural conversation** about any topic:
    ```
    You: "Let's talk about coffee brewing methods I've been experimenting with."
+   Claude: "I'd be happy to discuss coffee brewing methods..."
+   You: "I've found that pour over gives more flavor clarity than French press..."
    ```
 
-2. **Have a natural conversation** about the topic
-
-3. **Ask Claude to create a note**:
+4. **Ask Claude to create a note**:
    ```
    You: "Could you create a note summarizing what we've discussed about coffee brewing?"
    ```
 
-4. **Claude creates a Markdown file** in your `~/basic-memory` directory
+5. **Confirm note creation**:
+   Claude will confirm when the note has been created and where it's stored.
 
-5. **View and edit the file** with any text editor or Obsidian
+6. **View the created file** in your `~/basic-memory` directory using any text editor or Obsidian.
+   The file structure will look similar to:
+   ```markdown
+   ---
+   title: Coffee Brewing Methods
+   permalink: coffee-brewing-methods
+   ---
+   
+   # Coffee Brewing Methods
+   
+   ## Observations
+   - [method] Pour over provides more clarity...
+   - [technique] Water temperature at 205°F...
+   
+   ## Relations
+   - relates_to [[Other Coffee Topics]]
+   ```
 
 ## Using Special Prompts
 
