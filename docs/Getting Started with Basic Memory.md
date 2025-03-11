@@ -6,7 +6,10 @@ permalink: docs/getting-started
 
 # Getting Started with Basic Memory
 
-This guide will help you install Basic Memory, configure it with Claude Desktop, and create your first knowledge notes through conversations.
+This guide will help you install Basic Memory, configure it with Claude Desktop, and create your first knowledge notes
+through conversations.
+
+Basic Memory uses the [Model Context Protol](https://modelcontextprotocol.io/introduction) (MCP) to connect with LLMs. It can be used with any service that supports  the MCP, but Claude Desktop works especially well. 
 
 ## Installation
 
@@ -20,11 +23,13 @@ uv install basic-memory
 pip install basic-memory
 ```
 
-> **Important**: You need to install Basic Memory using one of the commands above to use the command line tools. The `uvx` command mentioned in the Claude Desktop configuration is only for enabling Claude to access Basic Memory.
+> **Important**: You need to install Basic Memory using one of the commands above to use the command line tools. The
+`uvx` command mentioned in the Claude Desktop configuration is only for enabling Claude to access Basic Memory.
 
 ### 2. Configure Claude Desktop
 
-To enable Claude to read and write to your knowledge base, edit the Claude Desktop configuration file (usually at `~/Library/Application Support/Claude/claude_desktop_config.json`):
+To enable Claude to read and write to your knowledge base, edit the Claude Desktop configuration file (usually at
+`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
@@ -40,7 +45,7 @@ To enable Claude to read and write to your knowledge base, edit the Claude Deskt
 }
 ```
 
-This configuration uses `uvx` to execute Basic Memory without requiring a full installation in Claude's environment.
+> **Note**: This configuration uses `uvx` to execute Basic Memory without requiring a full installation in the system python environment.
 
 ### 3. Start the Sync Service
 
@@ -55,6 +60,22 @@ basic-memory sync --watch
 ```
 
 The `--watch` flag enables automatic detection of file changes, keeping your knowledge base current.
+
+### ### Staying Updated
+
+To update Basic Memory when new versions are released:
+
+```bash
+# Update with uv 
+uv tool upgrade basic-memory 
+
+# Or with pip 
+pip install --upgrade basic-memory`
+```
+
+We recommend checking for updates periodically, especially after announcements of new releases.
+
+> **Note**: After updating, you'll need to restart Claude Desktop for it to use the updated version.
 
 ## Creating Your First Knowledge Note
 
@@ -87,6 +108,7 @@ You: "Let's continue our conversation about coffee brewing."
 ```
 
 This prompt triggers Claude to:
+
 1. Search your knowledge base for relevant content about coffee brewing
 2. Build context from these documents
 3. Resume the conversation with full awareness of previous discussions
@@ -100,6 +122,7 @@ You: "What have we been discussing recently?"
 ```
 
 This prompt causes Claude to:
+
 1. Retrieve documents modified in the recent past
 2. Summarize the topics and main points
 3. Offer to continue any of those discussions
@@ -113,14 +136,13 @@ You: "Find information about pour over coffee methods."
 ```
 
 Claude will:
+
 1. Search your knowledge base for relevant documents
 2. Summarize the key findings
 3. Offer to explore specific documents in more detail
 
-<<<<<<< HEAD
-=======
 See [[User Guide#Using Special Prompts]] for further information.
->>>>>>> pre-beta-prep
+
 ## Using Your Knowledge Base
 
 ### Referencing Knowledge

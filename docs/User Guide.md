@@ -6,7 +6,8 @@ permalink: docs/user-guide
 
 # User Guide
 
-This guide explains how to effectively use Basic Memory in your daily workflow, from creating knowledge through conversations to building a rich semantic network.
+This guide explains how to effectively use Basic Memory in your daily workflow, from creating knowledge through
+conversations to building a rich semantic network.
 
 ## Basic Memory Workflow
 
@@ -45,7 +46,8 @@ You can create files directly:
 
 ## Using Special Prompts
 
-Basic Memory includes several special prompts that help you leverage your knowledge base more effectively. In apps like Claude Desktop, these prompts trigger specific tools to search and analyze your knowledge base.
+Basic Memory includes several special prompts that help you leverage your knowledge base more effectively. In apps like
+Claude Desktop, these prompts trigger specific tools to search and analyze your knowledge base.
 
 ### Continue Conversation
 
@@ -56,6 +58,7 @@ You: Let's continue our conversation about authentication systems.
 ```
 
 Behind the scenes:
+
 - Claude searches your knowledge base for content about "authentication systems"
 - It retrieves relevant documents and their relations
 - It analyzes the context to understand where you left off
@@ -63,6 +66,7 @@ Behind the scenes:
 - It can then resume the conversation with all that context
 
 This is particularly useful when:
+
 - Starting a new session days or weeks after your last discussion
 - Switching between multiple ongoing projects
 - Building on previous work without repeating yourself
@@ -76,12 +80,14 @@ You: What have we been discussing recently?
 ```
 
 Behind the scenes:
+
 - Claude retrieves documents modified recently
 - It analyzes patterns and themes
 - It summarizes the key topics and changes
 - It offers to continue working on any of those topics
 
 This is useful for:
+
 - Coming back after a break
 - Getting a quick reminder of ongoing projects
 - Deciding what to work on next
@@ -95,19 +101,20 @@ You: Find information about JWT authentication in my notes.
 ```
 
 Behind the scenes:
+
 - Claude performs a semantic search for "JWT authentication"
 - It retrieves and ranks the most relevant documents
 - It summarizes the key findings
 - It offers to explore specific areas in more detail
 
 This is useful for:
+
 - Finding specific information quickly
 - Exploring what you know about a topic
 - Starting work on an existing topic
 
 ### Example
 
-<<<<<<< HEAD
 Choose "Continue Conversation"
 ![[prompt 1.png|500]]
 
@@ -117,9 +124,9 @@ Enter a topic
 Give instructions
 ![[prompt3.png|500]]
 
-Claude can build context from the supplied topic.
-=======
-Claude Desktop lets you send a prompt to provide context. You can use this at the beginning of a chat to preload context without needing to copy paste all the time. By using one of the supplied prompts, Basic Memory will search the knowledge base and give the AI instructions for how to build context. 
+Claude Desktop lets you send a prompt to provide context. You can use this at the beginning of a chat to preload context
+without needing to copy paste all the time. By using one of the supplied prompts, Basic Memory will search the knowledge
+base and give the AI instructions for how to build context.
 
 Choose "Continue Conversation":
 
@@ -133,11 +140,10 @@ Give optional additional instructions:
 
 ![[prompt3.png|500]]
 
-Claude can build context from the supplied topic. This works independently of Claude Project information. All the context comes from your local knowledge base. 
+Claude can build context from the supplied topic. This works independently of Claude Project information. All the
+context comes from your local knowledge base.
 
->>>>>>> pre-beta-prep
 ![[prompt4.png|500]]
-
 
 ## Searching Your Knowledge Base
 
@@ -161,7 +167,8 @@ Use the dedicated search prompt for more focused searches:
 You: Search for "JWT authentication"
 ```
 
-This triggers a specialized search that returns precise results with document titles, relevant excerpts, and offers to explore specific documents.
+This triggers a specialized search that returns precise results with document titles, relevant excerpts, and offers to
+explore specific documents.
 
 ### Boolean Search
 
@@ -198,6 +205,7 @@ Basic Memory supports standard boolean operators:
   This finds documents about web development that mention either Python or JavaScript
 
 Boolean search is particularly useful for:
+
 - Narrowing down results in large knowledge bases
 - Finding specific combinations of concepts
 - Excluding irrelevant content from search results
@@ -212,6 +220,7 @@ You: Look at memory://auth* and summarize all authentication approaches.
 ```
 
 Pattern matching supports:
+
 - **Wildcards**: `memory://auth*` matches all permalinks starting with "auth"
 - **Path patterns**: `memory://project/*/auth` matches auth documents in any project subfolder
 - **Relation traversal**: `memory://auth-system/implements/*` finds all documents that implement the auth system
@@ -225,6 +234,7 @@ You: Search for JWT authentication and then follow all implementation relations.
 ```
 
 This builds a complete picture by:
+
 1. Finding documents about JWT authentication
 2. Following implementation relationships from those documents
 3. Building a complete picture of how JWT is implemented across your system
@@ -232,6 +242,7 @@ This builds a complete picture by:
 ### Search Best Practices
 
 For effective searching:
+
 1. **Be specific** with search terms and phrases
 2. **Use boolean operators** to refine searches and find precise information
 3. **Use technical terms** when searching for technical content
@@ -292,10 +303,12 @@ permalink: authentication-approaches
 A comparison of authentication methods.
 
 ## Observations
+
 - [approach] JWT provides stateless authentication #security
 - [limitation] Session tokens require server-side storage #infrastructure
 
 ## Relations
+
 - implements [[Security Requirements]]
 - affects [[User Login Flow]]
 ```
@@ -319,11 +332,13 @@ When creating or editing notes, build connections:
 
 ```markdown
 ## Relations
+
 - implements [[Security Requirements]]
 - depends_on [[User Authentication]]
 ```
 
 Relations can be:
+
 - Hierarchical (part_of, contains)
 - Directional (implements, depends_on)
 - Associative (relates_to, similar_to)
@@ -445,16 +460,15 @@ basic-memory import claude conversations
 basic-memory import chatgpt
 ```
 
+## Multiple Projects
 
-## Multiple Projects  
-  
 Basic Memory supports managing multiple separate knowledge bases through projects. This feature allows you to maintain  
-separate knowledge graphs for different purposes (e.g., personal notes, work projects, research topics).  
+separate knowledge graphs for different purposes (e.g., personal notes, work projects, research topics).
 
 Basic Memory keeps a list of projects in a config file: ` ~/.basic-memory/config.json`
-  
-### Managing Projects  
-  
+
+### Managing Projects
+
 ```bash  
 # List all configured projects  
 basic-memory project list  
@@ -471,11 +485,11 @@ basic-memory project remove personal
 # Show current project  
 basic-memory project current  
 ```  
-  
-### Using Projects in Commands  
-  
-All commands support the `--project` flag to specify which project to use:  
-  
+
+### Using Projects in Commands
+
+All commands support the `--project` flag to specify which project to use:
+
 ```bash  
 # Sync a specific project  
 basic-memory --project=work sync  
@@ -483,20 +497,21 @@ basic-memory --project=work sync
 # Run MCP server for a specific project  
 basic-memory --project=personal mcp  
 ```  
-  
-You can also set the `BASIC_MEMORY_PROJECT` environment variable:  
-  
+
+You can also set the `BASIC_MEMORY_PROJECT` environment variable:
+
 ```bash  
 BASIC_MEMORY_PROJECT=work basic-memory sync  
 ```  
-  
-### Project Isolation  
-  
-Each project maintains:  
-  
-- Its own collection of markdown files in the specified directory  
-- A separate SQLite database for that project  
+
+### Project Isolation
+
+Each project maintains:
+
+- Its own collection of markdown files in the specified directory
+- A separate SQLite database for that project
 - Complete knowledge graph isolation from other projects
+
 ## Workflow Tips
 
 1. Run sync in watch mode for automatic updates
@@ -512,6 +527,7 @@ Each project maintains:
 ### Sync Issues
 
 If changes aren't showing up:
+
 1. Verify `basic-memory sync --watch` is running
 2. Run `basic-memory status` to check system state
 3. Try a manual sync with `basic-memory sync`
@@ -519,6 +535,7 @@ If changes aren't showing up:
 ### Missing Content
 
 If content isn't found:
+
 1. Check the exact path and permalink
 2. Try searching with more general terms
 3. Verify the file exists in your knowledge base
@@ -526,11 +543,13 @@ If content isn't found:
 ### Relation Problems
 
 If relations aren't working:
+
 1. Ensure exact title matching in [[WikiLinks]]
 2. Check for typos in relation types
 3. Verify both documents exist
 
 ## Relations
+
 - implements [[Knowledge Format]] (How knowledge is structured)
 - relates_to [[Getting Started with Basic Memory]] (Setup and first steps)
 - relates_to [[Canvas]] (Creating visual knowledge maps)

@@ -3,7 +3,7 @@ title: AI Assistant Guide
 type: note
 permalink: docs/ai-assistant-guide
 ---
-
+> Note: This is an optional document that can be copy/pasted into the project knowledge for an LLM to provide a full description of how it can work with Basic Memory. It is provided as a helpful resource. The tools contain extensive usage description prompts with enable the LLM to understand them. 
 # AI Assistant Guide for Basic Memory
 
 This guide helps you, the AI assistant, use Basic Memory tools effectively when working with users. It covers reading, writing, and navigating knowledge through the Model Context Protocol (MCP).
