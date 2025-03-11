@@ -10,7 +10,8 @@ Basic Memory lets you build persistent knowledge through natural conversations w
 Claude, while keeping everything in simple Markdown files on your computer. It uses the Model Context Protocol (MCP) to
 enable any compatible LLM to read and write to your local knowledge base.
 
-LLMs can build context from local knowledge bases.
+- Website: http://basicmachines.co
+- Documentation: http://memory.basicmachines.co
 
 ![Example Gif](docs/attachments/Obsidian-CoffeeKnowledgeBase-examples-overlays.gif)
 
