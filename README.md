@@ -5,12 +5,6 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![smithery badge](https://smithery.ai/badge/@basicmachines-co/basic-memory)](https://smithery.ai/server/@basicmachines-co/basic-memory)
 
-## Glama.ai
-
-<a href="https://glama.ai/mcp/servers/o90kttu9ym">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/o90kttu9ym/badge" alt="basic-memory MCP server" />
-</a>
-
 # Basic Memory
 
 Basic Memory lets you build persistent knowledge through natural conversations with Large Language Models (LLMs) like
@@ -26,7 +20,7 @@ enable any compatible LLM to read and write to your local knowledge base.
 - Notes are saved locally as Markdown files in real time
 - No project knowledge or special prompting required
 
-![Claude-Obsidian-Demo.mp4](docs/attachments/Claude-Obsidian-Demo.mp4)
+[![Claude-Obsidian-Demo.mp4](docs/attachments/Claude-Obsidian-Demo.mp4)]
 
 ## Quick Start
 
@@ -67,6 +61,12 @@ npx -y @smithery/cli install @basicmachines-co/basic-memory --client claude
 
 This installs and configures Basic Memory without requiring manual edits to the Claude Desktop configuration file. The
 Smithery server hosts the MCP server component, while your data remains stored locally as Markdown files.
+
+### Glama.ai
+
+<a href="https://glama.ai/mcp/servers/o90kttu9ym">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/o90kttu9ym/badge" alt="basic-memory MCP server" />
+</a>
 
 ### CLI Tools
 
