@@ -147,36 +147,15 @@ tags:
 - affects [[Flavor Extraction]]
 ```
 
-The note embeds semantic content and links to other topics via simple Markdown
-formatting.
+The note embeds semantic content and links to other topics via simple Markdown formatting.
 
-3. You see this file on your computer in real time in the `~/$HOME/basic-memory` directory:
+3. You see this file on your computer in real time in the current project directory (default `~/$HOME/basic-memory`).
 
-```markdown
----
-title: Coffee Brewing Methods
-permalink: coffee-brewing-methods
-type: note
----
+- Realtime sync can be enabled via running `basic-memory sync --watch`
 
-# Coffee Brewing Methods
+4. MCP-compatible LLMs can access this knowledge.
 
-## Observations
-
-- [method] Pour over provides more clarity and highlights subtle flavors
-- [technique] Water temperature at 205°F (96°C) extracts optimal compounds
-- [principle] Freshly ground beans preserve aromatics and flavor
-- [preference] Medium-light roasts work best for pour over # Added by you
-
-## Relations
-
-- relates_to [[Coffee Bean Origins]]
-- requires [[Proper Grinding Technique]]
-- affects [[Flavor Extraction]]
-- pairs_with [[Breakfast Pastries]]  # Added by you
-```
-
-4. In a new chat with the LLM, you can reference this knowledge:
+5. In a new chat with the LLM, you can reference a topic:
 
 ```
 Look at `coffee-brewing-methods` for context about pour over coffee
@@ -196,15 +175,14 @@ Following relation 'requires [[Proper Grinding Technique]]':
 - Impact of consistent particle size on extraction
 ```
 
-Each related document can lead to more context, building a rich semantic understanding of your knowledge base. All of
-this context comes from standard Markdown files that both humans and LLMs can read and write.
+Each related document can lead to more context, building a rich semantic understanding of your knowledge base.
 
-Every time the LLM writes notes, they are saved in local Markdown files that you can:
+This creates a two-way flow where:
 
-- Edit in any text editor
-- Version via git
-- Back up normally
-- Share when you want to
+- Humans write and edit Markdown files
+- LLMs read and write through the MCP protocol
+- Sync keeps everything consistent
+- All knowledge stays in local files.
 
 ## Technical Implementation
 
@@ -283,73 +261,6 @@ Examples of relations:
 - inspired_by [[Japanese Coffee Culture]]
 - documented_in [[Coffee Journal]]
 ```
-
-### Complete Example
-
-Here's a complete example of a note with frontmatter, observations, and relations:
-
-```markdown
----
-title: Pour Over Coffee Method
-type: note
-permalink: pour-over-coffee-method
-tags:
-- brewing
-- coffee
-- techniques
----
-
-# Pour Over Coffee Method
-
-This note documents the pour over brewing method and my experiences with it.
-
-## Overview
-
-The pour over method involves pouring hot water through coffee grounds in a filter. The water drains through the coffee
-and filter into a carafe or cup.
-
-## Observations
-
-- [equipment] Hario V60 dripper produces clean, bright cup #gear
-- [technique] Pour in concentric circles to ensure even extraction
-- [ratio] 1:16 coffee-to-water ratio works best for balanced flavor
-- [timing] Total brew time should be 2:30-3:00 minutes for medium roast
-- [temperature] Water at 205°F (96°C) extracts optimal flavor compounds
-- [grind] Medium-fine grind similar to table salt texture
-- [tip] 30-45 second bloom with double the coffee weight in water
-- [result] Produces a cleaner cup with more distinct flavor notes than immersion methods
-
-## Relations
-
-- complements [[Light Roast Beans]]
-- requires [[Gooseneck Kettle]]
-- contrasts_with [[French Press Method]]
-- pairs_with [[Breakfast Pastries]]
-- documented_in [[Brewing Journal]]
-- inspired_by [[Japanese Brewing Techniques]]
-- affects [[Flavor Extraction]]
-- part_of [[Morning Ritual]]
-```
-
-Basic Memory will parse the Markdown and derive the semantic relationships in the content. When you run
-`basic-memory sync`:
-
-1. New and changed files are detected
-2. Markdown patterns become semantic knowledge:
-
-- `[tech]` becomes a categorized observation
-- `[[WikiLink]]` creates a relation in the knowledge graph
-- Tags and metadata are indexed for search
-
-3. A SQLite database maintains these relationships for fast querying
-4. MCP-compatible LLMs can access this knowledge via memory:// URLs
-
-This creates a two-way flow where:
-
-- Humans write and edit Markdown files
-- LLMs read and write through the MCP protocol
-- Sync keeps everything consistent
-- All knowledge stays in local files.
 
 ## Using with Claude Desktop
 
