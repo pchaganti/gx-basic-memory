@@ -1,6 +1,76 @@
 # CHANGELOG
 
 
+## v0.10.0 (2025-03-15)
+
+### Bug Fixes
+
+- Ai_resource_guide.md path
+  ([`da97353`](https://github.com/basicmachines-co/basic-memory/commit/da97353cfc3acc1ceb0eca22ac6af326f77dc199))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Ai_resource_guide.md path
+  ([`c4732a4`](https://github.com/basicmachines-co/basic-memory/commit/c4732a47b37dd2e404139fb283b65556c81ce7c9))
+
+- Ai_resource_guide.md path
+  ([`2e9d673`](https://github.com/basicmachines-co/basic-memory/commit/2e9d673e54ad6a63a971db64f01fc2f4e59c2e69))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Don't sync *.tmp files on watch ([#31](https://github.com/basicmachines-co/basic-memory/pull/31),
+  [`6b110b2`](https://github.com/basicmachines-co/basic-memory/commit/6b110b28dd8ba705ebfc0bcb41faf2cb993da2c3))
+
+Fixes #30
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Drop search_index table on db reindex
+  ([`31cca6f`](https://github.com/basicmachines-co/basic-memory/commit/31cca6f913849a0ab8fc944803533e3072e9ef88))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Improve utf-8 support for file reading/writing
+  ([#32](https://github.com/basicmachines-co/basic-memory/pull/32),
+  [`eb5e4ec`](https://github.com/basicmachines-co/basic-memory/commit/eb5e4ec6bd4d2fe757087be030d867f4ca1d38ba))
+
+fixes #29
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+### Chores
+
+- Remove logfire
+  ([`9bb8a02`](https://github.com/basicmachines-co/basic-memory/commit/9bb8a020c3425a02cb3a88f6f02adcd281bccee2))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+### Documentation
+
+- Add glama badge. Fix typos in README.md
+  ([#28](https://github.com/basicmachines-co/basic-memory/pull/28),
+  [`9af913d`](https://github.com/basicmachines-co/basic-memory/commit/9af913da4fba7bb4908caa3f15f2db2aa03777ec))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Update CLAUDE.md with GitHub integration capabilities
+  ([#25](https://github.com/basicmachines-co/basic-memory/pull/25),
+  [`fea2f40`](https://github.com/basicmachines-co/basic-memory/commit/fea2f40d1b54d0c533e6d7ee7ce1aa7b83ad9a47))
+
+This PR updates the CLAUDE.md file to document the GitHub integration capabilities that enable
+  Claude to participate directly in the development workflow.
+
+### Features
+
+- Add Smithery integration for easier installation
+  ([#24](https://github.com/basicmachines-co/basic-memory/pull/24),
+  [`eb1e7b6`](https://github.com/basicmachines-co/basic-memory/commit/eb1e7b6088b0b3dead9c104ee44174b2baebf417))
+
+This PR adds support for deploying Basic Memory on the Smithery platform.
+
+Signed-off-by: bm-claudeai <claude@basicmachines.co>
+
+
 ## v0.9.0 (2025-03-07)
 
 ### Chores
