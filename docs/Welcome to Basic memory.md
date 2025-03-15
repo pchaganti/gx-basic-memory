@@ -21,15 +21,16 @@ Basic Memory connects you and AI assistants through shared knowledge:
 3. **Enables knowledge reuse** across different conversations and sessions
 4. **Maintains persistence** through local files you control completely
 
-Both you and AI assistants like Claude can read from and write to the same knowledge base, creating a continuous learning environment where each conversation builds upon previous ones.
+Both you and AI assistants like Claude can read from and write to the same knowledge base, creating a continuous
+learning environment where each conversation builds upon previous ones.
 
-## Pick up your conversation right where you left off 
-
-![[Claude-Obsidian-Demo.mp4]]
+## Pick up your conversation right where you left off
 
 - AI assistants can load context from local files in a new conversation
 - Notes are saved locally as Markdown files in real time
 - No project knowledge or special prompting required
+
+![[Claude-Obsidian-Demo.mp4]]
 
 Basic Memory uses:
 

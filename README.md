@@ -20,11 +20,13 @@ enable any compatible LLM to read and write to your local knowledge base.
 - Website: http://basicmachines.co
 - Documentation: http://memory.basicmachines.co
 
-![Deno](docs/attachments/Claude-Obsidian-Demo.mp4)
+## Pick up your conversation right where you left off
 
-Basic Memory provides persistent contextual awareness across sessions through a structured knowledge graph.
-The system enables LLMs to access and reference prior conversations, track semantic relationships between concepts, and
-incorporate human edits made directly to knowledge files.
+- AI assistants can load context from local files in a new conversation
+- Notes are saved locally as Markdown files in real time
+- No project knowledge or special prompting required
+
+![[Claude-Obsidian-Demo.mp4]]
 
 ## Quick Start
 
@@ -74,10 +76,10 @@ You can also install the CLI tools to sync files or manage projects.
 uv tool install basic-memory
 
 # create a new project in a different directory
-basic-memory project add coffee ./examples/coffee
+uv tool run basic-memory project add coffee ./examples/coffee
 
 # you can set the project to the default 
-basic-memory project default coffee
+uv tool run basic-memory project default coffee
 ```
 
 View available projects
