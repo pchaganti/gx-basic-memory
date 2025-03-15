@@ -14,7 +14,7 @@ enable any compatible LLM to read and write to your local knowledge base.
 - Website: http://basicmachines.co
 - Documentation: http://memory.basicmachines.co
 
-![Example Gif](docs/attachments/Obsidian-CoffeeKnowledgeBase-examples-overlays.gif)
+![Deno](docs/attachments/Claude-Obsidian-Demo.mp4)
 
 Basic Memory provides persistent contextual awareness across sessions through a structured knowledge graph.
 The system enables LLMs to access and reference prior conversations, track semantic relationships between concepts, and
@@ -50,13 +50,15 @@ You can view shared context via files in `~/basic-memory` (default directory loc
 
 ### Alternative Installation via Smithery
 
-You can use [Smithery](https://smithery.ai/server/@basicmachines-co/basic-memory) to automatically configure Basic Memory for Claude Desktop:
+You can use [Smithery](https://smithery.ai/server/@basicmachines-co/basic-memory) to automatically configure Basic
+Memory for Claude Desktop:
 
 ```bash
 npx -y @smithery/cli install @basicmachines-co/basic-memory --client claude
 ```
 
-This installs and configures Basic Memory without requiring manual edits to the Claude Desktop configuration file. The Smithery server hosts the MCP server component, while your data remains stored locally as Markdown files.
+This installs and configures Basic Memory without requiring manual edits to the Claude Desktop configuration file. The
+Smithery server hosts the MCP server component, while your data remains stored locally as Markdown files.
 
 ### CLI Tools
 

@@ -9,21 +9,25 @@ permalink: docs/getting-started
 This guide will help you install Basic Memory, configure it with Claude Desktop, and create your first knowledge notes
 through conversations.
 
-Basic Memory uses the [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) to connect with LLMs. It can be used with any service that supports the MCP, but Claude Desktop works especially well. 
+Basic Memory uses the [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) to connect with LLMs.
+It can be used with any service that supports the MCP, but Claude Desktop works especially well.
 
 ## Installation
 
 ### 1. Install Basic Memory
 
 ```bash
-# Install with uv (recommended)
-uv install basic-memory
+# Install with uv (recommended).  
+uv tool install basic-memory
 
 # Or with pip
 pip install basic-memory
 ```
 
 > **Important**: You need to install Basic Memory using one of the commands above to use the command line tools.
+
+Using `uv tool install` will install the basic-memory package in a standalone virtual environment.
+See the [UV docs](https://docs.astral.sh/uv/concepts/tools/) for more info.
 
 ### 2. Configure Claude Desktop
 
@@ -32,9 +36,11 @@ Claude Desktop often has trouble finding executables in your user path. Follow t
 #### Step 1: Find the absolute path to uvx
 
 Open Terminal and run:
+
 ```bash
 which uvx
 ```
+
 This will show you the full path (e.g., `/Users/yourusername/.cargo/bin/uvx`).
 
 #### Step 2: Edit Claude Desktop Configuration
@@ -107,6 +113,7 @@ If Claude cannot find Basic Memory tools:
 #### Permission Issues
 
 If you encounter permission errors:
+
 1. Check that Basic Memory has access to create files in your home directory
 2. Ensure Claude Desktop has permission to execute the uvx command
 
