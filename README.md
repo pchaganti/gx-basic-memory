@@ -153,9 +153,7 @@ The note embeds semantic content and links to other topics via simple Markdown f
 
 - Realtime sync can be enabled via running `basic-memory sync --watch`
 
-4. MCP-compatible LLMs can access this knowledge.
-
-5. In a new chat with the LLM, you can reference a topic:
+4. In a chat with the LLM, you can reference a topic:
 
 ```
 Look at `coffee-brewing-methods` for context about pour over coffee
