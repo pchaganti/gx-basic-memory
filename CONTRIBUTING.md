@@ -1,6 +1,7 @@
 # Contributing to Basic Memory
 
-Thank you for considering contributing to Basic Memory! This document outlines the process for contributing to the project and how to get started as a developer.
+Thank you for considering contributing to Basic Memory! This document outlines the process for contributing to the
+project and how to get started as a developer.
 
 ## Getting Started
 
@@ -65,61 +66,64 @@ Thank you for considering contributing to Basic Memory! This document outlines t
 
 This project is designed for collaborative development between humans and LLMs (Large Language Models):
 
-1. **CLAUDE.md**: The repository includes a `CLAUDE.md` file that serves as a project guide for both humans and LLMs. This file contains:
-   - Key project information and architectural overview
-   - Development commands and workflows
-   - Code style guidelines
-   - Documentation standards
+1. **CLAUDE.md**: The repository includes a `CLAUDE.md` file that serves as a project guide for both humans and LLMs.
+   This file contains:
+    - Key project information and architectural overview
+    - Development commands and workflows
+    - Code style guidelines
+    - Documentation standards
 
 2. **AI-Human Collaborative Workflow**:
-   - We encourage using LLMs like Claude for code generation, reviews, and documentation
-   - When possible, save context in markdown files that can be referenced later
-   - This enables seamless knowledge transfer between different development sessions
-   - Claude can help with implementation details while you focus on architecture and design
+    - We encourage using LLMs like Claude for code generation, reviews, and documentation
+    - When possible, save context in markdown files that can be referenced later
+    - This enables seamless knowledge transfer between different development sessions
+    - Claude can help with implementation details while you focus on architecture and design
 
 3. **Adding to CLAUDE.md**:
-   - If you discover useful project information or common commands, consider adding them to CLAUDE.md
-   - This helps all contributors (human and AI) maintain consistent knowledge of the project
+    - If you discover useful project information or common commands, consider adding them to CLAUDE.md
+    - This helps all contributors (human and AI) maintain consistent knowledge of the project
 
 ## Pull Request Process
 
 1. **Create a Pull Request**: Open a PR against the `main` branch with a clear title and description.
-2. **Sign the Developer Certificate of Origin (DCO)**: All contributions require signing our DCO, which certifies that you have the right to submit your contributions. This will be automatically checked by our CLA assistant when you create a PR.
+2. **Sign the Developer Certificate of Origin (DCO)**: All contributions require signing our DCO, which certifies that
+   you have the right to submit your contributions. This will be automatically checked by our CLA assistant when you
+   create a PR.
 3. **PR Description**: Include:
-   - What the PR changes
-   - Why the change is needed
-   - How you tested the changes
-   - Any related issues (use "Fixes #123" to automatically close issues)
+    - What the PR changes
+    - Why the change is needed
+    - How you tested the changes
+    - Any related issues (use "Fixes #123" to automatically close issues)
 4. **Code Review**: Wait for code review and address any feedback.
 5. **CI Checks**: Ensure all CI checks pass.
 6. **Merge**: Once approved, a maintainer will merge your PR.
 
 ## Developer Certificate of Origin
 
-By contributing to this project, you agree to the [Developer Certificate of Origin (DCO)](CLA.md). This means you certify that:
+By contributing to this project, you agree to the [Developer Certificate of Origin (DCO)](CLA.md). This means you
+certify that:
+
 - You have the right to submit your contributions
 - You're not knowingly submitting code with patent or copyright issues
 - Your contributions are provided under the project's license (AGPL-3.0)
 
-This is a lightweight alternative to a Contributor License Agreement and helps ensure that all contributions can be properly incorporated into the project and potentially used in commercial applications.
+This is a lightweight alternative to a Contributor License Agreement and helps ensure that all contributions can be
+properly incorporated into the project and potentially used in commercial applications.
 
 ### Signing Your Commits
 
-You can sign your commits in one of two ways:
+Sign your commit:
 
-1. **Using the `-s` or `--signoff` flag**:
-   ```bash
-   git commit -s -m "Your commit message"
-   ```
-   This adds a `Signed-off-by` line to your commit message, certifying that you adhere to the DCO.
+**Using the `-s` or `--signoff` flag**:
 
-2. **Configuring Git to automatically sign off**:
-   ```bash
-   git config --global alias.cs 'commit -s'
-   ```
-   Then use `git cs -m "Your commit message"` to commit with sign-off.
+```bash
+git commit -s -m "Your commit message"
+```
 
-The sign-off certifies that you have the right to submit your contribution under the project's license and verifies your agreement to the DCO.
+This adds a `Signed-off-by` line to your commit message, certifying that you adhere to the DCO.
+
+The sign-off certifies that you have the right to submit your contribution under the project's license and verifies your
+agreement to the DCO.
 
 ## Code Style Guidelines
 
@@ -135,10 +139,10 @@ The sign-off certifies that you have the right to submit your contribution under
 
 - **Coverage Target**: We aim for 100% test coverage for all code
 - **Test Framework**: Use pytest for unit and integration tests
-- **Mocking**: Use pytest-mock for mocking dependencies
+- **Mocking**: Use pytest-mock for mocking dependencies only when necessary
 - **Edge Cases**: Test both normal operation and edge cases
 - **Database Testing**: Use in-memory SQLite for testing database operations
-- **Fixtures**: Use pytest fixtures for setup and teardown
+- **Fixtures**: Use async pytest fixtures for setup and teardown
 
 ## Creating Issues
 
@@ -156,4 +160,4 @@ All contributors must follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Thank You!
 
-Your contributions help make Basic Memory better for everyone. We appreciate your time and effort!
+Your contributions help make Basic Memory better. We appreciate your time and effort!
