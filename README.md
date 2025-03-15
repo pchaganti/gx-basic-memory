@@ -20,10 +20,7 @@ enable any compatible LLM to read and write to your local knowledge base.
 - Notes are saved locally as Markdown files in real time
 - No project knowledge or special prompting required
 
-<video controls>
-    <source src="/docs/attachments/Claude-Obsidian-Demo.mp4" type="video/mp4">
-    Demo Video featuring Claude Desktop and Obsidian.
-</video>
+https://github.com/user-attachments/assets/a55d8238-8dd0-454a-be4c-8860dbbd0ddc
 
 ## Quick Start
 
