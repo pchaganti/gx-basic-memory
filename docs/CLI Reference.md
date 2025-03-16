@@ -21,14 +21,13 @@ basic-memory sync
 # Watch for changes
 basic-memory sync --watch
 
-# Sync specific folder
-basic-memory sync path/to/folder
+# Show detailed sync information
+basic-memory sync --verbose
 ```
 
 Options:
 - `--watch`: Continuously monitor for changes
 - `--verbose`: Show detailed output
-- `PATH`: Optional path to sync (defaults to ~/basic-memory)
 
 ### import
 
@@ -43,13 +42,13 @@ basic-memory import claude projects
 
 # ChatGPT history
 basic-memory import chatgpt
+
+# ChatGPT history
+basic-memory import memory-json /path/to/memory.json
+
 ```
 
-Options:
-- `--folder PATH`: Target folder for imported content
-- `--overwrite`: Replace existing files
-- `--skip-existing`: Keep existing files
-
+> **Note**: After importing, run `basic-memory sync` to index the new files.
 ### status
 
 Shows system status information:
