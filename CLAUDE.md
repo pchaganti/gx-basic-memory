@@ -37,6 +37,7 @@ See the [README.md](README.md) file for a project overview.
 - API uses FastAPI for endpoints
 - Follow the repository pattern for data access
 - Tools communicate to api routers via the httpx ASGI client (in process)
+- avoid using "private" functions in modules or classes (prepended with _)
 
 ### Codebase Architecture
 
@@ -134,30 +135,32 @@ could achieve independently.
 
 ## GitHub Integration
 
-Basic Memory has taken AI-Human collaboration to the next level by integrating Claude directly into the development workflow through GitHub:
+Basic Memory uses Claude directly into the development workflow through GitHub:
 
 ### GitHub MCP Tools
 
-Using the GitHub Model Context Protocol server, Claude can now:
+Using the GitHub Model Context Protocol server, Claude can:
 
 - **Repository Management**:
-  - View repository files and structure
-  - Read file contents
-  - Create new branches
-  - Create and update files
+    - View repository files and structure
+    - Read file contents
+    - Create new branches
+    - Create and update files
 
 - **Issue Management**:
-  - Create new issues
-  - Comment on existing issues
-  - Close and update issues
-  - Search across issues
+    - Create new issues
+    - Comment on existing issues
+    - Close and update issues
+    - Search across issues
 
 - **Pull Request Workflow**:
-  - Create pull requests
-  - Review code changes
-  - Add comments to PRs
+    - Create pull requests
+    - Review code changes
+    - Add comments to PRs
 
-This integration enables Claude to participate as a full team member in the development process, not just as a code generation tool. Claude's GitHub account ([bm-claudeai](https://github.com/bm-claudeai)) is a member of the Basic Machines organization with direct contributor access to the codebase.
+This integration enables Claude to participate as a full team member in the development process, not just as a code
+generation tool. Claude's GitHub account ([bm-claudeai](https://github.com/bm-claudeai)) is a member of the Basic
+Machines organization with direct contributor access to the codebase.
 
 ### Collaborative Development Process
 
@@ -168,4 +171,5 @@ With GitHub integration, the development workflow includes:
 3. **Branch management** - Claude can create feature branches for implementations
 4. **Documentation maintenance** - Claude can keep documentation updated as the code evolves
 
-This level of integration represents a new paradigm in AI-human collaboration, where the AI assistant becomes a full-fledged team member rather than just a tool for generating code snippets.
+With this integration, the AI assistant is a full-fledged team member rather than just a tool for generating code
+snippets.
