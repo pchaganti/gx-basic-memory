@@ -1,14 +1,17 @@
 """Write note tool for Basic Memory MCP server."""
 
-from typing import Optional, List
+from typing import List, Union
 
 from loguru import logger
 
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
-from basic_memory.mcp.tools.utils import call_put
+from basic_memory.mcp.tools.utils import call_put, parse_tags
 from basic_memory.schemas import EntityResponse
 from basic_memory.schemas.base import Entity
+
+# Define TagType as a Union that can accept either a string or a list of strings or None
+TagType = Union[List[str], str, None]
 
 
 @mcp.tool(
@@ -18,7 +21,7 @@ async def write_note(
     title: str,
     content: str,
     folder: str,
-    tags: Optional[List[str]] = None,
+    tags = None,  # Remove type hint completely to avoid schema issues
 ) -> str:
     """Write a markdown note to the knowledge base.
 
@@ -40,13 +43,14 @@ async def write_note(
         Examples:
         `- depends_on [[Content Parser]] (Need for semantic extraction)`
         `- implements [[Search Spec]] (Initial implementation)`
-        `- This feature extends [[Base Design]] and uses [[Core Utils]]`
+        `- This feature extends [[Base Design]] andst uses [[Core Utils]]`
 
     Args:
         title: The title of the note
         content: Markdown content for the note, can include observations and relations
         folder: the folder where the file should be saved
-        tags: Optional list of tags to categorize the note
+        tags: Tags to categorize the note. Can be a list of strings, a comma-separated string, or None.
+              Note: If passing from external MCP clients, use a string format (e.g. "tag1,tag2,tag3")
 
     Returns:
         A markdown formatted summary of the semantic content, including:
@@ -58,8 +62,11 @@ async def write_note(
     """
     logger.info("MCP tool call", tool="write_note", folder=folder, title=title, tags=tags)
 
+    # Process tags using the helper function
+    tag_list = parse_tags(tags)
+    
     # Create the entity request
-    metadata = {"tags": [f"#{tag}" for tag in tags]} if tags else None
+    metadata = {"tags": [f"#{tag}" for tag in tag_list]} if tag_list else None
     entity = Entity(
         title=title,
         folder=folder,
@@ -105,8 +112,8 @@ async def write_note(
             summary.append(f"- Unresolved: {unresolved}")
             summary.append("\nUnresolved relations will be retried on next sync.")
 
-    if tags:
-        summary.append(f"\n## Tags\n- {', '.join(tags)}")
+    if tag_list:
+        summary.append(f"\n## Tags\n- {', '.join(tag_list)}")
 
     # Log the response with structured data
     logger.info(

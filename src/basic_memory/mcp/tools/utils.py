@@ -5,6 +5,7 @@ to the Basic Memory API, with improved error handling and logging.
 """
 
 import typing
+from typing import Union, List
 
 from httpx import Response, URL, AsyncClient, HTTPStatusError
 from httpx._client import UseClientDefault, USE_CLIENT_DEFAULT
@@ -21,6 +22,32 @@ from httpx._types import (
 )
 from loguru import logger
 from mcp.server.fastmcp.exceptions import ToolError
+
+
+def parse_tags(tags: Union[List[str], str, None]) -> List[str]:
+    """Parse tags from various input formats into a consistent list.
+    
+    Args:
+        tags: Can be a list of strings, a comma-separated string, or None
+        
+    Returns:
+        A list of tag strings, or an empty list if no tags
+    """
+    if tags is None:
+        return []
+    
+    if isinstance(tags, list):
+        return tags
+    
+    if isinstance(tags, str):
+        return [tag.strip() for tag in tags.split(",") if tag.strip()]
+    
+    # For any other type, try to convert to string and parse
+    try:
+        return parse_tags(str(tags))
+    except (ValueError, TypeError):
+        logger.warning(f"Couldn't parse tags from input of type {type(tags)}: {tags}")
+        return []
 
 
 def get_error_message(status_code: int, url: URL | str, method: str) -> str:
