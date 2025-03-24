@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 from watchfiles import Change
 
-from basic_memory.sync.watch_service import WatchService
 
 
 async def create_test_file(path: Path, content: str = "test content") -> None:

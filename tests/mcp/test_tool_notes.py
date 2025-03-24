@@ -1,7 +1,6 @@
 """Tests for note tools that exercise the full stack with SQLite."""
 
 from textwrap import dedent
-
 import pytest
 
 from basic_memory.mcp.tools import write_note, read_note, delete_note
@@ -185,6 +184,30 @@ async def test_delete_note_doesnt_exist(app):
     """
     deleted = await delete_note("doesnt-exist")
     assert deleted is False
+
+
+@pytest.mark.asyncio
+async def test_write_note_with_tag_array_from_bug_report(app):
+    """Test creating a note with a tag array as reported in issue #38.
+    
+    This reproduces the exact payload from the bug report where Cursor
+    was passing an array of tags and getting a type mismatch error.
+    """
+    # This is the exact payload from the bug report
+    bug_payload = {
+        "title": "Title",
+        "folder": "folder",
+        "content": "CONTENT",
+        "tags": ["hipporag", "search", "fallback", "symfony", "error-handling"]
+    }
+    
+    # Try to call the function with this data directly
+    result = await write_note(**bug_payload)
+    
+    assert result
+    assert "permalink: folder/title" in result
+    assert "Tags" in result
+    assert "hipporag" in result
 
 
 @pytest.mark.asyncio
