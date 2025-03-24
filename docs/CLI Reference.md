@@ -241,9 +241,11 @@ You can redirect input from a file:
 basic-memory tool write-note --title "Meeting Notes" --folder "meetings" < meeting_notes.md
 ```
 
-#### Integration with Claude Code
+## Integration with Claude Code
 
 This feature works well with Claude Code in the terminal:
+
+### cli
 
 In a Claude Code session, let Claude know he can use the basic-memory tools, then he can execute them via the cli:
 
@@ -257,6 +259,32 @@ In a Claude Code session, let Claude know he can use the basic-memory tools, the
 
 ```
 
+### MCP
+
+Claude code can also now use mcp tools, so it can use any of the basic-memory tool natively. To install basic-memory in Claude Code:
+
+Run
+```
+claude mcp add basic-memory basic-memory mcp
+```
+
+For example: 
+
+```
+➜  ~ claude mcp add basic-memory basic-memory mcp
+Added stdio MCP server basic-memory with command: basic-memory mcp to project config
+➜  ~ claude mcp list
+basic-memory: basic-memory mcp
+```
+
+You can then use the `/mcp` command in the REPL:
+
+```
+/mcp
+  ⎿  MCP Server Status
+
+     • basic-memory: connected
+```
 
 ## Troubleshooting Common Issues
 
