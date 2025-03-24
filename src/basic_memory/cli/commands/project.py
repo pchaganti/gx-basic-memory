@@ -92,12 +92,22 @@ def remove_project(
 def set_default_project(
     name: str = typer.Argument(..., help="Name of the project to set as default"),
 ) -> None:
-    """Set the default project."""
+    """Set the default project and activate it for the current session."""
     config_manager = ConfigManager()
 
     try:
+        # Set the default project
         config_manager.set_default_project(name)
-        console.print(f"[green]Project '{name}' set as default[/green]")
+        
+        # Also activate it for the current session by setting the environment variable
+        os.environ["BASIC_MEMORY_PROJECT"] = name
+        
+        # Reload configuration to apply the change
+        from importlib import reload
+        from basic_memory import config as config_module
+        reload(config_module)
+        
+        console.print(f"[green]Project '{name}' set as default and activated[/green]")
     except ValueError as e:  # pragma: no cover
         console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(1)
