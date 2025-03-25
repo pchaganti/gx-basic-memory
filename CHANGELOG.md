@@ -1,6 +1,127 @@
 # CHANGELOG
 
 
+## v0.10.1 (2025-03-25)
+
+### Bug Fixes
+
+- Make set_default_project also activate project for current session to fix #37
+  ([`cbe72be`](https://github.com/basicmachines-co/basic-memory/commit/cbe72be10a646c0b03931bb39aff9285feae47f9))
+
+This change makes the 'basic-memory project default <name>' command both: 1. Set the default project
+  for future invocations (persistent change) 2. Activate the project for the current session
+  (immediate change)
+
+Added tests to verify this behavior, which resolves issue #37 where the project name and path
+  weren't changing properly when the default project was changed.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+- Make set_default_project also activate project for current session to fix #37
+  ([`46c4fd2`](https://github.com/basicmachines-co/basic-memory/commit/46c4fd21645b109af59eb2a0201c7bd849b34a49))
+
+This change makes the 'basic-memory project default <name>' command both: 1. Set the default project
+  for future invocations (persistent change) 2. Activate the project for the current session
+  (immediate change)
+
+Added tests to verify this behavior, which resolves issue #37 where the project name and path
+  weren't changing properly when the default project was changed.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Move ai_assistant_guide.md into package resources to fix #39
+  ([`390ff9d`](https://github.com/basicmachines-co/basic-memory/commit/390ff9d31ccee85bef732e8140b5eeecd7ee176f))
+
+This change relocates the AI assistant guide from the static directory into the package resources
+  directory, ensuring it gets properly included in the distribution package and is accessible when
+  installed via pip/uv.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+- Move ai_assistant_guide.md into package resources to fix #39
+  ([`cc2cae7`](https://github.com/basicmachines-co/basic-memory/commit/cc2cae72c14b380f78ffeb67c2261e4dbee45faf))
+
+This change relocates the AI assistant guide from the static directory into the package resources
+  directory, ensuring it gets properly included in the distribution package and is accessible when
+  installed via pip/uv.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Preserve custom frontmatter fields when updating notes
+  ([`78f234b`](https://github.com/basicmachines-co/basic-memory/commit/78f234b1806b578a0a833e8ee4184015b7369a97))
+
+Fixes #36 by modifying entity_service.update_entity() to read existing frontmatter from files before
+  updating them. Custom metadata fields such as Status, Priority, and Version are now preserved when
+  notes are updated through the write_note MCP tool.
+
+Added test case that verifies this behavior by creating a note with custom frontmatter and then
+  updating it.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+- Preserve custom frontmatter fields when updating notes
+  ([`e716946`](https://github.com/basicmachines-co/basic-memory/commit/e716946b4408d017eca4be720956d5a210b4e6b1))
+
+Fixes #36 by modifying entity_service.update_entity() to read existing frontmatter from files before
+  updating them. Custom metadata fields such as Status, Priority, and Version are now preserved when
+  notes are updated through the write_note MCP tool.
+
+Added test case that verifies this behavior by creating a note with custom frontmatter and then
+  updating it.
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+### Chores
+
+- Remove duplicate code in entity_service.py from bad merge
+  ([`681af5d`](https://github.com/basicmachines-co/basic-memory/commit/681af5d4505dadc40b4086630f739d76bac9201d))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+### Documentation
+
+- Add help docs to mcp cli tools
+  ([`731b502`](https://github.com/basicmachines-co/basic-memory/commit/731b502d36cec253d114403d73b48fab3c47786e))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Add mcp badge, update cli reference, llms-install.md
+  ([`b26afa9`](https://github.com/basicmachines-co/basic-memory/commit/b26afa927f98021246cd8b64858e57333595ea90))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Update CLAUDE.md ([#33](https://github.com/basicmachines-co/basic-memory/pull/33),
+  [`dfaf0fe`](https://github.com/basicmachines-co/basic-memory/commit/dfaf0fea9cf5b97d169d51a6276ec70162c21a7e))
+
+fix spelling in CLAUDE.md: enviroment -> environment Signed-off-by: Ikko Eltociear Ashimine
+  <eltociear@gmail.com>
+
+### Refactoring
+
+- Move project stats into projct subcommand
+  ([`2a881b1`](https://github.com/basicmachines-co/basic-memory/commit/2a881b1425c73947f037fbe7ac5539c015b62526))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+
 ## v0.10.0 (2025-03-15)
 
 ### Bug Fixes
