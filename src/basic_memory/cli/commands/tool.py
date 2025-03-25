@@ -29,7 +29,7 @@ from basic_memory.schemas.memory import MemoryUrl
 from basic_memory.schemas.search import SearchQuery, SearchItemType
 
 tool_app = typer.Typer()
-app.add_typer(tool_app, name="tool", help="Direct access to MCP tools via CLI")
+app.add_typer(tool_app, name="tool", help="Access to MCP tools via CLI")
 
 
 @tool_app.command()
@@ -103,6 +103,7 @@ def write_note(
 
 @tool_app.command()
 def read_note(identifier: str, page: int = 1, page_size: int = 10):
+    """Read a markdown note from the knowledge base."""
     try:
         note = asyncio.run(mcp_read_note(identifier, page, page_size))
         rprint(note)
@@ -122,6 +123,7 @@ def build_context(
     page_size: int = 10,
     max_related: int = 10,
 ):
+    """Get context needed to continue a discussion."""
     try:
         context = asyncio.run(
             mcp_build_context(
@@ -154,6 +156,7 @@ def recent_activity(
     page_size: int = 10,
     max_related: int = 10,
 ):
+    """Get recent activity across the knowledge base."""
     try:
         context = asyncio.run(
             mcp_recent_activity(
@@ -189,6 +192,7 @@ def search(
     page: int = 1,
     page_size: int = 10,
 ):
+    """Search across all content in the knowledge base."""
     if permalink and title:  # pragma: no cover
         print("Cannot search both permalink and title")
         raise typer.Abort()

@@ -9,10 +9,10 @@ from basic_memory.mcp.async_client import client
 
 
 @mcp.tool(
-    description="Search across all content in basic-memory, including documents and entities",
+    description="Search across all content in the knowledge base.",
 )
 async def search(query: SearchQuery, page: int = 1, page_size: int = 10) -> SearchResponse:
-    """Search across all content in basic-memory.
+    """Search across all content in the knowledge base.
 
     This tool searches the knowledge base using full-text search, pattern matching,
     or exact permalink lookup. It supports filtering by content type, entity type,
