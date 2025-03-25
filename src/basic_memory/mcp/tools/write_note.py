@@ -14,6 +14,9 @@ from basic_memory.utils import parse_tags
 # Define TagType as a Union that can accept either a string or a list of strings or None
 TagType = Union[List[str], str, None]
 
+# Define TagType as a Union that can accept either a string or a list of strings or None
+TagType = Union[List[str], str, None]
+
 
 @mcp.tool(
     description="Create or update a markdown note. Returns a markdown formatted summary of the semantic content.",
@@ -65,7 +68,6 @@ async def write_note(
 
     # Process tags using the helper function
     tag_list = parse_tags(tags)
-
     # Create the entity request
     metadata = {"tags": [f"#{tag}" for tag in tag_list]} if tag_list else None
     entity = Entity(
