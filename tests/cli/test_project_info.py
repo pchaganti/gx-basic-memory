@@ -12,7 +12,7 @@ def test_info_stats_command(cli_env, test_graph):
     runner = CliRunner()
 
     # Run the command
-    result = runner.invoke(cli_app, ["info", "stats"])
+    result = runner.invoke(cli_app, ["project", "info"])
 
     # Verify exit code
     assert result.exit_code == 0
@@ -26,7 +26,7 @@ def test_info_stats_json(cli_env, test_graph):
     runner = CliRunner()
 
     # Run the command with --json flag
-    result = runner.invoke(cli_app, ["info", "stats", "--json"])
+    result = runner.invoke(cli_app, ["project", "info", "--json"])
 
     # Verify exit code
     assert result.exit_code == 0
