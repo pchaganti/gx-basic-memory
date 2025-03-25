@@ -189,7 +189,7 @@ async def test_delete_note_doesnt_exist(app):
 @pytest.mark.asyncio
 async def test_write_note_with_tag_array_from_bug_report(app):
     """Test creating a note with a tag array as reported in issue #38.
-    
+
     This reproduces the exact payload from the bug report where Cursor
     was passing an array of tags and getting a type mismatch error.
     """
@@ -198,12 +198,12 @@ async def test_write_note_with_tag_array_from_bug_report(app):
         "title": "Title",
         "folder": "folder",
         "content": "CONTENT",
-        "tags": ["hipporag", "search", "fallback", "symfony", "error-handling"]
+        "tags": ["hipporag", "search", "fallback", "symfony", "error-handling"],
     }
-    
+
     # Try to call the function with this data directly
     result = await write_note(**bug_payload)
-    
+
     assert result
     assert "permalink: folder/title" in result
     assert "Tags" in result
@@ -257,10 +257,10 @@ async def test_write_note_verbose(app):
 @pytest.mark.asyncio
 async def test_write_note_preserves_custom_metadata(app, test_config):
     """Test that updating a note preserves custom metadata fields.
-    
+
     Reproduces issue #36 where custom frontmatter fields like Status
     were being lost when updating notes with the write_note tool.
-    
+
     Should:
     - Create a note with custom frontmatter
     - Update the note with new content
@@ -273,15 +273,14 @@ async def test_write_note_preserves_custom_metadata(app, test_config):
         content="# Initial content",
         tags=["test"],
     )
-    
+
     # Read the note to get its permalink
     content = await read_note("test/custom-metadata-note")
-    
+
     # Now directly update the file with custom frontmatter
     # We need to use a direct file update to add custom frontmatter
-    from pathlib import Path
     import frontmatter
-    
+
     file_path = test_config.home / "test" / "Custom Metadata Note.md"
     post = frontmatter.load(file_path)
 
@@ -289,11 +288,11 @@ async def test_write_note_preserves_custom_metadata(app, test_config):
     post["Status"] = "In Progress"
     post["Priority"] = "High"
     post["Version"] = "1.0"
-    
+
     # Write the file back
     with open(file_path, "w") as f:
         f.write(frontmatter.dumps(post))
-    
+
     # Now update the note using write_note
     result = await write_note(
         title="Custom Metadata Note",
@@ -301,23 +300,23 @@ async def test_write_note_preserves_custom_metadata(app, test_config):
         content="# Updated content",
         tags=["test", "updated"],
     )
-    
+
     # Verify the update was successful
     assert "Updated test/Custom Metadata Note.md" in result
-    
+
     # Read the note back and check if custom frontmatter is preserved
     content = await read_note("test/custom-metadata-note")
-    
+
     # Custom frontmatter should be preserved
     assert "Status: In Progress" in content
     assert "Priority: High" in content
     # Version might be quoted as '1.0' due to YAML serialization
     assert "Version:" in content  # Just check that the field exists
-    assert "1.0" in content       # And that the value exists somewhere
-    
+    assert "1.0" in content  # And that the value exists somewhere
+
     # And new content should be there
     assert "# Updated content" in content
-    
+
     # And tags should be updated
     assert "'#test'" in content
     assert "'#updated'" in content

@@ -521,7 +521,7 @@ async def test_update_with_content(entity_service: EntityService, file_service: 
         """
     ).strip()
 
-    # Create test entity
+    # update entity
     entity, created = await entity_service.create_or_update_entity(
         EntitySchema(
             title="Git Workflow Guide",

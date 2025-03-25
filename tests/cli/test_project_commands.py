@@ -17,11 +17,11 @@ def temp_home(monkeypatch):
     """Create a temporary directory for testing."""
     # Save the original environment variable if it exists
     original_env = os.environ.get("BASIC_MEMORY_PROJECT")
-    
+
     # Clear environment variable for clean test
     if "BASIC_MEMORY_PROJECT" in os.environ:
         del os.environ["BASIC_MEMORY_PROJECT"]
-    
+
     with TemporaryDirectory() as tempdir:
         temp_home = Path(tempdir)
         monkeypatch.setattr(Path, "home", lambda: temp_home)
@@ -31,7 +31,7 @@ def temp_home(monkeypatch):
         config_dir.mkdir(parents=True, exist_ok=True)
 
         yield temp_home
-        
+
         # Cleanup: restore original environment variable if it existed
         if original_env is not None:
             os.environ["BASIC_MEMORY_PROJECT"] = original_env
@@ -141,7 +141,7 @@ def test_project_default(cli_runner, temp_home):
     # Verify default was set
     config_manager = ConfigManager()
     assert config_manager.default_project == "test"
-    
+
     # Extra verification: check if the environment variable was set
     assert os.environ.get("BASIC_MEMORY_PROJECT") == "test"
 
@@ -157,7 +157,7 @@ def test_project_current(cli_runner, temp_home):
         "default_project": "main",
     }
     config_file.write_text(json.dumps(config_data))
-    
+
     # Create the main project directory
     main_dir = temp_home / "basic-memory"
     main_dir.mkdir(parents=True, exist_ok=True)
@@ -192,16 +192,16 @@ def test_project_default_activates_project(cli_runner, temp_home, monkeypatch):
     # Create a test environment
     env = {}
     monkeypatch.setattr(os, "environ", env)
-    
+
     # Create two test projects
     config_manager = ConfigManager()
     config_manager.add_project("project1", str(temp_home / "project1"))
-    
+
     # Set project1 as default using the CLI command
     result = cli_runner.invoke(app, ["project", "default", "project1"])
     assert result.exit_code == 0
     assert "Project 'project1' set as default and activated" in result.stdout
-    
+
     # Verify the environment variable was set
     # This is the core of our fix - the set_default_project command now also sets
     # the BASIC_MEMORY_PROJECT environment variable to activate the project

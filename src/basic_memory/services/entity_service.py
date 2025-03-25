@@ -146,15 +146,12 @@ class EntityService(BaseService[EntityModel]):
 
         # Create post with new content from schema
         post = await schema_to_markdown(schema)
-        
+
         # Merge new metadata with existing metadata
         existing_markdown.frontmatter.metadata.update(post.metadata)
-        
+
         # Create a new post with merged metadata
-        merged_post = frontmatter.Post(
-            post.content,
-            **existing_markdown.frontmatter.metadata
-        )
+        merged_post = frontmatter.Post(post.content, **existing_markdown.frontmatter.metadata)
 
         # write file
         final_content = frontmatter.dumps(merged_post, sort_keys=False)

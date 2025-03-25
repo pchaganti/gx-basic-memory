@@ -4,21 +4,22 @@ Uses markdown-it with plugins to parse structured data from markdown content.
 """
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional
-import dateparser
 
-from markdown_it import MarkdownIt
+import dateparser
 import frontmatter
+from markdown_it import MarkdownIt
 
 from basic_memory.markdown.plugins import observation_plugin, relation_plugin
 from basic_memory.markdown.schemas import (
-    EntityMarkdown,
     EntityFrontmatter,
+    EntityMarkdown,
     Observation,
     Relation,
 )
+from basic_memory.utils import parse_tags
 
 md = MarkdownIt().use(observation_plugin).use(relation_plugin)
 
@@ -56,11 +57,11 @@ def parse(content: str) -> EntityContent:
     )
 
 
-def parse_tags(tags: Any) -> list[str]:
-    """Parse tags into list of strings."""
-    if isinstance(tags, (list, tuple)):
-        return [str(t).strip() for t in tags if str(t).strip()]
-    return [t.strip() for t in tags.split(",") if t.strip()]
+# def parse_tags(tags: Any) -> list[str]:
+#     """Parse tags into list of strings."""
+#     if isinstance(tags, (list, tuple)):
+#         return [str(t).strip() for t in tags if str(t).strip()]
+#     return [t.strip() for t in tags.split(",") if t.strip()]
 
 
 class EntityParser:
@@ -101,7 +102,9 @@ class EntityParser:
         metadata = post.metadata
         metadata["title"] = post.metadata.get("title", absolute_path.name)
         metadata["type"] = post.metadata.get("type", "note")
-        metadata["tags"] = parse_tags(post.metadata.get("tags", []))
+        tags = parse_tags(post.metadata.get("tags", []))  # pyright: ignore
+        if tags:
+            metadata["tags"] = tags
 
         # frontmatter
         entity_frontmatter = EntityFrontmatter(

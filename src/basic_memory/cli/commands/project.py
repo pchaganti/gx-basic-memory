@@ -98,15 +98,16 @@ def set_default_project(
     try:
         # Set the default project
         config_manager.set_default_project(name)
-        
+
         # Also activate it for the current session by setting the environment variable
         os.environ["BASIC_MEMORY_PROJECT"] = name
-        
+
         # Reload configuration to apply the change
         from importlib import reload
         from basic_memory import config as config_module
+
         reload(config_module)
-        
+
         console.print(f"[green]Project '{name}' set as default and activated[/green]")
     except ValueError as e:  # pragma: no cover
         console.print(f"[red]Error: {e}[/red]")

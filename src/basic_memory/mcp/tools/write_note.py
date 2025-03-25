@@ -6,9 +6,10 @@ from loguru import logger
 
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
-from basic_memory.mcp.tools.utils import call_put, parse_tags
+from basic_memory.mcp.tools.utils import call_put
 from basic_memory.schemas import EntityResponse
 from basic_memory.schemas.base import Entity
+from basic_memory.utils import parse_tags
 
 # Define TagType as a Union that can accept either a string or a list of strings or None
 TagType = Union[List[str], str, None]
@@ -21,7 +22,7 @@ async def write_note(
     title: str,
     content: str,
     folder: str,
-    tags = None,  # Remove type hint completely to avoid schema issues
+    tags=None,  # Remove type hint completely to avoid schema issues
 ) -> str:
     """Write a markdown note to the knowledge base.
 
@@ -64,7 +65,7 @@ async def write_note(
 
     # Process tags using the helper function
     tag_list = parse_tags(tags)
-    
+
     # Create the entity request
     metadata = {"tags": [f"#{tag}" for tag in tag_list]} if tag_list else None
     entity = Entity(

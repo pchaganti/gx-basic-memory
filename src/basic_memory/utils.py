@@ -6,7 +6,7 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Optional, Protocol, Union, runtime_checkable
+from typing import Optional, Protocol, Union, runtime_checkable, List
 
 from loguru import logger
 from unidecode import unidecode
@@ -128,3 +128,29 @@ def setup_logging(
     # Set log levels for noisy loggers
     for logger_name, level in noisy_loggers.items():
         logging.getLogger(logger_name).setLevel(level)
+
+
+def parse_tags(tags: Union[List[str], str, None]) -> List[str]:
+    """Parse tags from various input formats into a consistent list.
+
+    Args:
+        tags: Can be a list of strings, a comma-separated string, or None
+
+    Returns:
+        A list of tag strings, or an empty list if no tags
+    """
+    if tags is None:
+        return []
+
+    if isinstance(tags, list):
+        return tags
+
+    if isinstance(tags, str):
+        return [tag.strip() for tag in tags.split(",") if tag.strip()]
+
+    # For any other type, try to convert to string and parse
+    try:  # pragma: no cover
+        return parse_tags(str(tags))
+    except (ValueError, TypeError):  # pragma: no cover
+        logger.warning(f"Couldn't parse tags from input of type {type(tags)}: {tags}")
+        return []

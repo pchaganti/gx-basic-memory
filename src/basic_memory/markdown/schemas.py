@@ -42,7 +42,7 @@ class EntityFrontmatter(BaseModel):
 
     @property
     def tags(self) -> List[str]:
-        return self.metadata.get("tags") if self.metadata else []  # pyright: ignore
+        return self.metadata.get("tags") if self.metadata else None  # pyright: ignore
 
     @property
     def title(self) -> str:
