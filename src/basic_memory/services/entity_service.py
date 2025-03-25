@@ -141,10 +141,23 @@ class EntityService(BaseService[EntityModel]):
         # Convert file path string to Path
         file_path = Path(entity.file_path)
 
+        # Read existing frontmatter from the file if it exists
+        existing_markdown = await self.entity_parser.parse_file(file_path)
+
+        # Create post with new content from schema
         post = await schema_to_markdown(schema)
+        
+        # Merge new metadata with existing metadata
+        existing_markdown.frontmatter.metadata.update(post.metadata)
+        
+        # Create a new post with merged metadata
+        merged_post = frontmatter.Post(
+            post.content,
+            **existing_markdown.frontmatter.metadata
+        )
 
         # write file
-        final_content = frontmatter.dumps(post, sort_keys=False)
+        final_content = frontmatter.dumps(merged_post, sort_keys=False)
         checksum = await self.file_service.write_file(file_path, final_content)
 
         # parse entity from file
