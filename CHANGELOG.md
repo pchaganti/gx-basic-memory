@@ -1,6 +1,43 @@
 # CHANGELOG
 
 
+## v0.11.0 (2025-03-29)
+
+### Bug Fixes
+
+- Just delete db for reset db instead of using migrations.
+  ([#65](https://github.com/basicmachines-co/basic-memory/pull/65),
+  [`0743ade`](https://github.com/basicmachines-co/basic-memory/commit/0743ade5fc07440f95ecfd816ba7e4cfd74bca12))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Make logs for each process - mcp, sync, cli
+  ([#64](https://github.com/basicmachines-co/basic-memory/pull/64),
+  [`f1c9570`](https://github.com/basicmachines-co/basic-memory/commit/f1c95709cbffb1b88292547b0b8f29fcca22d186))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+### Documentation
+
+- Update broken "Multiple Projects" link in README.md
+  ([#55](https://github.com/basicmachines-co/basic-memory/pull/55),
+  [`3c68b7d`](https://github.com/basicmachines-co/basic-memory/commit/3c68b7d5dd689322205c67637dca7d188111ee6b))
+
+### Features
+
+- Add bm command alias for basic-memory
+  ([#67](https://github.com/basicmachines-co/basic-memory/pull/67),
+  [`069c0a2`](https://github.com/basicmachines-co/basic-memory/commit/069c0a21c630784e1bf47d2b7de5d6d1f6fadd7a))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Rename search tool to search_notes
+  ([#66](https://github.com/basicmachines-co/basic-memory/pull/66),
+  [`b278276`](https://github.com/basicmachines-co/basic-memory/commit/b27827671dc010be3e261b8b221aca6b7f836661))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+
 ## v0.10.1 (2025-03-25)
 
 ### Bug Fixes
