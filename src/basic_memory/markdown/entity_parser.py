@@ -92,32 +92,36 @@ class EntityParser:
     async def parse_file(self, path: Path | str) -> EntityMarkdown:
         """Parse markdown file into EntityMarkdown."""
 
+        # TODO move to api endpoint to check if absolute path was requested
         # Check if the path is already absolute
-        if isinstance(path, Path) and path.is_absolute() or (isinstance(path, str) and Path(path).is_absolute()):
+        if (
+            isinstance(path, Path)
+            and path.is_absolute()
+            or (isinstance(path, str) and Path(path).is_absolute())
+        ):
             absolute_path = Path(path)
         else:
             absolute_path = self.base_path / path
-            
-        # Parse frontmatter and content using python-frontmatter
-        post = frontmatter.load(str(absolute_path))
 
+        # Parse frontmatter and content using python-frontmatter
+        file_content = absolute_path.read_text()
+        return await self.parse_file_content(absolute_path, file_content)
+
+    async def parse_file_content(self, absolute_path, file_content):
+        post = frontmatter.loads(file_content)
         # Extract file stat info
         file_stats = absolute_path.stat()
-
         metadata = post.metadata
-        metadata["title"] = post.metadata.get("title", absolute_path.name)
+        metadata["title"] = post.metadata.get("title", absolute_path.stem)
         metadata["type"] = post.metadata.get("type", "note")
         tags = parse_tags(post.metadata.get("tags", []))  # pyright: ignore
         if tags:
             metadata["tags"] = tags
-
         # frontmatter
         entity_frontmatter = EntityFrontmatter(
             metadata=post.metadata,
         )
-
         entity_content = parse(post.content)
-
         return EntityMarkdown(
             frontmatter=entity_frontmatter,
             content=post.content,
