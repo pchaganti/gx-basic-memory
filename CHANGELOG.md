@@ -1,6 +1,56 @@
 # CHANGELOG
 
 
+## v0.12.0 (2025-04-06)
+
+### Bug Fixes
+
+- [bug] `#` character accumulation in markdown frontmatter tags prop
+  ([#79](https://github.com/basicmachines-co/basic-memory/pull/79),
+  [`6c19c9e`](https://github.com/basicmachines-co/basic-memory/commit/6c19c9edf5131054ba201a109b37f15c83ef150c))
+
+- [bug] Cursor has errors calling search tool
+  ([#78](https://github.com/basicmachines-co/basic-memory/pull/78),
+  [`9d581ce`](https://github.com/basicmachines-co/basic-memory/commit/9d581cee133f9dde4a0a85118868227390c84161))
+
+- [bug] Some notes never exit "modified" status
+  ([#77](https://github.com/basicmachines-co/basic-memory/pull/77),
+  [`7930ddb`](https://github.com/basicmachines-co/basic-memory/commit/7930ddb2919057be30ceac8c4c19da6aaa1d3e92))
+
+- [bug] write_note Tool Fails to Update Existing Files in Some Situations.
+  ([#80](https://github.com/basicmachines-co/basic-memory/pull/80),
+  [`9bff1f7`](https://github.com/basicmachines-co/basic-memory/commit/9bff1f732e71bc60f88b5c2ce3db5a2aa60b8e28))
+
+- Set default mcp log level to ERROR
+  ([#81](https://github.com/basicmachines-co/basic-memory/pull/81),
+  [`248214c`](https://github.com/basicmachines-co/basic-memory/commit/248214cb114a269ca60ff6398e382f9e2495ad8e))
+
+- Write_note preserves frontmatter fields in content
+  ([#84](https://github.com/basicmachines-co/basic-memory/pull/84),
+  [`3f4d9e4`](https://github.com/basicmachines-co/basic-memory/commit/3f4d9e4d872ebc0ed719c61b24d803c14a9db5e6))
+
+### Documentation
+
+- Add VS Code instructions to README
+  ([#76](https://github.com/basicmachines-co/basic-memory/pull/76),
+  [`43cbb7b`](https://github.com/basicmachines-co/basic-memory/commit/43cbb7b38cc0482ac0a41b6759320e3588186e43))
+
+- Updated basicmachines.co links to be https
+  ([#69](https://github.com/basicmachines-co/basic-memory/pull/69),
+  [`40ea28b`](https://github.com/basicmachines-co/basic-memory/commit/40ea28b0bfc60012924a69ecb76511daa4c7d133))
+
+### Features
+
+- Add watch to mcp process ([#83](https://github.com/basicmachines-co/basic-memory/pull/83),
+  [`00c8633`](https://github.com/basicmachines-co/basic-memory/commit/00c8633cfcee75ff640ff8fe81dafeb956281a94))
+
+- Permalink enhancements ([#82](https://github.com/basicmachines-co/basic-memory/pull/82),
+  [`617e60b`](https://github.com/basicmachines-co/basic-memory/commit/617e60bda4a590678a5f551f10a73e7b47e3b13e))
+
+- Avoiding "useless permalink values" for files without metadata - Enable permalinks to be updated
+  on move via config setting
+
+
 ## v0.11.0 (2025-03-29)
 
 ### Bug Fixes
