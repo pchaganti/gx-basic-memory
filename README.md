@@ -344,13 +344,7 @@ config:
 
 2. Sync your knowledge:
 
-```bash
-# One-time sync of local knowledge updates
-basic-memory sync
-
-# Run realtime sync process (recommended)
-basic-memory sync --watch
-```
+Basic Memory will sync the files in your project in real time if you make manual edits.
 
 3. In Claude Desktop, the LLM can now use these tools:
 
