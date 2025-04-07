@@ -153,7 +153,7 @@ The note embeds semantic content and links to other topics via simple Markdown f
 
 3. You see this file on your computer in real time in the current project directory (default `~/$HOME/basic-memory`).
 
-- Realtime sync can be enabled via running `basic-memory sync --watch`
+- Realtime sync is enabled by default with the v0.12.0 version
 
 4. In a chat with the LLM, you can reference a topic:
 
