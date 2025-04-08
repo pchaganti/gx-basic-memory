@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.12.2 (2025-04-08)
+
+### Bug Fixes
+
+- Utf8 for all file reads/write/open instead of default platform encoding
+  ([#91](https://github.com/basicmachines-co/basic-memory/pull/91),
+  [`2934176`](https://github.com/basicmachines-co/basic-memory/commit/29341763318408ea8f1e954a41046c4185f836c6))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+
 ## v0.12.1 (2025-04-07)
 
 ### Bug Fixes
