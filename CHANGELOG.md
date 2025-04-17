@@ -1,6 +1,21 @@
 # CHANGELOG
 
 
+## v0.12.3 (2025-04-17)
+
+### Bug Fixes
+
+- Add extra logic for permalink generation with mixed Latin unicode and Chinese characters
+  ([`73ea91f`](https://github.com/basicmachines-co/basic-memory/commit/73ea91fe0d1f7ab89b99a1b691d59fe608b7fcbb))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+- Modify recent_activity args to be strings instead of enums
+  ([`3c1cc34`](https://github.com/basicmachines-co/basic-memory/commit/3c1cc346df519e703fae6412d43a92c7232c6226))
+
+Signed-off-by: phernandez <paul@basicmachines.co>
+
+
 ## v0.12.2 (2025-04-08)
 
 ### Bug Fixes
