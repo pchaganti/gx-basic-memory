@@ -173,3 +173,17 @@ With GitHub integration, the development workflow includes:
 
 With this integration, the AI assistant is a full-fledged team member rather than just a tool for generating code
 snippets.
+
+
+### Basic Memory Pro
+
+Basic Memory Pro is a desktop GUI application that wraps the basic-memory CLI/MCP tools:
+
+- Built with Tauri (Rust), React (TypeScript), and a Python FastAPI sidecar
+- Provides visual knowledge graph exploration and project management
+- Uses the same core codebase but adds a desktop-friendly interface
+- Project configuration is shared between CLI and Pro versions
+- Multiple project support with visual switching interface
+
+local repo: /Users/phernandez/dev/basicmachines/basic-memory-pro
+github: https://github.com/basicmachines-co/basic-memory-pro
