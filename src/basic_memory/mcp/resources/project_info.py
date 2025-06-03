@@ -2,14 +2,15 @@
 
 from loguru import logger
 
-from basic_memory.config import get_project_config
+from basic_memory.mcp.project_session import get_active_project
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_get
 from basic_memory.schemas import ProjectInfoResponse
 
 
-@mcp.tool(
+@mcp.resource(
+    uri="memory://project_info",
     description="Get information and statistics about the current Basic Memory project.",
 )
 async def project_info() -> ProjectInfoResponse:
@@ -44,7 +45,8 @@ async def project_info() -> ProjectInfoResponse:
         print(f"Basic Memory version: {info.system.version}")
     """
     logger.info("Getting project info")
-    project_url = get_project_config().project_url
+    project_config = get_active_project()
+    project_url = project_config.project_url
 
     # Call the API endpoint
     response = await call_get(client, f"{project_url}/project/info")

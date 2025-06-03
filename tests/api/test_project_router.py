@@ -7,7 +7,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_get_project_info_endpoint(test_graph, client, test_config, project_url):
+async def test_get_project_info_endpoint(test_graph, client, project_config, project_url):
     """Test the project-info endpoint returns correctly structured data."""
     # Set up some test data in the database
 
@@ -51,7 +51,7 @@ async def test_get_project_info_endpoint(test_graph, client, test_config, projec
 
 
 @pytest.mark.asyncio
-async def test_get_project_info_content(test_graph, client, test_config, project_url):
+async def test_get_project_info_content(test_graph, client, project_config, project_url):
     """Test that project-info contains actual data from the test database."""
     # Call the endpoint
     response = await client.get(f"{project_url}/project/info")
@@ -77,7 +77,7 @@ async def test_get_project_info_content(test_graph, client, test_config, project
 
 
 @pytest.mark.asyncio
-async def test_get_project_info_watch_status(test_graph, client, test_config, project_url):
+async def test_get_project_info_watch_status(test_graph, client, project_config, project_url):
     """Test that project-info correctly handles watch status."""
     # Create a mock watch status file
     mock_watch_status = {
@@ -111,10 +111,10 @@ async def test_get_project_info_watch_status(test_graph, client, test_config, pr
 
 
 @pytest.mark.asyncio
-async def test_list_projects_endpoint(test_graph, client, test_config, project_url):
+async def test_list_projects_endpoint(test_config, test_graph, client, project_config, project_url):
     """Test the list projects endpoint returns correctly structured data."""
     # Call the endpoint
-    response = await client.get(f"{project_url}/project/projects")
+    response = await client.get("/projects/projects")
 
     # Verify response
     assert response.status_code == 200
@@ -123,7 +123,6 @@ async def test_list_projects_endpoint(test_graph, client, test_config, project_u
     # Check that the response contains expected fields
     assert "projects" in data
     assert "default_project" in data
-    assert "current_project" in data
 
     # Check that projects is a list
     assert isinstance(data["projects"], list)
@@ -137,14 +136,63 @@ async def test_list_projects_endpoint(test_graph, client, test_config, project_u
         assert "name" in project
         assert "path" in project
         assert "is_default" in project
-        assert "is_current" in project
-
-        # Current project should be marked
-        current_project = next((p for p in data["projects"] if p["is_current"]), None)
-        assert current_project is not None
-        assert current_project["name"] == data["current_project"]
 
         # Default project should be marked
         default_project = next((p for p in data["projects"] if p["is_default"]), None)
         assert default_project is not None
         assert default_project["name"] == data["default_project"]
+
+
+@pytest.mark.asyncio
+async def test_remove_project_endpoint(test_config, client, project_service):
+    """Test the remove project endpoint."""
+    # First create a test project to remove
+    test_project_name = "test-remove-project"
+    await project_service.add_project(test_project_name, "/tmp/test-remove-project")
+    
+    # Verify it exists
+    project = await project_service.get_project(test_project_name)
+    assert project is not None
+    
+    # Remove the project
+    response = await client.delete(f"/projects/{test_project_name}")
+    
+    # Verify response
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Check response structure
+    assert "message" in data
+    assert "status" in data
+    assert data["status"] == "success"
+    assert "old_project" in data
+    assert data["old_project"]["name"] == test_project_name
+    
+    # Verify project is actually removed
+    removed_project = await project_service.get_project(test_project_name)
+    assert removed_project is None
+
+
+@pytest.mark.asyncio
+async def test_set_default_project_endpoint(test_config, client, project_service):
+    """Test the set default project endpoint."""
+    # Create a test project to set as default
+    test_project_name = "test-default-project"
+    await project_service.add_project(test_project_name, "/tmp/test-default-project")
+    
+    # Set it as default
+    response = await client.put(f"/projects/{test_project_name}/default")
+    
+    # Verify response
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Check response structure
+    assert "message" in data
+    assert "status" in data
+    assert data["status"] == "success"
+    assert "new_project" in data
+    assert data["new_project"]["name"] == test_project_name
+    
+    # Verify it's actually set as default
+    assert project_service.default_project == test_project_name

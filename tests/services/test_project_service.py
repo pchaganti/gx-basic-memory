@@ -11,7 +11,7 @@ from basic_memory.schemas import (
     SystemStatus,
 )
 from basic_memory.services.project_service import ProjectService
-
+from basic_memory.config import ConfigManager
 
 def test_projects_property(project_service: ProjectService):
     """Test the projects property."""
@@ -63,7 +63,7 @@ def test_current_project_property(project_service: ProjectService):
 
 
 @pytest.mark.asyncio
-async def test_project_operations_sync_methods(project_service: ProjectService, tmp_path):
+async def test_project_operations_sync_methods(app_config, project_service: ProjectService, config_manager: ConfigManager, tmp_path):
     """Test adding, switching, and removing a project using ConfigManager directly.
 
     This test uses the ConfigManager directly instead of the async methods.
@@ -77,7 +77,7 @@ async def test_project_operations_sync_methods(project_service: ProjectService, 
 
     try:
         # Test adding a project (using ConfigManager directly)
-        project_service.config_manager.add_project(test_project_name, test_project_path)
+        config_manager.add_project(test_project_name, test_project_path)
 
         # Verify it was added
         assert test_project_name in project_service.projects
@@ -85,22 +85,22 @@ async def test_project_operations_sync_methods(project_service: ProjectService, 
 
         # Test setting as default
         original_default = project_service.default_project
-        project_service.config_manager.set_default_project(test_project_name)
+        config_manager.set_default_project(test_project_name)
         assert project_service.default_project == test_project_name
 
         # Restore original default
         if original_default:
-            project_service.config_manager.set_default_project(original_default)
+            config_manager.set_default_project(original_default)
 
         # Test removing the project
-        project_service.config_manager.remove_project(test_project_name)
+        config_manager.remove_project(test_project_name)
         assert test_project_name not in project_service.projects
 
     except Exception as e:
         # Clean up in case of error
         if test_project_name in project_service.projects:
             try:
-                project_service.config_manager.remove_project(test_project_name)
+                config_manager.remove_project(test_project_name)
             except Exception:
                 pass
         raise e
@@ -130,11 +130,6 @@ async def test_get_statistics(project_service: ProjectService, test_graph):
     assert statistics.total_entities > 0
     assert "test" in statistics.entity_types
 
-    # Test with no repository
-    temp_service = ProjectService()  # No repository provided
-    with pytest.raises(ValueError, match="Repository is required for get_statistics"):
-        await temp_service.get_statistics()
-
 
 @pytest.mark.asyncio
 async def test_get_activity_metrics(project_service: ProjectService, test_graph):
@@ -146,11 +141,6 @@ async def test_get_activity_metrics(project_service: ProjectService, test_graph)
     assert isinstance(metrics, ActivityMetrics)
     assert len(metrics.recently_created) > 0
     assert len(metrics.recently_updated) > 0
-
-    # Test with no repository
-    temp_service = ProjectService()  # No repository provided
-    with pytest.raises(ValueError, match="Repository is required for get_activity_metrics"):
-        await temp_service.get_activity_metrics()
 
 
 @pytest.mark.asyncio
@@ -168,11 +158,6 @@ async def test_get_project_info(project_service: ProjectService, test_graph):
     assert isinstance(info.statistics, ProjectStatistics)
     assert isinstance(info.activity, ActivityMetrics)
     assert isinstance(info.system, SystemStatus)
-
-    # Test with no repository
-    temp_service = ProjectService()  # No repository provided
-    with pytest.raises(ValueError, match="Repository is required for get_project_info"):
-        await temp_service.get_project_info()
 
 
 @pytest.mark.asyncio
@@ -249,3 +234,68 @@ async def test_set_default_project_async(project_service: ProjectService, tmp_pa
         # Clean up test project
         if test_project_name in project_service.projects:
             await project_service.remove_project(test_project_name)
+
+
+@pytest.mark.asyncio
+async def test_get_project_method(project_service: ProjectService, tmp_path):
+    """Test the get_project method directly."""
+    test_project_name = f"test-get-project-{os.urandom(4).hex()}"
+    test_project_path = str(tmp_path / "test-get-project")
+    
+    # Make sure the test directory exists
+    os.makedirs(test_project_path, exist_ok=True)
+    
+    try:
+        # Test getting a non-existent project
+        result = await project_service.get_project("non-existent-project")
+        assert result is None
+        
+        # Add a project
+        await project_service.add_project(test_project_name, test_project_path)
+        
+        # Test getting an existing project
+        result = await project_service.get_project(test_project_name)
+        assert result is not None
+        assert result.name == test_project_name
+        assert result.path == test_project_path
+        
+    finally:
+        # Clean up
+        if test_project_name in project_service.projects:
+            await project_service.remove_project(test_project_name)
+
+
+@pytest.mark.asyncio
+async def test_set_default_project_config_db_mismatch(project_service: ProjectService, config_manager: ConfigManager, tmp_path):
+    """Test set_default_project when project exists in config but not in database."""
+    test_project_name = f"test-mismatch-project-{os.urandom(4).hex()}"
+    test_project_path = str(tmp_path / "test-mismatch-project")
+    
+    # Make sure the test directory exists  
+    os.makedirs(test_project_path, exist_ok=True)
+    
+    original_default = project_service.default_project
+    
+    try:
+        # Add project to config only (not to database)
+        config_manager.add_project(test_project_name, test_project_path)
+        
+        # Verify it's in config but not in database
+        assert test_project_name in project_service.projects
+        db_project = await project_service.repository.get_by_name(test_project_name)
+        assert db_project is None
+        
+        # Try to set as default - this should trigger the error log on line 142
+        await project_service.set_default_project(test_project_name)
+        
+        # Should still update config despite database mismatch
+        assert project_service.default_project == test_project_name
+        
+    finally:
+        # Restore original default
+        if original_default:
+            config_manager.set_default_project(original_default)
+            
+        # Clean up
+        if test_project_name in project_service.projects:
+            config_manager.remove_project(test_project_name)

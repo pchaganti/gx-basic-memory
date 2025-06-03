@@ -2,222 +2,236 @@
 
 ## Overview
 
-This is a major release that introduces multi-project support, OAuth authentication, server-side templating, and numerous improvements to the MCP server implementation. The codebase has been significantly refactored to support a unified database architecture while maintaining backward compatibility.
+Basic Memory v0.13.0 is a **major release** that transforms Basic Memory into a true multi-project knowledge management system. This release introduces fluid project switching, advanced note editing capabilities, robust file management, and production-ready OAuth authentication - all while maintaining full backward compatibility.
+
+**What's New for Users:**
+- 🎯 **Switch between projects instantly** during conversations with Claude
+- ✏️ **Edit notes incrementally** without rewriting entire documents
+- 📁 **Move and organize notes** with full database consistency
+- 🔍 **Search frontmatter tags** to discover content more easily
+- 🔐 **OAuth authentication** for secure remote access
+- ⚡ **Development builds** automatically published for beta testing
+
+**Key v0.13.0 Accomplishments:**
+- ✅ **Complete Project Management System** - Project switching and project-specific operations
+- ✅ **Advanced Note Editing** - Incremental editing with append, prepend, find/replace, and section operations  
+- ✅ **File Management System** - Full move operations with database consistency and rollback protection
+- ✅ **Enhanced Search Capabilities** - Frontmatter tags now searchable, improved content discoverability
+- ✅ **Unified Database Architecture** - Single app-level database for better performance and project management
 
 ## Major Features
 
-### 1. Multi-Project Support 🎯
-- **Unified Database Architecture**: All projects now share a single SQLite database with proper isolation
-- **Project Management API**: New endpoints for creating, updating, and managing projects
-- **Project Configuration**: Projects can be defined in `config.json` and synced with the database
-- **Default Project**: Backward compatibility maintained with automatic default project creation
-- **Project Switching**: CLI commands and API endpoints now support project context
+### 1. Multiple Project Management 🎯
 
-### 2. OAuth 2.1 Authentication 🔐
-- **Multiple Provider Support**:
-  - Basic (in-memory) provider for development
-  - Supabase provider for production deployments
-  - External providers (GitHub, Google) framework
-- **JWT-based Access Tokens**: Secure token generation and validation
-- **PKCE Support**: Enhanced security for authorization code flow
-- **MCP Inspector Integration**: Full support for authenticated testing
-- **CLI Commands**: `basic-memory auth register-client` and `basic-memory auth test-auth`
+**Switch between projects instantly during conversations:**
 
-### 3. Server-Side Template Engine 📝
-- **Handlebars Templates**: Server-side rendering of prompts and responses
-- **Custom Helpers**: Rich set of template helpers for formatting
-- **Structured Output**: XML-formatted responses for better LLM consumption
-- **Template Caching**: Improved performance with template compilation caching
+```
+💬 "What projects do I have?"
+🤖 Available projects:
+   • main (current, default)
+   • work-notes
+   • personal-journal
+   • code-snippets
 
-### 4. Enhanced Import System 📥
-- **Unified Importer Framework**: Base class for all importers with consistent interface
-- **API Support**: New `/import` endpoints for triggering imports via API
-- **Progress Tracking**: Real-time progress updates during import operations
-- **Multiple Formats**:
-  - ChatGPT conversations
-  - Claude conversations  
-  - Claude projects
-  - Memory JSON format
+💬 "Switch to work-notes"
+🤖 ✓ Switched to work-notes project
+   
+   Project Summary:
+   • 47 entities
+   • 125 observations  
+   • 23 relations
 
-### 5. Directory Navigation 📁
-- **Directory Service**: Browse and navigate project file structure
-- **API Endpoints**: `/directory/tree` and `/directory/list` endpoints
-- **Hierarchical View**: Tree structure representation of knowledge base
-
-## API Changes
-
-### New Endpoints
-
-#### Project Management
-- `GET /projects` - List all projects
-- `POST /projects` - Create new project
-- `GET /projects/{project_id}` - Get project details
-- `PUT /projects/{project_id}` - Update project
-- `DELETE /projects/{project_id}` - Delete project
-- `POST /projects/{project_id}/set-default` - Set default project
-
-#### Import API
-- `GET /{project}/import/types` - List available importers
-- `POST /{project}/import/{importer_type}/analyze` - Analyze import source
-- `POST /{project}/import/{importer_type}/preview` - Preview import
-- `POST /{project}/import/{importer_type}/execute` - Execute import
-
-#### Directory API
-- `GET /{project}/directory/tree` - Get directory tree
-- `GET /{project}/directory/list` - List directory contents
-
-#### Prompt Templates
-- `POST /{project}/prompts/search` - Search with formatted output
-- `POST /{project}/prompts/continue-conversation` - Continue conversation with context
-
-#### Management API
-- `GET /management/sync/status` - Get sync status
-- `POST /management/sync/start` - Start background sync
-- `POST /management/sync/stop` - Stop background sync
-
-### Updated Endpoints
-
-All knowledge-related endpoints now require project context:
-- `/{project}/entities`
-- `/{project}/observations`
-- `/{project}/search`
-- `/{project}/memory`
-
-## CLI Changes
-
-### New Commands
-- `basic-memory auth` - OAuth client management
-- `basic-memory project create` - Create new project
-- `basic-memory project list` - List all projects
-- `basic-memory project set-default` - Set default project
-- `basic-memory project delete` - Delete project
-- `basic-memory project info` - Show project statistics
-
-### Updated Commands
-- Import commands now support `--project` flag
-- Sync commands operate on all active projects by default
-- MCP server defaults to stdio transport (use `--transport streamable-http` for HTTP)
-
-## Configuration Changes
-
-### config.json Structure
-```json
-{
-  "projects": {
-    "main": "~/basic-memory",
-    "my-project": "~/my-notes",
-    "work": "~/work/notes"
-  },
-  "default_project": "main",
-  "sync_changes": true
-}
+💬 "What did I work on yesterday?"
+🤖 [Shows recent activity from work-notes project]
 ```
 
-### Environment Variables
-- `FASTMCP_AUTH_ENABLED` - Enable OAuth authentication
-- `FASTMCP_AUTH_SECRET_KEY` - JWT signing key
-- `FASTMCP_AUTH_PROVIDER` - OAuth provider type
-- `FASTMCP_AUTH_REQUIRED_SCOPES` - Required OAuth scopes
+**Key Capabilities:**
+- **Instant Project Switching**: Change project context mid-conversation without restart
+- **Project-Specific Operations**: Operations work within the currently active project context
+- **Project Discovery**: List all available projects with status indicators
+- **Session Context**: Maintains active project throughout conversation
+- **Backward Compatibility**: Existing single-project setups continue to work seamlessly
 
-## Database Changes
+### 2. Advanced Note Editing ✏️
 
-### New Tables
-- `project` - Project definitions and metadata
-- Migration: `5fe1ab1ccebe_add_projects_table.py`
+**Edit notes incrementally without rewriting entire documents:**
 
-### Schema Updates
-- All knowledge tables now include `project_id` foreign key
-- Search index updated to support project filtering
-- Backward compatibility maintained via default project
+```python
+# Append new sections to existing notes
+edit_note("project-planning", "append", "\n## New Requirements\n- Feature X\n- Feature Y")
 
-## Performance Improvements
+# Prepend timestamps to meeting notes
+edit_note("meeting-notes", "prepend", "## 2025-05-27 Update\n- Progress update...")
 
-- **Concurrent Initialization**: Projects initialize in parallel
-- **Optimized Queries**: Better use of indexes and joins
-- **Template Caching**: Compiled templates cached in memory
-- **Batch Operations**: Reduced database round trips
+# Replace specific sections under headers
+edit_note("api-spec", "replace_section", "New implementation details", section="## Implementation")
 
-## Bug Fixes
+# Find and replace with validation
+edit_note("config", "find_replace", "v0.13.0", find_text="v0.12.0", expected_replacements=2)
+```
 
-- Fixed duplicate initialization in MCP server startup
-- Fixed JWT audience validation for OAuth tokens
-- Fixed trailing slash requirement for MCP endpoints
-- Corrected OAuth endpoint paths
-- Fixed stdio transport initialization
-- Improved error handling in file sync operations
-- Fixed search result ranking and filtering
+**Key Capabilities:**
+- **Append Operations**: Add content to end of notes (most common use case)
+- **Prepend Operations**: Add content to beginning of notes
+- **Section Replacement**: Replace content under specific markdown headers
+- **Find & Replace**: Simple text replacements with occurrence counting
+- **Smart Error Handling**: Helpful guidance when operations fail
+- **Project Context**: Works within the active project with session awareness
 
-## Breaking Changes
+### 3. Smart File Management 📁
 
-- **Project Context Required**: API endpoints now require project context
-- **Database Location**: Unified database at `~/.basic-memory/memory.db`
-- **Import Module Restructure**: Import functionality moved to dedicated module
+**Move and organize notes:**
 
-## Migration Guide
+```python
+# Simple moves with automatic folder creation
+move_note("my-note", "work/projects/my-note.md")
+
+# Organize within the active project
+move_note("shared-doc", "archive/old-docs/shared-doc.md")
+
+# Rename operations
+move_note("old-name", "same-folder/new-name.md")
+```
+
+**Key Capabilities:**
+- **Database Consistency**: Updates file paths, permalinks, and checksums automatically
+- **Search Reindexing**: Maintains search functionality after moves
+- **Folder Creation**: Automatically creates destination directories
+- **Project Isolation**: Operates within the currently active project
+- **Link Preservation**: Maintains internal links and references
+
+### 4. Enhanced Search & Discovery 🔍
+
+**Find content more easily with improved search capabilities:**
+
+- **Frontmatter Tag Search**: Tags from YAML frontmatter are now indexed and searchable
+- **Improved Content Discovery**: Search across titles, content, tags, and metadata
+- **Project-Scoped Search**: Search within the currently active project
+- **Better Search Quality**: Enhanced FTS5 indexing with tag content inclusion
+
+**Example:**
+```yaml
+---
+title: Coffee Brewing Methods
+tags: [coffee, brewing, equipment]
+---
+```
+Now searchable by: "coffee", "brewing", "equipment", or "Coffee Brewing Methods"
+
+### 5. Unified Database Architecture 🗄️
+
+**Single app-level database for better performance and project management:**
+
+- **Migration from Per-Project DBs**: Moved from multiple SQLite files to single app database
+- **Project Isolation**: Proper data separation with project_id foreign keys
+- **Better Performance**: Optimized queries and reduced file I/O
+
+## Complete MCP Tool Suite 🛠️
+
+### New Project Management Tools
+- **`list_projects()`** - Discover and list all available projects with status
+- **`switch_project(project_name)`** - Change active project context during conversations
+- **`get_current_project()`** - Show currently active project with statistics
+- **`set_default_project(project_name)`** - Update default project configuration
+
+### New Note Operations Tools
+- **`edit_note()`** - Incremental note editing (append, prepend, find/replace, section replace)
+- **`move_note()`** - Move notes with database consistency and search reindexing
+
+### Enhanced Existing Tools
+All existing tools now support:
+- **Session context awareness** (operates within the currently active project)
+- **Enhanced error messages** with project context metadata
+- **Improved response formatting** with project information footers
+- **Project isolation** ensures operations stay within the correct project boundaries
+
+
+## User Experience Improvements
+
+### Installation Options
+
+**Multiple ways to install and test Basic Memory:**
+
+```bash
+# Stable release
+uv tool install basic-memory
+
+# Beta/pre-releases
+uv tool install basic-memory --pre
+```
+
+
+### Bug Fixes & Quality Improvements
+
+**Major issues resolved in v0.13.0:**
+
+- **#118**: Fixed YAML tag formatting to follow standard specification
+- **#110**: Fixed `--project` flag consistency across all CLI commands
+- **#107**: Fixed write_note update failures with existing notes
+- **#93**: Fixed custom permalink handling in frontmatter
+- **#52**: Enhanced search capabilities with frontmatter tag indexing
+- **FTS5 Search**: Fixed special character handling in search queries
+- **Error Handling**: Improved error messages and validation across all tools
+
+## Breaking Changes & Migration
 
 ### For Existing Users
 
-1. **Automatic Migration**: First run will migrate existing data to default project
-2. **Project Configuration**: Add projects to `config.json` if using multiple projects
-3. **API Updates**: Update API calls to include project context
+**Automatic Migration**: First run will automatically migrate existing data to the new unified database structure. No manual action required.
 
-### For API Consumers
+**What Changes:**
+- Database location: Moved to `~/.basic-memory/memory.db` (unified across projects)
+- Configuration: Projects defined in `~/.basic-memory/config.json` are synced with database
 
-```python
-# Old
-response = client.get("/entities")
+**What Stays the Same:**
+- All existing notes and data remain unchanged
+- Default project behavior maintained for single-project users
+- All existing MCP tools continue to work without modification
 
-# New  
-response = client.get("/main/entities")  # 'main' is default project
+
+
+
+## Documentation & Resources
+
+### New Documentation
+- [Project Management Guide](docs/Project%20Management.md) - Multi-project workflows
+- [Note Editing Guide](docs/Note%20Editing.md) - Advanced editing techniques
+
+### Updated Documentation
+- [README.md](README.md) - Installation options and beta build instructions
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Release process and version management
+- [CLAUDE.md](CLAUDE.md) - Development workflow and CI/CD documentation
+- [Claude.ai Integration](docs/Claude.ai%20Integration.md) - Updated MCP tool examples
+
+### Quick Start Examples
+
+**Project Switching:**
+```
+💬 "Switch to my work project and show recent activity"
+🤖 [Calls switch_project("work") then recent_activity()]
 ```
 
-### For OAuth Setup
+**Note Editing:**
+```
+💬 "Add a section about deployment to my API docs"
+🤖 [Calls edit_note("api-docs", "append", "## Deployment\n...")]
+```
 
+**File Organization:**
+```
+💬 "Move my old meeting notes to the archive folder"
+🤖 [Calls move_note("meeting-notes", "archive/old-meetings.md")]
+```
+
+
+### Getting Updates
 ```bash
-# Enable OAuth
-export FASTMCP_AUTH_ENABLED=true
-export FASTMCP_AUTH_SECRET_KEY="your-secret-key"
+# Stable releases
+uv tool upgrade basic-memory
 
-# Start server
-basic-memory mcp --transport streamable-http
+# Beta releases  
+uv tool install basic-memory --pre --force-reinstall
 
-# Get token
-basic-memory auth test-auth
+# Latest development
+uv tool install basic-memory --pre --force-reinstall
 ```
-
-## Dependencies
-
-### Added
-- `python-dotenv` - Environment variable management
-- `pydantic` >= 2.0 - Enhanced validation
-
-### Updated
-- `fastmcp` to latest version
-- `mcp` to latest version
-- All development dependencies updated
-
-## Documentation
-
-- New: [OAuth Authentication Guide](docs/OAuth%20Authentication%20Guide.md)
-- New: [Supabase OAuth Setup](docs/Supabase%20OAuth%20Setup.md)
-- Updated: [Claude.ai Integration](docs/Claude.ai%20Integration.md)
-- Updated: Main README with project examples
-
-## Testing
-
-- Added comprehensive test coverage for new features
-- OAuth provider tests with full flow validation
-- Template engine tests with various scenarios
-- Project service integration tests
-- Import system unit tests
-
-## Contributors
-
-This release includes contributions from the Basic Machines team and the AI assistant Claude, demonstrating effective human-AI collaboration in software development.
-
-## Next Steps
-
-- Production deployment guide updates
-- Additional OAuth provider implementations
-- Performance profiling and optimization
-- Enhanced project analytics features
