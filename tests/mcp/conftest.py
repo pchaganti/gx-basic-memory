@@ -13,22 +13,24 @@ from basic_memory.deps import get_project_config, get_engine_factory
 from basic_memory.services.search_service import SearchService
 from basic_memory.mcp.server import mcp as mcp_server
 
+from basic_memory.config import app_config as basic_memory_app_config  # noqa: F401
 
-@pytest.fixture
+
+@pytest.fixture(scope="function")
 def mcp() -> FastMCP:
     return mcp_server
 
 
-@pytest.fixture
-def app(app_config, test_config, engine_factory, monkeypatch) -> FastAPI:
+@pytest.fixture(scope="function")
+def app(app_config, project_config, engine_factory, project_session, config_manager) -> FastAPI:
     """Create test FastAPI application."""
     app = fastapi_app
-    app.dependency_overrides[get_project_config] = lambda: test_config
+    app.dependency_overrides[get_project_config] = lambda: project_config
     app.dependency_overrides[get_engine_factory] = lambda: engine_factory
     return app
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
     """Create test client that both MCP and tests will use."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
