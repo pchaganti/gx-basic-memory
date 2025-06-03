@@ -1,6 +1,82 @@
 # CHANGELOG
 
 
+## v0.13.0 (2025-06-03)
+
+### Features
+
+- **Multi-Project Management System** - Switch between projects instantly during conversations
+  ([`993e88a`](https://github.com/basicmachines-co/basic-memory/commit/993e88a)) 
+  - Instant project switching with session context
+  - Project-specific operations and isolation
+  - Project discovery and management tools
+
+- **Advanced Note Editing** - Incremental editing with append, prepend, find/replace, and section operations
+  ([`6fc3904`](https://github.com/basicmachines-co/basic-memory/commit/6fc3904))
+  - `edit_note` tool with multiple operation types
+  - Smart frontmatter-aware editing
+  - Validation and error handling
+
+- **Smart File Management** - Move notes with database consistency and search reindexing
+  ([`9fb931c`](https://github.com/basicmachines-co/basic-memory/commit/9fb931c))
+  - `move_note` tool with rollback protection
+  - Automatic folder creation and permalink updates
+  - Full database consistency maintenance
+
+- **Enhanced Search Capabilities** - Frontmatter tags now searchable, improved content discovery
+  ([`3f5368e`](https://github.com/basicmachines-co/basic-memory/commit/3f5368e))
+  - YAML frontmatter tag indexing
+  - Improved FTS5 search functionality
+  - Project-scoped search operations
+
+- **Production Features** - OAuth authentication, development builds, comprehensive testing
+  ([`5f8d945`](https://github.com/basicmachines-co/basic-memory/commit/5f8d945))
+  - Development build automation
+  - MCP integration testing framework
+  - Enhanced CI/CD pipeline
+
+### Bug Fixes
+
+- **#118**: Fix YAML tag formatting to follow standard specification
+  ([`2dc7e27`](https://github.com/basicmachines-co/basic-memory/commit/2dc7e27))
+
+- **#110**: Make --project flag work consistently across CLI commands
+  ([`02dd91a`](https://github.com/basicmachines-co/basic-memory/commit/02dd91a))
+
+- **#93**: Respect custom permalinks in frontmatter for write_note
+  ([`6b6fd76`](https://github.com/basicmachines-co/basic-memory/commit/6b6fd76))
+
+- Fix list_directory path display to not include leading slash
+  ([`6057126`](https://github.com/basicmachines-co/basic-memory/commit/6057126))
+
+### Technical Improvements
+
+- **Unified Database Architecture** - Single app-level database for better performance
+  - Migration from per-project databases to unified structure
+  - Project isolation with foreign key relationships
+  - Optimized queries and reduced file I/O
+
+- **Comprehensive Testing** - 100% test coverage with integration testing
+  ([`468a22f`](https://github.com/basicmachines-co/basic-memory/commit/468a22f))
+  - MCP integration test suite
+  - End-to-end testing framework
+  - Performance and edge case validation
+
+### Documentation
+
+- Add comprehensive testing documentation (TESTING.md)
+- Update project management guides (PROJECT_MANAGEMENT.md)
+- Enhanced note editing documentation (EDIT_NOTE.md)
+- Updated release workflow documentation
+
+### Breaking Changes
+
+- **Database Migration**: Automatic migration from per-project to unified database. 
+    Data will be re-index from the filesystem, resulting in no data loss. 
+- **Configuration Changes**: Projects now synced between config.json and database
+- **Full Backward Compatibility**: All existing setups continue to work seamlessly
+
+
 ## v0.12.3 (2025-04-17)
 
 ### Bug Fixes
