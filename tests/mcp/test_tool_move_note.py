@@ -167,7 +167,11 @@ async def test_move_note_nonexistent_note(client):
 
     # Should raise an exception from the API with friendly error message
     error_msg = str(exc_info.value)
-    assert "Entity not found" in error_msg or "Invalid request" in error_msg or "malformed" in error_msg
+    assert (
+        "Entity not found" in error_msg
+        or "Invalid request" in error_msg
+        or "malformed" in error_msg
+    )
 
 
 @pytest.mark.asyncio
@@ -222,7 +226,11 @@ async def test_move_note_destination_exists(client):
 
     # Should raise an exception (400 gets wrapped as malformed request)
     error_msg = str(exc_info.value)
-    assert "Destination already exists" in error_msg or "Invalid request" in error_msg or "malformed" in error_msg
+    assert (
+        "Destination already exists" in error_msg
+        or "Invalid request" in error_msg
+        or "malformed" in error_msg
+    )
 
 
 @pytest.mark.asyncio
@@ -244,7 +252,12 @@ async def test_move_note_same_location(client):
 
     # Should raise an exception (400 gets wrapped as malformed request)
     error_msg = str(exc_info.value)
-    assert "Destination already exists" in error_msg or "same location" in error_msg or "Invalid request" in error_msg or "malformed" in error_msg
+    assert (
+        "Destination already exists" in error_msg
+        or "same location" in error_msg
+        or "Invalid request" in error_msg
+        or "malformed" in error_msg
+    )
 
 
 @pytest.mark.asyncio

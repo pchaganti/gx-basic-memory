@@ -106,6 +106,5 @@ auth_settings, auth_provider = create_auth_config()
 mcp = FastMCP(
     name="Basic Memory",
     log_level="DEBUG",
-    auth_server_provider=auth_provider,
-    auth=auth_settings,
+    auth=auth_provider,
 )

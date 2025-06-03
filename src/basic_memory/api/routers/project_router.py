@@ -145,7 +145,9 @@ async def remove_project(
     try:
         old_project = await project_service.get_project(name)
         if not old_project:  # pragma: no cover
-            raise HTTPException(status_code=404, detail=f"Project: '{name}' does not exist")  # pragma: no cover
+            raise HTTPException(
+                status_code=404, detail=f"Project: '{name}' does not exist"
+            )  # pragma: no cover
 
         await project_service.remove_project(name)
 
@@ -186,7 +188,9 @@ async def set_default_project(
         # get the new project
         new_default_project = await project_service.get_project(name)
         if not new_default_project:  # pragma: no cover
-            raise HTTPException(status_code=404, detail=f"Project: '{name}' does not exist")  # pragma: no cover
+            raise HTTPException(
+                status_code=404, detail=f"Project: '{name}' does not exist"
+            )  # pragma: no cover
 
         await project_service.set_default_project(name)
 

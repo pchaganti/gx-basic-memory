@@ -179,7 +179,7 @@ class ConfigManager:
 
     def save_config(self, config: BasicMemoryConfig) -> None:
         """Save configuration to file."""
-        try:            
+        try:
             self.config_file.write_text(json.dumps(config.model_dump(), indent=2))
         except Exception as e:  # pragma: no cover
             logger.error(f"Failed to save config: {e}")

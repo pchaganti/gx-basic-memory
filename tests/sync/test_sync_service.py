@@ -439,8 +439,12 @@ modified: 2024-01-01
 
     # Verify outgoing relations by checking actual targets
     a_outgoing_targets = {rel.to_id for rel in entity_a.outgoing_relations}
-    assert entity_b.id in a_outgoing_targets, f"A should depend on B. A's targets: {a_outgoing_targets}, B's ID: {entity_b.id}"
-    assert entity_c.id in a_outgoing_targets, f"A should depend on C. A's targets: {a_outgoing_targets}, C's ID: {entity_c.id}"
+    assert entity_b.id in a_outgoing_targets, (
+        f"A should depend on B. A's targets: {a_outgoing_targets}, B's ID: {entity_b.id}"
+    )
+    assert entity_c.id in a_outgoing_targets, (
+        f"A should depend on C. A's targets: {a_outgoing_targets}, C's ID: {entity_c.id}"
+    )
     assert len(entity_a.outgoing_relations) == 2, "A should have exactly 2 outgoing relations"
 
     b_outgoing_targets = {rel.to_id for rel in entity_b.outgoing_relations}
@@ -454,14 +458,13 @@ modified: 2024-01-01
     # Verify incoming relations by checking actual sources
     a_incoming_sources = {rel.from_id for rel in entity_a.incoming_relations}
     assert entity_c.id in a_incoming_sources, "A should have incoming relation from C"
-    
+
     b_incoming_sources = {rel.from_id for rel in entity_b.incoming_relations}
     assert entity_a.id in b_incoming_sources, "B should have incoming relation from A"
-    
+
     c_incoming_sources = {rel.from_id for rel in entity_c.incoming_relations}
     assert entity_a.id in c_incoming_sources, "C should have incoming relation from A"
     assert entity_b.id in c_incoming_sources, "C should have incoming relation from B"
-    
 
 
 @pytest.mark.asyncio

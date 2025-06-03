@@ -1230,7 +1230,7 @@ async def test_move_entity_success(
 
     # Move entity
     assert entity.permalink == "original/test-note"
-    result = await entity_service.move_entity(
+    await entity_service.move_entity(
         identifier=entity.permalink,
         destination_path="moved/test-note.md",
         project_config=project_config,
@@ -1276,13 +1276,12 @@ async def test_move_entity_with_permalink_update(
     app_config = BasicMemoryConfig(update_permalinks_on_move=True)
 
     # Move entity
-    result = await entity_service.move_entity(
+    await entity_service.move_entity(
         identifier=entity.permalink,
         destination_path="moved/test-note.md",
         project_config=project_config,
         app_config=app_config,
     )
-
 
     # Verify entity was found by new path (since permalink changed)
     moved_entity = await entity_service.link_resolver.resolve_link("moved/test-note.md")
@@ -1473,7 +1472,7 @@ async def test_move_entity_by_title(
     app_config = BasicMemoryConfig(update_permalinks_on_move=False)
 
     # Move by title
-    result = await entity_service.move_entity(
+    await entity_service.move_entity(
         identifier="Test Note",  # Use title instead of permalink
         destination_path="moved/test-note.md",
         project_config=project_config,

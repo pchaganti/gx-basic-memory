@@ -1,16 +1,13 @@
 """Common test fixtures."""
-import os
+
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from textwrap import dedent
 from typing import AsyncGenerator
-from unittest import mock
-from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
-from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 import basic_memory.mcp.project_session
@@ -49,42 +46,52 @@ def anyio_backend():
 def project_root() -> Path:
     return Path(__file__).parent.parent
 
+
 @pytest.fixture
 def config_home(tmp_path, monkeypatch) -> Path:
     # Patch HOME environment variable for the duration of the test
     monkeypatch.setenv("HOME", str(tmp_path))
     return tmp_path
 
+
 @pytest.fixture(scope="function", autouse=True)
 def app_config(config_home, tmp_path, monkeypatch) -> BasicMemoryConfig:
     """Create test app configuration."""
     # Create a basic config without depending on test_project to avoid circular dependency
     projects = {"test-project": str(config_home)}
-    app_config = BasicMemoryConfig(env="test", projects=projects, default_project="test-project", update_permalinks_on_move=True)
-    
+    app_config = BasicMemoryConfig(
+        env="test",
+        projects=projects,
+        default_project="test-project",
+        update_permalinks_on_move=True,
+    )
 
     # Patch the module app_config instance for the duration of the test
     monkeypatch.setattr("basic_memory.config.app_config", app_config)
     return app_config
 
+
 @pytest.fixture(autouse=True)
-def config_manager(app_config: BasicMemoryConfig, project_config: ProjectConfig, config_home: Path, monkeypatch) -> ConfigManager:
+def config_manager(
+    app_config: BasicMemoryConfig, project_config: ProjectConfig, config_home: Path, monkeypatch
+) -> ConfigManager:
     # Create a new ConfigManager that uses the test home directory
     config_manager = ConfigManager()
     # Update its paths to use the test directory
     config_manager.config_dir = config_home / ".basic-memory"
     config_manager.config_file = config_manager.config_dir / "config.json"
     config_manager.config_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Override the config directly instead of relying on disk load
     config_manager.config = app_config
-    
+
     # Ensure the config file is written to disk
     config_manager.save_config(app_config)
-    
+
     # Patch the config_manager in all locations where it's imported
     monkeypatch.setattr("basic_memory.config.config_manager", config_manager)
     monkeypatch.setattr("basic_memory.services.project_service.config_manager", config_manager)
+
     # Mock get_project_config to return test project config for test-project, fallback for others
     def mock_get_project_config(project_name=None):
         if project_name == "test-project" or project_name is None:
@@ -92,17 +99,23 @@ def config_manager(app_config: BasicMemoryConfig, project_config: ProjectConfig,
         # For any other project name, return a default config pointing to test location
         fallback_config = ProjectConfig(name=project_name or "main", home=Path(config_home))
         return fallback_config
-    monkeypatch.setattr("basic_memory.mcp.project_session.get_project_config", mock_get_project_config)
-    
+
+    monkeypatch.setattr(
+        "basic_memory.mcp.project_session.get_project_config", mock_get_project_config
+    )
+
     # Patch the project config that CLI commands import (only modules that actually import config)
     monkeypatch.setattr("basic_memory.cli.commands.project.config", project_config)
     monkeypatch.setattr("basic_memory.cli.commands.sync.config", project_config)
     monkeypatch.setattr("basic_memory.cli.commands.status.config", project_config)
     monkeypatch.setattr("basic_memory.cli.commands.import_memory_json.config", project_config)
     monkeypatch.setattr("basic_memory.cli.commands.import_claude_projects.config", project_config)
-    monkeypatch.setattr("basic_memory.cli.commands.import_claude_conversations.config", project_config)
+    monkeypatch.setattr(
+        "basic_memory.cli.commands.import_claude_conversations.config", project_config
+    )
     monkeypatch.setattr("basic_memory.cli.commands.import_chatgpt.config", project_config)
     return config_manager
+
 
 @pytest.fixture(autouse=True)
 def project_session(test_project: Project):
@@ -134,17 +147,18 @@ class TestConfig:
     app_config: BasicMemoryConfig
     config_manager: ConfigManager
 
+
 @pytest.fixture
 def test_config(config_home, project_config, app_config, config_manager) -> TestConfig:
     """All test configuration fixtures"""
-    
+
     @dataclass
     class TestConfig:
         config_home: Path
         project_config: ProjectConfig
         app_config: BasicMemoryConfig
         config_manager: ConfigManager
-        
+
     return TestConfig(config_home, project_config, app_config, config_manager)
 
 

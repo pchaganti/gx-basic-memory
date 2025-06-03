@@ -31,7 +31,7 @@ async def move_note(
 
     Examples:
         - Move to new folder: move_note("My Note", "work/notes/my-note.md")
-        - Move by permalink: move_note("my-note-permalink", "archive/old-notes/my-note.md") 
+        - Move by permalink: move_note("my-note-permalink", "archive/old-notes/my-note.md")
         - Specify project: move_note("My Note", "archive/my-note.md", project="work-project")
 
     Note: This operation moves notes within the specified project only. Moving notes

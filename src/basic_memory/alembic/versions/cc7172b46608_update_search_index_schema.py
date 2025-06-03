@@ -57,7 +57,6 @@ def upgrade() -> None:
     """)
 
 
-
 def downgrade() -> None:
     """Downgrade database schema to use old search index."""
     # Drop the updated search_index table

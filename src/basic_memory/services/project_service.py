@@ -22,6 +22,7 @@ from basic_memory.config import WATCH_STATUS_JSON
 from basic_memory.utils import generate_permalink
 from basic_memory.config import config_manager
 
+
 class ProjectService:
     """Service for managing Basic Memory projects."""
 

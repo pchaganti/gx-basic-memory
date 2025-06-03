@@ -49,10 +49,8 @@ async def test_my_mcp_tool(mcp_server, app):
 The `app` fixture ensures FastAPI dependency overrides are active, and
 `mcp_server` provides the MCP server with proper project session initialization.
 """
-import os
+
 from typing import AsyncGenerator
-from unittest import mock
-from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
@@ -110,20 +108,28 @@ async def test_project(tmp_path, engine_factory) -> Project:
     project = await project_repository.create(project_data)
     return project
 
+
 @pytest.fixture
 def config_home(tmp_path, monkeypatch) -> Path:
     monkeypatch.setenv("HOME", str(tmp_path))
     return tmp_path
 
+
 @pytest.fixture(scope="function")
 def app_config(config_home, test_project, tmp_path, monkeypatch) -> BasicMemoryConfig:
     """Create test app configuration."""
     projects = {test_project.name: str(test_project.path)}
-    app_config = BasicMemoryConfig(env="test", projects=projects, default_project=test_project.name, update_permalinks_on_move=True)
+    app_config = BasicMemoryConfig(
+        env="test",
+        projects=projects,
+        default_project=test_project.name,
+        update_permalinks_on_move=True,
+    )
 
     # Set the module app_config instance project list (like regular tests)
     monkeypatch.setattr("basic_memory.config.app_config", app_config)
     return app_config
+
 
 @pytest.fixture
 def config_manager(app_config: BasicMemoryConfig, config_home, monkeypatch) -> ConfigManager:
@@ -144,6 +150,7 @@ def config_manager(app_config: BasicMemoryConfig, config_home, monkeypatch) -> C
     monkeypatch.setattr("basic_memory.services.project_service.config_manager", config_manager)
 
     return config_manager
+
 
 @pytest.fixture
 def project_session(test_project: Project):
@@ -166,9 +173,10 @@ def project_config(test_project, monkeypatch):
     return project_config
 
 
-
 @pytest.fixture(scope="function")
-def app(app_config, project_config, engine_factory, test_project, project_session, config_manager) -> FastAPI:
+def app(
+    app_config, project_config, engine_factory, test_project, project_session, config_manager
+) -> FastAPI:
     """Create test FastAPI application with single project."""
 
     app = fastapi_app

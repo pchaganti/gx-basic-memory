@@ -930,7 +930,7 @@ async def test_move_entity_success(client: AsyncClient, project_url):
     assert response.status_code == 200
     response_model = EntityResponse.model_validate(response.json())
     assert response_model.file_path == "target/MovedNote.md"
-    
+
     # Verify original entity no longer exists
     response = await client.get(f"{project_url}/knowledge/entities/{original_permalink}")
     assert response.status_code == 404

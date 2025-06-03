@@ -5,7 +5,6 @@ import json
 from typer.testing import CliRunner
 
 from basic_memory.cli.main import app as cli_app
-from basic_memory.config import config
 
 
 def test_info_stats_command(cli_env, test_graph, project_session):
@@ -14,7 +13,6 @@ def test_info_stats_command(cli_env, test_graph, project_session):
 
     # Run the command
     result = runner.invoke(cli_app, ["project", "info"])
-
 
     # Verify exit code
     assert result.exit_code == 0
