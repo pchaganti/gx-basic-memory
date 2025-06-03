@@ -144,15 +144,36 @@ class SearchRepository:
 
         # Characters that can cause FTS5 syntax errors when used as operators
         # We're more conservative here - only quote when we detect problematic patterns
-        problematic_chars = ['"', "'", "(", ")", "[", "]", "+", "!", "@", "#", "$", "%", "^", "&", "=", "|", "\\", "~", "`"]
-        
+        problematic_chars = [
+            '"',
+            "'",
+            "(",
+            ")",
+            "[",
+            "]",
+            "+",
+            "!",
+            "@",
+            "#",
+            "$",
+            "%",
+            "^",
+            "&",
+            "=",
+            "|",
+            "\\",
+            "~",
+            "`",
+        ]
+
         # Characters that indicate we should quote (spaces, dots, colons, etc.)
-        needs_quoting_chars = [" ", ".", ":", ";", ",", "<", ">", "?", "/"]
-        
+        # Adding hyphens here because FTS5 can have issues with hyphens followed by wildcards
+        needs_quoting_chars = [" ", ".", ":", ";", ",", "<", ">", "?", "/", "-"]
+
         # Check if term needs quoting
         has_problematic = any(c in term for c in problematic_chars)
         has_spaces_or_special = any(c in term for c in needs_quoting_chars)
-        
+
         if has_problematic or has_spaces_or_special:
             # Escape any existing quotes by doubling them
             escaped_term = term.replace('"', '""')
@@ -215,15 +236,21 @@ class SearchRepository:
 
         # Handle permalink match search, supports *
         if permalink_match:
-            # Clean and prepare permalink for FTS5 GLOB match
-            permalink_text = self._prepare_search_term(
-                permalink_match.lower().strip(), is_prefix=False
-            )
+            # For GLOB patterns, don't use _prepare_search_term as it will quote slashes
+            # GLOB patterns need to preserve their syntax
+            permalink_text = permalink_match.lower().strip()
             params["permalink"] = permalink_text
             if "*" in permalink_match:
                 conditions.append("permalink GLOB :permalink")
             else:
-                conditions.append("permalink MATCH :permalink")
+                # For exact matches without *, we can use FTS5 MATCH
+                # but only prepare the term if it doesn't look like a path
+                if "/" in permalink_text:
+                    conditions.append("permalink = :permalink")
+                else:
+                    permalink_text = self._prepare_search_term(permalink_text, is_prefix=False)
+                    params["permalink"] = permalink_text
+                    conditions.append("permalink MATCH :permalink")
 
         # Handle entity type filter
         if search_item_types:

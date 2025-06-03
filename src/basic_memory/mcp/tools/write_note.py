@@ -120,7 +120,10 @@ async def write_note(
         summary.append(f"- Resolved: {resolved}")
         if unresolved:
             summary.append(f"- Unresolved: {unresolved}")
-            summary.append("\nUnresolved relations will be retried on next sync.")
+            summary.append("\nNote: Unresolved relations point to entities that don't exist yet.")
+            summary.append(
+                "They will be automatically resolved when target entities are created or during sync operations."
+            )
 
     if tag_list:
         summary.append(f"\n## Tags\n- {', '.join(tag_list)}")
