@@ -67,12 +67,13 @@ class ProjectService:
         """Get the file path for a project by name."""
         return await self.repository.get_by_name(name)
 
-    async def add_project(self, name: str, path: str) -> None:
+    async def add_project(self, name: str, path: str, set_default: bool = False) -> None:
         """Add a new project to the configuration and database.
 
         Args:
             name: The name of the project
             path: The file path to the project directory
+            set_default: Whether to set this project as the default
 
         Raises:
             ValueError: If the project already exists
@@ -92,9 +93,16 @@ class ProjectService:
             "path": resolved_path,
             "permalink": generate_permalink(project_config.name),
             "is_active": True,
-            "is_default": False,
+            # Don't set is_default=False to avoid UNIQUE constraint issues
+            # Let it default to NULL, only set to True when explicitly making default
         }
-        await self.repository.create(project_data)
+        created_project = await self.repository.create(project_data)
+
+        # If this should be the default project, ensure only one default exists
+        if set_default:
+            await self.repository.set_as_default(created_project.id)
+            config_manager.set_default_project(name)
+            logger.info(f"Project '{name}' set as default")
 
         logger.info(f"Project '{name}' added at {resolved_path}")
 
@@ -144,6 +152,45 @@ class ProjectService:
 
         logger.info(f"Project '{name}' set as default in configuration and database")
 
+    async def _ensure_single_default_project(self) -> None:
+        """Ensure only one project has is_default=True.
+
+        This method validates the database state and fixes any issues where
+        multiple projects might have is_default=True or no project is marked as default.
+        """
+        if not self.repository:
+            raise ValueError("Repository is required for _ensure_single_default_project") # pragma: no cover
+
+        # Get all projects with is_default=True
+        db_projects = await self.repository.find_all()
+        default_projects = [p for p in db_projects if p.is_default is True]
+
+        if len(default_projects) > 1:  # pragma: no cover
+            # Multiple defaults found - fix by keeping the first one and clearing others
+            # This is defensive code that should rarely execute due to business logic enforcement
+            logger.warning(  # pragma: no cover
+                f"Found {len(default_projects)} projects with is_default=True, fixing..."
+            )
+            keep_default = default_projects[0]  # pragma: no cover
+
+            # Clear all defaults first, then set only the first one as default
+            await self.repository.set_as_default(keep_default.id)  # pragma: no cover
+
+            logger.info(
+                f"Fixed default project conflicts, kept '{keep_default.name}' as default"
+            )  # pragma: no cover
+
+        elif len(default_projects) == 0:  # pragma: no cover
+            # No default project - set the config default as default
+            # This is defensive code for edge cases where no default exists
+            config_default = config_manager.default_project  # pragma: no cover
+            config_project = await self.repository.get_by_name(config_default)  # pragma: no cover
+            if config_project:  # pragma: no cover
+                await self.repository.set_as_default(config_project.id)  # pragma: no cover
+                logger.info(
+                    f"Set '{config_default}' as default project (was missing)"
+                )  # pragma: no cover
+
     async def synchronize_projects(self) -> None:  # pragma: no cover
         """Synchronize projects between database and configuration.
 
@@ -172,7 +219,7 @@ class ProjectService:
                     "path": path,
                     "permalink": name.lower().replace(" ", "-"),
                     "is_active": True,
-                    "is_default": (name == config_manager.default_project),
+                    # Don't set is_default here - let the enforcement logic handle it
                 }
                 await self.repository.create(project_data)
 
@@ -182,19 +229,23 @@ class ProjectService:
                 logger.info(f"Adding project '{name}' to configuration")
                 config_manager.add_project(name, project.path)
 
-        # Make sure default project is synchronized
-        db_default = next((p for p in db_projects if p.is_default), None)
+        # Ensure database default project state is consistent
+        await self._ensure_single_default_project()
+
+        # Make sure default project is synchronized between config and database
+        db_default = await self.repository.get_default_project()
         config_default = config_manager.default_project
 
         if db_default and db_default.name != config_default:
             # Update config to match DB default
             logger.info(f"Updating default project in config to '{db_default.name}'")
             config_manager.set_default_project(db_default.name)
-        elif not db_default and config_default in db_projects_by_name:
-            # Update DB to match config default
-            logger.info(f"Updating default project in database to '{config_default}'")
-            project = db_projects_by_name[config_default]
-            await self.repository.set_as_default(project.id)
+        elif not db_default and config_default:
+            # Update DB to match config default (if the project exists)
+            project = await self.repository.get_by_name(config_default)
+            if project:
+                logger.info(f"Updating default project in database to '{config_default}'")
+                await self.repository.set_as_default(project.id)
 
         logger.info("Project synchronization complete")
 

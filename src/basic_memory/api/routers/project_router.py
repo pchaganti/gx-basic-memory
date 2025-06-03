@@ -111,10 +111,9 @@ async def add_project(
         Response confirming the project was added
     """
     try:  # pragma: no cover
-        await project_service.add_project(project_data.name, project_data.path)
-
-        if project_data.set_default:  # pragma: no cover
-            await project_service.set_default_project(project_data.name)
+        await project_service.add_project(
+            project_data.name, project_data.path, set_default=project_data.set_default
+        )
 
         return ProjectStatusResponse(  # pyright: ignore [reportCallIssue]
             message=f"Project '{project_data.name}' added successfully",

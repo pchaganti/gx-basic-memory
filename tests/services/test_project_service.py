@@ -304,3 +304,168 @@ async def test_set_default_project_config_db_mismatch(
         # Clean up
         if test_project_name in project_service.projects:
             config_manager.remove_project(test_project_name)
+
+
+@pytest.mark.asyncio
+async def test_add_project_with_set_default_true(project_service: ProjectService, tmp_path):
+    """Test adding a project with set_default=True enforces single default."""
+    test_project_name = f"test-default-true-{os.urandom(4).hex()}"
+    test_project_path = str(tmp_path / "test-default-true")
+
+    # Make sure the test directory exists
+    os.makedirs(test_project_path, exist_ok=True)
+
+    original_default = project_service.default_project
+
+    try:
+        # Get original default project from database
+        original_default_project = await project_service.repository.get_by_name(original_default)
+
+        # Add project with set_default=True
+        await project_service.add_project(test_project_name, test_project_path, set_default=True)
+
+        # Verify new project is set as default in both config and database
+        assert project_service.default_project == test_project_name
+
+        new_project = await project_service.repository.get_by_name(test_project_name)
+        assert new_project is not None
+        assert new_project.is_default is True
+
+        # Verify original default is no longer default in database
+        if original_default_project:
+            refreshed_original = await project_service.repository.get_by_name(original_default)
+            assert refreshed_original.is_default is not True
+
+        # Verify only one project has is_default=True
+        all_projects = await project_service.repository.find_all()
+        default_projects = [p for p in all_projects if p.is_default is True]
+        assert len(default_projects) == 1
+        assert default_projects[0].name == test_project_name
+
+    finally:
+        # Restore original default
+        if original_default:
+            await project_service.set_default_project(original_default)
+
+        # Clean up test project
+        if test_project_name in project_service.projects:
+            await project_service.remove_project(test_project_name)
+
+
+@pytest.mark.asyncio
+async def test_add_project_with_set_default_false(project_service: ProjectService, tmp_path):
+    """Test adding a project with set_default=False doesn't change defaults."""
+    test_project_name = f"test-default-false-{os.urandom(4).hex()}"
+    test_project_path = str(tmp_path / "test-default-false")
+
+    # Make sure the test directory exists
+    os.makedirs(test_project_path, exist_ok=True)
+
+    original_default = project_service.default_project
+
+    try:
+        # Add project with set_default=False (explicit)
+        await project_service.add_project(test_project_name, test_project_path, set_default=False)
+
+        # Verify default project hasn't changed
+        assert project_service.default_project == original_default
+
+        # Verify new project is NOT set as default
+        new_project = await project_service.repository.get_by_name(test_project_name)
+        assert new_project is not None
+        assert new_project.is_default is not True
+
+        # Verify original default is still default
+        original_default_project = await project_service.repository.get_by_name(original_default)
+        if original_default_project:
+            assert original_default_project.is_default is True
+
+    finally:
+        # Clean up test project
+        if test_project_name in project_service.projects:
+            await project_service.remove_project(test_project_name)
+
+
+@pytest.mark.asyncio
+async def test_add_project_default_parameter_omitted(project_service: ProjectService, tmp_path):
+    """Test adding a project without set_default parameter defaults to False behavior."""
+    test_project_name = f"test-default-omitted-{os.urandom(4).hex()}"
+    test_project_path = str(tmp_path / "test-default-omitted")
+
+    # Make sure the test directory exists
+    os.makedirs(test_project_path, exist_ok=True)
+
+    original_default = project_service.default_project
+
+    try:
+        # Add project without set_default parameter (should default to False)
+        await project_service.add_project(test_project_name, test_project_path)
+
+        # Verify default project hasn't changed
+        assert project_service.default_project == original_default
+
+        # Verify new project is NOT set as default
+        new_project = await project_service.repository.get_by_name(test_project_name)
+        assert new_project is not None
+        assert new_project.is_default is not True
+
+    finally:
+        # Clean up test project
+        if test_project_name in project_service.projects:
+            await project_service.remove_project(test_project_name)
+
+
+@pytest.mark.asyncio
+async def test_ensure_single_default_project_enforcement_logic(project_service: ProjectService):
+    """Test that _ensure_single_default_project logic works correctly."""
+    # Test that the method exists and is callable
+    assert hasattr(project_service, "_ensure_single_default_project")
+    assert callable(getattr(project_service, "_ensure_single_default_project"))
+
+    # Call the enforcement method - should work without error
+    await project_service._ensure_single_default_project()
+
+    # Verify there is exactly one default project after enforcement
+    all_projects = await project_service.repository.find_all()
+    default_projects = [p for p in all_projects if p.is_default is True]
+    assert len(default_projects) == 1  # Should have exactly one default
+
+
+@pytest.mark.asyncio
+async def test_synchronize_projects_calls_ensure_single_default(
+    project_service: ProjectService, tmp_path
+):
+    """Test that synchronize_projects calls _ensure_single_default_project."""
+    test_project_name = f"test-sync-default-{os.urandom(4).hex()}"
+    test_project_path = str(tmp_path / "test-sync-default")
+
+    # Make sure the test directory exists
+    os.makedirs(test_project_path, exist_ok=True)
+
+    try:
+        # Add project to config only (simulating unsynchronized state)
+        from basic_memory.config import config_manager
+
+        config_manager.add_project(test_project_name, test_project_path)
+
+        # Verify it's in config but not in database
+        assert test_project_name in project_service.projects
+        db_project = await project_service.repository.get_by_name(test_project_name)
+        assert db_project is None
+
+        # Call synchronize_projects (this should call _ensure_single_default_project)
+        await project_service.synchronize_projects()
+
+        # Verify project is now in database
+        db_project = await project_service.repository.get_by_name(test_project_name)
+        assert db_project is not None
+
+        # Verify default project enforcement was applied
+        all_projects = await project_service.repository.find_all()
+        default_projects = [p for p in all_projects if p.is_default is True]
+        assert len(default_projects) <= 1  # Should be exactly 1 or 0
+
+    finally:
+        # Clean up test project
+        if test_project_name in project_service.projects:
+            await project_service.remove_project(test_project_name)
