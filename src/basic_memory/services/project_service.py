@@ -159,7 +159,9 @@ class ProjectService:
         multiple projects might have is_default=True or no project is marked as default.
         """
         if not self.repository:
-            raise ValueError("Repository is required for _ensure_single_default_project") # pragma: no cover
+            raise ValueError(
+                "Repository is required for _ensure_single_default_project"
+            )  # pragma: no cover
 
         # Get all projects with is_default=True
         db_projects = await self.repository.find_all()

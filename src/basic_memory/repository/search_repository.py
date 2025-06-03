@@ -128,25 +128,32 @@ class SearchRepository:
             is_prefix: Whether to add prefix search capability (* suffix)
 
         For FTS5:
-        - Special characters and phrases need to be quoted
-        - Terms with spaces or special chars need quotes
         - Boolean operators (AND, OR, NOT) are preserved for complex queries
+        - Terms with FTS5 special characters are quoted to prevent syntax errors
+        - Simple terms get prefix wildcards for better matching
         """
-        if "*" in term:
-            return term
-
         # Check for explicit boolean operators - if present, return the term as is
         boolean_operators = [" AND ", " OR ", " NOT "]
         if any(op in f" {term} " for op in boolean_operators):
             return term
 
-        # List of FTS5 special characters that need escaping/quoting
-        special_chars = ["/", "-", ".", " ", "(", ")", "[", "]", '"', "'"]
+        # Check if term is already a proper wildcard pattern (alphanumeric + *)
+        # e.g., "hello*", "test*world" - these should be left alone
+        if "*" in term and all(c.isalnum() or c in "*_-" for c in term):
+            return term
 
-        # Check if term contains any special characters
-        needs_quotes = any(c in term for c in special_chars)
-
-        if needs_quotes:
+        # Characters that can cause FTS5 syntax errors when used as operators
+        # We're more conservative here - only quote when we detect problematic patterns
+        problematic_chars = ['"', "'", "(", ")", "[", "]", "+", "!", "@", "#", "$", "%", "^", "&", "=", "|", "\\", "~", "`"]
+        
+        # Characters that indicate we should quote (spaces, dots, colons, etc.)
+        needs_quoting_chars = [" ", ".", ":", ";", ",", "<", ">", "?", "/"]
+        
+        # Check if term needs quoting
+        has_problematic = any(c in term for c in problematic_chars)
+        has_spaces_or_special = any(c in term for c in needs_quoting_chars)
+        
+        if has_problematic or has_spaces_or_special:
             # Escape any existing quotes by doubling them
             escaped_term = term.replace('"', '""')
             # Quote the entire term to handle special characters safely
@@ -273,9 +280,20 @@ class SearchRepository:
         """
 
         logger.trace(f"Search {sql} params: {params}")
-        async with db.scoped_session(self.session_maker) as session:
-            result = await session.execute(text(sql), params)
-            rows = result.fetchall()
+        try:
+            async with db.scoped_session(self.session_maker) as session:
+                result = await session.execute(text(sql), params)
+                rows = result.fetchall()
+        except Exception as e:
+            # Handle FTS5 syntax errors and provide user-friendly feedback
+            if "fts5: syntax error" in str(e).lower():
+                logger.warning(f"FTS5 syntax error for search term: {search_text}, error: {e}")
+                # Return empty results rather than crashing
+                return []
+            else:
+                # Re-raise other database errors
+                logger.error(f"Database error during search: {e}")
+                raise
 
         results = [
             SearchIndexRow(

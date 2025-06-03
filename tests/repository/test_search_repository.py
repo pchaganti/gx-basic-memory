@@ -301,3 +301,87 @@ def test_directory_property():
         project_id=1,
     )
     assert row3.directory == ""
+
+
+class TestSearchTermPreparation:
+    """Test cases for FTS5 search term preparation."""
+
+    def test_simple_terms_get_prefix_wildcard(self, search_repository):
+        """Simple alphanumeric terms should get prefix matching."""
+        assert search_repository._prepare_search_term("hello") == "hello*"
+        assert search_repository._prepare_search_term("project") == "project*"
+        assert search_repository._prepare_search_term("test123") == "test123*"
+
+    def test_terms_with_existing_wildcard_unchanged(self, search_repository):
+        """Terms that already contain * should remain unchanged."""
+        assert search_repository._prepare_search_term("hello*") == "hello*"
+        assert search_repository._prepare_search_term("test*world") == "test*world"
+
+    def test_boolean_operators_preserved(self, search_repository):
+        """Boolean operators should be preserved without modification."""
+        assert search_repository._prepare_search_term("hello AND world") == "hello AND world"
+        assert search_repository._prepare_search_term("cat OR dog") == "cat OR dog" 
+        assert search_repository._prepare_search_term("project NOT meeting") == "project NOT meeting"
+        assert search_repository._prepare_search_term("(hello AND world) OR test") == "(hello AND world) OR test"
+
+    def test_programming_terms_should_work(self, search_repository):
+        """Programming-related terms with special chars should be searchable."""
+        # These should be quoted to handle special characters safely
+        assert search_repository._prepare_search_term("C++") == '"C++"*'
+        assert search_repository._prepare_search_term("function()") == '"function()"*'
+        assert search_repository._prepare_search_term("email@domain.com") == '"email@domain.com"*'
+        assert search_repository._prepare_search_term("array[index]") == '"array[index]"*'
+        assert search_repository._prepare_search_term("config.json") == '"config.json"*'
+
+    def test_malformed_fts5_syntax_quoted(self, search_repository):
+        """Malformed FTS5 syntax should be quoted to prevent errors."""
+        # Multiple operators without proper syntax
+        assert search_repository._prepare_search_term("+++invalid+++") == '"+++invalid+++"*'
+        assert search_repository._prepare_search_term("!!!error!!!") == '"!!!error!!!"*'
+        assert search_repository._prepare_search_term("@#$%^&*()") == '"@#$%^&*()"*'
+
+    def test_quoted_strings_handled_properly(self, search_repository):
+        """Strings with quotes should have quotes escaped."""
+        assert search_repository._prepare_search_term('say "hello"') == '"say ""hello"""*'
+        assert search_repository._prepare_search_term("it's working") == '"it\'s working"*'
+
+    def test_file_paths_no_prefix_wildcard(self, search_repository):
+        """File paths should not get prefix wildcards."""
+        assert search_repository._prepare_search_term("config.json", is_prefix=False) == '"config.json"'
+        assert search_repository._prepare_search_term("docs/readme.md", is_prefix=False) == '"docs/readme.md"'
+
+    def test_spaces_handled_correctly(self, search_repository):
+        """Terms with spaces should be quoted."""
+        assert search_repository._prepare_search_term("hello world") == '"hello world"*'
+        assert search_repository._prepare_search_term("project planning") == '"project planning"*'
+
+    @pytest.mark.asyncio
+    async def test_search_with_special_characters_returns_results(self, search_repository):
+        """Integration test: search with special characters should work gracefully."""
+        # This test ensures the search doesn't crash with FTS5 syntax errors
+        
+        # These should all return empty results gracefully, not crash
+        results1 = await search_repository.search(search_text="C++")
+        assert isinstance(results1, list)  # Should not crash
+        
+        results2 = await search_repository.search(search_text="function()")
+        assert isinstance(results2, list)  # Should not crash
+        
+        results3 = await search_repository.search(search_text="+++malformed+++")
+        assert isinstance(results3, list)  # Should not crash, return empty results
+        
+        results4 = await search_repository.search(search_text="email@domain.com")
+        assert isinstance(results4, list)  # Should not crash
+
+    @pytest.mark.asyncio
+    async def test_boolean_search_still_works(self, search_repository):
+        """Boolean search operations should continue to work."""
+        # These should not crash and should respect boolean logic
+        results1 = await search_repository.search(search_text="hello AND world")
+        assert isinstance(results1, list)
+        
+        results2 = await search_repository.search(search_text="cat OR dog")
+        assert isinstance(results2, list)
+        
+        results3 = await search_repository.search(search_text="project NOT meeting")
+        assert isinstance(results3, list)
