@@ -9,7 +9,6 @@ from typing import Any, Dict, Literal, Optional, List
 from loguru import logger
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from setuptools.command.setopt import config_file
 
 import basic_memory
 from basic_memory.utils import setup_logging, generate_permalink
