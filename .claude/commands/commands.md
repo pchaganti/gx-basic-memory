@@ -12,8 +12,9 @@ This directory contains custom Claude Code slash commands for the Basic Memory p
 
 ### Development (`/project:*`)
 - `/project:test-coverage` - Run tests with detailed coverage analysis
-- `/project:fix-imports` - Clean up and organize imports
+- `/project:test-live` - Live testing suite using real Basic Memory installation
 - `/project:lint-fix` - Run comprehensive linting with auto-fix
+- `/project:check-health` - Comprehensive project health assessment
 
 ## Command Structure
 
@@ -26,6 +27,9 @@ Commands are organized by functionality:
 │   ├── release-check.md # /project:release:release-check
 │   └── changelog.md  # /project:release:changelog
 ├── test-coverage.md  # /project:test-coverage
+├── test-live.md      # /project:test-live
+├── lint-fix.md       # /project:lint-fix
+├── check-health.md   # /project:check-health
 └── commands.md       # This overview file
 ```
 
@@ -34,7 +38,9 @@ Commands are organized by functionality:
 Commands are invoked using the `/project:` prefix:
 - `/project:release:beta v0.13.0b4`
 - `/project:test-coverage mcp`
+- `/project:test-live core`
 - `/project:release:release-check`
+- `/project:check-health`
 
 ## Implementation
 
