@@ -70,6 +70,13 @@ async def write_note(
     """
     logger.info(f"MCP tool call tool=write_note folder={folder}, title={title}, tags={tags}")
 
+    # Check migration status and wait briefly if needed
+    from basic_memory.mcp.tools.utils import wait_for_migration_or_return_status
+
+    migration_status = await wait_for_migration_or_return_status(timeout=5.0)
+    if migration_status:
+        return f"# System Status\n\n{migration_status}\n\nPlease wait for migration to complete before creating notes."
+
     # Process tags using the helper function
     tag_list = parse_tags(tags)
     # Create the entity request

@@ -52,6 +52,13 @@ async def read_note(
         read_note("Meeting Notes", project="work-project")
     """
 
+    # Check migration status and wait briefly if needed
+    from basic_memory.mcp.tools.utils import wait_for_migration_or_return_status
+
+    migration_status = await wait_for_migration_or_return_status(timeout=5.0)
+    if migration_status:
+        return f"# System Status\n\n{migration_status}\n\nPlease wait for migration to complete before reading notes."
+
     active_project = get_active_project(project)
     project_url = active_project.project_url
 

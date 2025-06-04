@@ -185,7 +185,7 @@ async def initialize_app(
     - Running database migrations
     - Reconciling projects from config.json with projects table
     - Setting up file synchronization
-    - Migrating legacy project data
+    - Starting background migration for legacy project data
 
     Args:
         app_config: The Basic Memory project configuration
@@ -197,8 +197,13 @@ async def initialize_app(
     # Reconcile projects from config.json with projects table
     await reconcile_projects_with_config(app_config)
 
-    # migrate legacy project data
-    await migrate_legacy_projects(app_config)
+    # Start background migration for legacy project data (non-blocking)
+    from basic_memory.services.migration_service import migration_manager
+
+    await migration_manager.start_background_migration(app_config)
+
+    logger.info("App initialization completed (migration running in background if needed)")
+    return migration_manager
 
 
 def ensure_initialization(app_config: BasicMemoryConfig) -> None:

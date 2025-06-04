@@ -506,3 +506,47 @@ async def call_delete(
 
     except HTTPStatusError as e:
         raise ToolError(error_message) from e
+
+
+def check_migration_status() -> Optional[str]:
+    """Check if migration is in progress and return status message if so.
+
+    Returns:
+        Status message if migration is in progress, None if system is ready
+    """
+    try:
+        from basic_memory.services.migration_service import migration_manager
+
+        if not migration_manager.is_ready:
+            return migration_manager.status_message
+        return None
+    except Exception:
+        # If there's any error checking migration status, assume ready
+        return None
+
+
+async def wait_for_migration_or_return_status(timeout: float = 5.0) -> Optional[str]:
+    """Wait briefly for migration to complete, or return status message.
+
+    Args:
+        timeout: Maximum time to wait for migration completion
+
+    Returns:
+        Status message if migration is still in progress, None if ready
+    """
+    try:
+        from basic_memory.services.migration_service import migration_manager
+
+        if migration_manager.is_ready:
+            return None
+
+        # Wait briefly for migration to complete
+        completed = await migration_manager.wait_for_completion(timeout=timeout)
+
+        if completed:
+            return None
+        else:
+            return migration_manager.status_message
+    except Exception:
+        # If there's any error, assume ready
+        return None

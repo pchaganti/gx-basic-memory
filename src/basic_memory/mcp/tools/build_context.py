@@ -82,6 +82,27 @@ async def build_context(
     logger.info(f"Building context from {url}")
     # URL is already validated and normalized by MemoryUrl type annotation
 
+    # Check migration status and wait briefly if needed
+    from basic_memory.mcp.tools.utils import wait_for_migration_or_return_status
+
+    migration_status = await wait_for_migration_or_return_status(timeout=5.0)
+    if migration_status:
+        # Return a proper GraphContext with status message
+        from basic_memory.schemas.memory import MemoryMetadata
+        from datetime import datetime
+
+        return GraphContext(
+            results=[],
+            metadata=MemoryMetadata(
+                depth=depth or 1,
+                timeframe=timeframe,
+                generated_at=datetime.now(),
+                primary_count=0,
+                related_count=0,
+                uri=migration_status,  # Include status in metadata
+            ),
+        )
+
     active_project = get_active_project(project)
     project_url = active_project.project_url
 
