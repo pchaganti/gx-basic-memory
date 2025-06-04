@@ -4,6 +4,8 @@ These tools allow users to switch between projects, list available projects,
 and manage project context during conversations.
 """
 
+from textwrap import dedent
+
 from fastmcp import Context
 from loguru import logger
 
@@ -115,7 +117,29 @@ async def switch_project(project_name: str, ctx: Context | None = None) -> str:
         logger.error(f"Error switching to project {project_name}: {e}")
         # Revert to previous project on error
         session.set_current_project(current_project)
-        raise e
+
+        # Return user-friendly error message instead of raising exception
+        return dedent(f"""
+            # Project Switch Failed
+
+            Could not switch to project '{project_name}': {str(e)}
+
+            ## Current project: {current_project}
+            Your session remains on the previous project.
+
+            ## Troubleshooting:
+            1. **Check available projects**: Use `list_projects()` to see valid project names
+            2. **Verify spelling**: Ensure the project name is spelled correctly
+            3. **Check permissions**: Verify you have access to the requested project
+            4. **Try again**: The error might be temporary
+
+            ## Available options:
+            - See all projects: `list_projects()`
+            - Stay on current project: `get_current_project()`
+            - Try different project: `switch_project("correct-project-name")`
+
+            If the project should exist but isn't listed, send a message to support@basicmachines.co.
+            """).strip()
 
 
 @mcp.tool()

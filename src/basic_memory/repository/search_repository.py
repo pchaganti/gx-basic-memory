@@ -151,6 +151,8 @@ class SearchRepository:
             ")",
             "[",
             "]",
+            "{",
+            "}",
             "+",
             "!",
             "@",
@@ -175,15 +177,28 @@ class SearchRepository:
         has_spaces_or_special = any(c in term for c in needs_quoting_chars)
 
         if has_problematic or has_spaces_or_special:
-            # Escape any existing quotes by doubling them
-            escaped_term = term.replace('"', '""')
-            # Quote the entire term to handle special characters safely
-            if is_prefix and not ("/" in term and term.endswith(".md")):
-                # For search terms (not file paths), add prefix matching
-                term = f'"{escaped_term}"*'
+            # Handle multi-word queries differently from special character queries
+            if " " in term and not any(c in term for c in problematic_chars):
+                # For multi-word queries (like "emoji unicode"), use boolean AND to handle word order variations
+                # Split into individual words and create AND query with prefix matching
+                words = term.strip().split()
+                if is_prefix:
+                    # Add prefix wildcard to each word for better matching
+                    prepared_words = [f"{word}*" for word in words if word]
+                else:
+                    prepared_words = words
+                term = " AND ".join(prepared_words)
             else:
-                # For file paths, use exact matching
-                term = f'"{escaped_term}"'
+                # For terms with problematic characters or file paths, use exact phrase matching
+                # Escape any existing quotes by doubling them
+                escaped_term = term.replace('"', '""')
+                # Quote the entire term to handle special characters safely
+                if is_prefix and not ("/" in term and term.endswith(".md")):
+                    # For search terms (not file paths), add prefix matching
+                    term = f'"{escaped_term}"*'
+                else:
+                    # For file paths, use exact matching
+                    term = f'"{escaped_term}"'
         elif is_prefix:
             # Only add wildcard for simple terms without special characters
             term = f"{term}*"
@@ -313,7 +328,7 @@ class SearchRepository:
                 rows = result.fetchall()
         except Exception as e:
             # Handle FTS5 syntax errors and provide user-friendly feedback
-            if "fts5: syntax error" in str(e).lower():
+            if "fts5: syntax error" in str(e).lower():  # pragma: no cover
                 logger.warning(f"FTS5 syntax error for search term: {search_text}, error: {e}")
                 # Return empty results rather than crashing
                 return []

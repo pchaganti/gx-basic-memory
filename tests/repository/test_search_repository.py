@@ -362,9 +362,11 @@ class TestSearchTermPreparation:
         )
 
     def test_spaces_handled_correctly(self, search_repository):
-        """Terms with spaces should be quoted."""
-        assert search_repository._prepare_search_term("hello world") == '"hello world"*'
-        assert search_repository._prepare_search_term("project planning") == '"project planning"*'
+        """Terms with spaces should use boolean AND for word order independence."""
+        assert search_repository._prepare_search_term("hello world") == "hello* AND world*"
+        assert (
+            search_repository._prepare_search_term("project planning") == "project* AND planning*"
+        )
 
     @pytest.mark.asyncio
     async def test_search_with_special_characters_returns_results(self, search_repository):
@@ -396,3 +398,36 @@ class TestSearchTermPreparation:
 
         results3 = await search_repository.search(search_text="project NOT meeting")
         assert isinstance(results3, list)
+
+    @pytest.mark.asyncio
+    async def test_permalink_match_exact_with_slash(self, search_repository):
+        """Test exact permalink matching with slash (line 249 coverage)."""
+        # This tests the exact match path: if "/" in permalink_text:
+        results = await search_repository.search(permalink_match="test/path")
+        assert isinstance(results, list)
+        # Should use exact equality matching for paths with slashes
+
+    @pytest.mark.asyncio
+    async def test_permalink_match_simple_term(self, search_repository):
+        """Test permalink matching with simple term (no slash)."""
+        # This tests the simple term path that goes through _prepare_search_term
+        results = await search_repository.search(permalink_match="simpleterm")
+        assert isinstance(results, list)
+        # Should use FTS5 MATCH for simple terms
+
+    @pytest.mark.asyncio
+    async def test_fts5_error_handling_database_error(self, search_repository):
+        """Test that non-FTS5 database errors are properly re-raised."""
+        import unittest.mock
+
+        # Mock the scoped_session to raise a non-FTS5 error
+        with unittest.mock.patch("basic_memory.db.scoped_session") as mock_scoped_session:
+            mock_session = unittest.mock.AsyncMock()
+            mock_scoped_session.return_value.__aenter__.return_value = mock_session
+
+            # Simulate a database error that's NOT an FTS5 syntax error
+            mock_session.execute.side_effect = Exception("Database connection failed")
+
+            # This should re-raise the exception (not return empty list)
+            with pytest.raises(Exception, match="Database connection failed"):
+                await search_repository.search(search_text="test")

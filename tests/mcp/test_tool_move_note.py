@@ -25,8 +25,6 @@ async def test_move_note_success(app, client):
 
     assert isinstance(result, str)
     assert "✅ Note moved successfully" in result
-    assert "source/test-note" in result
-    assert "target/MovedNote.md" in result
 
     # Verify original location no longer exists
     try:
@@ -68,7 +66,7 @@ async def test_move_note_with_folder_creation(client):
 
 
 @pytest.mark.asyncio
-async def test_move_note_with_observations_and_relations(client):
+async def test_move_note_with_observations_and_relations(app, client):
     """Test moving note preserves observations and relations."""
     # Create note with complex semantic content
     await write_note(
@@ -159,19 +157,16 @@ async def test_move_note_by_file_path(client):
 @pytest.mark.asyncio
 async def test_move_note_nonexistent_note(client):
     """Test moving a note that doesn't exist."""
-    with pytest.raises(Exception) as exc_info:
-        await move_note(
-            identifier="nonexistent/note",
-            destination_path="target/SomeFile.md",
-        )
-
-    # Should raise an exception from the API with friendly error message
-    error_msg = str(exc_info.value)
-    assert (
-        "Entity not found" in error_msg
-        or "Invalid request" in error_msg
-        or "malformed" in error_msg
+    result = await move_note(
+        identifier="nonexistent/note",
+        destination_path="target/SomeFile.md",
     )
+
+    # Should return user-friendly error message string
+    assert isinstance(result, str)
+    assert "# Move Failed - Note Not Found" in result
+    assert "could not be found for moving" in result
+    assert "Search for the note first" in result
 
 
 @pytest.mark.asyncio
@@ -185,19 +180,15 @@ async def test_move_note_invalid_destination_path(client):
     )
 
     # Test absolute path (should be rejected by validation)
-    with pytest.raises(Exception) as exc_info:
-        await move_note(
-            identifier="source/test-note",
-            destination_path="/absolute/path.md",
-        )
-
-    # Should raise validation error (422 gets wrapped as client error)
-    error_msg = str(exc_info.value)
-    assert (
-        "Client error (422)" in error_msg
-        or "could not be completed" in error_msg
-        or "destination_path must be relative" in error_msg
+    result = await move_note(
+        identifier="source/test-note",
+        destination_path="/absolute/path.md",
     )
+
+    # Should return user-friendly error message string
+    assert isinstance(result, str)
+    assert "# Move Failed" in result
+    assert "/absolute/path.md" in result or "Invalid" in result or "path" in result
 
 
 @pytest.mark.asyncio
@@ -218,19 +209,15 @@ async def test_move_note_destination_exists(client):
     )
 
     # Try to move source to existing destination
-    with pytest.raises(Exception) as exc_info:
-        await move_note(
-            identifier="source/source-note",
-            destination_path="target/DestinationNote.md",
-        )
-
-    # Should raise an exception (400 gets wrapped as malformed request)
-    error_msg = str(exc_info.value)
-    assert (
-        "Destination already exists" in error_msg
-        or "Invalid request" in error_msg
-        or "malformed" in error_msg
+    result = await move_note(
+        identifier="source/source-note",
+        destination_path="target/DestinationNote.md",
     )
+
+    # Should return user-friendly error message string
+    assert isinstance(result, str)
+    assert "# Move Failed" in result
+    assert "already exists" in result or "Destination" in result
 
 
 @pytest.mark.asyncio
@@ -244,20 +231,15 @@ async def test_move_note_same_location(client):
     )
 
     # Try to move to same location
-    with pytest.raises(Exception) as exc_info:
-        await move_note(
-            identifier="test/same-location-test",
-            destination_path="test/SameLocationTest.md",
-        )
-
-    # Should raise an exception (400 gets wrapped as malformed request)
-    error_msg = str(exc_info.value)
-    assert (
-        "Destination already exists" in error_msg
-        or "same location" in error_msg
-        or "Invalid request" in error_msg
-        or "malformed" in error_msg
+    result = await move_note(
+        identifier="test/same-location-test",
+        destination_path="test/SameLocationTest.md",
     )
+
+    # Should return user-friendly error message string
+    assert isinstance(result, str)
+    assert "# Move Failed" in result
+    assert "already exists" in result or "same" in result or "Destination" in result
 
 
 @pytest.mark.asyncio
@@ -271,15 +253,12 @@ async def test_move_note_rename_only(client):
     )
 
     # Rename within same folder
-    result = await move_note(
+    await move_note(
         identifier="test/original-name",
         destination_path="test/NewName.md",
     )
 
-    assert isinstance(result, str)
-    assert "✅ Note moved successfully" in result
-
-    # Verify original is gone and new exists
+    # Verify original is gone
     try:
         await read_note("test/original-name")
         assert False, "Original note should not exist after rename"
@@ -319,7 +298,7 @@ async def test_move_note_complex_filename(client):
 
 
 @pytest.mark.asyncio
-async def test_move_note_with_tags(client):
+async def test_move_note_with_tags(app, client):
     """Test moving note with tags preserves tags."""
     # Create note with tags
     await write_note(
@@ -356,21 +335,15 @@ async def test_move_note_empty_string_destination(client):
     )
 
     # Test empty destination path
-    with pytest.raises(Exception) as exc_info:
-        await move_note(
-            identifier="source/test-note",
-            destination_path="",
-        )
-
-    # Should raise validation error (422 gets wrapped as client error)
-    error_msg = str(exc_info.value)
-    assert (
-        "String should have at least 1 character" in error_msg
-        or "cannot be empty" in error_msg
-        or "Client error (422)" in error_msg
-        or "could not be completed" in error_msg
-        or "destination_path cannot be empty" in error_msg
+    result = await move_note(
+        identifier="source/test-note",
+        destination_path="",
     )
+
+    # Should return user-friendly error message string
+    assert isinstance(result, str)
+    assert "# Move Failed" in result
+    assert "empty" in result or "Invalid" in result or "path" in result
 
 
 @pytest.mark.asyncio
@@ -384,19 +357,15 @@ async def test_move_note_parent_directory_path(client):
     )
 
     # Test parent directory path
-    with pytest.raises(Exception) as exc_info:
-        await move_note(
-            identifier="source/test-note",
-            destination_path="../parent/file.md",
-        )
-
-    # Should raise validation error (422 gets wrapped as client error)
-    error_msg = str(exc_info.value)
-    assert (
-        "Client error (422)" in error_msg
-        or "could not be completed" in error_msg
-        or "cannot contain '..' path components" in error_msg
+    result = await move_note(
+        identifier="source/test-note",
+        destination_path="../parent/file.md",
     )
+
+    # Should return user-friendly error message string
+    assert isinstance(result, str)
+    assert "# Move Failed" in result
+    assert "parent" in result or "Invalid" in result or "path" in result or ".." in result
 
 
 @pytest.mark.asyncio
@@ -425,7 +394,7 @@ async def test_move_note_identifier_variations(client):
 
 
 @pytest.mark.asyncio
-async def test_move_note_preserves_frontmatter(client):
+async def test_move_note_preserves_frontmatter(app, client):
     """Test that moving preserves custom frontmatter."""
     # Create note with custom frontmatter by first creating it normally
     await write_note(

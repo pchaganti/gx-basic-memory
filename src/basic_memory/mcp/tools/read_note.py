@@ -114,7 +114,7 @@ def format_not_found_message(identifier: str) -> str:
     return dedent(f"""
         # Note Not Found: "{identifier}"
         
-        I couldn't find any notes matching "{identifier}". Here are some suggestions:
+        I searched for "{identifier}" using multiple methods (direct lookup, title search, and text search) but couldn't find any matching notes. Here are some suggestions:
         
         ## Check Identifier Type
         - If you provided a title, try using the exact permalink instead
@@ -160,7 +160,7 @@ def format_related_results(identifier: str, results) -> str:
     message = dedent(f"""
         # Note Not Found: "{identifier}"
         
-        I couldn't find an exact match for "{identifier}", but I found some related notes:
+        I searched for "{identifier}" using direct lookup and title search but couldn't find an exact match. However, I found some related notes through text search:
         
         """)
 

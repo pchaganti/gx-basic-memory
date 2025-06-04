@@ -262,21 +262,20 @@ async def test_move_note_error_handling_note_not_found(mcp_server, app):
     """Test error handling when trying to move a non-existent note."""
 
     async with Client(mcp_server) as client:
-        # Try to move a note that doesn't exist - should raise ToolError
-        with pytest.raises(Exception) as exc_info:
-            await client.call_tool(
-                "move_note",
-                {
-                    "identifier": "Non-existent Note",
-                    "destination_path": "new/location.md",
-                },
-            )
+        # Try to move a note that doesn't exist - should return error message
+        move_result = await client.call_tool(
+            "move_note",
+            {
+                "identifier": "Non-existent Note",
+                "destination_path": "new/location.md",
+            },
+        )
 
         # Should contain error message about the failed operation
-        error_message = str(exc_info.value)
-        assert "move_note" in error_message and (
-            "Invalid request" in error_message or "Entity not found" in error_message
-        )
+        assert len(move_result) == 1
+        error_message = move_result[0].text
+        assert "# Move Failed" in error_message
+        assert "Non-existent Note" in error_message
 
 
 @pytest.mark.asyncio
@@ -295,24 +294,20 @@ async def test_move_note_error_handling_invalid_destination(mcp_server, app):
             },
         )
 
-        # Try to move to absolute path (should fail) - should raise ToolError
-        with pytest.raises(Exception) as exc_info:
-            await client.call_tool(
-                "move_note",
-                {
-                    "identifier": "Invalid Dest Test",
-                    "destination_path": "/absolute/path/note.md",
-                },
-            )
+        # Try to move to absolute path (should fail) - should return error message
+        move_result = await client.call_tool(
+            "move_note",
+            {
+                "identifier": "Invalid Dest Test",
+                "destination_path": "/absolute/path/note.md",
+            },
+        )
 
         # Should contain error message about the failed operation
-        error_message = str(exc_info.value)
-        assert "move_note" in error_message and (
-            "Invalid request" in error_message
-            or "Invalid destination path" in error_message
-            or "destination_path must be relative" in error_message
-            or "Client error (422)" in error_message
-        )
+        assert len(move_result) == 1
+        error_message = move_result[0].text
+        assert "# Move Failed" in error_message
+        assert "/absolute/path/note.md" in error_message
 
 
 @pytest.mark.asyncio
@@ -342,21 +337,20 @@ async def test_move_note_error_handling_destination_exists(mcp_server, app):
             },
         )
 
-        # Try to move source to existing destination (should fail) - should raise ToolError
-        with pytest.raises(Exception) as exc_info:
-            await client.call_tool(
-                "move_note",
-                {
-                    "identifier": "Source Note",
-                    "destination_path": "destination/Existing Note.md",  # Use exact existing file name
-                },
-            )
+        # Try to move source to existing destination (should fail) - should return error message
+        move_result = await client.call_tool(
+            "move_note",
+            {
+                "identifier": "Source Note",
+                "destination_path": "destination/Existing Note.md",  # Use exact existing file name
+            },
+        )
 
         # Should contain error message about the failed operation
-        error_message = str(exc_info.value)
-        assert "move_note" in error_message and (
-            "Destination already exists: destination/Existing Note.md" in error_message
-        )
+        assert len(move_result) == 1
+        error_message = move_result[0].text
+        assert "# Move Failed" in error_message
+        assert "already exists" in error_message
 
 
 @pytest.mark.asyncio
