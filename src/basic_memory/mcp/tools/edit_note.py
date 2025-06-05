@@ -185,7 +185,7 @@ async def edit_note(
         edit_note("Meeting Notes", "append", "\\n- Follow up on action items")  # exact title
         edit_note("docs/meeting-notes", "append", "\\n- Follow up tasks")       # exact permalink
         edit_note("docs/Meeting Notes", "append", "\\n- Next steps")           # exact folder/title
-        
+
         # If uncertain about identifier, search first:
         # search_notes("meeting")  # Find available notes
         # edit_note("docs/meeting-notes-2025", "append", "content")  # Use exact result

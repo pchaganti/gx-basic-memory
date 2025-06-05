@@ -232,13 +232,13 @@ async def move_note(
     Examples:
         # Move to new folder (exact title match)
         move_note("My Note", "work/notes/my-note.md")
-        
+
         # Move by exact permalink
         move_note("my-note-permalink", "archive/old-notes/my-note.md")
-        
+
         # Specify project with exact identifier
         move_note("My Note", "archive/my-note.md", project="work-project")
-        
+
         # If uncertain about identifier, search first:
         # search_notes("my note")  # Find available notes
         # move_note("docs/my-note-2025", "archive/my-note.md")  # Use exact result

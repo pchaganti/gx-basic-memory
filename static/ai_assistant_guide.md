@@ -33,49 +33,92 @@ build these connections!
 
 ## Core Tools Reference
 
-```python
-# Writing knowledge - THE MOST IMPORTANT TOOL!
-response = await write_note(
-    title="Search Design",  # Required: Note title
-    content="# Search Design\n...",  # Required: Note content
-    folder="specs",  # Optional: Folder to save in
-    tags=["search", "design"],  # Optional: Tags for categorization
-    verbose=True  # Optional: Get parsing details
+**Writing knowledge - THE MOST IMPORTANT TOOL!**
+```
+write_note(
+    title="Search Design",
+    content="# Search Design\n\n## Overview\nSearch functionality design and implementation.\n\n## Observations\n- [requirement] Must support full-text search #search\n- [decision] Using vector embeddings for semantic search #technology\n\n## Relations\n- implements [[Search Requirements]]\n- part_of [[API Specification]]",
+    folder="specs",
+    tags=["search", "design"]
+)
+```
+
+**Reading knowledge:**
+```
+read_note("Search Design")               # By exact title
+read_note("specs/search-design")         # By permalink  
+read_note("memory://specs/search")       # By memory URL
+```
+
+**Incremental editing (v0.13.0) - REQUIRES EXACT IDENTIFIERS:**
+```
+edit_note(
+    identifier="Search Design",             # Must be EXACT title/permalink
+    operation="append",
+    content="\n## Implementation Notes\n- Added caching layer for performance"
 )
 
-# Reading knowledge
-content = await read_note("Search Design")  # By title
-content = await read_note("specs/search-design")  # By path
-content = await read_note("memory://specs/search")  # By memory URL
-
-# Searching for knowledge
-results = await search_notes(
-    query="authentication system",  # Text to search for
-    page=1,  # Optional: Pagination
-    page_size=10  # Optional: Results per page
+edit_note(
+    identifier="API Documentation", 
+    operation="replace_section",
+    section="## Authentication",
+    content="Updated authentication using JWT tokens with refresh capability."
 )
+```
 
-# Building context from the knowledge graph
-context = await build_context(
-    url="memory://specs/search",  # Starting point
-    depth=2,  # Optional: How many hops to follow
-    timeframe="1 month"  # Optional: Recent timeframe
+**File organization (v0.13.0) - REQUIRES EXACT IDENTIFIERS:**
+```
+move_note(
+    identifier="Old Meeting Notes",          # Must be EXACT title/permalink
+    destination_path="archive/2024/meeting-notes.md"
 )
+```
 
-# Checking recent changes
-activity = await recent_activity(
-    type="all",  # Optional: Entity types to include
-    depth=1,  # Optional: Related items to include
-    timeframe="1 week"  # Optional: Time window
+**Searching for knowledge:**
+```
+search_notes(
+    query="authentication system",
+    page=1,
+    page_size=10
 )
+```
 
-# Creating a knowledge visualization
-canvas_result = await canvas(
-    nodes=[{"id": "note1", "label": "Search Design"}],  # Nodes to display
-    edges=[{"from": "note1", "to": "note2"}],  # Connections
-    title="Project Overview",  # Canvas title
-    folder="diagrams"  # Storage location
+**Building context from the knowledge graph:**
+```
+build_context(
+    url="memory://specs/search",
+    depth=2,
+    timeframe="1 month"
 )
+```
+
+**Checking recent changes:**
+```
+recent_activity(
+    timeframe="1 week",
+    depth=1
+)
+```
+
+**Creating knowledge visualizations:**
+```
+canvas(
+    nodes=[
+        {"id": "search", "x": 100, "y": 100, "width": 200, "height": 100, "type": "text", "text": "Search Design"},
+        {"id": "api", "x": 400, "y": 100, "width": 200, "height": 100, "type": "text", "text": "API Specification"}
+    ],
+    edges=[
+        {"id": "link1", "fromNode": "search", "toNode": "api"}
+    ],
+    title="System Architecture",
+    folder="diagrams"
+)
+```
+
+**Monitoring sync status:**
+```
+sync_status()                           # Check overall system status
+sync_status(project="work-notes")       # Check specific project status
 ```
 
 ## memory:// URLs Explained
@@ -259,45 +302,24 @@ When creating relations, you can:
 1. Reference existing entities by their exact title
 2. Create forward references to entities that don't exist yet
 
-```python
-# Example workflow for creating notes with effective relations
-async def create_note_with_effective_relations():
-    # Search for existing entities to reference
-    search_results = await search_notes("travel")
-    existing_entities = [result.title for result in search_results.primary_results]
+**Example workflow for creating notes with effective relations:**
 
-    # Check if specific entities exist
-    packing_tips_exists = "Packing Tips" in existing_entities
-    japan_travel_exists = "Japan Travel Guide" in existing_entities
+1. **First, search for existing entities to reference:**
+```
+search_notes(query="travel")
+```
 
-    # Prepare relations section - include both existing and forward references
-    relations_section = "## Relations\n"
+2. **Check recent activity for current topics:**
+```
+recent_activity(timeframe="1 week")
+```
 
-    # Existing reference - exact match to known entity
-    if packing_tips_exists:
-        relations_section += "- references [[Packing Tips]]\n"
-    else:
-        # Forward reference - will be linked when that entity is created later
-        relations_section += "- references [[Packing Tips]]\n"
+3. **Create the note with both existing and forward references:**
+```
+write_note(
+    title="Tokyo Neighborhood Guide",
+    content="# Tokyo Neighborhood Guide
 
-    # Another possible reference
-    if japan_travel_exists:
-        relations_section += "- part_of [[Japan Travel Guide]]\n"
-
-    # You can also check recently modified notes to reference them
-    recent = await recent_activity(timeframe="1 week")
-    recent_titles = [item.title for item in recent.primary_results]
-
-    if "Transportation Options" in recent_titles:
-        relations_section += "- relates_to [[Transportation Options]]\n"
-
-    # Always include meaningful forward references, even if they don't exist yet
-    relations_section += "- located_in [[Tokyo]]\n"
-    relations_section += "- visited_during [[Spring 2023 Trip]]\n"
-
-    # Now create the note with both verified and forward relations
-    content = f"""# Tokyo Neighborhood Guide
-    
 ## Overview
 Details about different Tokyo neighborhoods and their unique characteristics.
 
@@ -307,65 +329,103 @@ Details about different Tokyo neighborhoods and their unique characteristics.
 - [recommendation] Visit Shimokitazawa for vintage shopping #unique
 - [tip] Get a Suica card for easy train travel #convenience
 
-{relations_section}
-    """
-
-    result = await write_note(
-        title="Tokyo Neighborhood Guide",
-        content=content,
-        verbose=True
-    )
-
-    # You can check which relations were resolved and which are forward references
-    if result and 'relations' in result:
-        resolved = [r['to_name'] for r in result['relations'] if r.get('target_id')]
-        forward_refs = [r['to_name'] for r in result['relations'] if not r.get('target_id')]
-
-        print(f"Resolved relations: {resolved}")
-        print(f"Forward references that will be resolved later: {forward_refs}")
+## Relations
+- references [[Packing Tips]]           # Forward reference (will be linked when created)
+- part_of [[Japan Travel Guide]]        # Existing reference (if found in search)
+- relates_to [[Transportation Options]] # Recent reference (if found in activity)
+- located_in [[Tokyo]]                  # Forward reference
+- visited_during [[Spring 2023 Trip]]   # Forward reference",
+    folder="travel",
+    tags=["tokyo", "neighborhoods", "travel"]
+)
 ```
+
+**Key points:**
+- Use exact titles from search results for existing entities: `[[Exact Title Found]]`
+- Forward references are fine - they'll be linked automatically when target notes are created
+- Check recent activity to reference currently active topics
+- Use meaningful relation types: `part_of`, `located_in`, `visited_during` vs generic `relates_to`
 
 ## Error Handling
 
 Common issues to watch for:
 
-1. **Missing Content**
-   ```python
-   try:
-       content = await read_note("Document")
-   except:
-       # Try search instead
-       results = await search_notes("Document")
-       if results and results.primary_results:
-           # Found something similar
-           content = await read_note(results.primary_results[0].permalink)
-   ```
+**1. Missing Content - Use Search as Fallback**
+```
+# If read_note fails, try search instead
+search_notes(query="Document")
+# Then use exact result from search:
+read_note("Exact Document Title Found")
+```
 
-2. **Forward References (Unresolved Relations)**
-   ```python
-   response = await write_note(..., verbose=True)
-   # Check for forward references (unresolved relations)
-   forward_refs = []
-   for relation in response.get('relations', []):
-       if not relation.get('target_id'):
-           forward_refs.append(relation.get('to_name'))
-   
-   if forward_refs:
-       # This is a feature, not an error! Inform the user about forward references
-       print(f"Note created with forward references to: {forward_refs}")
-       print("These will be automatically linked when those notes are created.")
-       
-       # Optionally suggest creating those entities now
-       print("Would you like me to create any of these notes now to complete the connections?")
-   ```
+**2. Strict Mode for Edit/Move Operations (v0.13.0)**
 
-3. **Sync Issues**
-   ```python
-   # If information seems outdated
-   activity = await recent_activity(timeframe="1 hour")
-   if not activity or not activity.primary_results:
-       print("It seems there haven't been recent updates. You might need to run 'basic-memory sync'.")
-   ```
+❌ **This might fail if identifier isn't exact:**
+```
+edit_note(identifier="Meeting Note", operation="append", content="new content")
+```
+
+✅ **Safe approach - search first, then use exact result:**
+```
+# 1. Search first to find exact identifier
+search_notes(query="meeting")
+
+# 2. Use exact title from search results  
+edit_note(identifier="Meeting Notes 2024", operation="append", content="new content")
+
+# Same pattern for move_note:
+search_notes(query="old note")
+move_note(identifier="Old Meeting Notes", destination_path="archive/old-notes.md")
+```
+
+**3. Forward References (Unresolved Relations)**
+
+Forward references are a **feature, not an error!** Basic Memory automatically links them when target notes are created.
+
+When you see unresolved relations in the response:
+- Inform users: "I've created forward references that will be linked when you create those notes"
+- Optionally suggest: "Would you like me to create any of these notes now to complete the connections?"
+
+**4. Sync Issues**
+
+If information seems outdated:
+```
+recent_activity(timeframe="1 hour")
+```
+If no recent activity shows, check sync status first:
+```
+sync_status()
+```
+If sync is pending or failed, suggest: "You might need to run `basic-memory sync`"
+
+**5. Understanding Sync Status**
+
+The `sync_status()` tool provides essential information about Basic Memory's operational state:
+
+```
+sync_status()                           # Check overall system readiness
+sync_status(project="work-notes")       # Check specific project context
+```
+
+**When to use sync_status:**
+- At the start of conversations to verify system readiness
+- When operations seem slow or fail unexpectedly  
+- Before working with large knowledge bases
+- When switching between projects
+- To provide users context about background processing
+
+**What sync_status tells you:**
+- **System Ready**: Whether all files are indexed and tools are operational
+- **Active Processing**: Which projects are currently syncing with progress indicators
+- **Project Status**: Individual project sync states (👁️ watching, ✅ completed, 🔄 syncing, ❌ failed, ⏳ pending)
+- **Error Details**: Specific error messages for failed sync operations
+- **Guidance**: Next steps when issues are detected
+
+**Using sync_status effectively:**
+- Check status if tools return unexpected results
+- Use project parameter when working in multi-project setups
+- Share status with users when explaining delays
+- Monitor progress during initial setup or large imports
 
 ## Best Practices
 

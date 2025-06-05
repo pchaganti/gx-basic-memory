@@ -26,9 +26,11 @@ class LinkResolver:
         self.entity_repository = entity_repository
         self.search_service = search_service
 
-    async def resolve_link(self, link_text: str, use_search: bool = True, strict: bool = False) -> Optional[Entity]:
+    async def resolve_link(
+        self, link_text: str, use_search: bool = True, strict: bool = False
+    ) -> Optional[Entity]:
         """Resolve a markdown link to a permalink.
-        
+
         Args:
             link_text: The link text to resolve
             use_search: Whether to use search-based fuzzy matching as fallback
