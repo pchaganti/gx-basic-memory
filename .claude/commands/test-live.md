@@ -58,6 +58,13 @@ Test all fundamental MCP tools systematically:
 - Notes with complex formatting
 - Performance with large notes
 
+**view_note Tests:**
+- View notes as formatted artifacts (Claude Desktop)
+- Title extraction from frontmatter and headings
+- Unicode and emoji content in artifacts
+- Error handling for non-existent notes
+- Artifact display quality and readability
+
 **search_notes Tests:**
 - Simple text queries
 - Tag-based searches 

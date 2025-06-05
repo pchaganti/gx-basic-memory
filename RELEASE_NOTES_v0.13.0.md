@@ -8,6 +8,7 @@ Basic Memory v0.13.0 is a **major release** that transforms Basic Memory into a 
 - 🎯 **Switch between projects instantly** during conversations with Claude
 - ✏️ **Edit notes incrementally** without rewriting entire documents
 - 📁 **Move and organize notes** with full database consistency
+- 📖 **View notes as formatted artifacts** for better readability in Claude Desktop
 - 🔍 **Search frontmatter tags** to discover content more easily
 - 🔐 **OAuth authentication** for secure remote access
 - ⚡ **Development builds** automatically published for beta testing
@@ -138,6 +139,7 @@ Now searchable by: "coffee", "brewing", "equipment", or "Coffee Brewing Methods"
 ### New Note Operations Tools
 - **`edit_note()`** - Incremental note editing (append, prepend, find/replace, section replace)
 - **`move_note()`** - Move notes with database consistency and search reindexing
+- **`view_note()`** - Display notes as formatted artifacts for better readability in Claude Desktop
 
 ### Enhanced Existing Tools
 All existing tools now support:
