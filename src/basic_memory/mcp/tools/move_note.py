@@ -26,14 +26,14 @@ def _format_move_error_response(error_message: str, identifier: str, destination
         return dedent(f"""
             # Move Failed - Note Not Found
 
-            The note '{identifier}' could not be found for moving.
+            The note '{identifier}' could not be found for moving. Move operations require an exact match (no fuzzy matching).
 
             ## Suggestions to try:
-            1. **Search for the note first**: Use `search_notes("{search_term}")` to find it
-            2. **Try different identifier formats**:
-               - If you used a permalink like "folder/note-title", try just the title: "{title_format}"
-               - If you used a title, try the permalink format: "{permalink_format}"
-               - Use `read_note()` first to verify the note exists and get the correct identifier
+            1. **Search for the note first**: Use `search_notes("{search_term}")` to find it with exact identifiers
+            2. **Try different exact identifier formats**:
+               - If you used a permalink like "folder/note-title", try the exact title: "{title_format}"
+               - If you used a title, try the exact permalink format: "{permalink_format}"
+               - Use `read_note()` first to verify the note exists and get the exact identifier
 
             3. **Check current project**: Use `get_current_project()` to verify you're in the right project
             4. **List available notes**: Use `list_directory("/")` to see what notes exist
@@ -43,7 +43,7 @@ def _format_move_error_response(error_message: str, identifier: str, destination
             # First, verify the note exists:
             search_notes("{identifier}")
 
-            # Then use the correct identifier from search results:
+            # Then use the exact identifier from search results:
             move_note("correct-identifier-here", "{destination_path}")
             ```
             """).strip()
@@ -220,7 +220,9 @@ async def move_note(
     """Move a note to a new file location within the same project.
 
     Args:
-        identifier: Entity identifier (title, permalink, or memory:// URL)
+        identifier: Exact entity identifier (title, permalink, or memory:// URL).
+                   Must be an exact match - fuzzy matching is not supported for move operations.
+                   Use search_notes() or read_note() first to find the correct identifier if uncertain.
         destination_path: New path relative to project root (e.g., "work/meetings/2025-05-26.md")
         project: Optional project name (defaults to current session project)
 
@@ -228,9 +230,18 @@ async def move_note(
         Success message with move details
 
     Examples:
-        - Move to new folder: move_note("My Note", "work/notes/my-note.md")
-        - Move by permalink: move_note("my-note-permalink", "archive/old-notes/my-note.md")
-        - Specify project: move_note("My Note", "archive/my-note.md", project="work-project")
+        # Move to new folder (exact title match)
+        move_note("My Note", "work/notes/my-note.md")
+        
+        # Move by exact permalink
+        move_note("my-note-permalink", "archive/old-notes/my-note.md")
+        
+        # Specify project with exact identifier
+        move_note("My Note", "archive/my-note.md", project="work-project")
+        
+        # If uncertain about identifier, search first:
+        # search_notes("my note")  # Find available notes
+        # move_note("docs/my-note-2025", "archive/my-note.md")  # Use exact result
 
     Note: This operation moves notes within the specified project only. Moving notes
     between different projects is not currently supported.

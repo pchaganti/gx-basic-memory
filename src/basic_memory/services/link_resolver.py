@@ -26,8 +26,14 @@ class LinkResolver:
         self.entity_repository = entity_repository
         self.search_service = search_service
 
-    async def resolve_link(self, link_text: str, use_search: bool = True) -> Optional[Entity]:
-        """Resolve a markdown link to a permalink."""
+    async def resolve_link(self, link_text: str, use_search: bool = True, strict: bool = False) -> Optional[Entity]:
+        """Resolve a markdown link to a permalink.
+        
+        Args:
+            link_text: The link text to resolve
+            use_search: Whether to use search-based fuzzy matching as fallback
+            strict: If True, only exact matches are allowed (no fuzzy search fallback)
+        """
         logger.trace(f"Resolving link: {link_text}")
 
         # Clean link text and extract any alias
@@ -60,9 +66,12 @@ class LinkResolver:
                 logger.debug(f"Found entity with path (with .md): {found_path_md.file_path}")
                 return found_path_md
 
-        # search if indicated
+        # In strict mode, don't try fuzzy search - return None if no exact match found
+        if strict:
+            return None
+
+        # 5. Fall back to search for fuzzy matching (only if not in strict mode)
         if use_search and "*" not in clean_text:
-            # 5. Fall back to search for fuzzy matching on title (use text search for prefix matching)
             results = await self.search_service.search(
                 query=SearchQuery(text=clean_text, entity_types=[SearchItemType.ENTITY]),
             )

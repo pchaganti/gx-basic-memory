@@ -413,8 +413,8 @@ class EntityService(BaseService[EntityModel]):
         """
         logger.debug(f"Editing entity: {identifier}, operation: {operation}")
 
-        # Find the entity using the link resolver
-        entity = await self.link_resolver.resolve_link(identifier)
+        # Find the entity using the link resolver with strict mode for destructive operations
+        entity = await self.link_resolver.resolve_link(identifier, strict=True)
         if not entity:
             raise EntityNotFoundError(f"Entity not found: {identifier}")
 
@@ -630,8 +630,8 @@ class EntityService(BaseService[EntityModel]):
         """
         logger.debug(f"Moving entity: {identifier} to {destination_path}")
 
-        # 1. Resolve identifier to entity
-        entity = await self.link_resolver.resolve_link(identifier)
+        # 1. Resolve identifier to entity with strict mode for destructive operations
+        entity = await self.link_resolver.resolve_link(identifier, strict=True)
         if not entity:
             raise EntityNotFoundError(f"Entity not found: {identifier}")
 

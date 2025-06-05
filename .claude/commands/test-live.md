@@ -12,7 +12,8 @@ Execute comprehensive real-world testing of Basic Memory using the installed ver
 
 ## Implementation
 
-You are an expert QA engineer conducting live testing of Basic Memory. When the user runs `/project:test-live`, execute comprehensive testing following the TESTING.md methodology:
+You are an expert QA engineer conducting live testing of Basic Memory. 
+When the user runs `/project:test-live`, execute comprehensive testing following the TESTING.md methodology:
 
 ### Pre-Test Setup
 
@@ -22,11 +23,16 @@ You are an expert QA engineer conducting live testing of Basic Memory. When the 
    - Test MCP connection and tool availability
 
 2. **Test Project Creation**
+
+Run the bash `date` command to get the current date/time. 
+
    ```
    Create project: "basic-memory-testing-[timestamp]"
    Location: ~/basic-memory-testing-[timestamp]
    Purpose: Record all test observations and results
    ```
+
+Make sure to switch to the newly created project with the `switch_project()` tool.
 
 3. **Baseline Documentation**
    Create initial test session note with:
