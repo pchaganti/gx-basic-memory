@@ -368,6 +368,24 @@ class TestSearchTermPreparation:
             search_repository._prepare_search_term("project planning") == "project* AND planning*"
         )
 
+    def test_version_strings_with_dots_handled_correctly(self, search_repository):
+        """Version strings with dots should be quoted to prevent FTS5 syntax errors."""
+        # This reproduces the bug where "Basic Memory v0.13.0b2" becomes "Basic* AND Memory* AND v0.13.0b2*"
+        # which causes FTS5 syntax errors because v0.13.0b2* is not valid FTS5 syntax
+        result = search_repository._prepare_search_term("Basic Memory v0.13.0b2")
+        # Should be quoted because of dots in v0.13.0b2
+        assert result == '"Basic Memory v0.13.0b2"*'
+
+    def test_mixed_special_characters_in_multi_word_queries(self, search_repository):
+        """Multi-word queries with special characters in any word should be fully quoted."""
+        # Any word containing special characters should cause the entire phrase to be quoted
+        assert search_repository._prepare_search_term("config.json file") == '"config.json file"*'
+        assert (
+            search_repository._prepare_search_term("user@email.com account")
+            == '"user@email.com account"*'
+        )
+        assert search_repository._prepare_search_term("node.js and react") == '"node.js and react"*'
+
     @pytest.mark.asyncio
     async def test_search_with_special_characters_returns_results(self, search_repository):
         """Integration test: search with special characters should work gracefully."""
@@ -431,3 +449,37 @@ class TestSearchTermPreparation:
             # This should re-raise the exception (not return empty list)
             with pytest.raises(Exception, match="Database connection failed"):
                 await search_repository.search(search_text="test")
+
+    @pytest.mark.asyncio
+    async def test_version_string_search_integration(self, search_repository, search_entity):
+        """Integration test: searching for version strings should work without FTS5 errors."""
+        # Index an entity with version information
+        search_row = SearchIndexRow(
+            id=search_entity.id,
+            type=SearchItemType.ENTITY.value,
+            title="Basic Memory v0.13.0b2 Release",
+            content_stems="basic memory version 0.13.0b2 beta release notes features",
+            content_snippet="Basic Memory v0.13.0b2 is a beta release with new features",
+            permalink=search_entity.permalink,
+            file_path=search_entity.file_path,
+            entity_id=search_entity.id,
+            metadata={"entity_type": search_entity.entity_type},
+            created_at=search_entity.created_at,
+            updated_at=search_entity.updated_at,
+            project_id=search_repository.project_id,
+        )
+
+        await search_repository.index_item(search_row)
+
+        # This should not cause FTS5 syntax errors and should find the entity
+        results = await search_repository.search(search_text="Basic Memory v0.13.0b2")
+        assert len(results) == 1
+        assert results[0].title == "Basic Memory v0.13.0b2 Release"
+
+        # Test other version-like patterns
+        results2 = await search_repository.search(search_text="v0.13.0b2")
+        assert len(results2) == 1  # Should still find it due to content_stems
+
+        # Test with other problematic patterns
+        results3 = await search_repository.search(search_text="node.js version")
+        assert isinstance(results3, list)  # Should not crash

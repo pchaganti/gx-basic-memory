@@ -179,15 +179,28 @@ class SearchRepository:
         if has_problematic or has_spaces_or_special:
             # Handle multi-word queries differently from special character queries
             if " " in term and not any(c in term for c in problematic_chars):
-                # For multi-word queries (like "emoji unicode"), use boolean AND to handle word order variations
-                # Split into individual words and create AND query with prefix matching
+                # Check if any individual word contains special characters that need quoting
                 words = term.strip().split()
-                if is_prefix:
-                    # Add prefix wildcard to each word for better matching
-                    prepared_words = [f"{word}*" for word in words if word]
+                has_special_in_words = any(
+                    any(c in word for c in needs_quoting_chars if c != " ") for word in words
+                )
+
+                if not has_special_in_words:
+                    # For multi-word queries with simple words (like "emoji unicode"),
+                    # use boolean AND to handle word order variations
+                    if is_prefix:
+                        # Add prefix wildcard to each word for better matching
+                        prepared_words = [f"{word}*" for word in words if word]
+                    else:
+                        prepared_words = words
+                    term = " AND ".join(prepared_words)
                 else:
-                    prepared_words = words
-                term = " AND ".join(prepared_words)
+                    # If any word has special characters, quote the entire phrase
+                    escaped_term = term.replace('"', '""')
+                    if is_prefix and not ("/" in term and term.endswith(".md")):
+                        term = f'"{escaped_term}"*'
+                    else:
+                        term = f'"{escaped_term}"'
             else:
                 # For terms with problematic characters or file paths, use exact phrase matching
                 # Escape any existing quotes by doubling them

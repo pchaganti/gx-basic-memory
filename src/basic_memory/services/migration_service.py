@@ -9,7 +9,6 @@ from typing import Optional
 from loguru import logger
 
 from basic_memory.config import BasicMemoryConfig
-from basic_memory.models import Project
 
 
 class MigrationStatus(Enum):
@@ -62,11 +61,11 @@ class MigrationManager:
                 if self._state.projects_total > 0
                 else ""
             )
-            return f"🔄 Migration in progress{progress}: {self._state.message}"
+            return f"🔄 File sync in progress{progress}: {self._state.message}. Use sync_status() tool for details."
         elif self._state.status == MigrationStatus.FAILED:
-            return f"❌ Migration failed: {self._state.error or 'Unknown error'}"
+            return f"❌ File sync failed: {self._state.error or 'Unknown error'}. Use sync_status() tool for details."
         elif self._state.status == MigrationStatus.COMPLETED:
-            return "✅ Migration completed successfully"
+            return "✅ File sync completed successfully"
         else:
             return "✅ System ready"
 
@@ -159,6 +158,10 @@ class MigrationManager:
             return self.is_ready
         except asyncio.TimeoutError:
             return False
+
+    def mark_completed(self, message: str = "Migration completed") -> None:
+        """Mark migration as completed externally."""
+        self._state = MigrationState(status=MigrationStatus.COMPLETED, message=message)
 
 
 # Global migration manager instance

@@ -17,7 +17,7 @@ from basic_memory.mcp.tools.canvas import canvas
 from basic_memory.mcp.tools.list_directory import list_directory
 from basic_memory.mcp.tools.edit_note import edit_note
 from basic_memory.mcp.tools.move_note import move_note
-from basic_memory.mcp.tools.migration_status import migration_status
+from basic_memory.mcp.tools.sync_status import sync_status
 from basic_memory.mcp.tools.project_management import (
     list_projects,
     switch_project,
@@ -37,7 +37,6 @@ __all__ = [
     "get_current_project",
     "list_directory",
     "list_projects",
-    "migration_status",
     "move_note",
     "read_content",
     "read_note",
@@ -45,5 +44,6 @@ __all__ = [
     "search_notes",
     "set_default_project",
     "switch_project",
+    "sync_status",
     "write_note",
 ]

@@ -509,44 +509,47 @@ async def call_delete(
 
 
 def check_migration_status() -> Optional[str]:
-    """Check if migration is in progress and return status message if so.
+    """Check if sync/migration is in progress and return status message if so.
 
     Returns:
-        Status message if migration is in progress, None if system is ready
+        Status message if sync is in progress, None if system is ready
     """
     try:
-        from basic_memory.services.migration_service import migration_manager
+        from basic_memory.services.sync_status_service import sync_status_tracker
 
-        if not migration_manager.is_ready:
-            return migration_manager.status_message
+        if not sync_status_tracker.is_ready:
+            return sync_status_tracker.get_summary()
         return None
     except Exception:
-        # If there's any error checking migration status, assume ready
+        # If there's any error checking sync status, assume ready
         return None
 
 
 async def wait_for_migration_or_return_status(timeout: float = 5.0) -> Optional[str]:
-    """Wait briefly for migration to complete, or return status message.
+    """Wait briefly for sync/migration to complete, or return status message.
 
     Args:
-        timeout: Maximum time to wait for migration completion
+        timeout: Maximum time to wait for sync completion
 
     Returns:
-        Status message if migration is still in progress, None if ready
+        Status message if sync is still in progress, None if ready
     """
     try:
-        from basic_memory.services.migration_service import migration_manager
+        from basic_memory.services.sync_status_service import sync_status_tracker
+        import asyncio
 
-        if migration_manager.is_ready:
+        if sync_status_tracker.is_ready:
             return None
 
-        # Wait briefly for migration to complete
-        completed = await migration_manager.wait_for_completion(timeout=timeout)
+        # Wait briefly for sync to complete
+        start_time = asyncio.get_event_loop().time()
+        while (asyncio.get_event_loop().time() - start_time) < timeout:
+            if sync_status_tracker.is_ready:
+                return None
+            await asyncio.sleep(0.1)  # Check every 100ms
 
-        if completed:
-            return None
-        else:
-            return migration_manager.status_message
+        # Still not ready after timeout
+        return sync_status_tracker.get_summary()
     except Exception:
         # If there's any error, assume ready
         return None

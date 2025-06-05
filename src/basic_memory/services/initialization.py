@@ -83,7 +83,9 @@ async def migrate_legacy_projects(app_config: BasicMemoryConfig):
             logger.error(f"Project {project_name} not found in database, skipping migration")
             continue
 
+        logger.info(f"Starting migration for project: {project_name} (id: {project.id})")
         await migrate_legacy_project_data(project, legacy_dir)
+        logger.info(f"Completed migration for project: {project_name}")
     logger.info("Legacy projects successfully migrated")
 
 
@@ -104,7 +106,7 @@ async def migrate_legacy_project_data(project: Project, legacy_dir: Path) -> boo
     sync_dir = Path(project.path)
 
     logger.info(f"Sync starting project: {project.name}")
-    await sync_service.sync(sync_dir)
+    await sync_service.sync(sync_dir, project_name=project.name)
     logger.info(f"Sync completed successfully for project: {project.name}")
 
     # After successful sync, remove the legacy directory
@@ -158,11 +160,31 @@ async def initialize_file_sync(
         sync_dir = Path(project.path)
 
         try:
-            await sync_service.sync(sync_dir)
+            await sync_service.sync(sync_dir, project_name=project.name)
             logger.info(f"Sync completed successfully for project: {project.name}")
+
+            # Mark project as watching for changes after successful sync
+            from basic_memory.services.sync_status_service import sync_status_tracker
+
+            sync_status_tracker.start_project_watch(project.name)
+            logger.info(f"Project {project.name} is now watching for changes")
         except Exception as e:  # pragma: no cover
             logger.error(f"Error syncing project {project.name}: {e}")
+            # Mark sync as failed for this project
+            from basic_memory.services.sync_status_service import sync_status_tracker
+
+            sync_status_tracker.fail_project_sync(project.name, str(e))
             # Continue with other projects even if one fails
+
+    # Mark migration complete if it was in progress
+    try:
+        from basic_memory.services.migration_service import migration_manager
+
+        if not migration_manager.is_ready:
+            migration_manager.mark_completed("Migration completed with file sync")
+            logger.info("Marked migration as completed after file sync")
+    except Exception as e:
+        logger.warning(f"Could not update migration status: {e}")
 
     # Then start the watch service in the background
     logger.info("Starting watch service for all projects")
