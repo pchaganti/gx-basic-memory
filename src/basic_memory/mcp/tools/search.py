@@ -54,6 +54,23 @@ def _format_search_error_response(error_message: str, query: str, search_type: s
             Replace INSERT_CLEAN_QUERY_HERE with your simplified search terms.
             """).strip()
 
+    # Project not found errors (check before general "not found")
+    if "project not found" in error_message.lower():
+        return dedent(f"""
+            # Search Failed - Project Not Found
+
+            The current project is not accessible or doesn't exist: {error_message}
+
+            ## How to resolve:
+            1. **Check available projects**: `list_projects()`
+            2. **Switch to valid project**: `switch_project("valid-project-name")`
+            3. **Verify project setup**: Ensure your project is properly configured
+
+            ## Current session info:
+            - Check current project: `get_current_project()`
+            - See available projects: `list_projects()`
+            """).strip()
+
     # No results found
     if "no results" in error_message.lower() or "not found" in error_message.lower():
         simplified_query = (
@@ -128,21 +145,6 @@ You don't have permission to search in the current project: {error_message}
 - List available projects: `list_projects()`
 - Switch to accessible project: `switch_project("project-name")`
 - Check current project: `get_current_project()`"""
-
-    # Project not found errors
-    if "project not found" in error_message.lower():
-        return f"""# Search Failed - Project Not Found
-
-The current project is not accessible or doesn't exist: {error_message}
-
-## How to resolve:
-1. **Check available projects**: `list_projects()`
-2. **Switch to valid project**: `switch_project("valid-project-name")`
-3. **Verify project setup**: Ensure your project is properly configured
-
-## Current session info:
-- Check current project: `get_current_project()`
-- See available projects: `list_projects()`"""
 
     # Generic fallback
     return f"""# Search Failed

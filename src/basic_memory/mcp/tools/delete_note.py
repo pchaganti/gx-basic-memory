@@ -185,7 +185,7 @@ async def delete_note(identifier: str, project: Optional[str] = None) -> bool | 
             logger.warning(f"Delete operation completed but note was not deleted: {identifier}")
             return False
 
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         logger.error(f"Delete failed for '{identifier}': {e}")
         # Return formatted error message for better user experience
         return _format_delete_error_response(str(e), identifier)

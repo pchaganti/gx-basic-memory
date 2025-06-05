@@ -133,6 +133,7 @@ Now searchable by: "coffee", "brewing", "equipment", or "Coffee Brewing Methods"
 - **`switch_project(project_name)`** - Change active project context during conversations
 - **`get_current_project()`** - Show currently active project with statistics
 - **`set_default_project(project_name)`** - Update default project configuration
+- **`sync_status()`** - Check file synchronization status and background operations
 
 ### New Note Operations Tools
 - **`edit_note()`** - Incremental note editing (append, prepend, find/replace, section replace)

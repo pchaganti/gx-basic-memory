@@ -1,8 +1,9 @@
 """Tests for the move_note MCP tool."""
 
 import pytest
+from unittest.mock import patch
 
-from basic_memory.mcp.tools.move_note import move_note
+from basic_memory.mcp.tools.move_note import move_note, _format_move_error_response
 from basic_memory.mcp.tools.write_note import write_note
 from basic_memory.mcp.tools.read_note import read_note
 
@@ -419,3 +420,78 @@ async def test_move_note_preserves_frontmatter(app, client):
     assert "permalink: target/moved-custom-note" in content
     assert "# Custom Frontmatter Note" in content
     assert "Content with custom metadata" in content
+
+
+class TestMoveNoteErrorFormatting:
+    """Test move note error formatting for better user experience."""
+
+    def test_format_move_error_invalid_path(self):
+        """Test formatting for invalid path errors."""
+        result = _format_move_error_response("invalid path format", "test-note", "/invalid/path.md")
+
+        assert "# Move Failed - Invalid Destination Path" in result
+        assert "The destination path '/invalid/path.md' is not valid" in result
+        assert "Relative paths only" in result
+        assert "Include file extension" in result
+
+    def test_format_move_error_permission_denied(self):
+        """Test formatting for permission errors."""
+        result = _format_move_error_response("permission denied", "test-note", "target/file.md")
+
+        assert "# Move Failed - Permission Error" in result
+        assert "You don't have permission to move 'test-note'" in result
+        assert "Check file permissions" in result
+        assert "Check file locks" in result
+
+    def test_format_move_error_source_missing(self):
+        """Test formatting for source file missing errors."""
+        result = _format_move_error_response("source file missing", "test-note", "target/file.md")
+
+        assert "# Move Failed - Source File Missing" in result
+        assert "The source file for 'test-note' was not found on disk" in result
+        assert "database and filesystem are out of sync" in result
+
+    def test_format_move_error_server_error(self):
+        """Test formatting for server errors."""
+        result = _format_move_error_response("server error occurred", "test-note", "target/file.md")
+
+        assert "# Move Failed - System Error" in result
+        assert "A system error occurred while moving 'test-note'" in result
+        assert "Try again" in result
+        assert "Check disk space" in result
+
+
+class TestMoveNoteErrorHandling:
+    """Test move note exception handling."""
+
+    @pytest.mark.asyncio
+    async def test_move_note_exception_handling(self):
+        """Test exception handling in move_note."""
+        with patch("basic_memory.mcp.tools.move_note.get_active_project") as mock_get_project:
+            mock_get_project.return_value.project_url = "http://test"
+            mock_get_project.return_value.name = "test-project"
+
+            with patch(
+                "basic_memory.mcp.tools.move_note.call_post",
+                side_effect=Exception("entity not found"),
+            ):
+                result = await move_note("test-note", "target/file.md")
+
+                assert isinstance(result, str)
+                assert "# Move Failed - Note Not Found" in result
+
+    @pytest.mark.asyncio
+    async def test_move_note_permission_error_handling(self):
+        """Test permission error handling in move_note."""
+        with patch("basic_memory.mcp.tools.move_note.get_active_project") as mock_get_project:
+            mock_get_project.return_value.project_url = "http://test"
+            mock_get_project.return_value.name = "test-project"
+
+            with patch(
+                "basic_memory.mcp.tools.move_note.call_post",
+                side_effect=Exception("permission denied"),
+            ):
+                result = await move_note("test-note", "target/file.md")
+
+                assert isinstance(result, str)
+                assert "# Move Failed - Permission Error" in result

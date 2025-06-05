@@ -56,7 +56,7 @@ async def read_note(
     from basic_memory.mcp.tools.utils import wait_for_migration_or_return_status
 
     migration_status = await wait_for_migration_or_return_status(timeout=5.0)
-    if migration_status: # pragma: no cover
+    if migration_status:  # pragma: no cover
         return f"# System Status\n\n{migration_status}\n\nPlease wait for migration to complete before reading notes."
 
     active_project = get_active_project(project)

@@ -550,6 +550,6 @@ async def wait_for_migration_or_return_status(timeout: float = 5.0) -> Optional[
 
         # Still not ready after timeout
         return sync_status_tracker.get_summary()
-    except Exception:
+    except Exception:  # pragma: no cover
         # If there's any error, assume ready
         return None

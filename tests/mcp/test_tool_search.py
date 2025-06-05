@@ -2,9 +2,10 @@
 
 import pytest
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from basic_memory.mcp.tools import write_note
-from basic_memory.mcp.tools.search import search_notes
+from basic_memory.mcp.tools.search import search_notes, _format_search_error_response
 
 
 @pytest.mark.asyncio
@@ -157,3 +158,91 @@ async def test_search_with_date_filter(client):
 
     # Verify we get results within timeframe
     assert len(response.results) > 0
+
+
+class TestSearchErrorFormatting:
+    """Test search error formatting for better user experience."""
+
+    def test_format_search_error_fts5_syntax(self):
+        """Test formatting for FTS5 syntax errors."""
+        result = _format_search_error_response("syntax error in FTS5", "test query(")
+
+        assert "# Search Failed - Invalid Syntax" in result
+        assert "The search query 'test query(' contains invalid syntax" in result
+        assert "Special characters" in result
+        assert "test query" in result  # Clean query without special chars
+
+    def test_format_search_error_no_results(self):
+        """Test formatting for no results found."""
+        result = _format_search_error_response("no results found", "very specific query")
+
+        assert "# Search Complete - No Results Found" in result
+        assert "No content found matching 'very specific query'" in result
+        assert "Broaden your search" in result
+        assert "very" in result  # Simplified query
+
+    def test_format_search_error_server_error(self):
+        """Test formatting for server errors."""
+        result = _format_search_error_response("internal server error", "test query")
+
+        assert "# Search Failed - Server Error" in result
+        assert "The search service encountered an error while processing 'test query'" in result
+        assert "Try again" in result
+        assert "Check project status" in result
+
+    def test_format_search_error_permission_denied(self):
+        """Test formatting for permission errors."""
+        result = _format_search_error_response("permission denied", "test query")
+
+        assert "# Search Failed - Access Error" in result
+        assert "You don't have permission to search" in result
+        assert "Check your project access" in result
+
+    def test_format_search_error_project_not_found(self):
+        """Test formatting for project not found errors."""
+        result = _format_search_error_response("current project not found", "test query")
+
+        assert "# Search Failed - Project Not Found" in result
+        assert "The current project is not accessible" in result
+        assert "Check available projects" in result
+
+    def test_format_search_error_generic(self):
+        """Test formatting for generic errors."""
+        result = _format_search_error_response("unknown error", "test query")
+
+        assert "# Search Failed" in result
+        assert "Error searching for 'test query': unknown error" in result
+        assert "General troubleshooting" in result
+
+
+class TestSearchToolErrorHandling:
+    """Test search tool exception handling."""
+
+    @pytest.mark.asyncio
+    async def test_search_notes_exception_handling(self):
+        """Test exception handling in search_notes."""
+        with patch("basic_memory.mcp.tools.search.get_active_project") as mock_get_project:
+            mock_get_project.return_value.project_url = "http://test"
+
+            with patch(
+                "basic_memory.mcp.tools.search.call_post", side_effect=Exception("syntax error")
+            ):
+                result = await search_notes("test query")
+
+                assert isinstance(result, str)
+                assert "# Search Failed - Invalid Syntax" in result
+
+    @pytest.mark.asyncio
+    async def test_search_notes_permission_error(self):
+        """Test search_notes with permission error."""
+        with patch("basic_memory.mcp.tools.search.get_active_project") as mock_get_project:
+            mock_get_project.return_value.project_url = "http://test"
+
+            with patch(
+                "basic_memory.mcp.tools.search.call_post",
+                side_effect=Exception("permission denied"),
+            ):
+                result = await search_notes("test query")
+
+                assert isinstance(result, str)
+                assert "# Search Failed - Access Error" in result
