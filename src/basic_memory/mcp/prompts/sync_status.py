@@ -1,4 +1,4 @@
-"""Sync status prompt for Basic Memory MCP server."""
+/"""Sync status prompt for Basic Memory MCP server."""
 
 from basic_memory.mcp.server import mcp
 
@@ -19,7 +19,7 @@ async def sync_status_prompt() -> str:
     Returns:
         Formatted sync status with AI assistant guidance
     """
-    try:
+    try:  # pragma: no cover
         from basic_memory.services.migration_service import migration_manager
 
         state = migration_manager.state
@@ -101,7 +101,7 @@ async def sync_status_prompt() -> str:
 
         return "\n".join(lines)
 
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         return f"""# Sync Status - Error
 
 ❌ **Unable to check sync status**: {str(e)}

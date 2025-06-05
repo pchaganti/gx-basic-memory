@@ -101,6 +101,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyjwt" },
     { name = "pyright" },
+    { name = "pytest-aio" },
     { name = "python-dotenv" },
     { name = "python-frontmatter" },
     { name = "pyyaml" },
@@ -143,6 +144,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.6.1" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "pyright", specifier = ">=1.1.390" },
+    { name = "pytest-aio", specifier = ">=1.9.0" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "python-frontmatter", specifier = ">=1.1.0" },
     { name = "pyyaml", specifier = ">=6.0.1" },
@@ -1117,6 +1119,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fb/aa/405082ce2749be5398045152251ac69c0f3578c7077efc53431303af97ce/pytest-8.4.0.tar.gz", hash = "sha256:14d920b48472ea0dbf68e45b96cd1ffda4705f33307dcc86c676c1b5104838a6", size = 1515232, upload-time = "2025-06-02T17:36:30.03Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2f/de/afa024cbe022b1b318a3d224125aa24939e99b4ff6f22e0ba639a2eaee47/pytest-8.4.0-py3-none-any.whl", hash = "sha256:f40f825768ad76c0977cbacdf1fd37c6f7a468e460ea6a0636078f8972d4517e", size = 363797, upload-time = "2025-06-02T17:36:27.859Z" },
+]
+
+[[package]]
+name = "pytest-aio"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cf/26/1eaef5fd99c7e66fbf0cf9d774e3055268328f58b22262d39feb73bbd185/pytest_aio-1.9.0.tar.gz", hash = "sha256:aa72e6ca4672b7f5a08ce44e7c6254dca988d3d578bf0c9485a47c3bff393ac1", size = 5702, upload-time = "2024-07-31T12:42:23.016Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f6/85/f58b1fb37f4a4e78af6ee6900b5351c97671a63a88aa5e09d45d9c32c430/pytest_aio-1.9.0-py3-none-any.whl", hash = "sha256:12a72816224863d402921b325086b398df8a0f4ca767639968a8097d762ac548", size = 6605, upload-time = "2024-07-31T12:42:22.026Z" },
 ]
 
 [[package]]
