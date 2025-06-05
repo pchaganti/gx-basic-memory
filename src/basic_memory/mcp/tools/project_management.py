@@ -96,7 +96,11 @@ async def switch_project(project_name: str, ctx: Context | None = None) -> str:
 
         # Get project info to show summary
         try:
-            response = await call_get(client, f"{project_config.project_url}/project/info")
+            response = await call_get(
+                client,
+                f"{project_config.project_url}/project/info",
+                params={"project_name": project_name},
+            )
             project_info = ProjectInfoResponse.model_validate(response.json())
 
             result = f"✓ Switched to {project_name} project\n\n"
@@ -163,7 +167,11 @@ async def get_current_project(ctx: Context | None = None) -> str:
     result = f"Current project: {current_project}\n\n"
 
     # get project stats
-    response = await call_get(client, f"{project_config.project_url}/project/info")
+    response = await call_get(
+        client,
+        f"{project_config.project_url}/project/info",
+        params={"project_name": current_project},
+    )
     project_info = ProjectInfoResponse.model_validate(response.json())
 
     result += f"• {project_info.statistics.total_entities} entities\n"

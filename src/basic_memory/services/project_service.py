@@ -311,8 +311,11 @@ class ProjectService:
                     f"Changed default project to '{new_default.name}' as '{name}' was deactivated"
                 )
 
-    async def get_project_info(self) -> ProjectInfoResponse:
-        """Get comprehensive information about the current Basic Memory project.
+    async def get_project_info(self, project_name: Optional[str] = None) -> ProjectInfoResponse:
+        """Get comprehensive information about the specified Basic Memory project.
+
+        Args:
+            project_name: Name of the project to get info for. If None, uses the current config project.
 
         Returns:
             Comprehensive project information and statistics
@@ -320,18 +323,26 @@ class ProjectService:
         if not self.repository:  # pragma: no cover
             raise ValueError("Repository is required for get_project_info")
 
-        # Get statistics
-        statistics = await self.get_statistics()
+        # Use specified project or fall back to config project
+        project_name = project_name or config.project
+        # Get project path from configuration
+        project_path = config_manager.projects.get(project_name)
+        if not project_path:  # pragma: no cover
+            raise ValueError(f"Project '{project_name}' not found in configuration")
 
-        # Get activity metrics
-        activity = await self.get_activity_metrics()
+        # Get project from database to get project_id
+        db_project = await self.repository.get_by_name(project_name)
+        if not db_project:  # pragma: no cover
+            raise ValueError(f"Project '{project_name}' not found in database")
+
+        # Get statistics for the specified project
+        statistics = await self.get_statistics(db_project.id)
+
+        # Get activity metrics for the specified project
+        activity = await self.get_activity_metrics(db_project.id)
 
         # Get system status
         system = self.get_system_status()
-
-        # Get current project information from config
-        project_name = config.project
-        project_path = str(config.home)
 
         # Get enhanced project information from database
         db_projects = await self.repository.get_active_projects()
@@ -363,60 +374,85 @@ class ProjectService:
             system=system,
         )
 
-    async def get_statistics(self) -> ProjectStatistics:
-        """Get statistics about the current project."""
+    async def get_statistics(self, project_id: int) -> ProjectStatistics:
+        """Get statistics about the specified project.
+
+        Args:
+            project_id: ID of the project to get statistics for (required).
+        """
         if not self.repository:  # pragma: no cover
             raise ValueError("Repository is required for get_statistics")
 
         # Get basic counts
         entity_count_result = await self.repository.execute_query(
-            text("SELECT COUNT(*) FROM entity")
+            text("SELECT COUNT(*) FROM entity WHERE project_id = :project_id"),
+            {"project_id": project_id},
         )
         total_entities = entity_count_result.scalar() or 0
 
         observation_count_result = await self.repository.execute_query(
-            text("SELECT COUNT(*) FROM observation")
+            text(
+                "SELECT COUNT(*) FROM observation o JOIN entity e ON o.entity_id = e.id WHERE e.project_id = :project_id"
+            ),
+            {"project_id": project_id},
         )
         total_observations = observation_count_result.scalar() or 0
 
         relation_count_result = await self.repository.execute_query(
-            text("SELECT COUNT(*) FROM relation")
+            text(
+                "SELECT COUNT(*) FROM relation r JOIN entity e ON r.from_id = e.id WHERE e.project_id = :project_id"
+            ),
+            {"project_id": project_id},
         )
         total_relations = relation_count_result.scalar() or 0
 
         unresolved_count_result = await self.repository.execute_query(
-            text("SELECT COUNT(*) FROM relation WHERE to_id IS NULL")
+            text(
+                "SELECT COUNT(*) FROM relation r JOIN entity e ON r.from_id = e.id WHERE r.to_id IS NULL AND e.project_id = :project_id"
+            ),
+            {"project_id": project_id},
         )
         total_unresolved = unresolved_count_result.scalar() or 0
 
         # Get entity counts by type
         entity_types_result = await self.repository.execute_query(
-            text("SELECT entity_type, COUNT(*) FROM entity GROUP BY entity_type")
+            text(
+                "SELECT entity_type, COUNT(*) FROM entity WHERE project_id = :project_id GROUP BY entity_type"
+            ),
+            {"project_id": project_id},
         )
         entity_types = {row[0]: row[1] for row in entity_types_result.fetchall()}
 
         # Get observation counts by category
         category_result = await self.repository.execute_query(
-            text("SELECT category, COUNT(*) FROM observation GROUP BY category")
+            text(
+                "SELECT o.category, COUNT(*) FROM observation o JOIN entity e ON o.entity_id = e.id WHERE e.project_id = :project_id GROUP BY o.category"
+            ),
+            {"project_id": project_id},
         )
         observation_categories = {row[0]: row[1] for row in category_result.fetchall()}
 
         # Get relation counts by type
         relation_types_result = await self.repository.execute_query(
-            text("SELECT relation_type, COUNT(*) FROM relation GROUP BY relation_type")
+            text(
+                "SELECT r.relation_type, COUNT(*) FROM relation r JOIN entity e ON r.from_id = e.id WHERE e.project_id = :project_id GROUP BY r.relation_type"
+            ),
+            {"project_id": project_id},
         )
         relation_types = {row[0]: row[1] for row in relation_types_result.fetchall()}
 
-        # Find most connected entities (most outgoing relations)
+        # Find most connected entities (most outgoing relations) - project filtered
         connected_result = await self.repository.execute_query(
             text("""
-            SELECT e.id, e.title, e.permalink, COUNT(r.id) AS relation_count, file_path
+            SELECT e.id, e.title, e.permalink, COUNT(r.id) AS relation_count, e.file_path
             FROM entity e
             JOIN relation r ON e.id = r.from_id
+            WHERE e.project_id = :project_id
             GROUP BY e.id
             ORDER BY relation_count DESC
             LIMIT 10
-        """)
+        """),
+            {"project_id": project_id},
         )
         most_connected = [
             {
@@ -429,15 +465,16 @@ class ProjectService:
             for row in connected_result.fetchall()
         ]
 
-        # Count isolated entities (no relations)
+        # Count isolated entities (no relations) - project filtered
         isolated_result = await self.repository.execute_query(
             text("""
             SELECT COUNT(e.id)
             FROM entity e
             LEFT JOIN relation r1 ON e.id = r1.from_id
             LEFT JOIN relation r2 ON e.id = r2.to_id
-            WHERE r1.id IS NULL AND r2.id IS NULL
-        """)
+            WHERE e.project_id = :project_id AND r1.id IS NULL AND r2.id IS NULL
+        """),
+            {"project_id": project_id},
         )
         isolated_count = isolated_result.scalar() or 0
 
@@ -453,19 +490,25 @@ class ProjectService:
             isolated_entities=isolated_count,
         )
 
-    async def get_activity_metrics(self) -> ActivityMetrics:
-        """Get activity metrics for the current project."""
+    async def get_activity_metrics(self, project_id: int) -> ActivityMetrics:
+        """Get activity metrics for the specified project.
+
+        Args:
+            project_id: ID of the project to get activity metrics for (required).
+        """
         if not self.repository:  # pragma: no cover
             raise ValueError("Repository is required for get_activity_metrics")
 
-        # Get recently created entities
+        # Get recently created entities (project filtered)
         created_result = await self.repository.execute_query(
             text("""
             SELECT id, title, permalink, entity_type, created_at, file_path 
             FROM entity
+            WHERE project_id = :project_id
             ORDER BY created_at DESC
             LIMIT 10
-        """)
+        """),
+            {"project_id": project_id},
         )
         recently_created = [
             {
@@ -479,14 +522,16 @@ class ProjectService:
             for row in created_result.fetchall()
         ]
 
-        # Get recently updated entities
+        # Get recently updated entities (project filtered)
         updated_result = await self.repository.execute_query(
             text("""
             SELECT id, title, permalink, entity_type, updated_at, file_path 
             FROM entity
+            WHERE project_id = :project_id
             ORDER BY updated_at DESC
             LIMIT 10
-        """)
+        """),
+            {"project_id": project_id},
         )
         recently_updated = [
             {
@@ -507,47 +552,50 @@ class ProjectService:
             now.year - (1 if now.month <= 6 else 0), ((now.month - 6) % 12) or 12, 1
         )
 
-        # Query for monthly entity creation
+        # Query for monthly entity creation (project filtered)
         entity_growth_result = await self.repository.execute_query(
-            text(f"""
+            text("""
             SELECT 
                 strftime('%Y-%m', created_at) AS month,
                 COUNT(*) AS count
             FROM entity
-            WHERE created_at >= '{six_months_ago.isoformat()}'
+            WHERE created_at >= :six_months_ago AND project_id = :project_id
             GROUP BY month
             ORDER BY month
-        """)
+        """),
+            {"six_months_ago": six_months_ago.isoformat(), "project_id": project_id},
         )
         entity_growth = {row[0]: row[1] for row in entity_growth_result.fetchall()}
 
-        # Query for monthly observation creation
+        # Query for monthly observation creation (project filtered)
         observation_growth_result = await self.repository.execute_query(
-            text(f"""
+            text("""
             SELECT 
-                strftime('%Y-%m', created_at) AS month,
+                strftime('%Y-%m', entity.created_at) AS month,
                 COUNT(*) AS count
             FROM observation
             INNER JOIN entity ON observation.entity_id = entity.id
-            WHERE entity.created_at >= '{six_months_ago.isoformat()}'
+            WHERE entity.created_at >= :six_months_ago AND entity.project_id = :project_id
             GROUP BY month
             ORDER BY month
-        """)
+        """),
+            {"six_months_ago": six_months_ago.isoformat(), "project_id": project_id},
         )
         observation_growth = {row[0]: row[1] for row in observation_growth_result.fetchall()}
 
-        # Query for monthly relation creation
+        # Query for monthly relation creation (project filtered)
         relation_growth_result = await self.repository.execute_query(
-            text(f"""
+            text("""
             SELECT 
-                strftime('%Y-%m', created_at) AS month,
+                strftime('%Y-%m', entity.created_at) AS month,
                 COUNT(*) AS count
             FROM relation
             INNER JOIN entity ON relation.from_id = entity.id
-            WHERE entity.created_at >= '{six_months_ago.isoformat()}'
+            WHERE entity.created_at >= :six_months_ago AND entity.project_id = :project_id
             GROUP BY month
             ORDER BY month
-        """)
+        """),
+            {"six_months_ago": six_months_ago.isoformat(), "project_id": project_id},
         )
         relation_growth = {row[0]: row[1] for row in relation_growth_result.fetchall()}
 

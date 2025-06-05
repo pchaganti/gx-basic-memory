@@ -123,10 +123,10 @@ async def test_get_system_status(project_service: ProjectService):
 
 
 @pytest.mark.asyncio
-async def test_get_statistics(project_service: ProjectService, test_graph):
+async def test_get_statistics(project_service: ProjectService, test_graph, test_project):
     """Test getting statistics."""
     # Get statistics
-    statistics = await project_service.get_statistics()
+    statistics = await project_service.get_statistics(test_project.id)
 
     # Assert it returns a valid ProjectStatistics object
     assert isinstance(statistics, ProjectStatistics)
@@ -135,10 +135,10 @@ async def test_get_statistics(project_service: ProjectService, test_graph):
 
 
 @pytest.mark.asyncio
-async def test_get_activity_metrics(project_service: ProjectService, test_graph):
+async def test_get_activity_metrics(project_service: ProjectService, test_graph, test_project):
     """Test getting activity metrics."""
     # Get activity metrics
-    metrics = await project_service.get_activity_metrics()
+    metrics = await project_service.get_activity_metrics(test_project.id)
 
     # Assert it returns a valid ActivityMetrics object
     assert isinstance(metrics, ActivityMetrics)
@@ -147,10 +147,10 @@ async def test_get_activity_metrics(project_service: ProjectService, test_graph)
 
 
 @pytest.mark.asyncio
-async def test_get_project_info(project_service: ProjectService, test_graph):
+async def test_get_project_info(project_service: ProjectService, test_graph, test_project):
     """Test getting full project info."""
     # Get project info
-    info = await project_service.get_project_info()
+    info = await project_service.get_project_info(test_project.name)
 
     # Assert it returns a valid ProjectInfoResponse object
     assert isinstance(info, ProjectInfoResponse)
