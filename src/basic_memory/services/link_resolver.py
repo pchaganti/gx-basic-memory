@@ -49,7 +49,8 @@ class LinkResolver:
 
         # 2. Try exact title match
         found = await self.entity_repository.get_by_title(clean_text)
-        if found and len(found) == 1:
+        if found:
+            # Return first match if there are duplicates (consistent behavior)
             entity = found[0]
             logger.debug(f"Found title match: {entity.title}")
             return entity
@@ -112,5 +113,8 @@ class LinkResolver:
             text, alias = text.split("|", 1)
             text = text.strip()
             alias = alias.strip()
+        else:
+            # Strip whitespace from text even if no alias
+            text = text.strip()
 
         return text, alias
