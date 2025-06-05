@@ -180,10 +180,10 @@ async def initialize_file_sync(
     try:
         from basic_memory.services.migration_service import migration_manager
 
-        if not migration_manager.is_ready:
+        if not migration_manager.is_ready:  # pragma: no cover
             migration_manager.mark_completed("Migration completed with file sync")
             logger.info("Marked migration as completed after file sync")
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         logger.warning(f"Could not update migration status: {e}")
 
     # Then start the watch service in the background

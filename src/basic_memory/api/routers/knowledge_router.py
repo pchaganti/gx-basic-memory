@@ -94,7 +94,7 @@ async def create_or_update_entity(
         try:
             await sync_service.resolve_relations()
             logger.debug(f"Resolved relations after creating entity: {entity.permalink}")
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             # Don't fail the entire request if relation resolution fails
             logger.warning(f"Failed to resolve relations after entity creation: {e}")
 

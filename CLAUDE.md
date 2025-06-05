@@ -14,15 +14,15 @@ See the [README.md](README.md) file for a project overview.
 
 ### Build and Test Commands
 
-- Install: `make install` or `pip install -e ".[dev]"`
-- Run tests: `uv run pytest -p pytest_mock -v` or `make test`
+- Install: `just install` or `pip install -e ".[dev]"`
+- Run tests: `uv run pytest -p pytest_mock -v` or `just test`
 - Single test: `pytest tests/path/to/test_file.py::test_function_name`
-- Lint: `make lint` or `ruff check . --fix`
-- Type check: `make type-check` or `uv run pyright`
-- Format: `make format` or `uv run ruff format .`
-- Run all code checks: `make check` (runs lint, format, type-check, test)
-- Create db migration: `make migration m="Your migration message"`
-- Run development MCP Inspector: `make run-inspector`
+- Lint: `just lint` or `ruff check . --fix`
+- Type check: `just type-check` or `uv run pyright`
+- Format: `just format` or `uv run ruff format .`
+- Run all code checks: `just check` (runs lint, format, type-check, test)
+- Create db migration: `just migration "Your migration message"`
+- Run development MCP Inspector: `just run-inspector`
 
 ### Code Style Guidelines
 

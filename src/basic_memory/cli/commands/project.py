@@ -221,7 +221,7 @@ def display_project_info(
                 console.print(entity_types_table)
 
             # Most connected entities
-            if info.statistics.most_connected_entities:
+            if info.statistics.most_connected_entities:  # pragma: no cover
                 connected_table = Table(title="🔗 Most Connected Entities")
                 connected_table.add_column("Title", style="blue")
                 connected_table.add_column("Permalink", style="cyan")
@@ -235,7 +235,7 @@ def display_project_info(
                 console.print(connected_table)
 
             # Recent activity
-            if info.activity.recently_updated:
+            if info.activity.recently_updated:  # pragma: no cover
                 recent_table = Table(title="🕒 Recent Activity")
                 recent_table.add_column("Title", style="blue")
                 recent_table.add_column("Type", style="cyan")

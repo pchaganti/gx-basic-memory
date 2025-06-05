@@ -20,9 +20,9 @@ You are an expert release manager for the Basic Memory project. When the user ru
 3. Get the latest beta tag to determine next version if not provided
 
 ### Step 2: Quality Assurance
-1. Run `make check` to ensure code quality
+1. Run `just check` to ensure code quality
 2. If any checks fail, report issues and stop
-3. Run `make update-deps` to ensure latest dependencies
+3. Run `just update-deps` to ensure latest dependencies
 4. Commit any dependency updates with proper message
 
 ### Step 3: Version Determination
@@ -62,7 +62,7 @@ Monitor release: https://github.com/basicmachines-co/basic-memory/actions
 ```
 
 ## Context
-- Use the existing Makefile targets (`make check`, `make update-deps`)
+- Use the existing justfile targets (`just check`, `just update-deps`)
 - Follow semantic versioning for beta releases
 - Maintain release notes in CHANGELOG.md
 - Use conventional commit messages

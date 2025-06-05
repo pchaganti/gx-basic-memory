@@ -21,7 +21,7 @@ You are an expert release manager for the Basic Memory project. When the user ru
 4. Confirm no existing tag with this version
 
 ### Step 2: Comprehensive Quality Checks
-1. Run `make check` (lint, format, type-check, full test suite)
+1. Run `just check` (lint, format, type-check, full test suite)
 2. Verify test coverage meets minimum requirements (95%+)
 3. Check that CHANGELOG.md contains entry for this version
 4. Validate all high-priority issues are closed

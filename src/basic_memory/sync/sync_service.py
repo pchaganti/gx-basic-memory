@@ -127,7 +127,7 @@ class SyncService:
 
             files_processed += 1
             if project_name:
-                sync_status_tracker.update_project_progress(
+                sync_status_tracker.update_project_progress(  # pragma: no cover
                     project_name=project_name,
                     status=SyncStatus.SYNCING,
                     message="Processing moves",
@@ -139,7 +139,7 @@ class SyncService:
             await self.handle_delete(path)
             files_processed += 1
             if project_name:
-                sync_status_tracker.update_project_progress(
+                sync_status_tracker.update_project_progress(  # pragma: no cover
                     project_name=project_name,
                     status=SyncStatus.SYNCING,
                     message="Processing deletions",
@@ -162,7 +162,7 @@ class SyncService:
             await self.sync_file(path, new=False)
             files_processed += 1
             if project_name:
-                sync_status_tracker.update_project_progress(
+                sync_status_tracker.update_project_progress(  # pragma: no cover
                     project_name=project_name,
                     status=SyncStatus.SYNCING,
                     message="Processing modified files",

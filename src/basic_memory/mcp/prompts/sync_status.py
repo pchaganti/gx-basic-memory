@@ -1,4 +1,4 @@
-/"""Sync status prompt for Basic Memory MCP server."""
+"""Sync status prompt for Basic Memory MCP server."""
 
 from basic_memory.mcp.server import mcp
 

@@ -54,9 +54,9 @@ Each command is implemented as a Markdown file containing structured prompts tha
 ## Tooling Integration
 
 Commands leverage existing project tooling:
-- `make check` - Quality checks
-- `make test` - Test suite
-- `make update-deps` - Dependency updates  
+- `just check` - Quality checks
+- `just test` - Test suite
+- `just update-deps` - Dependency updates  
 - `uv` - Package management
 - `git` - Version control
 - GitHub Actions - CI/CD pipeline
