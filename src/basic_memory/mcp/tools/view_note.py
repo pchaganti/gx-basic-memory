@@ -37,7 +37,7 @@ async def view_note(
     logger.info(f"Viewing note: {identifier}")
 
     # Call the existing read_note logic
-    content = await read_note(identifier, page, page_size, project)
+    content = await read_note.fn(identifier, page, page_size, project)
 
     # Check if this is an error message (note not found)
     if "# Note Not Found:" in content:

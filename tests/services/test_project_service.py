@@ -484,36 +484,38 @@ async def test_synchronize_projects_normalizes_project_names(
     # Make sure the test directory exists
     os.makedirs(test_project_path, exist_ok=True)
 
+    # Import config manager outside try block
+    from basic_memory.config import config_manager
+
     try:
         # Manually add the unnormalized project name to config
-        from basic_memory.config import config_manager
-        
-        # Save the original config state
-        original_projects = config_manager.projects.copy()
-        
+
+        # Save the original config state for potential debugging
+        # original_projects = config_manager.projects.copy()
+
         # Add project with unnormalized name directly to config
         config_manager.config.projects[unnormalized_name] = test_project_path
         config_manager.save_config(config_manager.config)
-        
+
         # Verify the unnormalized name is in config
         assert unnormalized_name in project_service.projects
         assert project_service.projects[unnormalized_name] == test_project_path
-        
+
         # Call synchronize_projects - this should normalize the project name
         await project_service.synchronize_projects()
-        
+
         # Verify the config was updated with normalized name
         assert expected_normalized_name in project_service.projects
         assert unnormalized_name not in project_service.projects
         assert project_service.projects[expected_normalized_name] == test_project_path
-        
+
         # Verify the project was added to database with normalized name
         db_project = await project_service.repository.get_by_name(expected_normalized_name)
         assert db_project is not None
         assert db_project.name == expected_normalized_name
         assert db_project.path == test_project_path
         assert db_project.permalink == expected_normalized_name
-        
+
         # Verify the unnormalized name is not in database
         unnormalized_db_project = await project_service.repository.get_by_name(unnormalized_name)
         assert unnormalized_db_project is None
@@ -531,7 +533,7 @@ async def test_synchronize_projects_normalizes_project_names(
                         config_manager.remove_project(name)
                     except Exception:
                         pass
-                    
+
                     # Remove from database
                     db_project = await project_service.repository.get_by_name(name)
                     if db_project:
@@ -551,31 +553,32 @@ async def test_synchronize_projects_handles_case_sensitivity_bug(
     # Make sure the test directory exists
     os.makedirs(test_project_path, exist_ok=True)
 
+    # Import config manager outside try block
+    from basic_memory.config import config_manager
+
     try:
-        from basic_memory.config import config_manager
-        
         # Add project with uppercase name to config (simulating the bug scenario)
         config_manager.config.projects[config_name] = test_project_path
         config_manager.save_config(config_manager.config)
-        
+
         # Verify the uppercase name is in config
         assert config_name in project_service.projects
         assert project_service.projects[config_name] == test_project_path
-        
+
         # Call synchronize_projects - this should fix the case sensitivity issue
         await project_service.synchronize_projects()
-        
+
         # Verify the config was updated to use normalized case
         assert normalized_name in project_service.projects
         assert config_name not in project_service.projects
         assert project_service.projects[normalized_name] == test_project_path
-        
+
         # Verify the project exists in database with correct normalized name
         db_project = await project_service.repository.get_by_name(normalized_name)
         assert db_project is not None
         assert db_project.name == normalized_name
         assert db_project.path == test_project_path
-        
+
         # Verify we can now switch to this project without case sensitivity errors
         # (This would have failed before the fix with "Personal" != "personal")
         project_lookup = await project_service.get_project(normalized_name)
@@ -594,7 +597,7 @@ async def test_synchronize_projects_handles_case_sensitivity_bug(
                         config_manager.remove_project(name)
                     except Exception:
                         pass
-                    
+
                     db_project = await project_service.repository.get_by_name(name)
                     if db_project:
                         await project_service.repository.delete(db_project.id)

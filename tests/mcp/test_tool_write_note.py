@@ -16,7 +16,7 @@ async def test_write_note(app):
     - Handle tags correctly
     - Return valid permalink
     """
-    result = await write_note(
+    result = await write_note.fn(
         title="Test Note",
         folder="test",
         content="# Test\nThis is a test note",
@@ -31,7 +31,7 @@ async def test_write_note(app):
     assert "- test, documentation" in result
 
     # Try reading it back via permalink
-    content = await read_note("test/test-note")
+    content = await read_note.fn("test/test-note")
     assert (
         dedent("""
         ---
@@ -53,14 +53,14 @@ async def test_write_note(app):
 @pytest.mark.asyncio
 async def test_write_note_no_tags(app):
     """Test creating a note without tags."""
-    result = await write_note(title="Simple Note", folder="test", content="Just some text")
+    result = await write_note.fn(title="Simple Note", folder="test", content="Just some text")
 
     assert result
     assert "# Created note" in result
     assert "file_path: test/Simple Note.md" in result
     assert "permalink: test/simple-note" in result
     # Should be able to read it back
-    content = await read_note("test/simple-note")
+    content = await read_note.fn("test/simple-note")
     assert (
         dedent("""
         --
@@ -85,7 +85,7 @@ async def test_write_note_update_existing(app):
     - Handle tags correctly
     - Return valid permalink
     """
-    result = await write_note(
+    result = await write_note.fn(
         title="Test Note",
         folder="test",
         content="# Test\nThis is a test note",
@@ -99,7 +99,7 @@ async def test_write_note_update_existing(app):
     assert "## Tags" in result
     assert "- test, documentation" in result
 
-    result = await write_note(
+    result = await write_note.fn(
         title="Test Note",
         folder="test",
         content="# Test\nThis is an updated note",
@@ -112,7 +112,7 @@ async def test_write_note_update_existing(app):
     assert "- test, documentation" in result
 
     # Try reading it back
-    content = await read_note("test/test-note")
+    content = await read_note.fn("test/test-note")
     assert (
         dedent(
             """
@@ -150,7 +150,7 @@ async def test_issue_93_write_note_respects_custom_permalink_new_note(app):
         - [note] Testing if custom permalink is respected
     """).strip()
 
-    result = await write_note(
+    result = await write_note.fn(
         title="My New Note",
         folder="notes",
         content=content_with_custom_permalink,
@@ -167,7 +167,7 @@ async def test_issue_93_write_note_respects_custom_permalink_existing_note(app):
     """Test that write_note respects custom permalinks when updating existing notes (Issue #93)"""
 
     # Step 1: Create initial note (auto-generated permalink)
-    result1 = await write_note(
+    result1 = await write_note.fn(
         title="Existing Note",
         folder="test",
         content="Initial content without custom permalink",
@@ -197,7 +197,7 @@ async def test_issue_93_write_note_respects_custom_permalink_existing_note(app):
         - [note] Custom permalink should be respected on update
     """).strip()
 
-    result2 = await write_note(
+    result2 = await write_note.fn(
         title="Existing Note",
         folder="test",
         content=updated_content,
@@ -218,7 +218,7 @@ async def test_delete_note_existing(app):
     - Return valid permalink
     - Delete the note
     """
-    result = await write_note(
+    result = await write_note.fn(
         title="Test Note",
         folder="test",
         content="# Test\nThis is a test note",
@@ -227,7 +227,7 @@ async def test_delete_note_existing(app):
 
     assert result
 
-    deleted = await delete_note("test/test-note")
+    deleted = await delete_note.fn("test/test-note")
     assert deleted is True
 
 
@@ -239,7 +239,7 @@ async def test_delete_note_doesnt_exist(app):
     - Delete the note
     - verify returns false
     """
-    deleted = await delete_note("doesnt-exist")
+    deleted = await delete_note.fn("doesnt-exist")
     assert deleted is False
 
 
@@ -259,7 +259,7 @@ async def test_write_note_with_tag_array_from_bug_report(app):
     }
 
     # Try to call the function with this data directly
-    result = await write_note(**bug_payload)
+    result = await write_note.fn(**bug_payload)
 
     assert result
     assert "permalink: folder/title" in result
@@ -277,7 +277,7 @@ async def test_write_note_verbose(app):
     - Handle tags correctly
     - Return valid permalink
     """
-    result = await write_note(
+    result = await write_note.fn(
         title="Test Note",
         folder="test",
         content="""
@@ -313,7 +313,7 @@ async def test_write_note_preserves_custom_metadata(app, project_config):
     - Verify custom frontmatter is preserved
     """
     # First, create a note with custom metadata using write_note
-    await write_note(
+    await write_note.fn(
         title="Custom Metadata Note",
         folder="test",
         content="# Initial content",
@@ -321,7 +321,7 @@ async def test_write_note_preserves_custom_metadata(app, project_config):
     )
 
     # Read the note to get its permalink
-    content = await read_note("test/custom-metadata-note")
+    content = await read_note.fn("test/custom-metadata-note")
 
     # Now directly update the file with custom frontmatter
     # We need to use a direct file update to add custom frontmatter
@@ -340,7 +340,7 @@ async def test_write_note_preserves_custom_metadata(app, project_config):
         f.write(frontmatter.dumps(post))
 
     # Now update the note using write_note
-    result = await write_note(
+    result = await write_note.fn(
         title="Custom Metadata Note",
         folder="test",
         content="# Updated content",
@@ -351,7 +351,7 @@ async def test_write_note_preserves_custom_metadata(app, project_config):
     assert ("Updated note\nfile_path: test/Custom Metadata Note.md") in result
 
     # Read the note back and check if custom frontmatter is preserved
-    content = await read_note("test/custom-metadata-note")
+    content = await read_note.fn("test/custom-metadata-note")
 
     # Custom frontmatter should be preserved
     assert "Status: In Progress" in content
@@ -371,7 +371,7 @@ async def test_write_note_preserves_custom_metadata(app, project_config):
 @pytest.mark.asyncio
 async def test_write_note_preserves_content_frontmatter(app):
     """Test creating a new note."""
-    await write_note(
+    await write_note.fn(
         title="Test Note",
         folder="test",
         content=dedent(
@@ -391,7 +391,7 @@ async def test_write_note_preserves_content_frontmatter(app):
     )
 
     # Try reading it back via permalink
-    content = await read_note("test/test-note")
+    content = await read_note.fn("test/test-note")
     assert (
         dedent(
             """

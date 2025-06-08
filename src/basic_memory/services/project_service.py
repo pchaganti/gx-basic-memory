@@ -217,11 +217,11 @@ class ProjectService:
         for name, path in config_projects.items():
             # Generate normalized name (what the database expects)
             normalized_name = generate_permalink(name)
-            
+
             if normalized_name != name:
                 logger.info(f"Normalizing project name in config: '{name}' -> '{normalized_name}'")
                 config_updated = True
-                
+
             updated_config[normalized_name] = path
 
         # Update the configuration if any changes were made

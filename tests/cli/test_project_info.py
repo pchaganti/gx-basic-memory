@@ -48,7 +48,7 @@ def test_info_stats():
 
     # Mock the async project_info function
     with patch(
-        "basic_memory.cli.commands.project.project_info", new_callable=AsyncMock
+        "basic_memory.cli.commands.project.project_info.fn", new_callable=AsyncMock
     ) as mock_func:
         mock_func.return_value = mock_info
 
@@ -97,7 +97,7 @@ def test_info_stats_json():
 
     # Mock the async project_info function
     with patch(
-        "basic_memory.cli.commands.project.project_info", new_callable=AsyncMock
+        "basic_memory.cli.commands.project.project_info.fn", new_callable=AsyncMock
     ) as mock_func:
         mock_func.return_value = mock_info
 
