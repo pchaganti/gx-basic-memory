@@ -77,6 +77,13 @@ read_note("specs/search-design")        # By path
 read_note("memory://specs/search")      # By memory URL
 ```
 
+**Viewing notes as formatted artifacts (Claude Desktop):**
+```
+view_note("Search Design")              # Creates readable artifact
+view_note("specs/search-design")        # By permalink
+view_note("memory://specs/search")      # By memory URL
+```
+
 **Incremental editing** (v0.13.0):
 ```
 edit_note(

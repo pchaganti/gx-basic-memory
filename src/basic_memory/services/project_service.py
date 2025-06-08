@@ -209,8 +209,29 @@ class ProjectService:
         db_projects = await self.repository.get_active_projects()
         db_projects_by_name = {p.name: p for p in db_projects}
 
-        # Get all projects from configuration
-        config_projects = config_manager.projects
+        # Get all projects from configuration and normalize names if needed
+        config_projects = config_manager.projects.copy()
+        updated_config = {}
+        config_updated = False
+
+        for name, path in config_projects.items():
+            # Generate normalized name (what the database expects)
+            normalized_name = generate_permalink(name)
+            
+            if normalized_name != name:
+                logger.info(f"Normalizing project name in config: '{name}' -> '{normalized_name}'")
+                config_updated = True
+                
+            updated_config[normalized_name] = path
+
+        # Update the configuration if any changes were made
+        if config_updated:
+            config_manager.config.projects = updated_config
+            config_manager.save_config(config_manager.config)
+            logger.info("Config updated with normalized project names")
+
+        # Use the normalized config for further processing
+        config_projects = updated_config
 
         # Add projects that exist in config but not in DB
         for name, path in config_projects.items():
@@ -219,7 +240,7 @@ class ProjectService:
                 project_data = {
                     "name": name,
                     "path": path,
-                    "permalink": name.lower().replace(" ", "-"),
+                    "permalink": generate_permalink(name),
                     "is_active": True,
                     # Don't set is_default here - let the enforcement logic handle it
                 }

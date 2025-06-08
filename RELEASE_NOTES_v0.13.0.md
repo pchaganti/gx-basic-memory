@@ -16,6 +16,7 @@ Basic Memory v0.13.0 is a **major release** that transforms Basic Memory into a 
 **Key v0.13.0 Accomplishments:**
 - ✅ **Complete Project Management System** - Project switching and project-specific operations
 - ✅ **Advanced Note Editing** - Incremental editing with append, prepend, find/replace, and section operations  
+- ✅ **View Notes as Artifacts in Claude Desktop/Web** - Use the view_note tool to view a note as an artifact
 - ✅ **File Management System** - Full move operations with database consistency and rollback protection
 - ✅ **Enhanced Search Capabilities** - Frontmatter tags now searchable, improved content discoverability
 - ✅ **Unified Database Architecture** - Single app-level database for better performance and project management
