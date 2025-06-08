@@ -483,3 +483,37 @@ class TestSearchTermPreparation:
         # Test with other problematic patterns
         results3 = await search_repository.search(search_text="node.js version")
         assert isinstance(results3, list)  # Should not crash
+
+    @pytest.mark.asyncio
+    async def test_wildcard_only_search(self, search_repository, search_entity):
+        """Test that wildcard-only search '*' doesn't cause FTS5 errors (line 243 coverage)."""
+        # Index an entity for testing
+        search_row = SearchIndexRow(
+            id=search_entity.id,
+            type=SearchItemType.ENTITY.value,
+            title="Test Entity",
+            content_stems="test entity content",
+            content_snippet="This is a test entity",
+            permalink=search_entity.permalink,
+            file_path=search_entity.file_path,
+            entity_id=search_entity.id,
+            metadata={"entity_type": search_entity.entity_type},
+            created_at=search_entity.created_at,
+            updated_at=search_entity.updated_at,
+            project_id=search_repository.project_id,
+        )
+
+        await search_repository.index_item(search_row)
+
+        # Test wildcard-only search - should not crash and should return results
+        results = await search_repository.search(search_text="*")
+        assert isinstance(results, list)  # Should not crash
+        assert len(results) >= 1  # Should return all results, including our test entity
+
+        # Test empty string search - should also not crash
+        results_empty = await search_repository.search(search_text="")
+        assert isinstance(results_empty, list)  # Should not crash
+
+        # Test whitespace-only search
+        results_whitespace = await search_repository.search(search_text="   ")
+        assert isinstance(results_whitespace, list)  # Should not crash

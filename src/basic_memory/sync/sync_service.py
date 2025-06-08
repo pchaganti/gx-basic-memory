@@ -364,18 +364,41 @@ class SyncService:
             content_type = self.file_service.content_type(path)
 
             file_path = Path(path)
-            entity = await self.entity_repository.add(
-                Entity(
-                    entity_type="file",
-                    file_path=path,
-                    checksum=checksum,
-                    title=file_path.name,
-                    created_at=created,
-                    updated_at=modified,
-                    content_type=content_type,
+            try:
+                entity = await self.entity_repository.add(
+                    Entity(
+                        entity_type="file",
+                        file_path=path,
+                        checksum=checksum,
+                        title=file_path.name,
+                        created_at=created,
+                        updated_at=modified,
+                        content_type=content_type,
+                    )
                 )
-            )
-            return entity, checksum
+                return entity, checksum
+            except IntegrityError as e:
+                # Handle race condition where entity was created by another process
+                if "UNIQUE constraint failed: entity.file_path" in str(e):
+                    logger.info(f"Entity already exists for file_path={path}, updating instead of creating")
+                    # Treat as update instead of create
+                    entity = await self.entity_repository.get_by_file_path(path)
+                    if entity is None:  # pragma: no cover
+                        logger.error(f"Entity not found after constraint violation, path={path}")
+                        raise ValueError(f"Entity not found after constraint violation: {path}")
+                    
+                    updated = await self.entity_repository.update(
+                        entity.id, {"file_path": path, "checksum": checksum}
+                    )
+                    
+                    if updated is None:  # pragma: no cover
+                        logger.error(f"Failed to update entity, entity_id={entity.id}, path={path}")
+                        raise ValueError(f"Failed to update entity with ID {entity.id}")
+                    
+                    return updated, checksum
+                else:
+                    # Re-raise if it's a different integrity error
+                    raise
         else:
             entity = await self.entity_repository.get_by_file_path(path)
             if entity is None:  # pragma: no cover

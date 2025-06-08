@@ -237,19 +237,24 @@ class SearchRepository:
 
         # Handle text search for title and content
         if search_text:
-            # Check for explicit boolean operators - only detect them in proper boolean contexts
-            has_boolean = any(op in f" {search_text} " for op in [" AND ", " OR ", " NOT "])
-
-            if has_boolean:
-                # If boolean operators are present, use the raw query
-                # No need to prepare it, FTS5 will understand the operators
-                params["text"] = search_text
-                conditions.append("(title MATCH :text OR content_stems MATCH :text)")
+            # Skip FTS for wildcard-only queries that would cause "unknown special query" errors
+            if search_text.strip() == "*" or search_text.strip() == "":
+                # For wildcard searches, don't add any text conditions - return all results
+                pass
             else:
-                # Standard search with term preparation
-                processed_text = self._prepare_search_term(search_text.strip())
-                params["text"] = processed_text
-                conditions.append("(title MATCH :text OR content_stems MATCH :text)")
+                # Check for explicit boolean operators - only detect them in proper boolean contexts
+                has_boolean = any(op in f" {search_text} " for op in [" AND ", " OR ", " NOT "])
+
+                if has_boolean:
+                    # If boolean operators are present, use the raw query
+                    # No need to prepare it, FTS5 will understand the operators
+                    params["text"] = search_text
+                    conditions.append("(title MATCH :text OR content_stems MATCH :text)")
+                else:
+                    # Standard search with term preparation
+                    processed_text = self._prepare_search_term(search_text.strip())
+                    params["text"] = processed_text
+                    conditions.append("(title MATCH :text OR content_stems MATCH :text)")
 
         # Handle title match search
         if title:
