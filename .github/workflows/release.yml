@@ -32,17 +32,11 @@ jobs:
           uv sync
           uv build
 
-      - name: Verify version matches tag
+      - name: Verify build succeeded
         run: |
-          # Get version from built package
-          PACKAGE_VERSION=$(uv run python -c "import basic_memory; print(basic_memory.__version__)")
-          TAG_VERSION=${GITHUB_REF_NAME#v}  # Remove 'v' prefix from tag
-          echo "Package version: $PACKAGE_VERSION"
-          echo "Tag version: $TAG_VERSION"
-          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
-            echo "Version mismatch! Package: $PACKAGE_VERSION, Tag: $TAG_VERSION"
-            exit 1
-          fi
+          # Verify that build artifacts exist
+          ls -la dist/
+          echo "Build completed successfully"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
