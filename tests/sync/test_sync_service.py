@@ -1096,9 +1096,8 @@ async def test_sync_regular_file_race_condition_handling(
     sync_service: SyncService, project_config: ProjectConfig
 ):
     """Test that sync_regular_file handles race condition with IntegrityError (lines 380-401)."""
-    from unittest.mock import patch, AsyncMock
+    from unittest.mock import patch
     from sqlalchemy.exc import IntegrityError
-    from pathlib import Path
     from datetime import datetime, timezone
 
     # Create a test file
@@ -1114,11 +1113,9 @@ This is a test file for race condition handling.
 
     # Mock the entity_repository.add to raise IntegrityError on first call
     original_add = sync_service.entity_repository.add
-    original_get_by_file_path = sync_service.entity_repository.get_by_file_path
-    original_update = sync_service.entity_repository.update
-    
+
     call_count = 0
-    
+
     async def mock_add(*args, **kwargs):
         nonlocal call_count
         call_count += 1
@@ -1127,10 +1124,11 @@ This is a test file for race condition handling.
             raise IntegrityError("UNIQUE constraint failed: entity.file_path", None, None)
         else:
             return await original_add(*args, **kwargs)
-    
+
     # Mock get_by_file_path to return an existing entity (simulating the race condition result)
     async def mock_get_by_file_path(file_path):
         from basic_memory.models import Entity
+
         return Entity(
             id=1,
             title="Test Race Condition",
@@ -1142,14 +1140,15 @@ This is a test file for race condition handling.
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
-    
+
     # Mock update to return the updated entity
     async def mock_update(entity_id, updates):
         from basic_memory.models import Entity
+
         return Entity(
             id=entity_id,
             title="Test Race Condition",
-            entity_type="knowledge", 
+            entity_type="knowledge",
             file_path=updates["file_path"],
             permalink="test-race-condition",
             content_type="text/markdown",
@@ -1158,18 +1157,25 @@ This is a test file for race condition handling.
             updated_at=datetime.now(timezone.utc),
         )
 
-    with patch.object(sync_service.entity_repository, 'add', side_effect=mock_add), \
-         patch.object(sync_service.entity_repository, 'get_by_file_path', side_effect=mock_get_by_file_path) as mock_get, \
-         patch.object(sync_service.entity_repository, 'update', side_effect=mock_update) as mock_update_call:
-        
+    with (
+        patch.object(sync_service.entity_repository, "add", side_effect=mock_add),
+        patch.object(
+            sync_service.entity_repository, "get_by_file_path", side_effect=mock_get_by_file_path
+        ) as mock_get,
+        patch.object(
+            sync_service.entity_repository, "update", side_effect=mock_update
+        ) as mock_update_call,
+    ):
         # Call sync_regular_file
-        entity, checksum = await sync_service.sync_regular_file(str(test_file.relative_to(project_config.home)), new=True)
-        
+        entity, checksum = await sync_service.sync_regular_file(
+            str(test_file.relative_to(project_config.home)), new=True
+        )
+
         # Verify it handled the race condition gracefully
         assert entity is not None
         assert entity.title == "Test Race Condition"
         assert entity.file_path == str(test_file.relative_to(project_config.home))
-        
+
         # Verify that get_by_file_path and update were called as fallback
         assert mock_get.call_count >= 1  # May be called multiple times
         mock_update_call.assert_called_once()
@@ -1199,10 +1205,14 @@ This is a test file for integrity error handling.
         # Simulate a different constraint violation
         raise IntegrityError("UNIQUE constraint failed: entity.some_other_field", None, None)
 
-    with patch.object(sync_service.entity_repository, 'add', side_effect=mock_add):
+    with patch.object(sync_service.entity_repository, "add", side_effect=mock_add):
         # Should re-raise the IntegrityError since it's not a file_path constraint
-        with pytest.raises(IntegrityError, match="UNIQUE constraint failed: entity.some_other_field"):
-            await sync_service.sync_regular_file(str(test_file.relative_to(project_config.home)), new=True)
+        with pytest.raises(
+            IntegrityError, match="UNIQUE constraint failed: entity.some_other_field"
+        ):
+            await sync_service.sync_regular_file(
+                str(test_file.relative_to(project_config.home)), new=True
+            )
 
 
 @pytest.mark.asyncio
@@ -1227,17 +1237,22 @@ This is a test file for entity not found after constraint violation.
     # Mock the entity_repository.add to raise IntegrityError
     async def mock_add(*args, **kwargs):
         raise IntegrityError("UNIQUE constraint failed: entity.file_path", None, None)
-    
+
     # Mock get_by_file_path to return None (entity not found)
     async def mock_get_by_file_path(file_path):
         return None
 
-    with patch.object(sync_service.entity_repository, 'add', side_effect=mock_add), \
-         patch.object(sync_service.entity_repository, 'get_by_file_path', side_effect=mock_get_by_file_path):
-        
+    with (
+        patch.object(sync_service.entity_repository, "add", side_effect=mock_add),
+        patch.object(
+            sync_service.entity_repository, "get_by_file_path", side_effect=mock_get_by_file_path
+        ),
+    ):
         # Should raise ValueError when entity is not found after constraint violation
         with pytest.raises(ValueError, match="Entity not found after constraint violation"):
-            await sync_service.sync_regular_file(str(test_file.relative_to(project_config.home)), new=True)
+            await sync_service.sync_regular_file(
+                str(test_file.relative_to(project_config.home)), new=True
+            )
 
 
 @pytest.mark.asyncio
@@ -1263,10 +1278,11 @@ This is a test file for update failure after constraint violation.
     # Mock the entity_repository.add to raise IntegrityError
     async def mock_add(*args, **kwargs):
         raise IntegrityError("UNIQUE constraint failed: entity.file_path", None, None)
-    
+
     # Mock get_by_file_path to return an existing entity
     async def mock_get_by_file_path(file_path):
         from basic_memory.models import Entity
+
         return Entity(
             id=1,
             title="Test Update Fail",
@@ -1278,15 +1294,20 @@ This is a test file for update failure after constraint violation.
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
-    
+
     # Mock update to return None (failure)
     async def mock_update(entity_id, updates):
         return None
 
-    with patch.object(sync_service.entity_repository, 'add', side_effect=mock_add), \
-         patch.object(sync_service.entity_repository, 'get_by_file_path', side_effect=mock_get_by_file_path), \
-         patch.object(sync_service.entity_repository, 'update', side_effect=mock_update):
-        
+    with (
+        patch.object(sync_service.entity_repository, "add", side_effect=mock_add),
+        patch.object(
+            sync_service.entity_repository, "get_by_file_path", side_effect=mock_get_by_file_path
+        ),
+        patch.object(sync_service.entity_repository, "update", side_effect=mock_update),
+    ):
         # Should raise ValueError when update fails
         with pytest.raises(ValueError, match="Failed to update entity with ID"):
-            await sync_service.sync_regular_file(str(test_file.relative_to(project_config.home)), new=True)
+            await sync_service.sync_regular_file(
+                str(test_file.relative_to(project_config.home)), new=True
+            )

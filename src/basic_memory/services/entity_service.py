@@ -303,8 +303,12 @@ class EntityService(BaseService[EntityModel]):
             return await self.repository.add(model)
         except IntegrityError as e:
             # Handle race condition where entity was created by another process
-            if "UNIQUE constraint failed: entity.file_path" in str(e) or "UNIQUE constraint failed: entity.permalink" in str(e):
-                logger.info(f"Entity already exists for file_path={file_path} (file_path or permalink conflict), updating instead of creating")
+            if "UNIQUE constraint failed: entity.file_path" in str(
+                e
+            ) or "UNIQUE constraint failed: entity.permalink" in str(e):
+                logger.info(
+                    f"Entity already exists for file_path={file_path} (file_path or permalink conflict), updating instead of creating"
+                )
                 return await self.update_entity_and_observations(file_path, markdown)
             else:
                 # Re-raise if it's a different integrity error
