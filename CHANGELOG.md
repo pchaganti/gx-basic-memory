@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## v0.13.1 (2025-06-11)
+
+### Bug Fixes
+
+- **CLI**: Fixed  `basic-memory project` project management commands that were  not working in v0.13.0 (#129)
+- **Projects**: Resolved case sensitivity issues when switching between projects that caused "Project not found" errors (#127)
+- **API**: Standardized CLI project command endpoints and improved error handling
+- **Core**: Implemented consistent project name handling using permalinks to avoid case-related conflicts
+
+### Changes
+
+- Renamed `basic-memory project sync` command to `basic-memory project sync-config` for clarity
+- Improved project switching reliability across different case variations
+- Removed redundant server status messages from CLI error outputs
+
 ## v0.13.0 (2025-06-11)
 
 ### Overview
