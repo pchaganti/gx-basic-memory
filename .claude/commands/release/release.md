@@ -1,6 +1,6 @@
 # /release - Create Stable Release
 
-Create a stable release from the current main branch with comprehensive validation.
+Create a stable release using the automated justfile target with comprehensive validation.
 
 ## Usage
 ```
@@ -8,7 +8,7 @@ Create a stable release from the current main branch with comprehensive validati
 ```
 
 **Parameters:**
-- `version` (required): Release version like `v0.13.0`
+- `version` (required): Release version like `v0.13.2`
 
 ## Implementation
 
@@ -20,53 +20,54 @@ You are an expert release manager for the Basic Memory project. When the user ru
 3. Verify we're on the `main` branch
 4. Confirm no existing tag with this version
 
-### Step 2: Comprehensive Quality Checks
-1. Run `just check` (lint, format, type-check, full test suite)
-2. Verify test coverage meets minimum requirements (95%+)
-3. Check that CHANGELOG.md contains entry for this version
-4. Validate all high-priority issues are closed
+### Step 2: Use Justfile Automation
+Execute the automated release process:
+```bash
+just release <version>
+```
 
-### Step 3: Release Preparation
-1. Update any version references if needed
-2. Commit any final changes with message: `chore: prepare for ${version} release`
-3. Push to main: `git push origin main`
+The justfile target handles:
+- ✅ Version format validation
+- ✅ Git status and branch checks
+- ✅ Quality checks (`just check` - lint, format, type-check, tests)
+- ✅ Version update in `src/basic_memory/__init__.py`
+- ✅ Automatic commit with proper message
+- ✅ Tag creation and pushing to GitHub
+- ✅ Release workflow trigger
 
-### Step 4: Release Creation
-1. Create annotated tag: `git tag -a ${version} -m "Release ${version}"`
-2. Push tag: `git push origin ${version}`
-3. Monitor GitHub Actions for release automation
+### Step 3: Monitor Release Process
+1. Check that GitHub Actions workflow starts successfully
+2. Monitor workflow completion at: https://github.com/basicmachines-co/basic-memory/actions
+3. Verify PyPI publication
+4. Test installation: `uv tool install basic-memory`
 
-### Step 5: Post-Release Validation
+### Step 4: Post-Release Validation
 1. Verify GitHub release is created automatically
 2. Check PyPI publication
 3. Validate release assets
-4. Test installation: `uv tool install basic-memory`
-
-### Step 6: Documentation Update
-1. Update any post-release documentation
-2. Create follow-up tasks if needed
+4. Update any post-release documentation
 
 ## Pre-conditions Check
 Before starting, verify:
 - [ ] All beta testing is complete
 - [ ] Critical bugs are fixed
 - [ ] Breaking changes are documented
-- [ ] CHANGELOG.md is updated
+- [ ] CHANGELOG.md is updated (if needed)
 - [ ] Version number follows semantic versioning
 
 ## Error Handling
-- If any quality check fails, stop and provide fix instructions
-- If changelog entry missing, prompt to create one
-- If tests fail, provide debugging guidance
-- If GitHub Actions fail, provide manual release steps
+- If `just release` fails, examine the error output for specific issues
+- If quality checks fail, fix issues and retry
+- If changelog entry missing, update CHANGELOG.md and commit before retrying
+- If GitHub Actions fail, check workflow logs for debugging
 
 ## Success Output
 ```
-🎉 Stable Release v0.13.0 Created Successfully!
+🎉 Stable Release v0.13.2 Created Successfully!
 
-🏷️  Tag: v0.13.0
-📋 GitHub Release: https://github.com/basicmachines-co/basic-memory/releases/tag/v0.13.0
-📦 PyPI: https://pypi.org/project/basic-memory/0.13.0/
+🏷️  Tag: v0.13.2
+📋 GitHub Release: https://github.com/basicmachines-co/basic-memory/releases/tag/v0.13.2
+📦 PyPI: https://pypi.org/project/basic-memory/0.13.2/
 🚀 GitHub Actions: Completed
 
 Install with:
@@ -79,6 +80,7 @@ uv tool upgrade basic-memory
 ## Context
 - This creates production releases used by end users
 - Must pass all quality gates before proceeding
-- Follows the release workflow documented in CLAUDE.md
-- Uses uv-dynamic-versioning for automatic version management
+- Uses the automated justfile target for consistency
+- Version is automatically updated in `__init__.py`
 - Triggers automated GitHub release with changelog
+- Leverages uv-dynamic-versioning for package version management
