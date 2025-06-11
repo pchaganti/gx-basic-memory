@@ -256,11 +256,14 @@ def get_project_config(project_name: Optional[str] = None) -> ProjectConfig:
     # the config contains a dict[str,str] of project names and absolute paths
     assert actual_project_name is not None, "actual_project_name cannot be None"
 
-    project_path = app_config.projects.get(actual_project_name)
-    if not project_path:  # pragma: no cover
-        raise ValueError(f"Project '{actual_project_name}' not found")
+    project_permalink = generate_permalink(actual_project_name)
 
-    return ProjectConfig(name=actual_project_name, home=Path(project_path))
+    for name, path in app_config.projects.items():
+        if project_permalink == generate_permalink(name):
+            return ProjectConfig(name=name, home=Path(path))
+
+    # otherwise raise error
+    raise ValueError(f"Project '{actual_project_name}' not found")
 
 
 # Create config manager

@@ -85,14 +85,20 @@ async def switch_project(project_name: str, ctx: Context | None = None) -> str:
         response = await call_get(client, "/projects/projects")
         project_list = ProjectList.model_validate(response.json())
 
-        # Check if project exists
-        project_exists = any(p.permalink == project_permalink for p in project_list.projects)
-        if not project_exists:
+        # Find the project by permalink (case-insensitive)
+        target_project = None
+        for p in project_list.projects:
+            if p.permalink == project_permalink:
+                target_project = p
+                break
+        
+        if not target_project:
             available_projects = [p.name for p in project_list.projects]
             return f"Error: Project '{project_name}' not found. Available projects: {', '.join(available_projects)}"
 
-        # Switch to the project
-        session.set_current_project(project_permalink)
+        # Switch to the project using the canonical name from database
+        canonical_name = target_project.name
+        session.set_current_project(canonical_name)
         current_project = session.get_current_project()
         project_config = get_project_config(current_project)
 
@@ -101,11 +107,11 @@ async def switch_project(project_name: str, ctx: Context | None = None) -> str:
             response = await call_get(
                 client,
                 f"{project_config.project_url}/project/info",
-                params={"project_name": project_permalink},
+                params={"project_name": canonical_name},
             )
             project_info = ProjectInfoResponse.model_validate(response.json())
 
-            result = f"✓ Switched to {project_permalink} project\n\n"
+            result = f"✓ Switched to {canonical_name} project\n\n"
             result += "Project Summary:\n"
             result += f"• {project_info.statistics.total_entities} entities\n"
             result += f"• {project_info.statistics.total_observations} observations\n"
@@ -113,11 +119,11 @@ async def switch_project(project_name: str, ctx: Context | None = None) -> str:
 
         except Exception as e:
             # If we can't get project info, still confirm the switch
-            logger.warning(f"Could not get project info for {project_name}: {e}")
-            result = f"✓ Switched to {project_name} project\n\n"
+            logger.warning(f"Could not get project info for {canonical_name}: {e}")
+            result = f"✓ Switched to {canonical_name} project\n\n"
             result += "Project summary unavailable.\n"
 
-        return add_project_metadata(result, project_name)
+        return add_project_metadata(result, canonical_name)
 
     except Exception as e:
         logger.error(f"Error switching to project {project_name}: {e}")

@@ -185,9 +185,9 @@ class ProjectItem(BaseModel):
     name: str
     path: str
     is_default: bool = False
-    
+
     @property
-    def permalink(self) -> str: # pragma: no cover
+    def permalink(self) -> str:  # pragma: no cover
         return generate_permalink(self.name)
 
 
