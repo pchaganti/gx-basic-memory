@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## v0.13.5 (2025-06-11)
+
+### Bug Fixes
+
+- **MCP Tools**: Renamed `create_project` tool to `create_memory_project` for namespace isolation
+- **Namespace**: Continued namespace isolation effort to prevent conflicts with other MCP servers
+
+### Changes
+
+- Tool functionality remains identical - only the name changed from `create_project` to `create_memory_project`
+- All integration tests updated to use the new tool name
+- Completes namespace isolation for project management tools alongside `list_memory_projects`
+
 ## v0.13.4 (2025-06-11)
 
 ### Bug Fixes
