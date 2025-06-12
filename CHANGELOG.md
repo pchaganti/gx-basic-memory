@@ -1,5 +1,47 @@
 # CHANGELOG
 
+## v0.13.3 (2025-06-11)
+
+### Bug Fixes
+
+- **Projects**: Fixed case-insensitive project switching where switching succeeded but subsequent operations failed due to session state inconsistency
+- **Config**: Enhanced config manager with case-insensitive project lookup using permalink-based matching
+- **MCP Tools**: Updated project management tools to store canonical project names from database instead of user input
+- **API**: Improved project service to handle both name and permalink lookups consistently
+
+### Technical Improvements
+
+- Added comprehensive case-insensitive project switching test coverage with 5 new integration test scenarios
+- Fixed permalink generation inconsistencies where different case inputs could generate different permalinks
+- Enhanced project URL construction to use permalinks consistently across all API calls
+- Improved error handling and session state management for project operations
+
+### Changes
+
+- Project switching now preserves canonical project names from database in session state
+- All project operations use permalink-based lookups for case-insensitive matching
+- Enhanced test coverage ensures reliable case-insensitive project operations
+
+## v0.13.2 (2025-06-11)
+
+### Features
+
+- **Release Management**: Added automated release management system with version control in `__init__.py`
+- **Automation**: Implemented justfile targets for `release` and `beta` commands with comprehensive quality gates
+- **CI/CD**: Enhanced release process with automatic version updates, git tagging, and GitHub release creation
+
+### Development Experience
+
+- Added `.claude/commands/release/` directory with automation documentation
+- Implemented release validation including lint, type-check, and test execution
+- Streamlined release workflow from manual process to single-command automation
+
+### Technical Improvements
+
+- Updated package version management to use actual version numbers instead of dynamic versioning
+- Added release process documentation and command references
+- Enhanced justfile with comprehensive release automation targets
+
 ## v0.13.1 (2025-06-11)
 
 ### Bug Fixes
