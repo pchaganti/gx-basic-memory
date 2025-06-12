@@ -9,7 +9,6 @@ from textwrap import dedent
 from fastmcp import Context
 from loguru import logger
 
-from basic_memory.config import get_project_config
 from basic_memory.mcp.async_client import client
 from basic_memory.mcp.project_session import session, add_project_metadata
 from basic_memory.mcp.server import mcp
@@ -85,13 +84,18 @@ async def switch_project(project_name: str, ctx: Context | None = None) -> str:
         response = await call_get(client, "/projects/projects")
         project_list = ProjectList.model_validate(response.json())
 
-        # Find the project by permalink (case-insensitive)
+        # Find the project by name (case-insensitive) or permalink
         target_project = None
         for p in project_list.projects:
+            # Match by permalink (handles case-insensitive input)
             if p.permalink == project_permalink:
                 target_project = p
                 break
-        
+            # Also match by name comparison (case-insensitive)
+            if p.name.lower() == project_name.lower():
+                target_project = p
+                break
+
         if not target_project:
             available_projects = [p.name for p in project_list.projects]
             return f"Error: Project '{project_name}' not found. Available projects: {', '.join(available_projects)}"
@@ -100,13 +104,13 @@ async def switch_project(project_name: str, ctx: Context | None = None) -> str:
         canonical_name = target_project.name
         session.set_current_project(canonical_name)
         current_project = session.get_current_project()
-        project_config = get_project_config(current_project)
 
         # Get project info to show summary
         try:
+            current_project_permalink = generate_permalink(canonical_name)
             response = await call_get(
                 client,
-                f"{project_config.project_url}/project/info",
+                f"/{current_project_permalink}/project/info",
                 params={"project_name": canonical_name},
             )
             project_info = ProjectInfoResponse.model_validate(response.json())
@@ -171,13 +175,13 @@ async def get_current_project(ctx: Context | None = None) -> str:
         await ctx.info("Getting current project information")
 
     current_project = session.get_current_project()
-    project_config = get_project_config(current_project)
     result = f"Current project: {current_project}\n\n"
 
-    # get project stats
+    # get project stats (use permalink in URL path)
+    current_project_permalink = generate_permalink(current_project)
     response = await call_get(
         client,
-        f"{project_config.project_url}/project/info",
+        f"/{current_project_permalink}/project/info",
         params={"project_name": current_project},
     )
     project_info = ProjectInfoResponse.model_validate(response.json())
