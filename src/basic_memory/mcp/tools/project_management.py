@@ -230,7 +230,7 @@ async def set_default_project(project_name: str, ctx: Context | None = None) -> 
     return add_project_metadata(result, session.get_current_project())
 
 
-@mcp.tool()
+@mcp.tool("create_memory_project")
 async def create_project(
     project_name: str, project_path: str, set_default: bool = False, ctx: Context | None = None
 ) -> str:

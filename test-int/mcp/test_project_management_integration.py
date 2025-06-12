@@ -350,7 +350,7 @@ async def test_create_project_basic_operation(mcp_server, app):
     async with Client(mcp_server) as client:
         # Create a new project
         create_result = await client.call_tool(
-            "create_project",
+            "create_memory_project",
             {
                 "project_name": "test-new-project",
                 "project_path": "/tmp/test-new-project",
@@ -382,7 +382,7 @@ async def test_create_project_with_default_flag(mcp_server, app):
     async with Client(mcp_server) as client:
         # Create a new project and set as default
         create_result = await client.call_tool(
-            "create_project",
+            "create_memory_project",
             {
                 "project_name": "test-default-project",
                 "project_path": "/tmp/test-default-project",
@@ -412,7 +412,7 @@ async def test_create_project_duplicate_name(mcp_server, app):
     async with Client(mcp_server) as client:
         # First create a project
         await client.call_tool(
-            "create_project",
+            "create_memory_project",
             {
                 "project_name": "duplicate-test",
                 "project_path": "/tmp/duplicate-test-1",
@@ -422,7 +422,7 @@ async def test_create_project_duplicate_name(mcp_server, app):
         # Try to create another project with same name
         with pytest.raises(Exception) as exc_info:
             await client.call_tool(
-                "create_project",
+                "create_memory_project",
                 {
                     "project_name": "duplicate-test",
                     "project_path": "/tmp/duplicate-test-2",
@@ -431,7 +431,7 @@ async def test_create_project_duplicate_name(mcp_server, app):
 
         # Should show error about duplicate name
         error_message = str(exc_info.value)
-        assert "create_project" in error_message
+        assert "create_memory_project" in error_message
         assert (
             "duplicate-test" in error_message
             or "already exists" in error_message
@@ -446,7 +446,7 @@ async def test_delete_project_basic_operation(mcp_server, app):
     async with Client(mcp_server) as client:
         # First create a project to delete
         await client.call_tool(
-            "create_project",
+            "create_memory_project",
             {
                 "project_name": "to-be-deleted",
                 "project_path": "/tmp/to-be-deleted",
@@ -540,7 +540,7 @@ async def test_project_lifecycle_workflow(mcp_server, app):
 
         # 1. Create new project
         create_result = await client.call_tool(
-            "create_project",
+            "create_memory_project",
             {
                 "project_name": project_name,
                 "project_path": project_path,
@@ -609,7 +609,7 @@ async def test_create_delete_project_edge_cases(mcp_server, app):
 
         # Create project with special characters
         create_result = await client.call_tool(
-            "create_project",
+            "create_memory_project",
             {
                 "project_name": special_name,
                 "project_path": f"/tmp/{special_name}",
@@ -645,7 +645,7 @@ async def test_case_insensitive_project_switching(mcp_server, app):
         # Create a project with mixed case name
         project_name = "Personal-Project"
         create_result = await client.call_tool(
-            "create_project",
+            "create_memory_project",
             {
                 "project_name": project_name,
                 "project_path": f"/tmp/{project_name}",
@@ -709,7 +709,7 @@ async def test_case_insensitive_project_operations(mcp_server, app):
         # Create a project with capital letters
         project_name = "CamelCase-Project"
         create_result = await client.call_tool(
-            "create_project",
+            "create_memory_project",
             {
                 "project_name": project_name,
                 "project_path": f"/tmp/{project_name}",
@@ -809,7 +809,7 @@ async def test_case_preservation_in_project_list(mcp_server, app):
         # Create all test projects
         for project_name in test_projects:
             await client.call_tool(
-                "create_project",
+                "create_memory_project",
                 {
                     "project_name": project_name,
                     "project_path": f"/tmp/{project_name}",
@@ -854,7 +854,7 @@ async def test_session_state_consistency_after_case_switch(mcp_server, app):
         # Create a project with specific case
         project_name = "Session-Test-Project"
         await client.call_tool(
-            "create_project",
+            "create_memory_project",
             {
                 "project_name": project_name,
                 "project_path": f"/tmp/{project_name}",
