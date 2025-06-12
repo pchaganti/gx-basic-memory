@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## v0.13.4 (2025-06-11)
+
+### Bug Fixes
+
+- **MCP Tools**: Renamed `list_projects` tool to `list_memory_projects` to avoid naming conflicts with other MCP servers
+- **Namespace**: Improved tool naming specificity for better MCP server integration and isolation
+
+### Changes
+
+- Tool functionality remains identical - only the name changed from `list_projects` to `list_memory_projects`
+- All integration tests updated to use the new tool name
+- Better namespace isolation for Basic Memory MCP tools
+
 ## v0.13.3 (2025-06-11)
 
 ### Bug Fixes
