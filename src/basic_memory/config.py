@@ -275,7 +275,7 @@ def get_project_config(project_name: Optional[str] = None) -> ProjectConfig:
             return ProjectConfig(name=name, home=Path(path))
 
     # otherwise raise error
-    raise ValueError(f"Project '{actual_project_name}' not found")
+    raise ValueError(f"Project '{actual_project_name}' not found") # pragma: no cover
 
 
 # Create config manager

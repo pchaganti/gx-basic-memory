@@ -15,7 +15,7 @@ async def test_list_projects_basic_operation(mcp_server, app):
     async with Client(mcp_server) as client:
         # List all available projects
         list_result = await client.call_tool(
-            "list_projects",
+            "list_memory_projects",
             {},
         )
 
@@ -248,7 +248,7 @@ async def test_project_management_workflow(mcp_server, app):
         assert "test-project" in current_result[0].text
 
         # 2. List all projects
-        list_result = await client.call_tool("list_projects", {})
+        list_result = await client.call_tool("list_memory_projects", {})
         assert "Available projects:" in list_result[0].text
         assert "test-project" in list_result[0].text
 
@@ -269,7 +269,7 @@ async def test_project_metadata_consistency(mcp_server, app):
         # Test all project management tools and verify they include project metadata
 
         # list_projects
-        list_result = await client.call_tool("list_projects", {})
+        list_result = await client.call_tool("list_memory_projects", {})
         assert "Project: test-project" in list_result[0].text
 
         # get_current_project
@@ -370,7 +370,7 @@ async def test_create_project_basic_operation(mcp_server, app):
         assert "Project: test-project" in create_text  # Should still show current project
 
         # Verify project appears in project list
-        list_result = await client.call_tool("list_projects", {})
+        list_result = await client.call_tool("list_memory_projects", {})
         list_text = list_result[0].text
         assert "test-new-project" in list_text
 
@@ -454,7 +454,7 @@ async def test_delete_project_basic_operation(mcp_server, app):
         )
 
         # Verify it exists
-        list_result = await client.call_tool("list_projects", {})
+        list_result = await client.call_tool("list_memory_projects", {})
         assert "to-be-deleted" in list_result[0].text
 
         # Delete the project
@@ -478,7 +478,7 @@ async def test_delete_project_basic_operation(mcp_server, app):
         assert "Project: test-project" in delete_text  # Should show current project
 
         # Verify project no longer appears in list
-        list_result_after = await client.call_tool("list_projects", {})
+        list_result_after = await client.call_tool("list_memory_projects", {})
         assert "to-be-deleted" not in list_result_after[0].text
 
 
@@ -595,7 +595,7 @@ async def test_project_lifecycle_workflow(mcp_server, app):
         assert "removed successfully" in delete_result[0].text
 
         # 7. Verify project is gone from list
-        list_result = await client.call_tool("list_projects", {})
+        list_result = await client.call_tool("list_memory_projects", {})
         assert project_name not in list_result[0].text
 
 
@@ -619,7 +619,7 @@ async def test_create_delete_project_edge_cases(mcp_server, app):
         assert special_name in create_result[0].text
 
         # Verify it appears in list
-        list_result = await client.call_tool("list_projects", {})
+        list_result = await client.call_tool("list_memory_projects", {})
         assert special_name in list_result[0].text
 
         # Delete it
@@ -633,7 +633,7 @@ async def test_create_delete_project_edge_cases(mcp_server, app):
         assert special_name in delete_result[0].text
 
         # Verify it's gone
-        list_result_after = await client.call_tool("list_projects", {})
+        list_result_after = await client.call_tool("list_memory_projects", {})
         assert special_name not in list_result_after[0].text
 
 
@@ -655,7 +655,7 @@ async def test_case_insensitive_project_switching(mcp_server, app):
         assert project_name in create_result[0].text
 
         # Verify project was created with canonical name
-        list_result = await client.call_tool("list_projects", {})
+        list_result = await client.call_tool("list_memory_projects", {})
         assert project_name in list_result[0].text
 
         # Test switching with different case variations
@@ -817,7 +817,7 @@ async def test_case_preservation_in_project_list(mcp_server, app):
             )
 
         # List projects and verify each appears with its original case
-        list_result = await client.call_tool("list_projects", {})
+        list_result = await client.call_tool("list_memory_projects", {})
         list_text = list_result[0].text
 
         for project_name in test_projects:
@@ -880,7 +880,7 @@ async def test_session_state_consistency_after_case_switch(mcp_server, app):
             ),
             ("get_current_project", {}),
             ("search_notes", {"query": "session"}),
-            ("list_projects", {}),
+            ("list_memory_projects", {}),
         ]
 
         for op_name, op_params in operations:
@@ -889,7 +889,7 @@ async def test_session_state_consistency_after_case_switch(mcp_server, app):
             # All operations should work and reference the canonical project name
             if op_name == "get_current_project":
                 assert f"Current project: {project_name}" in result[0].text
-            elif op_name == "list_projects":
+            elif op_name == "list_memory_projects":
                 assert project_name in result[0].text
                 assert "(current)" in result[0].text or "current" in result[0].text.lower()
 

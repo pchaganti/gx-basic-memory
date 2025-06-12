@@ -18,7 +18,7 @@ from basic_memory.schemas.project_info import ProjectList, ProjectStatusResponse
 from basic_memory.utils import generate_permalink
 
 
-@mcp.tool()
+@mcp.tool("list_memory_projects")
 async def list_projects(ctx: Context | None = None) -> str:
     """List all available projects with their status.
 

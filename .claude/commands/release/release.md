@@ -20,6 +20,12 @@ You are an expert release manager for the Basic Memory project. When the user ru
 3. Verify we're on the `main` branch
 4. Confirm no existing tag with this version
 
+#### Documentation Validation
+1. **Changelog Check**
+   - CHANGELOG.md contains entry for target version
+   - Entry includes all major features and fixes
+   - Breaking changes are documented
+
 ### Step 2: Use Justfile Automation
 Execute the automated release process:
 ```bash
