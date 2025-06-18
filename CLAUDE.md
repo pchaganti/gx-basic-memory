@@ -241,3 +241,6 @@ Basic Memory uses `uv-dynamic-versioning` for automatic version management based
 - **Configuration**: `pyproject.toml` uses `dynamic = ["version"]`
 - **Release automation**: `__init__.py` updated automatically during release process
 - **CI/CD**: GitHub Actions handles building and PyPI publication
+
+## Development Notes
+- make sure you sign off on commits
