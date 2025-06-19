@@ -57,12 +57,9 @@ jobs:
     name: Update Homebrew Formula
     needs: release
     runs-on: ubuntu-latest
-<<<<<<< HEAD
-=======
     permissions:
       contents: write
       actions: read
->>>>>>> 2b8ca1a (Update README with new website and community links)
     steps:
       - name: Update Homebrew formula
         uses: mislav/bump-homebrew-formula-action@v3
@@ -78,16 +75,8 @@ jobs:
           # Commit message for the formula update
           commit-message: |
             {{formulaName}} {{version}}
-<<<<<<< HEAD
-            
-            Created by https://github.com/basicmachines-co/basic-memory/actions/runs/${{ github.run_id }}
-        env:
-          # Personal Access Token with repo scope for homebrew-basic-memory repo
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TOKEN }}
-=======
 
             Created by https://github.com/basicmachines-co/basic-memory/actions/runs/${{ github.run_id }}
         env:
           # Personal Access Token with repo scope for homebrew-basic-memory repo
           COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TOKEN }}
->>>>>>> 2b8ca1a (Update README with new website and community links)
