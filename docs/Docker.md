@@ -7,7 +7,7 @@ system. This is particularly useful for integrating with existing Dockerized MCP
 
 ### Option 1: Using Pre-built Images (Recommended)
 
-Basic Memory provides pre-built Docker images on Docker Hub that are automatically updated with each release.
+Basic Memory provides pre-built Docker images on GitHub Container Registry that are automatically updated with each release.
 
 1. **Use the official image directly:**
    ```bash
@@ -16,7 +16,7 @@ Basic Memory provides pre-built Docker images on Docker Hub that are automatical
      -p 8000:8000 \
      -v /path/to/your/obsidian-vault:/app/data:rw \
      -v basic-memory-config:/root/.basic-memory:rw \
-     basicmachines/basic-memory:latest
+     ghcr.io/basicmachines-co/basic-memory:latest
    ```
 
 2. **Or use Docker Compose with the pre-built image:**
@@ -24,7 +24,7 @@ Basic Memory provides pre-built Docker images on Docker Hub that are automatical
    version: '3.8'
    services:
      basic-memory:
-       image: basicmachines/basic-memory:latest
+       image: ghcr.io/basicmachines-co/basic-memory:latest
        container_name: basic-memory-server
        ports:
          - "8000:8000"
@@ -293,11 +293,11 @@ For Docker-specific issues:
 For general Basic Memory support, see the main [README](../README.md)
 and [documentation](https://memory.basicmachines.co/).
 
-## Docker Hub Images
+## GitHub Container Registry Images
 
 ### Available Images
 
-Pre-built Docker images are available on Docker Hub at [`basicmachines/basic-memory`](https://hub.docker.com/r/basicmachines/basic-memory).
+Pre-built Docker images are available on GitHub Container Registry at [`ghcr.io/basicmachines-co/basic-memory`](https://github.com/basicmachines-co/basic-memory/pkgs/container/basic-memory).
 
 **Supported architectures:**
 - `linux/amd64` (Intel/AMD x64)
@@ -314,8 +314,8 @@ Docker images are automatically built and published when new releases are tagged
 
 1. **Release Process:** When a git tag matching `v*` (e.g., `v0.13.8`) is pushed, the CI workflow automatically:
    - Builds multi-platform Docker images
-   - Pushes to Docker Hub with appropriate tags
-   - Updates the Docker Hub repository description
+   - Pushes to GitHub Container Registry with appropriate tags
+   - Uses native GitHub integration for seamless publishing
 
 2. **CI/CD Pipeline:** The Docker workflow includes:
    - Multi-platform builds (AMD64 and ARM64)
@@ -325,21 +325,10 @@ Docker images are automatically built and published when new releases are tagged
 
 ### Setup Requirements (For Maintainers)
 
-To set up Docker Hub integration for this repository:
+GitHub Container Registry integration is automatic for this repository:
 
-1. **Create Docker Hub Repository:**
-   - Repository name: `basicmachines/basic-memory`
-   - Set as public repository
+1. **No external setup required** - GHCR is natively integrated with GitHub
+2. **Automatic permissions** - Uses `GITHUB_TOKEN` with `packages: write` permission
+3. **Public by default** - Images are automatically public for public repositories
 
-2. **Configure GitHub Secrets:**
-   ```
-   DOCKER_USERNAME - Docker Hub username
-   DOCKER_PASSWORD - Docker Hub access token (not password)
-   ```
-
-3. **Generate Docker Hub Access Token:**
-   - Go to Docker Hub → Account Settings → Security
-   - Create new access token with Read/Write permissions
-   - Use this token as `DOCKER_PASSWORD` secret
-
-The Docker CI workflow (`.github/workflows/docker.yml`) will automatically handle the rest.
+The Docker CI workflow (`.github/workflows/docker.yml`) handles everything automatically when version tags are pushed.

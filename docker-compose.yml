@@ -6,7 +6,7 @@ version: '3.8'
 services:
   basic-memory:
     # Use pre-built image (recommended for most users)
-    image: basicmachines/basic-memory:latest
+    image: ghcr.io/basicmachines-co/basic-memory:latest
     
     # Uncomment to build locally instead:
     # build: .
