@@ -12,10 +12,6 @@ from basic_memory.mcp.server import mcp
 )
 async def sync_status_prompt() -> str:
     """Get sync status with AI assistant guidance.
-
-    This prompt provides detailed sync status information along with
-    recommendations for how AI assistants should handle different sync states.
-
     Returns:
         Formatted sync status with AI assistant guidance
     """
