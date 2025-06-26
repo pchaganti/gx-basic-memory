@@ -1,56 +1,6 @@
 # CHANGELOG
 
-## v0.13.8 (2025-06-20)
 
-### Features
-
-- **Docker Container Support** - Complete Docker integration with volume mounting for Obsidian directories
-  ([`3269a2f`](https://github.com/basicmachines-co/basic-memory/commit/3269a2f33a7595f6d9e5207924062e2542f46759))
-  - Docker Compose configuration for easy deployment
-  - Volume mounting for persistent data and Obsidian integration
-  - Comprehensive Docker documentation and setup guides
-  - Streamlined container-based workflow
-
-### Bug Fixes
-
-- **#151**: Fix reset command project configuration persistence issue
-  ([`af44941`](https://github.com/basicmachines-co/basic-memory/commit/af44941d5aa57b5ad7fcc6af4ed700f49bdb6d4d))
-  - Reset command now properly clears project configuration from `~/.basic-memory/config.json`
-  - Eliminates issue where projects would be recreated after database reset
-  - Ensures clean slate when resetting Basic Memory installation
-
-- **#148**: Resolve project state inconsistency between MCP and CLI
-  ([`35e4f73`](https://github.com/basicmachines-co/basic-memory/commit/35e4f73ae8a65501da4d48258ed702f957184c92))
-  - Fix "Project not found" errors when switching default projects
-  - MCP session now automatically refreshes when project configuration changes
-  - Eliminates need to restart MCP server after project operations
-  - Ensures consistent project state across CLI and MCP interfaces
-
-- **FastMCP Compatibility** - Resolve deprecation warnings for FastMCP integration
-  ([`7be001c`](https://github.com/basicmachines-co/basic-memory/commit/7be001ca6834b3344bb6160cbe537b36bcbaa579))
-  - Update FastMCP usage patterns to eliminate deprecation warnings
-  - Improve future compatibility with FastMCP library updates
-  - Clean up entity repository and service layer code
-
-### Technical Improvements
-
-- **Comprehensive Integration Testing** - New test suites for critical user workflows
-  - Full integration tests for database reset functionality
-  - End-to-end project state synchronization testing
-  - Real MCP client-server communication validation
-  - Direct config file validation without complex mocking
-
-- **Code Quality** - Enhanced error handling and validation
-  - Improved project state management across system components
-  - Better session refresh patterns for configuration changes
-  - Streamlined Docker setup with reduced image size
-
-### Documentation
-
-- **Docker Integration Guide** - Complete documentation for container deployment
-  - Step-by-step Docker Compose setup instructions
-  - Volume mounting configuration for Obsidian workflows
-  - Container-based development environment setup
 
 ## v0.13.7 (2025-06-19)
 
