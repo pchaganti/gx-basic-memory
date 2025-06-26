@@ -17,12 +17,12 @@ async def _detect_cross_project_move_attempt(
     identifier: str, destination_path: str, current_project: str
 ) -> Optional[str]:
     """Detect potential cross-project move attempts and return guidance.
-    
+
     Args:
         identifier: The note identifier being moved
         destination_path: The destination path
         current_project: The current active project
-        
+
     Returns:
         Error message with guidance if cross-project move is detected, None otherwise
     """
@@ -31,36 +31,40 @@ async def _detect_cross_project_move_attempt(
         response = await call_get(client, "/projects/projects")
         project_list = ProjectList.model_validate(response.json())
         project_names = [p.name.lower() for p in project_list.projects]
-        
+
         # Check if destination path contains any project names
         dest_lower = destination_path.lower()
         path_parts = dest_lower.split("/")
-        
+
         # Look for project names in the destination path
         for part in path_parts:
             if part in project_names and part != current_project.lower():
                 # Found a different project name in the path
-                matching_project = next(p.name for p in project_list.projects if p.name.lower() == part)
+                matching_project = next(
+                    p.name for p in project_list.projects if p.name.lower() == part
+                )
                 return _format_cross_project_error_response(
                     identifier, destination_path, current_project, matching_project
                 )
-        
+
         # Check if the destination path looks like it might be trying to reference another project
         # (e.g., contains common project-like patterns)
         if any(keyword in dest_lower for keyword in ["project", "workspace", "repo"]):
             # This might be a cross-project attempt, but we can't be sure
             # Return a general guidance message
-            available_projects = [p.name for p in project_list.projects if p.name != current_project]
+            available_projects = [
+                p.name for p in project_list.projects if p.name != current_project
+            ]
             if available_projects:
                 return _format_potential_cross_project_guidance(
                     identifier, destination_path, current_project, available_projects
                 )
-    
+
     except Exception as e:
         # If we can't detect, don't interfere with normal error handling
         logger.debug(f"Could not check for cross-project move: {e}")
         return None
-    
+
     return None
 
 
@@ -116,7 +120,7 @@ def _format_potential_cross_project_guidance(
     other_projects = ", ".join(available_projects[:3])  # Show first 3 projects
     if len(available_projects) > 3:
         other_projects += f" (and {len(available_projects) - 3} others)"
-    
+
     return dedent(f"""
         # Move Failed - Check Project Context
         

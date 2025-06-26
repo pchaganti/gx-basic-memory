@@ -94,7 +94,9 @@ class BasicMemoryConfig(BaseSettings):
         """Ensure configuration is valid after initialization."""
         # Ensure main project exists
         if "main" not in self.projects:  # pragma: no cover
-            self.projects["main"] = str(Path(os.getenv("BASIC_MEMORY_HOME", Path.home() / "basic-memory")))
+            self.projects["main"] = str(
+                Path(os.getenv("BASIC_MEMORY_HOME", Path.home() / "basic-memory"))
+            )
 
         # Ensure default project is valid
         if self.default_project not in self.projects:  # pragma: no cover

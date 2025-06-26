@@ -519,7 +519,7 @@ async def test_move_note_cross_project_detection(mcp_server, app):
             "create_memory_project",
             {
                 "project_name": "test-project-b",
-                "project_path": "/tmp/test-project-b", 
+                "project_path": "/tmp/test-project-b",
                 "set_default": False,
             },
         )
@@ -598,7 +598,7 @@ async def test_move_note_potential_cross_project_guidance(mcp_server, app):
         assert "switch_project" in error_message
 
 
-@pytest.mark.asyncio 
+@pytest.mark.asyncio
 async def test_move_note_normal_moves_still_work(mcp_server, app):
     """Test that normal within-project moves still work after cross-project detection."""
 

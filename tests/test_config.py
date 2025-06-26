@@ -1,10 +1,5 @@
 """Test configuration management."""
 
-import os
-from pathlib import Path
-
-import pytest
-
 from basic_memory.config import BasicMemoryConfig
 
 

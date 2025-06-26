@@ -694,7 +694,9 @@ class EntityService(BaseService[EntityModel]):
 
                 updates["permalink"] = new_permalink
                 if old_permalink is None:
-                    logger.info(f"Generated permalink for entity with null permalink: {new_permalink}")
+                    logger.info(
+                        f"Generated permalink for entity with null permalink: {new_permalink}"
+                    )
                 else:
                     logger.info(f"Updated permalink: {old_permalink} -> {new_permalink}")
 
