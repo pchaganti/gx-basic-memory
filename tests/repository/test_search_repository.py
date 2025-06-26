@@ -574,13 +574,13 @@ class TestSearchTermPreparation:
     def test_needs_quoting_empty_input(self, search_repository):
         """Test _needs_quoting with empty inputs (line 207 coverage)."""
         # Test empty string
-        assert search_repository._needs_quoting("") == False
+        assert not search_repository._needs_quoting("")
         
         # Test whitespace-only string
-        assert search_repository._needs_quoting("   ") == False
+        assert not search_repository._needs_quoting("   ")
         
         # Test None-like cases
-        assert search_repository._needs_quoting("\t") == False
+        assert not search_repository._needs_quoting("\t")
 
     def test_prepare_single_term_empty_input(self, search_repository):
         """Test _prepare_single_term with empty inputs (line 227 coverage)."""
