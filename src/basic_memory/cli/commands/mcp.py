@@ -78,7 +78,6 @@ def mcp(
     if transport == "stdio":
         mcp_server.run(
             transport=transport,
-            log_level="INFO",
         )
     elif transport == "streamable-http" or transport == "sse":
         mcp_server.run(
