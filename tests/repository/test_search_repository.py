@@ -551,12 +551,14 @@ class TestSearchTermPreparation:
     def test_boolean_query_empty_parts_coverage(self, search_repository):
         """Test Boolean query parsing with empty parts (line 143 coverage)."""
         # Create queries that will result in empty parts after splitting
-        result1 = search_repository._prepare_boolean_query("hello AND  AND world")  # Double operator
+        result1 = search_repository._prepare_boolean_query(
+            "hello AND  AND world"
+        )  # Double operator
         assert "hello" in result1 and "world" in result1
-        
+
         result2 = search_repository._prepare_boolean_query("  OR test")  # Leading operator
         assert "test" in result2
-        
+
         result3 = search_repository._prepare_boolean_query("test OR  ")  # Trailing operator
         assert "test" in result3
 
@@ -566,19 +568,19 @@ class TestSearchTermPreparation:
         result = search_repository._prepare_parenthetical_term('(say "hello" world)')
         # Should escape quotes by doubling them
         assert '""hello""' in result
-        
+
         # Test term with single quotes
-        result2 = search_repository._prepare_parenthetical_term('(it\'s working)')
+        result2 = search_repository._prepare_parenthetical_term("(it's working)")
         assert "it's working" in result2
 
     def test_needs_quoting_empty_input(self, search_repository):
         """Test _needs_quoting with empty inputs (line 207 coverage)."""
         # Test empty string
         assert not search_repository._needs_quoting("")
-        
+
         # Test whitespace-only string
         assert not search_repository._needs_quoting("   ")
-        
+
         # Test None-like cases
         assert not search_repository._needs_quoting("\t")
 
@@ -587,11 +589,11 @@ class TestSearchTermPreparation:
         # Test empty string
         result1 = search_repository._prepare_single_term("")
         assert result1 == ""
-        
+
         # Test whitespace-only string
         result2 = search_repository._prepare_single_term("   ")
         assert result2 == "   "  # Should return as-is
-        
+
         # Test string that becomes empty after strip
         result3 = search_repository._prepare_single_term("\t\n")
         assert result3 == "\t\n"  # Should return original
