@@ -33,6 +33,10 @@ https://github.com/user-attachments/assets/a55d8238-8dd0-454a-be4c-8860dbbd0ddc
 # Install with uv (recommended)
 uv tool install basic-memory
 
+# or with Homebrew
+brew tap basicmachines-co/basic-memory
+brew install basic-memory
+
 # Configure Claude Desktop (edit ~/Library/Application Support/Claude/claude_desktop_config.json)
 # Add this to your config:
 {
