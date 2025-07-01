@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Basic Memory Daily Traction Report - Enhanced with Growth Tracking
-Automated tracking across GitHub, Reddit, YouTube with daily change indicators
+Basic Memory Daily Traction Report - Clean Version
+Automated tracking across GitHub, Discord, YouTube, and Reddit
 """
 
 import os
@@ -17,13 +17,15 @@ class BasicMemoryTracker:
     def __init__(self):
         self.github_token = os.getenv('GITHUB_TOKEN')
         self.discord_webhook = os.getenv('DISCORD_WEBHOOK')
+        self.discord_bot_token = os.getenv('DISCORD_BOT_TOKEN')
+        self.discord_server_id = os.getenv('DISCORD_SERVER_ID')
         self.youtube_api_key = os.getenv('YOUTUBE_API_KEY')
         
         # Reddit setup
         self.reddit = praw.Reddit(
             client_id=os.getenv('REDDIT_CLIENT_ID'),
             client_secret=os.getenv('REDDIT_SECRET'),
-            user_agent='BasicMemoryTracker:v1.0'
+            user_agent='BasicMemoryTracker:v2.0'
         )
         
         # YouTube setup
@@ -106,13 +108,13 @@ class BasicMemoryTracker:
     def format_change(self, change, direction):
         """Format the change indicator for display"""
         if direction == "🆕":
-            return "🆕"
+            return ""  # Don't show change on first run
         elif direction == "📈":
             return f"(+{change})"
         elif direction == "📉":
             return f"(-{change})"
         else:
-            return "(±0)"
+            return ""  # Don't show (±0)
 
     def get_github_metrics(self):
         """Get GitHub repository metrics"""
@@ -129,61 +131,55 @@ class BasicMemoryTracker:
             traffic_response = requests.get(traffic_url, headers=headers)
             traffic_data = traffic_response.json() if traffic_response.status_code == 200 else {}
             
-            # Recent issues
-            issues_url = f'https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/issues'
-            issues_response = requests.get(issues_url, headers=headers)
-            issues_data = issues_response.json() if issues_response.status_code == 200 else []
-            
             return {
                 'stars': repo_data.get('stargazers_count', 0),
                 'forks': repo_data.get('forks_count', 0),
-                'watchers': repo_data.get('watchers_count', 0),
-                'open_issues': repo_data.get('open_issues_count', 0),
-                'traffic_views': traffic_data.get('count', 0),
-                'traffic_unique': traffic_data.get('uniques', 0),
-                'recent_issues': len([i for i in issues_data if 
-                    parser.parse(i['created_at']).date() >= (datetime.now() - timedelta(days=1)).date()])
+                'traffic_unique': traffic_data.get('uniques', 0) if traffic_data.get('uniques', 0) > 0 else None
             }
         except Exception as e:
             print(f"GitHub API error: {e}")
             return {'error': str(e)}
 
+    def get_discord_metrics(self):
+        """Get Discord server metrics"""
+        try:
+            headers = {'Authorization': f'Bot {self.discord_bot_token}'}
+            guild_url = f'https://discord.com/api/v10/guilds/{self.discord_server_id}'
+            
+            response = requests.get(guild_url, headers=headers)
+            
+            if response.status_code == 200:
+                guild_data = response.json()
+                return {
+                    'members': guild_data.get('approximate_member_count', 0)
+                }
+            else:
+                print(f"Discord API error: {response.status_code}")
+                return {'members': 0}
+                
+        except Exception as e:
+            print(f"Discord API error: {e}")
+            return {'members': 0}
+
     def get_reddit_metrics(self):
-        """Get Reddit metrics for Basic Memory mentions"""
+        """Get Reddit metrics for r/BasicMemory only"""
         try:
             metrics = {
-                'total_mentions': 0,
-                'subreddit_members': 0,
-                'top_posts': [],
-                'hot_discussions': []
+                'subreddit_members': 0
             }
-            
-            # Search for Basic Memory mentions
-            search_results = list(self.reddit.subreddit('all').search(
-                'Basic Memory', time_filter='day', limit=25
-            ))
-            metrics['total_mentions'] = len(search_results)
-            
-            # Get top posts
-            for post in search_results[:3]:
-                metrics['top_posts'].append({
-                    'title': post.title[:50] + '...' if len(post.title) > 50 else post.title,
-                    'score': post.score,
-                    'subreddit': post.subreddit.display_name,
-                    'num_comments': post.num_comments
-                })
             
             # Check r/BasicMemory if it exists
             try:
                 basic_memory_sub = self.reddit.subreddit('BasicMemory')
                 metrics['subreddit_members'] = basic_memory_sub.subscribers
-            except:
+            except Exception as e:
+                print(f"r/BasicMemory not found or error: {e}")
                 metrics['subreddit_members'] = 0
                 
             return metrics
         except Exception as e:
             print(f"Reddit API error: {e}")
-            return {'error': str(e)}
+            return {'subreddit_members': 0}
 
     def get_youtube_metrics(self):
         """Get YouTube channel metrics"""
@@ -241,29 +237,27 @@ class BasicMemoryTracker:
             }
 
     def create_discord_embed(self, current_metrics, previous_metrics):
-        """Create beautiful Discord embed with all metrics and growth indicators"""
+        """Create clean Discord embed with all metrics and growth indicators"""
         
         github_data = current_metrics.get('github', {})
+        discord_data = current_metrics.get('discord', {})
         reddit_data = current_metrics.get('reddit', {})
         youtube_data = current_metrics.get('youtube', {})
         
         prev_github = previous_metrics.get('github', {})
+        prev_discord = previous_metrics.get('discord', {})
         prev_reddit = previous_metrics.get('reddit', {})
         prev_youtube = previous_metrics.get('youtube', {})
         
         # Calculate changes
         star_change, star_dir = self.calculate_change(github_data.get('stars', 0), prev_github, 'stars')
+        discord_change, discord_dir = self.calculate_change(discord_data.get('members', 0), prev_discord, 'members')
+        reddit_change, reddit_dir = self.calculate_change(reddit_data.get('subreddit_members', 0), prev_reddit, 'subreddit_members')
         sub_change, sub_dir = self.calculate_change(youtube_data.get('subscribers', 0), prev_youtube, 'subscribers')
         view_change, view_dir = self.calculate_change(youtube_data.get('total_views', 0), prev_youtube, 'total_views')
-        reddit_change, reddit_dir = self.calculate_change(reddit_data.get('total_mentions', 0), prev_reddit, 'total_mentions')
-        member_change, member_dir = self.calculate_change(reddit_data.get('subreddit_members', 0), prev_reddit, 'subreddit_members')
         
-        # Calculate total reach
-        total_reach = (
-            github_data.get('traffic_unique', 0) + 
-            reddit_data.get('total_mentions', 0) * 100 +
-            youtube_data.get('total_views', 0)
-        )
+        # Traffic display logic
+        traffic_display = "Data pending" if github_data.get('traffic_unique') is None else f"{github_data.get('traffic_unique', 0)} visitors"
         
         embed = {
             "title": "🚀 Basic Memory Daily Traction Report",
@@ -271,46 +265,51 @@ class BasicMemoryTracker:
             "color": 0x00ff88,
             "fields": [
                 {
-                    "name": "⭐ GitHub Metrics",
+                    "name": "⭐ GitHub",
                     "value": f"""
-**Stars:** {github_data.get('stars', 'N/A')} {star_dir} {self.format_change(star_change, star_dir)}
-**Forks:** {github_data.get('forks', 'N/A')} 🍴
-**Traffic:** {github_data.get('traffic_unique', 'N/A')} unique visitors 👀
-**Issues:** {github_data.get('recent_issues', 0)} new today 🐛
+**Stars:** {github_data.get('stars', 'N/A')} {self.format_change(star_change, star_dir)}
+**Forks:** {github_data.get('forks', 'N/A')}
+**Traffic:** {traffic_display}
                     """.strip(),
                     "inline": True
                 },
                 {
-                    "name": "🗨️ Reddit Activity", 
+                    "name": "💬 Community", 
                     "value": f"""
-**Mentions:** {reddit_data.get('total_mentions', 'N/A')} {reddit_dir} {self.format_change(reddit_change, reddit_dir)}
-**r/BasicMemory:** {reddit_data.get('subreddit_members', 'N/A')} {member_dir} {self.format_change(member_change, member_dir)}
-**Hot Posts:** {len(reddit_data.get('top_posts', []))} trending 🔥
+**Discord:** {discord_data.get('members', 'N/A')} members {self.format_change(discord_change, discord_dir)}
+**r/BasicMemory:** {reddit_data.get('subreddit_members', 'N/A')} {self.format_change(reddit_change, reddit_dir)}
                     """.strip(),
                     "inline": True
                 },
                 {
-                    "name": "📺 YouTube Stats",
+                    "name": "📺 YouTube",
                     "value": f"""
-**Subscribers:** {youtube_data.get('subscribers', 'N/A')} {sub_dir} {self.format_change(sub_change, sub_dir)}
-**Total Views:** {youtube_data.get('total_views', 'N/A')} {view_dir} {self.format_change(view_change, view_dir)}
-**Videos:** {youtube_data.get('video_count', 'N/A')} 🎬
+**Subscribers:** {youtube_data.get('subscribers', 'N/A')} {self.format_change(sub_change, sub_dir)}
+**Views:** {youtube_data.get('total_views', 'N/A')} {self.format_change(view_change, view_dir)}
+**Videos:** {youtube_data.get('video_count', 'N/A')}
                     """.strip(),
                     "inline": True
                 }
             ],
             "footer": {
-                "text": f"🤖 Automated by Basic Memory • Daily Reach: {total_reach}"
+                "text": f"🤖 Automated by Basic Memory"
             },
             "timestamp": datetime.now().isoformat()
         }
         
-        # Add top Reddit posts if available
-        if reddit_data.get('top_posts'):
-            top_post = reddit_data['top_posts'][0]
+        # Add daily highlight if there's significant growth
+        highlights = []
+        if discord_change > 5:
+            highlights.append(f"Discord gained {discord_change} new members!")
+        if star_change > 10:
+            highlights.append(f"GitHub stars up {star_change}!")
+        if sub_change > 0:
+            highlights.append(f"YouTube gained {sub_change} subscribers!")
+            
+        if highlights:
             embed["fields"].append({
-                "name": "🔥 Top Reddit Post",
-                "value": f"**{top_post['title']}**\n📊 {top_post['score']} upvotes • 💬 {top_post['num_comments']} comments\n📍 r/{top_post['subreddit']}",
+                "name": "📈 Today's Highlight",
+                "value": highlights[0],  # Show the first/most important highlight
                 "inline": False
             })
         
@@ -346,6 +345,9 @@ class BasicMemoryTracker:
         print("📊 Collecting GitHub metrics...")
         github_data = self.get_github_metrics()
         
+        print("💬 Collecting Discord metrics...")
+        discord_data = self.get_discord_metrics()
+        
         print("🗨️ Collecting Reddit metrics...")
         reddit_data = self.get_reddit_metrics()
         
@@ -355,12 +357,13 @@ class BasicMemoryTracker:
         # Combine current metrics
         current_metrics = {
             'github': github_data,
+            'discord': discord_data,
             'reddit': reddit_data,
             'youtube': youtube_data
         }
         
         # Create and send report
-        print("🎨 Creating Discord embed with growth tracking...")
+        print("🎨 Creating clean Discord embed...")
         embed = self.create_discord_embed(current_metrics, previous_metrics.get('metrics', {}))
         
         print("📤 Sending to Discord...")
@@ -379,9 +382,9 @@ class BasicMemoryTracker:
         print(f"""
 📊 DAILY SUMMARY:
 ⭐ GitHub Stars: {github_data.get('stars', 'Error')}
-👥 Reddit Mentions: {reddit_data.get('total_mentions', 'Error')} 
+💬 Discord Members: {discord_data.get('members', 'Error')}
+🗨️ r/BasicMemory: {reddit_data.get('subreddit_members', 'Error')} 
 📺 YouTube Subscribers: {youtube_data.get('subscribers', 'Error')}
-📺 YouTube Views: {youtube_data.get('total_views', 'Error')}
         """)
 
 if __name__ == "__main__":
