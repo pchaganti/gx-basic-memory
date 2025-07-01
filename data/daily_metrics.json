@@ -1,39 +1,16 @@
 {
-  "date": "2025-07-01T01:24:37.731009",
+  "date": "2025-07-01T01:59:30.171700",
   "metrics": {
     "github": {
       "stars": 1009,
       "forks": 73,
-      "watchers": 1009,
-      "open_issues": 31,
-      "traffic_views": 0,
-      "traffic_unique": 0,
-      "recent_issues": 0
+      "traffic_unique": null
+    },
+    "discord": {
+      "members": 0
     },
     "reddit": {
-      "total_mentions": 25,
-      "subreddit_members": 43,
-      "top_posts": [
-        {
-          "title": "Today's banning is the largest since Affinity, and...",
-          "score": 892,
-          "subreddit": "magicTCG",
-          "num_comments": 127
-        },
-        {
-          "title": "Basic Memory - Backed by Research*",
-          "score": 1,
-          "subreddit": "basicmemory",
-          "num_comments": 0
-        },
-        {
-          "title": "n8n Full Course \u2699\ufe0f Create Our Second Flow \ud83d\udc49 Trigge...",
-          "score": 1,
-          "subreddit": "Tech_UpSkill",
-          "num_comments": 0
-        }
-      ],
-      "hot_discussions": []
+      "subreddit_members": 43
     },
     "youtube": {
       "subscribers": 45,
