@@ -97,7 +97,15 @@ class BasicMemoryTracker:
         if not previous or key not in previous:
             return 0, "🆕"
         
-        change = current - previous[key]
+        # Handle None values
+        if current is None:
+            return 0, "❓"
+        
+        prev_value = previous.get(key, 0)
+        if prev_value is None:
+            prev_value = 0
+            
+        change = current - prev_value
         if change > 0:
             return change, "📈"
         elif change < 0:
@@ -273,11 +281,13 @@ class BasicMemoryTracker:
         prev_reddit = previous_metrics.get('reddit', {})
         prev_youtube = previous_metrics.get('youtube', {})
         
-        # Handle Discord display
+        # Handle Discord display - make it graceful if API fails
         if discord_data.get('members') is None:
-            discord_display = "Bot needs permissions"
+            discord_display = "API issue"
+            discord_change_display = ""
         else:
             discord_display = f"{discord_data.get('members')} members"
+            discord_change_display = self.format_change(discord_change, discord_dir)
         star_change, star_dir = self.calculate_change(github_data.get('stars', 0), prev_github, 'stars')
         discord_change, discord_dir = self.calculate_change(discord_data.get('members', 0), prev_discord, 'members')
         reddit_change, reddit_dir = self.calculate_change(reddit_data.get('subreddit_members', 0), prev_reddit, 'subreddit_members')
@@ -307,7 +317,7 @@ class BasicMemoryTracker:
                 },
                 {
                     "name": "💬 Community", 
-                    "value": f"**Discord:** {discord_display} {self.format_change(discord_change, discord_dir)}\n**r/BasicMemory:** {reddit_data.get('subreddit_members', 'N/A')} {self.format_change(reddit_change, reddit_dir)}",
+                    "value": f"**Discord:** {discord_display} {discord_change_display}\n**r/BasicMemory:** {reddit_data.get('subreddit_members', 'N/A')} {self.format_change(reddit_change, reddit_dir)}",
                     "inline": True
                 },
                 {
