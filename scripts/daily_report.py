@@ -141,21 +141,37 @@ class BasicMemoryTracker:
             return {'error': str(e)}
 
     def get_discord_metrics(self):
-        """Get Discord server metrics"""
+        """Get Discord server metrics using multiple approaches"""
         try:
             headers = {'Authorization': f'Bot {self.discord_bot_token}'}
-            guild_url = f'https://discord.com/api/v10/guilds/{self.discord_server_id}'
             
+            # Try method 1: Get guild info with approximate member count
+            guild_url = f'https://discord.com/api/v10/guilds/{self.discord_server_id}?with_counts=true'
             response = requests.get(guild_url, headers=headers)
             
             if response.status_code == 200:
                 guild_data = response.json()
-                return {
-                    'members': guild_data.get('approximate_member_count', 0)
-                }
-            else:
-                print(f"Discord API error: {response.status_code}")
-                return {'members': 0}
+                # Try multiple fields that might contain member count
+                member_count = (
+                    guild_data.get('approximate_member_count') or 
+                    guild_data.get('member_count') or 
+                    guild_data.get('members')
+                )
+                
+                if member_count:
+                    return {'members': member_count}
+            
+            # Method 2: Try to get members list (if bot has permission)
+            members_url = f'https://discord.com/api/v10/guilds/{self.discord_server_id}/members?limit=1000'
+            members_response = requests.get(members_url, headers=headers)
+            
+            if members_response.status_code == 200:
+                members_data = members_response.json()
+                return {'members': len(members_data)}
+            
+            # Method 3: Fallback - return 0 but note the issue
+            print(f"⚠️ Discord API responses: Guild: {response.status_code}, Members: {members_response.status_code}")
+            return {'members': 0}
                 
         except Exception as e:
             print(f"Discord API error: {e}")
@@ -278,6 +294,7 @@ class BasicMemoryTracker:
                     "value": f"""
 **Discord:** {discord_data.get('members', 'N/A')} members {self.format_change(discord_change, discord_dir)}
 **r/BasicMemory:** {reddit_data.get('subreddit_members', 'N/A')} {self.format_change(reddit_change, reddit_dir)}
+
                     """.strip(),
                     "inline": True
                 },
