@@ -133,49 +133,57 @@ class BasicMemoryTracker:
             
             return {
                 'stars': repo_data.get('stargazers_count', 0),
-                'forks': repo_data.get('forks_count', 0),
-                'traffic_unique': traffic_data.get('uniques', 0) if traffic_data.get('uniques', 0) > 0 else None
+                'forks': repo_data.get('forks_count', 0)
             }
         except Exception as e:
             print(f"GitHub API error: {e}")
             return {'error': str(e)}
 
     def get_discord_metrics(self):
-        """Get Discord server metrics using multiple approaches"""
+        """Get Discord server metrics with Server Members Intent enabled"""
         try:
             headers = {'Authorization': f'Bot {self.discord_bot_token}'}
             
-            # Try method 1: Get guild info with approximate member count
+            # Primary method: Get guild with member counts (should work now with intent enabled)
             guild_url = f'https://discord.com/api/v10/guilds/{self.discord_server_id}?with_counts=true'
             response = requests.get(guild_url, headers=headers)
             
             if response.status_code == 200:
                 guild_data = response.json()
-                # Try multiple fields that might contain member count
-                member_count = (
-                    guild_data.get('approximate_member_count') or 
-                    guild_data.get('member_count') or 
-                    guild_data.get('members')
-                )
                 
-                if member_count:
+                # Try approximate_member_count first (most reliable)
+                member_count = guild_data.get('approximate_member_count')
+                if member_count and member_count > 0:
+                    print(f"✅ Discord: Found {member_count} members via approximate_member_count")
                     return {'members': member_count}
+                
+                # Fallback to other possible fields
+                member_count = guild_data.get('member_count')
+                if member_count and member_count > 0:
+                    print(f"✅ Discord: Found {member_count} members via member_count")
+                    return {'members': member_count}
+                
+                print(f"Discord guild data: {guild_data}")
+            else:
+                print(f"Discord API error: {response.status_code} - {response.text}")
             
-            # Method 2: Try to get members list (if bot has permission)
+            # If that fails, try getting actual member list (now that we have permission)
             members_url = f'https://discord.com/api/v10/guilds/{self.discord_server_id}/members?limit=1000'
             members_response = requests.get(members_url, headers=headers)
             
             if members_response.status_code == 200:
                 members_data = members_response.json()
-                return {'members': len(members_data)}
+                member_count = len(members_data)
+                print(f"✅ Discord: Counted {member_count} members from members list")
+                return {'members': member_count}
+            else:
+                print(f"Discord members API error: {members_response.status_code}")
             
-            # Method 3: Fallback - return 0 but note the issue
-            print(f"⚠️ Discord API responses: Guild: {response.status_code}, Members: {members_response.status_code}")
-            return {'members': 0}
+            return {'members': None}
                 
         except Exception as e:
             print(f"Discord API error: {e}")
-            return {'members': 0}
+            return {'members': None}
 
     def get_reddit_metrics(self):
         """Get Reddit metrics for r/BasicMemory only"""
@@ -265,15 +273,22 @@ class BasicMemoryTracker:
         prev_reddit = previous_metrics.get('reddit', {})
         prev_youtube = previous_metrics.get('youtube', {})
         
-        # Calculate changes
+        # Handle Discord display
+        if discord_data.get('members') is None:
+            discord_display = "Bot needs permissions"
+        else:
+            discord_display = f"{discord_data.get('members')} members"
         star_change, star_dir = self.calculate_change(github_data.get('stars', 0), prev_github, 'stars')
         discord_change, discord_dir = self.calculate_change(discord_data.get('members', 0), prev_discord, 'members')
         reddit_change, reddit_dir = self.calculate_change(reddit_data.get('subreddit_members', 0), prev_reddit, 'subreddit_members')
         sub_change, sub_dir = self.calculate_change(youtube_data.get('subscribers', 0), prev_youtube, 'subscribers')
         view_change, view_dir = self.calculate_change(youtube_data.get('total_views', 0), prev_youtube, 'total_views')
         
-        # Traffic display logic
-        traffic_display = "Data pending" if github_data.get('traffic_unique') is None else f"{github_data.get('traffic_unique', 0)} visitors"
+        # Traffic display logic - GitHub traffic API is often delayed/restricted
+        if github_data.get('traffic_unique') is None or github_data.get('traffic_unique') == 0:
+            traffic_display = "API restricted"
+        else:
+            traffic_display = f"{github_data.get('traffic_unique', 0)} visitors"
         
         embed = {
             "title": "🚀 Basic Memory Daily Traction Report",
@@ -282,29 +297,32 @@ class BasicMemoryTracker:
             "fields": [
                 {
                     "name": "⭐ GitHub",
-                    "value": f"""
-**Stars:** {github_data.get('stars', 'N/A')} {self.format_change(star_change, star_dir)}
-**Forks:** {github_data.get('forks', 'N/A')}
-**Traffic:** {traffic_display}
-                    """.strip(),
+                    "value": f"**Stars:** {github_data.get('stars', 'N/A')} {self.format_change(star_change, star_dir)}\n**Forks:** {github_data.get('forks', 'N/A')}",
+                    "inline": True
+                },
+                {
+                    "name": "\u200b",  # Invisible character for spacing
+                    "value": "\u200b",
                     "inline": True
                 },
                 {
                     "name": "💬 Community", 
-                    "value": f"""
-**Discord:** {discord_data.get('members', 'N/A')} members {self.format_change(discord_change, discord_dir)}
-**r/BasicMemory:** {reddit_data.get('subreddit_members', 'N/A')} {self.format_change(reddit_change, reddit_dir)}
-
-                    """.strip(),
+                    "value": f"**Discord:** {discord_display} {self.format_change(discord_change, discord_dir)}\n**r/BasicMemory:** {reddit_data.get('subreddit_members', 'N/A')} {self.format_change(reddit_change, reddit_dir)}",
                     "inline": True
                 },
                 {
                     "name": "📺 YouTube",
-                    "value": f"""
-**Subscribers:** {youtube_data.get('subscribers', 'N/A')} {self.format_change(sub_change, sub_dir)}
-**Views:** {youtube_data.get('total_views', 'N/A')} {self.format_change(view_change, view_dir)}
-**Videos:** {youtube_data.get('video_count', 'N/A')}
-                    """.strip(),
+                    "value": f"**Subscribers:** {youtube_data.get('subscribers', 'N/A')} {self.format_change(sub_change, sub_dir)}\n**Views:** {youtube_data.get('total_views', 'N/A')} {self.format_change(view_change, view_dir)}\n**Videos:** {youtube_data.get('video_count', 'N/A')}",
+                    "inline": True
+                },
+                {
+                    "name": "\u200b",  # Spacing
+                    "value": "\u200b", 
+                    "inline": True
+                },
+                {
+                    "name": "\u200b",  # Spacing
+                    "value": "\u200b",
                     "inline": True
                 }
             ],
