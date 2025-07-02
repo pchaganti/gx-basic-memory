@@ -51,7 +51,7 @@ async def test_search_title(client):
 
     # Verify results - handle both success and error cases
     if isinstance(response, str):
-        # If search failed and returned error message, test should fail with informative message  
+        # If search failed and returned error message, test should fail with informative message
         pytest.fail(f"Search failed with error: {response}")
     else:
         # Success case - verify SearchResponse

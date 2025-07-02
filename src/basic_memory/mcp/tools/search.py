@@ -54,7 +54,7 @@ def _format_search_error_response(error_message: str, query: str, search_type: s
             ```
 
             ## Alternative search strategies:
-            - Break into simpler terms: `search_notes("{' '.join(clean_query.split()[:2])}")`
+            - Break into simpler terms: `search_notes("{" ".join(clean_query.split()[:2])}")`
             - Try different search types: `search_notes("{clean_query}", search_type="title")`
             - Use filtering: `search_notes("{clean_query}", types=["entity"])`
             """).strip()
@@ -105,7 +105,7 @@ def _format_search_error_response(error_message: str, query: str, search_type: s
                - **Permalink search**: `search_notes("{query}", search_type="permalink")` (searches file paths)
 
             4. **Try boolean operators for broader results**:
-               - OR search: `search_notes("{' OR '.join(query.split()[:3])}")`
+               - OR search: `search_notes("{" OR ".join(query.split()[:3])}")`
                - Remove restrictive terms: Focus on the most important keywords
 
             5. **Use filtering to narrow scope**:
@@ -183,7 +183,7 @@ Error searching for '{query}': {error_message}
   - Permalink patterns: `search_notes("{query}*", search_type="permalink")`
 - **With filters**: `search_notes("{query}", types=["entity"])`
 - **Recent content**: `search_notes("{query}", after_date="1 week")`
-- **Boolean variations**: `search_notes("{' OR '.join(query.split()[:2])}")`
+- **Boolean variations**: `search_notes("{" OR ".join(query.split()[:2])}")`
 
 ## Explore your content:
 - **Browse files**: `list_directory("/")` - See all available content
@@ -224,7 +224,7 @@ async def search_notes(
     - `search_notes("keyword")` - Find any content containing "keyword"
     - `search_notes("exact phrase")` - Search for exact phrase match
 
-    ### Advanced Boolean Searches  
+    ### Advanced Boolean Searches
     - `search_notes("term1 term2")` - Find content with both terms (implicit AND)
     - `search_notes("term1 AND term2")` - Explicit AND search (both terms required)
     - `search_notes("term1 OR term2")` - Either term can be present
