@@ -129,9 +129,9 @@ def test_entity_out_from_attributes():
 
 def test_entity_response_with_none_permalink():
     """Test EntityResponse can handle None permalink (fixes issue #170).
-    
+
     This test ensures that EntityResponse properly validates when the permalink
-    field is None, which can occur when markdown files don't have explicit 
+    field is None, which can occur when markdown files don't have explicit
     permalinks in their frontmatter during edit operations.
     """
     # Simulate database model attributes with None permalink
@@ -146,7 +146,7 @@ def test_entity_response_with_none_permalink():
         "created_at": "2023-01-01T00:00:00",
         "updated_at": "2023-01-01T00:00:00",
     }
-    
+
     # This should not raise a ValidationError
     entity = EntityResponse.model_validate(db_data)
     assert entity.permalink is None
