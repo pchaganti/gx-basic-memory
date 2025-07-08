@@ -4,6 +4,7 @@ import asyncio
 import typer
 
 from basic_memory.cli.app import app
+from basic_memory.config import ConfigManager
 
 # Import mcp instance
 from basic_memory.mcp.server import mcp as mcp_server  # pragma: no cover
@@ -34,25 +35,12 @@ def mcp(
     - sse: Server-Sent Events (for compatibility with existing clients)
     """
 
-    # Check if OAuth is enabled
-    import os
-
-    auth_enabled = os.getenv("FASTMCP_AUTH_ENABLED", "false").lower() == "true"
-    if auth_enabled:
-        logger.info("OAuth authentication is ENABLED")
-        logger.info(f"Issuer URL: {os.getenv('FASTMCP_AUTH_ISSUER_URL', 'http://localhost:8000')}")
-        if os.getenv("FASTMCP_AUTH_REQUIRED_SCOPES"):
-            logger.info(f"Required scopes: {os.getenv('FASTMCP_AUTH_REQUIRED_SCOPES')}")
-    else:
-        logger.info("OAuth authentication is DISABLED")
-
-    from basic_memory.config import app_config
     from basic_memory.services.initialization import initialize_file_sync
-
-    # Start the MCP server with the specified transport
 
     # Use unified thread-based sync approach for both transports
     import threading
+
+    app_config = ConfigManager().config
 
     def run_file_sync():
         """Run file sync in a separate thread with its own event loop."""

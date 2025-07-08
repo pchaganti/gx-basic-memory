@@ -4,7 +4,6 @@ import os
 
 import logging
 import re
-import sys
 import unicodedata
 from pathlib import Path
 from typing import Optional, Protocol, Union, runtime_checkable, List, Any
@@ -144,26 +143,26 @@ def setup_logging(
         console: Whether to log to the console
     """
     # Remove default handler and any existing handlers
-    logger.remove()
+    # logger.remove()
 
     # Add file handler if we are not running tests and a log file is specified
-    if log_file and env != "test":
-        # Setup file logger
-        log_path = home_dir / log_file
-        logger.add(
-            str(log_path),
-            level=log_level,
-            rotation="10 MB",
-            retention="10 days",
-            backtrace=True,
-            diagnose=True,
-            enqueue=True,
-            colorize=False,
-        )
+    # if log_file and env != "test":
+    #     # Setup file logger
+    #     log_path = home_dir / log_file
+    #     logger.add(
+    #         str(log_path),
+    #         level=log_level,
+    #         rotation="10 MB",
+    #         retention="10 days",
+    #         backtrace=True,
+    #         diagnose=True,
+    #         enqueue=True,
+    #         colorize=False,
+    #     )
 
     # Add console logger if requested or in test mode
-    if env == "test" or console:
-        logger.add(sys.stderr, level=log_level, backtrace=True, diagnose=True, colorize=True)
+    # if env == "test" or console:
+    #     logger.add(sys.stderr, level=log_level, backtrace=True, diagnose=True, colorize=True)
 
     logger.info(f"ENV: '{env}' Log level: '{log_level}' Logging to {log_file}")
 
