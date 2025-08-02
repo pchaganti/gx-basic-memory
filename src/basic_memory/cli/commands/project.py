@@ -157,29 +157,33 @@ def move_project(
     """Move a project to a new location."""
     # Resolve to absolute path
     resolved_path = os.path.abspath(os.path.expanduser(new_path))
-    
+
     try:
         data = {"path": resolved_path}
         project_name = generate_permalink(name)
-        
+
         current_project = session.get_current_project()
-        response = asyncio.run(call_patch(client, f"/{current_project}/project/{project_name}", json=data))
+        response = asyncio.run(
+            call_patch(client, f"/{current_project}/project/{project_name}", json=data)
+        )
         result = ProjectStatusResponse.model_validate(response.json())
-        
+
         console.print(f"[green]{result.message}[/green]")
-        
+
         # Show important file movement reminder
         console.print()  # Empty line for spacing
-        console.print(Panel(
-            "[bold red]IMPORTANT:[/bold red] Project configuration updated successfully.\n\n"
-            "[yellow]You must manually move your project files from the old location to:[/yellow]\n"
-            f"[cyan]{resolved_path}[/cyan]\n\n"
-            "[dim]Basic Memory has only updated the configuration - your files remain in their original location.[/dim]",
-            title="⚠️  Manual File Movement Required",
-            border_style="yellow",
-            expand=False
-        ))
-        
+        console.print(
+            Panel(
+                "[bold red]IMPORTANT:[/bold red] Project configuration updated successfully.\n\n"
+                "[yellow]You must manually move your project files from the old location to:[/yellow]\n"
+                f"[cyan]{resolved_path}[/cyan]\n\n"
+                "[dim]Basic Memory has only updated the configuration - your files remain in their original location.[/dim]",
+                title="⚠️  Manual File Movement Required",
+                border_style="yellow",
+                expand=False,
+            )
+        )
+
     except Exception as e:
         console.print(f"[red]Error moving project: {str(e)}[/red]")
         raise typer.Exit(1)

@@ -311,33 +311,33 @@ class ProjectService:
 
     async def move_project(self, name: str, new_path: str) -> None:
         """Move a project to a new location.
-        
+
         Args:
             name: The name of the project to move
             new_path: The new absolute path for the project
-            
+
         Raises:
             ValueError: If the project doesn't exist or repository isn't initialized
         """
         if not self.repository:
             raise ValueError("Repository is required for move_project")
-        
+
         # Resolve to absolute path
         resolved_path = os.path.abspath(os.path.expanduser(new_path))
-        
+
         # Validate project exists in config
         if name not in self.config_manager.projects:
             raise ValueError(f"Project '{name}' not found in configuration")
-        
+
         # Create the new directory if it doesn't exist
         Path(resolved_path).mkdir(parents=True, exist_ok=True)
-        
+
         # Update in configuration
         config = self.config_manager.load_config()
         old_path = config.projects[name]
         config.projects[name] = resolved_path
         self.config_manager.save_config(config)
-        
+
         # Update in database
         project = await self.repository.get_by_name(name)
         if project:

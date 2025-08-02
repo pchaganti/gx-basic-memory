@@ -273,16 +273,16 @@ async def test_delete_nonexistent_project(project_repository: ProjectRepository)
 async def test_update_path(project_repository: ProjectRepository, sample_project: Project):
     """Test updating a project's path."""
     new_path = "/new/project/path"
-    
+
     # Update the project path
     updated_project = await project_repository.update_path(sample_project.id, new_path)
-    
+
     # Verify returned object
     assert updated_project is not None
     assert updated_project.id == sample_project.id
     assert updated_project.path == new_path
     assert updated_project.name == sample_project.name  # Other fields unchanged
-    
+
     # Verify in database
     found = await project_repository.find_by_id(sample_project.id)
     assert found is not None

@@ -51,7 +51,7 @@ async def update_project(
         # Validate that path is absolute if provided
         if path and not os.path.isabs(path):
             raise HTTPException(status_code=400, detail="Path must be absolute")
-            
+
         # Get original project info for the response
         old_project_info = ProjectItem(
             name=name,
