@@ -224,6 +224,8 @@ class TestSyncConflictHandling:
         entity_repository: EntityRepository,
     ):
         """Test conflict handling when case differences cause issues."""
+        import platform
+        
         project_dir = project_config.home
 
         # Create directory structure that might cause case conflicts
@@ -254,12 +256,22 @@ class TestSyncConflictHandling:
 
         # Verify entities were created
         entities = await entity_repository.find_all()
-        assert len(entities) >= 2  # Allow for potential other test files
-
-        # Check that file paths are preserved correctly
-        file_paths = [entity.file_path for entity in entities]
-        assert "Finance/investment.md" in file_paths
-        assert "finance/investment.md" in file_paths
+        
+        # On case-insensitive file systems (macOS, Windows), only one entity will be created
+        # On case-sensitive file systems (Linux), two entities will be created
+        if platform.system() in ["Darwin", "Windows"]:
+            # Case-insensitive file systems
+            assert len(entities) >= 1
+            # Only one of the paths will exist
+            file_paths = [entity.file_path for entity in entities]
+            assert any(path in ["Finance/investment.md", "finance/investment.md"] for path in file_paths)
+        else:
+            # Case-sensitive file systems (Linux)
+            assert len(entities) >= 2
+            # Check that file paths are preserved correctly
+            file_paths = [entity.file_path for entity in entities]
+            assert "Finance/investment.md" in file_paths
+            assert "finance/investment.md" in file_paths
 
     async def test_move_conflict_resolution(
         self,
