@@ -209,24 +209,24 @@ class ChatGPTImporter(Importer[ChatImportResult]):
 
         # Use iterative approach with stack to avoid recursion depth issues
         stack = [root_id]
-        
+
         while stack:
             node_id = stack.pop()
             if not node_id:
                 continue
-                
+
             node = mapping.get(node_id)
             if not node:
                 continue
-            
+
             # Process current node if it has a message and hasn't been seen
             if node["id"] not in seen and node.get("message"):
                 seen.add(node["id"])
                 messages.append(node["message"])
-            
+
             # Add children to stack in reverse order to maintain conversation flow
             children = node.get("children", [])
             for child_id in reversed(children):
                 stack.append(child_id)
-        
+
         return messages

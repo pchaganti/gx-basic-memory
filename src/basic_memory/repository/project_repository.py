@@ -86,11 +86,11 @@ class ProjectRepository(Repository[Project]):
 
     async def update_path(self, project_id: int, new_path: str) -> Optional[Project]:
         """Update project path.
-        
+
         Args:
             project_id: ID of the project to update
             new_path: New filesystem path for the project
-            
+
         Returns:
             The updated project if found, None otherwise
         """

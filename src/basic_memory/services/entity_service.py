@@ -47,35 +47,35 @@ class EntityService(BaseService[EntityModel]):
 
     async def detect_file_path_conflicts(self, file_path: str) -> List[Entity]:
         """Detect potential file path conflicts for a given file path.
-        
+
         This checks for entities with similar file paths that might cause conflicts:
         - Case sensitivity differences (Finance/file.md vs finance/file.md)
         - Character encoding differences
         - Hyphen vs space differences
         - Unicode normalization differences
-        
+
         Args:
             file_path: The file path to check for conflicts
-            
+
         Returns:
             List of entities that might conflict with the given file path
         """
         from basic_memory.utils import detect_potential_file_conflicts
-        
+
         conflicts = []
-        
+
         # Get all existing file paths
         all_entities = await self.repository.find_all()
         existing_paths = [entity.file_path for entity in all_entities]
-        
+
         # Use the enhanced conflict detection utility
         conflicting_paths = detect_potential_file_conflicts(file_path, existing_paths)
-        
+
         # Find the entities corresponding to conflicting paths
         for entity in all_entities:
             if entity.file_path in conflicting_paths:
                 conflicts.append(entity)
-        
+
         return conflicts
 
     async def resolve_permalink(
@@ -88,11 +88,11 @@ class EntityService(BaseService[EntityModel]):
         2. If markdown has permalink but it's used by another file -> make unique
         3. For existing files, keep current permalink from db
         4. Generate new unique permalink from file path
-        
+
         Enhanced to detect and handle character-related conflicts.
         """
         file_path_str = str(file_path)
-        
+
         # Check for potential file path conflicts before resolving permalink
         conflicts = await self.detect_file_path_conflicts(file_path_str)
         if conflicts:
@@ -100,7 +100,7 @@ class EntityService(BaseService[EntityModel]):
                 f"Detected potential file path conflicts for '{file_path_str}': "
                 f"{[entity.file_path for entity in conflicts]}"
             )
-        
+
         # If markdown has explicit permalink, try to validate it
         if markdown and markdown.frontmatter.permalink:
             desired_permalink = markdown.frontmatter.permalink

@@ -462,7 +462,7 @@ class SyncService:
                     f"entity_id={entity.id} trying to move from '{old_path}' to '{new_path}', "
                     f"but entity_id={existing_at_destination.id} already occupies '{new_path}'"
                 )
-                
+
                 # Check if this is a file swap (the destination entity is being moved to our old path)
                 # This would indicate a simultaneous move operation
                 old_path_after_swap = await self.entity_repository.get_by_file_path(old_path)
