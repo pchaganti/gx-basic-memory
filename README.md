@@ -13,8 +13,8 @@ Basic Memory lets you build persistent knowledge through natural conversations w
 Claude, while keeping everything in simple Markdown files on your computer. It uses the Model Context Protocol (MCP) to
 enable any compatible LLM to read and write to your local knowledge base.
 
-- Website: http://basicmachines.co
-- Documentation: http://memory.basicmachines.co
+- Website: https://basicmachines.co
+- Documentation: https://memory.basicmachines.co
 
 ## Pick up your conversation right where you left off
 
@@ -261,6 +261,38 @@ Examples of relations:
 - inspired_by [[Japanese Coffee Culture]]
 - documented_in [[Coffee Journal]]
 ```
+
+## Using with VS Code
+
+Add the following JSON block to your User Settings (JSON) file in VS Code. You can do this by pressing `Ctrl + Shift + P` and typing `Preferences: Open User Settings (JSON)`.
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "basic-memory": {
+        "command": "uvx",
+        "args": ["basic-memory", "mcp"]
+      }
+    }
+  }
+}
+```
+
+Optionally, you can add it to a file called `.vscode/mcp.json` in your workspace. This will allow you to share the configuration with others.
+
+```json
+{
+  "servers": {
+    "basic-memory": {
+      "command": "uvx",
+      "args": ["basic-memory", "mcp"]
+    }
+  }
+}
+```
+
+You can use Basic Memory with VS Code to easily retrieve and store information while coding.
 
 ## Using with Claude Desktop
 
