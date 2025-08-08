@@ -35,7 +35,7 @@ def generate_permalink(file_path: Union[Path, str, PathLike]) -> str:
 
     Returns:
         Normalized permalink that matches validation rules. Converts spaces and underscores
-        to hyphens for consistency.
+        to hyphens for consistency. Preserves non-ASCII characters like Chinese.
 
     Examples:
         >>> generate_permalink("docs/My Feature.md")
@@ -44,6 +44,8 @@ def generate_permalink(file_path: Union[Path, str, PathLike]) -> str:
         'specs/api-v2'
         >>> generate_permalink("design/unified_model_refactor.md")
         'design/unified-model-refactor'
+        >>> generate_permalink("中文/测试文档.md")
+        '中文/测试文档'
     """
     # Convert Path to string if needed
     path_str = str(file_path)
@@ -51,20 +53,43 @@ def generate_permalink(file_path: Union[Path, str, PathLike]) -> str:
     # Remove extension
     base = os.path.splitext(path_str)[0]
 
-    # Transliterate unicode to ascii
-    ascii_text = unidecode(base)
+    # Check if we have non-ASCII characters that should be preserved
+    has_non_ascii = any(ord(char) > 127 for char in base)
+    
+    if has_non_ascii:
+        # Preserve non-ASCII characters like Chinese while still processing ASCII parts
+        result = base
+        
+        # Insert dash between camelCase
+        result = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", result)
+        
+        # Convert only ASCII letters to lowercase, preserve non-ASCII
+        lower_text = "".join(c.lower() if c.isascii() and c.isalpha() else c for c in result)
+        
+        # Replace underscores with hyphens
+        text_with_hyphens = lower_text.replace("_", "-")
+        
+        # Replace spaces and unsafe ASCII chars with hyphens, preserve non-ASCII chars
+        # Includes Chinese character ranges (CJK Unified Ideographs, CJK symbols, etc.)
+        clean_text = re.sub(
+            r"[^a-z0-9\u4e00-\u9fff\u3000-\u303f\u3400-\u4dbf/\-]", "-", text_with_hyphens
+        )
+    else:
+        # Original ASCII-only processing for backward compatibility
+        # Transliterate unicode to ascii
+        ascii_text = unidecode(base)
 
-    # Insert dash between camelCase
-    ascii_text = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", ascii_text)
+        # Insert dash between camelCase
+        ascii_text = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", ascii_text)
 
-    # Convert to lowercase
-    lower_text = ascii_text.lower()
+        # Convert to lowercase
+        lower_text = ascii_text.lower()
 
-    # replace underscores with hyphens
-    text_with_hyphens = lower_text.replace("_", "-")
+        # replace underscores with hyphens
+        text_with_hyphens = lower_text.replace("_", "-")
 
-    # Replace remaining invalid chars with hyphens
-    clean_text = re.sub(r"[^a-z0-9/\-]", "-", text_with_hyphens)
+        # Replace remaining invalid chars with hyphens
+        clean_text = re.sub(r"[^a-z0-9/\-]", "-", text_with_hyphens)
 
     # Collapse multiple hyphens
     clean_text = re.sub(r"-+", "-", clean_text)
