@@ -139,8 +139,8 @@ class ProjectService:
         # First remove from config (this will validate the project exists and is not default)
         self.config_manager.remove_project(name)
 
-        # Then remove from database
-        project = await self.repository.get_by_name(name)
+        # Then remove from database using robust lookup
+        project = await self.get_project(name)
         if project:
             await self.repository.delete(project.id)
 
@@ -161,8 +161,8 @@ class ProjectService:
         # First update config file (this will validate the project exists)
         self.config_manager.set_default_project(name)
 
-        # Then update database
-        project = await self.repository.get_by_name(name)
+        # Then update database using the same lookup logic as get_project
+        project = await self.get_project(name)
         if project:
             await self.repository.set_as_default(project.id)
         else:
@@ -338,8 +338,8 @@ class ProjectService:
         config.projects[name] = resolved_path
         self.config_manager.save_config(config)
 
-        # Update in database
-        project = await self.repository.get_by_name(name)
+        # Update in database using robust lookup
+        project = await self.get_project(name)
         if project:
             await self.repository.update_path(project.id, resolved_path)
             logger.info(f"Moved project '{name}' from {old_path} to {resolved_path}")
@@ -370,8 +370,8 @@ class ProjectService:
         if name not in self.config_manager.projects:
             raise ValueError(f"Project '{name}' not found in configuration")
 
-        # Get project from database
-        project = await self.repository.get_by_name(name)
+        # Get project from database using robust lookup
+        project = await self.get_project(name)
         if not project:
             logger.error(f"Project '{name}' exists in config but not in database")
             return
