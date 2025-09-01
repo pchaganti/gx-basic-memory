@@ -74,6 +74,11 @@ class BasicMemoryConfig(BaseSettings):
         description="Whether to sync changes in real time. default (True)",
     )
 
+    kebab_filenames: bool = Field(
+        default=False,
+        description="Format for generated filenames. False preserves spaces and special chars, True converts them to hyphens for consistency with permalinks",
+    )
+
     # API connection configuration
     api_url: Optional[str] = Field(
         default=None,
@@ -242,7 +247,7 @@ class ConfigManager:
 
         # Load config, modify, and save
         config = self.load_config()
-        config.default_project = name
+        config.default_project = project_name
         self.save_config(config)
 
     def get_project(self, name: str) -> Tuple[str, str] | Tuple[None, None]:
