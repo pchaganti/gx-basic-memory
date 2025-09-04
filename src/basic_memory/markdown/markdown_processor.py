@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Optional
 from collections import OrderedDict
 
-import frontmatter
 from frontmatter import Post
 from loguru import logger
 

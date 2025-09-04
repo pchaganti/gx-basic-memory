@@ -95,14 +95,13 @@ class FileInventoryGenerator:
             blame_output = self.run_git_command(['blame', '--line-porcelain', file_path])
             contributors = {}
             
-            current_commit = None
             for line in blame_output.split('\n'):
                 if line.startswith('author '):
                     author = line[7:]  # Remove 'author ' prefix
                     contributors[author] = contributors.get(author, 0) + 1
                     
             return contributors
-        except:
+        except Exception:
             return {}
 
     def get_file_history(self, file_path: str) -> Dict[str, any]:
@@ -134,7 +133,7 @@ class FileInventoryGenerator:
                 'last_modified': last_commit or 'Unknown',
                 'commit_count': commit_count
             }
-        except:
+        except Exception:
             return {
                 'created': 'Unknown',
                 'last_modified': 'Unknown', 
@@ -165,7 +164,7 @@ class FileInventoryGenerator:
         try:
             with open(file_path, 'rb') as f:
                 return hashlib.sha256(f.read()).hexdigest()
-        except:
+        except Exception:
             return ""
 
     def categorize_file(self, file_path: Path) -> str:
@@ -229,7 +228,7 @@ class FileInventoryGenerator:
                     stat_info = file_path.stat()
                     file_size = stat_info.st_size
                     modified_time = datetime.fromtimestamp(stat_info.st_mtime)
-                except:
+                except Exception:
                     file_size = 0
                     modified_time = datetime.now()
                 

@@ -1,6 +1,5 @@
 """Tests for Obsidian-compatible YAML frontmatter formatting."""
 
-import pytest
 import frontmatter
 
 from basic_memory.file_utils import dump_frontmatter

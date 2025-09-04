@@ -139,7 +139,7 @@ async def test_issue_254_reproduction(project_service: ProjectService, tmp_path)
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
     }
-    entity = await entity_repo.create(entity_data)
+    await entity_repo.create(entity_data)
     
     # This should eventually work without errors once issue #254 is fixed
     #with pytest.raises(Exception) as exc_info:
