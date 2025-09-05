@@ -1,7 +1,6 @@
 """Integration tests for Obsidian-compatible YAML formatting in write_note tool."""
 
 import pytest
-from pathlib import Path
 
 from basic_memory.mcp.tools import write_note
 
@@ -70,7 +69,7 @@ async def test_write_note_stringified_json_tags(app, project_config):
 @pytest.mark.asyncio
 async def test_write_note_single_tag_yaml_format(app, project_config):
     """Test that single tags are still formatted as YAML lists."""
-    result = await write_note.fn(
+    await write_note.fn(
         title="Single Tag Test",
         folder="test",
         content="Testing single tag formatting",
@@ -88,7 +87,7 @@ async def test_write_note_single_tag_yaml_format(app, project_config):
 @pytest.mark.asyncio
 async def test_write_note_no_tags(app, project_config):
     """Test that notes without tags work normally."""
-    result = await write_note.fn(
+    await write_note.fn(
         title="No Tags Test",
         folder="test", 
         content="Testing note without tags",
@@ -106,7 +105,7 @@ async def test_write_note_no_tags(app, project_config):
 @pytest.mark.asyncio
 async def test_write_note_empty_tags_list(app, project_config):
     """Test that empty tag lists are handled properly."""
-    result = await write_note.fn(
+    await write_note.fn(
         title="Empty Tags Test",
         folder="test",
         content="Testing empty tag list",
@@ -164,7 +163,7 @@ async def test_write_note_update_preserves_yaml_format(app, project_config):
 @pytest.mark.asyncio
 async def test_complex_tags_yaml_format(app, project_config):
     """Test that complex tags with special characters format correctly."""
-    result = await write_note.fn(
+    await write_note.fn(
         title="Complex Tags Test",
         folder="test",
         content="Testing complex tag formats",
