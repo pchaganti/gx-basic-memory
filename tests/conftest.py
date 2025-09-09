@@ -11,7 +11,6 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-import basic_memory.mcp.project_session
 from basic_memory import db
 from basic_memory.config import ProjectConfig, BasicMemoryConfig, ConfigManager
 from basic_memory.db import DatabaseType
@@ -89,15 +88,6 @@ def config_manager(
     # Ensure the config file is written to disk
     config_manager.save_config(app_config)
     return config_manager
-
-
-@pytest.fixture(autouse=True)
-def project_session(test_project: Project):
-    # initialize the project session with the test project
-    basic_memory.mcp.project_session.session.initialize(test_project.name)
-    # Explicitly set current project as well to ensure it's used
-    basic_memory.mcp.project_session.session.set_current_project(test_project.name)
-    return basic_memory.mcp.project_session.session
 
 
 @pytest.fixture(scope="function", autouse=True)
