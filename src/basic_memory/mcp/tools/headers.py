@@ -35,11 +35,4 @@ def inject_auth_header(headers: HeaderTypes | None = None) -> HeaderTypes:
     else:
         logger.debug("No authorization found in request headers")
 
-    # This is a workaround for zlib decompression issues in Fly.io proxy
-    #   See: https://fly.io/docs/reference/content-encoding/
-    content_encoding = http_headers.get('Content-Encoding') or http_headers.get('content-encoding')
-    if content_encoding:
-        headers['Content-Encoding'] = 'none'  # type: ignore
-        logger.debug(f"Injected Content-Encoding: {content_encoding} into request headers")
-
     return headers
