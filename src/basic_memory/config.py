@@ -63,6 +63,10 @@ class BasicMemoryConfig(BaseSettings):
         default=1000, description="Milliseconds to wait after changes before syncing", gt=0
     )
 
+    watch_project_reload_interval: int = Field(
+        default=30, description="Seconds between reloading project list in watch service", gt=0
+    )
+
     # update permalinks on move
     update_permalinks_on_move: bool = Field(
         default=False,
@@ -83,6 +87,22 @@ class BasicMemoryConfig(BaseSettings):
     api_url: Optional[str] = Field(
         default=None,
         description="URL of remote Basic Memory API. If set, MCP will connect to this API instead of using local ASGI transport.",
+    )
+
+    # Cloud configuration
+    cloud_client_id: str = Field(
+        default="client_01K4DGBWAZWP83N3H8VVEMRX6W",
+        description="OAuth client ID for Basic Memory Cloud",
+    )
+
+    cloud_domain: str = Field(
+        default="https://eloquent-lotus-05.authkit.app",
+        description="AuthKit domain for Basic Memory Cloud",
+    )
+
+    cloud_host: str = Field(
+        default="https://cloud.basicmemory.com",
+        description="Basic Memory Cloud proxy host URL",
     )
 
     model_config = SettingsConfigDict(
@@ -157,6 +177,10 @@ class BasicMemoryConfig(BaseSettings):
                     logger.error(f"Failed to create project path: {e}")
                     raise e
         return v
+
+    @property
+    def data_dir_path(self):
+        return Path.home() / DATA_DIR_NAME
 
 
 class ConfigManager:
