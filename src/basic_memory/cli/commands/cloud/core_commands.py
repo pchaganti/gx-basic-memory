@@ -1,4 +1,4 @@
-"""Command module for basic-memory cloud operations."""
+"""Core cloud commands for Basic Memory CLI."""
 
 import asyncio
 from pathlib import Path
@@ -46,7 +46,7 @@ def login():
     asyncio.run(_login())
 
 
-# Project
+# Project commands
 
 project_app = typer.Typer(help="Manage Basic Memory Cloud Projects")
 cloud_app.add_typer(project_app, name="project")
