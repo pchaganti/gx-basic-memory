@@ -93,6 +93,11 @@ class BasicMemoryConfig(BaseSettings):
         description="Format for generated filenames. False preserves spaces and special chars, True converts them to hyphens for consistency with permalinks",
     )
 
+    skip_initialization_sync: bool = Field(
+        default=False,
+        description="Skip expensive initialization synchronization. Useful for cloud/stateless deployments where project reconciliation is not needed.",
+    )
+
     # API connection configuration
     api_url: Optional[str] = Field(
         default=None,
@@ -310,7 +315,7 @@ def get_project_config(project_name: Optional[str] = None) -> ProjectConfig:
     os_project_name = os.environ.get("BASIC_MEMORY_PROJECT", None)
     if os_project_name:  # pragma: no cover
         logger.warning(
-            f"BASIC_MEMORY_PROJECT is not supported anymore. Use the --project flag or set the default project in the config instead. Setting default project to {os_project_name}"
+            f"BASIC_MEMORY_PROJECT is not supported anymore. Set the default project in the config instead. Setting default project to {os_project_name}"
         )
         actual_project_name = project_name
     # if the project_name is passed in, use it
@@ -339,15 +344,6 @@ def save_basic_memory_config(file_path: Path, config: BasicMemoryConfig) -> None
         file_path.write_text(json.dumps(config.model_dump(), indent=2))
     except Exception as e:  # pragma: no cover
         logger.error(f"Failed to save config: {e}")
-
-
-def update_current_project(project_name: str) -> None:
-    """Update the global config to use a different project.
-
-    This is used by the CLI when --project flag is specified.
-    """
-    global config
-    config = get_project_config(project_name)  # pragma: no cover
 
 
 # setup logging to a single log file in user home directory
