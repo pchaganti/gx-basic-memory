@@ -98,15 +98,9 @@ class BasicMemoryConfig(BaseSettings):
         description="Skip expensive initialization synchronization. Useful for cloud/stateless deployments where project reconciliation is not needed.",
     )
 
-    # API connection configuration
-    api_url: Optional[str] = Field(
-        default=None,
-        description="URL of remote Basic Memory API. If set, MCP will connect to this API instead of using local ASGI transport.",
-    )
-
     # Cloud configuration
     cloud_client_id: str = Field(
-        default="client_01K4DGBWAZWP83N3H8VVEMRX6W",
+        default="client_01K6KWQPW6J1M8VV7R3TZP5A6M",
         description="OAuth client ID for Basic Memory Cloud",
     )
 
@@ -116,8 +110,39 @@ class BasicMemoryConfig(BaseSettings):
     )
 
     cloud_host: str = Field(
-        default="https://cloud.basicmemory.com",
-        description="Basic Memory Cloud proxy host URL",
+        default_factory=lambda: os.getenv(
+            "BASIC_MEMORY_CLOUD_HOST", "https://cloud.basicmemory.com"
+        ),
+        description="Basic Memory Cloud host URL",
+    )
+
+    cloud_mode: bool = Field(
+        default=False,
+        description="Enable cloud mode - all requests go to cloud instead of local (config file value)",
+    )
+
+    @property
+    def cloud_mode_enabled(self) -> bool:
+        """Check if cloud mode is enabled.
+
+        Priority:
+        1. BASIC_MEMORY_CLOUD_MODE environment variable
+        2. Config file value (cloud_mode)
+        """
+        env_value = os.environ.get("BASIC_MEMORY_CLOUD_MODE", "").lower()
+        if env_value in ("true", "1", "yes"):
+            return True
+        elif env_value in ("false", "0", "no"):
+            return False
+        # Fall back to config file value
+        return self.cloud_mode
+
+    bisync_config: Dict[str, Any] = Field(
+        default_factory=lambda: {
+            "profile": "balanced",
+            "sync_dir": str(Path.home() / "basic-memory-cloud-sync"),
+        },
+        description="Bisync configuration for cloud sync",
     )
 
     model_config = SettingsConfigDict(
