@@ -26,7 +26,10 @@ def get_cloud_config() -> tuple[str, str, str]:
 
 
 async def get_authenticated_headers() -> dict[str, str]:
-    """Get authentication headers with JWT token."""
+    """
+    Get authentication headers with JWT token.
+    handles jwt refresh if needed.
+    """
     client_id, domain, _ = get_cloud_config()
     auth = CLIAuth(client_id=client_id, authkit_domain=domain)
     token = await auth.get_valid_token()
@@ -54,12 +57,12 @@ async def make_api_request(
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
             console.print(f"[dim]Making {method} request to {url}[/dim]")
-            console.print(f"[dim]Headers: {dict(headers)}[/dim]")
+            # console.print(f"[dim]Headers: {dict(headers)}[/dim]")
 
             response = await client.request(method=method, url=url, headers=headers, json=json_data)
 
             console.print(f"[dim]Response status: {response.status_code}[/dim]")
-            console.print(f"[dim]Response headers: {dict(response.headers)}[/dim]")
+            # console.print(f"[dim]Response headers: {dict(response.headers)}[/dim]")
 
             response.raise_for_status()
             return response
