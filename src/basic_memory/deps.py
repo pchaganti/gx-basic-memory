@@ -260,6 +260,7 @@ async def get_entity_service(
     entity_parser: EntityParserDep,
     file_service: FileServiceDep,
     link_resolver: "LinkResolverDep",
+    app_config: AppConfigDep,
 ) -> EntityService:
     """Create EntityService with repository."""
     return EntityService(
@@ -269,6 +270,7 @@ async def get_entity_service(
         entity_parser=entity_parser,
         file_service=file_service,
         link_resolver=link_resolver,
+        app_config=app_config,
     )
 
 
