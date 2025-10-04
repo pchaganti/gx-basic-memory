@@ -93,9 +93,20 @@ class BasicMemoryConfig(BaseSettings):
         description="Format for generated filenames. False preserves spaces and special chars, True converts them to hyphens for consistency with permalinks",
     )
 
+    disable_permalinks: bool = Field(
+        default=False,
+        description="Disable automatic permalink generation in frontmatter. When enabled, new notes won't have permalinks added and sync won't update permalinks. Existing permalinks will still work for reading.",
+    )
+
     skip_initialization_sync: bool = Field(
         default=False,
         description="Skip expensive initialization synchronization. Useful for cloud/stateless deployments where project reconciliation is not needed.",
+    )
+
+    # API connection configuration
+    api_url: Optional[str] = Field(
+        default=None,
+        description="URL of remote Basic Memory API. If set, MCP will connect to this API instead of using local ASGI transport.",
     )
 
     # Cloud configuration
