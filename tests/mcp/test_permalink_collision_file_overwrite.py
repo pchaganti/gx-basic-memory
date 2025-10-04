@@ -89,17 +89,18 @@ async def test_permalink_collision_should_not_overwrite_different_file(app, test
     # This is where the bug manifests - Node A.md gets overwritten with Node C content
     content_a_after = await read_note.fn("edge-cases/node-a", project=test_project.name)
     assert "Node A" in content_a_after, "Node A title should still be 'Node A'"
-    assert "Original content for Node A" in content_a_after, \
+    assert "Original content for Node A" in content_a_after, (
         "Node A file should NOT be overwritten by Node C creation"
-    assert "Content for Node C" not in content_a_after, \
-        "Node A should NOT contain Node C's content"
+    )
+    assert "Content for Node C" not in content_a_after, "Node A should NOT contain Node C's content"
 
     # Verify Node C has its own content
     content_c = await read_note.fn("edge-cases/node-c", project=test_project.name)
     assert "Node C" in content_c
     assert "Content for Node C" in content_c
-    assert "Original content for Node A" not in content_c, \
+    assert "Original content for Node A" not in content_c, (
         "Node C should not contain Node A's content"
+    )
 
     # Verify files physically exist with correct content
     project_path = Path(test_project.path)
@@ -113,17 +114,18 @@ async def test_permalink_collision_should_not_overwrite_different_file(app, test
     node_a_file_content = node_a_file.read_text()
     node_c_file_content = node_c_file.read_text()
 
-    assert "Node A" in node_a_file_content, \
-        "Physical file Node A.md should contain Node A title"
-    assert "Original content for Node A" in node_a_file_content, \
+    assert "Node A" in node_a_file_content, "Physical file Node A.md should contain Node A title"
+    assert "Original content for Node A" in node_a_file_content, (
         "Physical file Node A.md should contain original Node A content"
-    assert "Content for Node C" not in node_a_file_content, \
+    )
+    assert "Content for Node C" not in node_a_file_content, (
         "Physical file Node A.md should NOT contain Node C content"
+    )
 
-    assert "Node C" in node_c_file_content, \
-        "Physical file Node C.md should contain Node C title"
-    assert "Content for Node C" in node_c_file_content, \
+    assert "Node C" in node_c_file_content, "Physical file Node C.md should contain Node C title"
+    assert "Content for Node C" in node_c_file_content, (
         "Physical file Node C.md should contain Node C content"
+    )
 
 
 @pytest.mark.asyncio
@@ -161,12 +163,14 @@ async def test_notes_with_similar_titles_maintain_separate_files(app, test_proje
 
         # Verify each note can be read back with its own content
         content = await read_note.fn(permalink, project=test_project.name)
-        assert f"Unique content for {title}" in content, \
+        assert f"Unique content for {title}" in content, (
             f"Note with title '{title}' should maintain its unique content"
+        )
 
     # Verify all created permalinks are tracked
-    assert len(created_permalinks) == len(titles_and_folders), \
+    assert len(created_permalinks) == len(titles_and_folders), (
         "All notes should be created successfully"
+    )
 
 
 @pytest.mark.asyncio
@@ -202,8 +206,9 @@ async def test_sequential_note_creation_preserves_all_files(app, test_project):
         content = await read_note.fn(permalink, project=test_project.name)
 
         assert title in content, f"Note '{title}' should still have its title"
-        assert expected_content.split("\n\n")[1] in content, \
+        assert expected_content.split("\n\n")[1] in content, (
             f"Note '{title}' should still have its original content"
+        )
 
     # Verify physical files exist
     project_path = Path(test_project.path)
@@ -214,8 +219,7 @@ async def test_sequential_note_creation_preserves_all_files(app, test_project):
         assert file_path.exists(), f"File for '{title}' should exist"
 
         file_content = file_path.read_text()
-        assert title in file_content, \
-            f"Physical file for '{title}' should contain correct title"
+        assert title in file_content, f"Physical file for '{title}' should contain correct title"
 
 
 @pytest.mark.asyncio
@@ -329,14 +333,16 @@ async def test_sync_permalink_collision_file_overwrite_bug(
     node_a_after_sync = node_a_file.read_text()
 
     # The bug: Node A.md contains Node C content instead of Node A content
-    assert "title: Node A" in node_a_after_sync, \
+    assert "title: Node A" in node_a_after_sync, (
         "Node A.md file should still have title: Node A in frontmatter"
-    assert "Node A" in node_a_after_sync, \
-        "Node A.md file should still contain 'Node A' title"
-    assert "Original content for Node A" in node_a_after_sync, \
+    )
+    assert "Node A" in node_a_after_sync, "Node A.md file should still contain 'Node A' title"
+    assert "Original content for Node A" in node_a_after_sync, (
         f"Node A.md file should NOT be overwritten! Content: {node_a_after_sync[:200]}"
-    assert "Content for Node C" not in node_a_after_sync, \
+    )
+    assert "Content for Node C" not in node_a_after_sync, (
         f"Node A.md should NOT contain Node C content! Content: {node_a_after_sync[:200]}"
+    )
 
     # Verify Node C file exists with correct content
     assert node_c_file.exists(), "Node C.md file should exist"

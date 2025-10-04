@@ -1876,14 +1876,17 @@ async def test_create_or_update_entity_fuzzy_search_bug(
     # Re-read Node A file to ensure it wasn't overwritten
     content_a_after = file_a.read_text()
     assert "title: Node A" in content_a_after, "Node A.md should still have Node A title"
-    assert "Original content for Node A" in content_a_after, \
+    assert "Original content for Node A" in content_a_after, (
         "Node A.md should NOT be overwritten with Node C content"
-    assert "Content for Node C" not in content_a_after, \
+    )
+    assert "Content for Node C" not in content_a_after, (
         "Node A.md should not contain Node C content"
+    )
 
     # Verify Node C file has correct content
     content_c = file_c.read_text()
     assert "title: Node C" in content_c, "Node C.md should have Node C title"
     assert "Content for Node C" in content_c, "Node C.md should have Node C content"
-    assert "Original content for Node A" not in content_c, \
+    assert "Original content for Node A" not in content_c, (
         "Node C.md should not contain Node A content"
+    )
