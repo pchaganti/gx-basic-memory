@@ -2,7 +2,7 @@
 
 Quick reference for using Basic Memory tools effectively through MCP.
 
-**For comprehensive coverage**: See the [Extended AI Assistant Guide](https://github.com/basicmachines-co/basic-memory/blob/main/v15-docs/ai-assistant-guide-extended.md) with detailed examples, advanced patterns, and self-contained sections.
+**For comprehensive coverage**: See the [Extended AI Assistant Guide](https://github.com/basicmachines-co/basic-memory/blob/main/docs/ai-assistant-guide-extended.md) with detailed examples, advanced patterns, and self-contained sections.
 
 ## Overview
 
@@ -14,11 +14,9 @@ Basic Memory creates a semantic knowledge graph from markdown files. Focus on bu
 
 **Your role**: You're helping humans build enduring knowledge they'll own forever. The semantic graph (observations, relations, context) helps you provide better assistance by understanding connections and maintaining continuity. Think: lasting insights worth keeping, not disposable chat logs.
 
-## Project Management (v0.15.0+)
+## Project Management 
 
-### Stateless Architecture
-
-All tools require explicit project specification (breaking change from v0.14.x).
+All tools require explicit project specification.
 
 **Three-tier resolution:**
 1. CLI constraint: `--project name` (highest priority)
@@ -279,19 +277,6 @@ context = await build_context(url=f"memory://{results[0].permalink}", project="m
 - `memory://folder/title` - By folder + title
 - `memory://permalink` - By permalink
 - `memory://folder/*` - All in folder
-
-## Key Changes in v0.15.0
-
-1. **Project parameter required** (breaking change)
-   - Enable `default_project_mode` for single-project workflows
-
-2. **Stateless tools**
-   - No implicit project context
-   - Each call specifies project
-
-3. **Project discovery**
-   - Use `list_memory_projects()` to find projects
-   - Use `recent_activity()` for recommendations
 
 For full documentation: https://docs.basicmemory.com
 
