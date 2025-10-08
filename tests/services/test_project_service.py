@@ -781,7 +781,11 @@ async def test_add_project_with_project_root_sanitizes_paths(
             # (project_name, user_path, expected_sanitized_name)
             # User path is IGNORED - only project name matters
             ("test", "anything/path", "test"),
-            ("Test BiSync", "~/Documents/Test BiSync", "test-bi-sync"),  # BiSync -> bi-sync (dash preserved)
+            (
+                "Test BiSync",
+                "~/Documents/Test BiSync",
+                "test-bi-sync",
+            ),  # BiSync -> bi-sync (dash preserved)
             ("My Project", "/tmp/whatever", "my-project"),
             ("UPPERCASE", "~", "uppercase"),
             ("With Spaces", "~/Documents/With Spaces", "with-spaces"),
@@ -801,12 +805,8 @@ async def test_add_project_with_project_root_sanitizes_paths(
 
                 # The path should be under project_root (resolve both to handle macOS /private/var)
                 assert (
-                    Path(actual_path)
-                    .resolve()
-                    .is_relative_to(Path(project_root_path).resolve())
-                ), (
-                    f"Path {actual_path} should be under {project_root_path}"
-                )
+                    Path(actual_path).resolve().is_relative_to(Path(project_root_path).resolve())
+                ), f"Path {actual_path} should be under {project_root_path}"
 
                 # Verify the final path segment is the sanitized project name
                 path_parts = Path(actual_path).parts
@@ -910,7 +910,9 @@ async def test_add_project_without_project_root_allows_arbitrary_paths(
                 await project_service.remove_project(test_project_name)
 
 
-@pytest.mark.skip(reason="Obsolete: project_root mode now uses sanitized project name, not user path. See test_add_project_with_project_root_sanitizes_paths instead.")
+@pytest.mark.skip(
+    reason="Obsolete: project_root mode now uses sanitized project name, not user path. See test_add_project_with_project_root_sanitizes_paths instead."
+)
 @pytest.mark.skipif(os.name == "nt", reason="Project root constraints only tested on POSIX systems")
 @pytest.mark.asyncio
 async def test_add_project_with_project_root_normalizes_case(
@@ -962,7 +964,9 @@ async def test_add_project_with_project_root_normalizes_case(
                 pytest.fail(f"Unexpected ValueError for input path {input_path}: {e}")
 
 
-@pytest.mark.skip(reason="Obsolete: project_root mode now uses sanitized project name, not user path.")
+@pytest.mark.skip(
+    reason="Obsolete: project_root mode now uses sanitized project name, not user path."
+)
 @pytest.mark.skipif(os.name == "nt", reason="Project root constraints only tested on POSIX systems")
 @pytest.mark.asyncio
 async def test_add_project_with_project_root_detects_case_collisions(
@@ -1173,7 +1177,9 @@ async def test_add_project_nested_validation_with_project_root(
             # NOT the user-provided path "parent-folder"
             assert parent_project_name.lower() in parent_actual_path.lower()
             # Resolve both to handle macOS /private/var vs /var
-            assert Path(parent_actual_path).resolve().is_relative_to(Path(project_root_path).resolve())
+            assert (
+                Path(parent_actual_path).resolve().is_relative_to(Path(project_root_path).resolve())
+            )
 
             # Nested projects should still be prevented, even with user path ignored
             # Since paths use project names, this won't actually be nested
