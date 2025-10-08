@@ -38,3 +38,15 @@ def create_client() -> AsyncClient:
 
 # Create shared async client
 client = create_client()
+
+# Instrument client for distributed tracing when in cloud mode
+# This must happen AFTER client creation and works in both MCP and API contexts
+config = ConfigManager().config
+if config.cloud_mode_enabled:
+    try:
+        import logfire  # pyright: ignore[reportMissingImports]
+
+        logger.info("Cloud mode: instrumenting httpx client for distributed tracing")
+        logfire.instrument_httpx(client=client)
+    except ImportError:
+        logger.warning("logfire not available - skipping httpx instrumentation")
