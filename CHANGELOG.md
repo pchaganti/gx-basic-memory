@@ -1,5 +1,160 @@
 # CHANGELOG
 
+## v0.15.1 (2025-10-13)
+
+### Performance Improvements
+
+- **#352**: Optimize sync/indexing for 43% faster performance
+  ([`c0538ad`](https://github.com/basicmachines-co/basic-memory/commit/c0538ad2perf0d68a2a3604e255c3f2c42c5ed))
+  - Significant performance improvements to file synchronization and indexing operations
+  - 43% reduction in sync time for large knowledge bases
+  - Optimized database queries and file processing
+
+- **#350**: Optimize directory operations for 10-100x performance improvement
+  ([`00b73b0`](https://github.com/basicmachines-co/basic-memory/commit/00b73b0d))
+  - Dramatic performance improvements for directory listing operations
+  - 10-100x faster directory traversal depending on knowledge base size
+  - Reduced memory footprint for large directory structures
+  - Exclude null fields from directory endpoint responses for smaller payloads
+
+### Bug Fixes
+
+- **#355**: Update view_note and ChatGPT tools for Claude Desktop compatibility
+  ([`2b7008d`](https://github.com/basicmachines-co/basic-memory/commit/2b7008d9))
+  - Fix view_note tool formatting for better Claude Desktop rendering
+  - Update ChatGPT tool integration for improved compatibility
+  - Enhanced artifact display in Claude Desktop interface
+
+- **#348**: Add permalink normalization to project lookups in deps.py
+  ([`a09066e`](https://github.com/basicmachines-co/basic-memory/commit/a09066e0))
+  - Fix project lookup failures due to case sensitivity
+  - Normalize permalinks consistently across project operations
+  - Improve project switching reliability
+
+- **#345**: Project deletion failing with permalink normalization
+  ([`be352ab`](https://github.com/basicmachines-co/basic-memory/commit/be352ab4))
+  - Fix project deletion errors related to permalink handling
+  - Ensure proper cleanup of project resources
+  - Improve error messages for deletion failures
+
+- **#341**: Correct ProjectItem.home property to return path instead of name
+  ([`3e876a7`](https://github.com/basicmachines-co/basic-memory/commit/3e876a75))
+  - Fix ProjectItem.home to return correct project path
+  - Resolve configuration issues with project paths
+  - Improve project path resolution consistency
+
+- **#339**: Prevent nested project paths to avoid data conflicts
+  ([`795e339`](https://github.com/basicmachines-co/basic-memory/commit/795e3393))
+  - Block creation of nested project paths that could cause data conflicts
+  - Add validation to prevent project path hierarchy issues
+  - Improve error messages for invalid project configurations
+
+- **#338**: Normalize paths to lowercase in cloud mode to prevent case collisions
+  ([`07e304c`](https://github.com/basicmachines-co/basic-memory/commit/07e304ce))
+  - Fix path case sensitivity issues in cloud deployments
+  - Normalize paths consistently across cloud operations
+  - Prevent data loss from case-insensitive filesystem collisions
+
+- **#336**: Cloud mode path validation and sanitization (bmc-issue-103)
+  ([`2a1c06d`](https://github.com/basicmachines-co/basic-memory/commit/2a1c06d9))
+  - Enhanced path validation for cloud deployments
+  - Improved path sanitization to prevent security issues
+  - Better error handling for invalid paths in cloud mode
+
+- **#332**: Cloud mode path validation and sanitization
+  ([`7616b2b`](https://github.com/basicmachines-co/basic-memory/commit/7616b2bb))
+  - Additional cloud mode path fixes and improvements
+  - Comprehensive path validation for cloud environments
+  - Security enhancements for path handling
+
+### Features
+
+- **#344**: Async client context manager pattern for cloud consolidation (SPEC-16)
+  ([`8d2e70c`](https://github.com/basicmachines-co/basic-memory/commit/8d2e70cf))
+  - Refactor async client to use context manager pattern
+  - Improve resource management and cleanup
+  - Enable better dependency injection for cloud deployments
+  - Foundation for cloud platform consolidation
+
+- **#343**: Add SPEC-15 for configuration persistence via Tigris
+  ([`53438d1`](https://github.com/basicmachines-co/basic-memory/commit/53438d1e))
+  - Design specification for persistent configuration storage
+  - Foundation for cloud configuration management
+  - Tigris S3-compatible storage integration planning
+
+- **#334**: Introduce BASIC_MEMORY_PROJECT_ROOT for path constraints
+  ([`ccc4386`](https://github.com/basicmachines-co/basic-memory/commit/ccc43866))
+  - Add environment variable for constraining project paths
+  - Improve security by limiting project creation locations
+  - Better control over project directory structure
+
+### Documentation
+
+- **#335**: v0.15.0 assistant guide updates
+  ([`c6f93a0`](https://github.com/basicmachines-co/basic-memory/commit/c6f93a02))
+  - Update AI assistant guide for v0.15.0 features
+  - Improve documentation for new MCP tools
+  - Better examples and usage patterns
+
+- **#339**: Add tool use documentation to write_note for root folder usage
+  ([`73202d1`](https://github.com/basicmachines-co/basic-memory/commit/73202d1a))
+  - Document how to use empty string for root folder in write_note
+  - Clarify folder parameter usage
+  - Improve tool documentation clarity
+
+- Fix link in ai_assistant_guide resource
+  ([`2a1c06d`](https://github.com/basicmachines-co/basic-memory/commit/2a1c06d9))
+  - Correct broken documentation links
+  - Improve resource accessibility
+
+### Refactoring
+
+- Add SPEC-17 and SPEC-18 documentation
+  ([`962d88e`](https://github.com/basicmachines-co/basic-memory/commit/962d88ea))
+  - New specification documents for future features
+  - Architecture planning and design documentation
+
+### Breaking Changes
+
+**None** - This release maintains full backward compatibility with v0.15.0
+
+### Migration Guide
+
+No manual migration required. Upgrade with:
+
+```bash
+# Update via uv
+uv tool upgrade basic-memory
+
+# Or install fresh
+uv tool install basic-memory
+```
+
+**What's Fixed:**
+- Significant performance improvements (43% faster sync, 10-100x faster directory operations)
+- Multiple cloud deployment stability fixes
+- Project path validation and normalization issues resolved
+- Better Claude Desktop and ChatGPT integration
+
+**What's New:**
+- Context manager pattern for async clients (foundation for cloud consolidation)
+- BASIC_MEMORY_PROJECT_ROOT environment variable for path constraints
+- Enhanced cloud mode path handling and security
+- SPEC-15 and SPEC-16 architecture documentation
+
+### Installation
+
+```bash
+# Latest stable release
+uv tool install basic-memory
+
+# Update existing installation
+uv tool upgrade basic-memory
+
+# Docker
+docker pull ghcr.io/basicmachines-co/basic-memory:v0.15.1
+```
+
 ## v0.15.0 (2025-10-04)
 
 ### Critical Bug Fixes
