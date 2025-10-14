@@ -31,6 +31,7 @@ console = Console()
 project_app = typer.Typer(help="Manage multiple Basic Memory projects")
 app.add_typer(project_app, name="project")
 
+
 def format_path(path: str) -> str:
     """Format a path for display, using ~ for home directory."""
     home = str(Path.home())
@@ -69,7 +70,9 @@ def list_projects() -> None:
 @project_app.command("add")
 def add_project(
     name: str = typer.Argument(..., help="Name of the project"),
-    path: str = typer.Argument(None, help="Path to the project directory (required for local mode)"),
+    path: str = typer.Argument(
+        None, help="Path to the project directory (required for local mode)"
+    ),
     set_default: bool = typer.Option(False, "--default", help="Set as default project"),
 ) -> None:
     """Add a new project.
@@ -213,9 +216,7 @@ def move_project(
             project_permalink = generate_permalink(name)
 
             # TODO fix route to use ProjectPathDep
-            response = await call_patch(
-                client, f"/{name}/project/{project_permalink}", json=data
-            )
+            response = await call_patch(client, f"/{name}/project/{project_permalink}", json=data)
             return ProjectStatusResponse.model_validate(response.json())
 
     try:

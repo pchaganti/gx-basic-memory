@@ -1,7 +1,5 @@
 """Tests for upload module."""
 
-import os
-from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -126,7 +124,9 @@ class TestUploadPath:
 
         with patch("basic_memory.cli.commands.cloud.upload.get_client") as mock_get_client:
             with patch("basic_memory.cli.commands.cloud.upload.call_put") as mock_put:
-                with patch("basic_memory.cli.commands.cloud.upload._get_files_to_upload") as mock_get_files:
+                with patch(
+                    "basic_memory.cli.commands.cloud.upload._get_files_to_upload"
+                ) as mock_get_files:
                     with patch("aiofiles.open", create=True) as mock_aiofiles_open:
                         # Setup mocks
                         mock_get_client.return_value.__aenter__.return_value = mock_client
@@ -305,7 +305,9 @@ class TestUploadPath:
 
         with patch("basic_memory.cli.commands.cloud.upload.get_client") as mock_get_client:
             with patch("basic_memory.cli.commands.cloud.upload.call_put") as mock_put:
-                with patch("basic_memory.cli.commands.cloud.upload._get_files_to_upload") as mock_get_files:
+                with patch(
+                    "basic_memory.cli.commands.cloud.upload._get_files_to_upload"
+                ) as mock_get_files:
                     with patch("aiofiles.open", create=True) as mock_aiofiles_open:
                         mock_get_client.return_value.__aenter__.return_value = mock_client
                         mock_get_client.return_value.__aexit__.return_value = None
