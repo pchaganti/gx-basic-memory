@@ -41,6 +41,8 @@ class CloudProjectCreateRequest(BaseModel):
 class CloudProjectCreateResponse(BaseModel):
     """Response from creating a cloud project."""
 
-    name: str = Field(..., description="Created project name")
-    path: str = Field(..., description="Created project path")
-    message: str = Field(default="", description="Success message")
+    message: str = Field(..., description="Status message about the project creation")
+    status: str = Field(..., description="Status of the creation (success or error)")
+    default: bool = Field(..., description="True if the project was set as the default")
+    old_project: dict | None = Field(None, description="Information about the previous project")
+    new_project: dict | None = Field(None, description="Information about the newly created project")
