@@ -1,5 +1,49 @@
 # CHANGELOG
 
+## v0.15.2 (2025-10-14)
+
+### Features
+
+- **#356**: Add WebDAV upload command for cloud projects
+  ([`5258f45`](https://github.com/basicmachines-co/basic-memory/commit/5258f457))
+  - New `bm cloud upload` command for uploading local files/directories to cloud projects
+  - WebDAV-based file transfer with automatic directory creation
+  - Support for `.gitignore` and `.bmignore` pattern filtering
+  - Automatic project creation with `--create-project` flag
+  - Optional post-upload sync with `--sync` flag (enabled by default)
+  - Human-readable file size reporting (bytes, KB, MB)
+  - Comprehensive test coverage (28 unit tests)
+
+### Migration Guide
+
+No manual migration required. Upgrade with:
+
+```bash
+# Update via uv
+uv tool upgrade basic-memory
+
+# Or install fresh
+uv tool install basic-memory
+```
+
+**What's New:**
+- Upload local files to cloud projects with `bm cloud upload`
+- Streamlined cloud project creation and management
+- Better file filtering with gitignore integration
+
+### Installation
+
+```bash
+# Latest stable release
+uv tool install basic-memory
+
+# Update existing installation
+uv tool upgrade basic-memory
+
+# Docker
+docker pull ghcr.io/basicmachines-co/basic-memory:v0.15.2
+```
+
 ## v0.15.1 (2025-10-13)
 
 ### Performance Improvements

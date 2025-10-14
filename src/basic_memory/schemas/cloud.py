@@ -45,4 +45,6 @@ class CloudProjectCreateResponse(BaseModel):
     status: str = Field(..., description="Status of the creation (success or error)")
     default: bool = Field(..., description="True if the project was set as the default")
     old_project: dict | None = Field(None, description="Information about the previous project")
-    new_project: dict | None = Field(None, description="Information about the newly created project")
+    new_project: dict | None = Field(
+        None, description="Information about the newly created project"
+    )

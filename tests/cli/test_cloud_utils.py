@@ -217,7 +217,9 @@ class TestSyncProject:
     async def test_syncs_project_successfully(self):
         """Test successful project sync."""
         # Patch at the point where it's imported (inside the function)
-        with patch("basic_memory.cli.commands.command_utils.run_sync", new_callable=AsyncMock) as mock_sync:
+        with patch(
+            "basic_memory.cli.commands.command_utils.run_sync", new_callable=AsyncMock
+        ) as mock_sync:
             await sync_project("test-project")
 
         # Verify run_sync was called with project name
@@ -227,7 +229,9 @@ class TestSyncProject:
     async def test_raises_error_on_sync_failure(self):
         """Test that CloudUtilsError is raised on sync failure."""
         # Patch at the point where it's imported (inside the function)
-        with patch("basic_memory.cli.commands.command_utils.run_sync", new_callable=AsyncMock) as mock_sync:
+        with patch(
+            "basic_memory.cli.commands.command_utils.run_sync", new_callable=AsyncMock
+        ) as mock_sync:
             mock_sync.side_effect = Exception("Sync failed")
 
             with pytest.raises(CloudUtilsError) as exc_info:

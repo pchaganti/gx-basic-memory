@@ -31,8 +31,6 @@ console = Console()
 project_app = typer.Typer(help="Manage multiple Basic Memory projects")
 app.add_typer(project_app, name="project")
 
-config = ConfigManager().config
-
 
 def format_path(path: str) -> str:
     """Format a path for display, using ~ for home directory."""
@@ -69,40 +67,34 @@ def list_projects() -> None:
         raise typer.Exit(1)
 
 
-if config.cloud_mode_enabled:
+@project_app.command("add")
+def add_project(
+    name: str = typer.Argument(..., help="Name of the project"),
+    path: str = typer.Argument(
+        None, help="Path to the project directory (required for local mode)"
+    ),
+    set_default: bool = typer.Option(False, "--default", help="Set as default project"),
+) -> None:
+    """Add a new project.
 
-    @project_app.command("add")
-    def add_project_cloud(
-        name: str = typer.Argument(..., help="Name of the project"),
-        set_default: bool = typer.Option(False, "--default", help="Set as default project"),
-    ) -> None:
-        """Add a new project to Basic Memory Cloud"""
+    For cloud mode: only name is required
+    For local mode: both name and path are required
+    """
+    config = ConfigManager().config
 
+    if config.cloud_mode_enabled:
+        # Cloud mode: path not needed (auto-generated from name)
         async def _add_project():
             async with get_client() as client:
                 data = {"name": name, "path": generate_permalink(name), "set_default": set_default}
                 response = await call_post(client, "/projects/projects", json=data)
                 return ProjectStatusResponse.model_validate(response.json())
-
-        try:
-            result = asyncio.run(_add_project())
-            console.print(f"[green]{result.message}[/green]")
-        except Exception as e:
-            console.print(f"[red]Error adding project: {str(e)}[/red]")
+    else:
+        # Local mode: path is required
+        if path is None:
+            console.print("[red]Error: path argument is required in local mode[/red]")
             raise typer.Exit(1)
 
-        # Display usage hint
-        console.print("\nTo use this project:")
-        console.print(f"  basic-memory --project={name} <command>")
-else:
-
-    @project_app.command("add")
-    def add_project(
-        name: str = typer.Argument(..., help="Name of the project"),
-        path: str = typer.Argument(..., help="Path to the project directory"),
-        set_default: bool = typer.Option(False, "--default", help="Set as default project"),
-    ) -> None:
-        """Add a new project."""
         # Resolve to absolute path
         resolved_path = Path(os.path.abspath(os.path.expanduser(path))).as_posix()
 
@@ -112,16 +104,16 @@ else:
                 response = await call_post(client, "/projects/projects", json=data)
                 return ProjectStatusResponse.model_validate(response.json())
 
-        try:
-            result = asyncio.run(_add_project())
-            console.print(f"[green]{result.message}[/green]")
-        except Exception as e:
-            console.print(f"[red]Error adding project: {str(e)}[/red]")
-            raise typer.Exit(1)
+    try:
+        result = asyncio.run(_add_project())
+        console.print(f"[green]{result.message}[/green]")
+    except Exception as e:
+        console.print(f"[red]Error adding project: {str(e)}[/red]")
+        raise typer.Exit(1)
 
-        # Display usage hint
-        console.print("\nTo use this project:")
-        console.print(f"  basic-memory --project={name} <command>")
+    # Display usage hint
+    console.print("\nTo use this project:")
+    console.print(f"  basic-memory --project={name} <command>")
 
 
 @project_app.command("remove")
@@ -147,84 +139,107 @@ def remove_project(
     console.print("[yellow]Note: The project files have not been deleted from disk.[/yellow]")
 
 
-if not config.cloud_mode_enabled:
+@project_app.command("default")
+def set_default_project(
+    name: str = typer.Argument(..., help="Name of the project to set as CLI default"),
+) -> None:
+    """Set the default project when 'config.default_project_mode' is set.
 
-    @project_app.command("default")
-    def set_default_project(
-        name: str = typer.Argument(..., help="Name of the project to set as CLI default"),
-    ) -> None:
-        """Set the default project when 'config.default_project_mode' is set."""
+    Note: This command is only available in local mode.
+    """
+    config = ConfigManager().config
 
-        async def _set_default():
-            async with get_client() as client:
-                project_permalink = generate_permalink(name)
-                response = await call_put(client, f"/projects/{project_permalink}/default")
-                return ProjectStatusResponse.model_validate(response.json())
+    if config.cloud_mode_enabled:
+        console.print("[red]Error: 'default' command is not available in cloud mode[/red]")
+        raise typer.Exit(1)
 
-        try:
-            result = asyncio.run(_set_default())
-            console.print(f"[green]{result.message}[/green]")
-        except Exception as e:
-            console.print(f"[red]Error setting default project: {str(e)}[/red]")
-            raise typer.Exit(1)
+    async def _set_default():
+        async with get_client() as client:
+            project_permalink = generate_permalink(name)
+            response = await call_put(client, f"/projects/{project_permalink}/default")
+            return ProjectStatusResponse.model_validate(response.json())
 
-    @project_app.command("sync-config")
-    def synchronize_projects() -> None:
-        """Synchronize project config between configuration file and database."""
+    try:
+        result = asyncio.run(_set_default())
+        console.print(f"[green]{result.message}[/green]")
+    except Exception as e:
+        console.print(f"[red]Error setting default project: {str(e)}[/red]")
+        raise typer.Exit(1)
 
-        async def _sync_config():
-            async with get_client() as client:
-                response = await call_post(client, "/projects/config/sync")
-                return ProjectStatusResponse.model_validate(response.json())
 
-        try:
-            result = asyncio.run(_sync_config())
-            console.print(f"[green]{result.message}[/green]")
-        except Exception as e:  # pragma: no cover
-            console.print(f"[red]Error synchronizing projects: {str(e)}[/red]")
-            raise typer.Exit(1)
+@project_app.command("sync-config")
+def synchronize_projects() -> None:
+    """Synchronize project config between configuration file and database.
 
-    @project_app.command("move")
-    def move_project(
-        name: str = typer.Argument(..., help="Name of the project to move"),
-        new_path: str = typer.Argument(..., help="New absolute path for the project"),
-    ) -> None:
-        """Move a project to a new location."""
-        # Resolve to absolute path
-        resolved_path = Path(os.path.abspath(os.path.expanduser(new_path))).as_posix()
+    Note: This command is only available in local mode.
+    """
+    config = ConfigManager().config
 
-        async def _move_project():
-            async with get_client() as client:
-                data = {"path": resolved_path}
-                project_permalink = generate_permalink(name)
+    if config.cloud_mode_enabled:
+        console.print("[red]Error: 'sync-config' command is not available in cloud mode[/red]")
+        raise typer.Exit(1)
 
-                # TODO fix route to use ProjectPathDep
-                response = await call_patch(
-                    client, f"/{name}/project/{project_permalink}", json=data
-                )
-                return ProjectStatusResponse.model_validate(response.json())
+    async def _sync_config():
+        async with get_client() as client:
+            response = await call_post(client, "/projects/config/sync")
+            return ProjectStatusResponse.model_validate(response.json())
 
-        try:
-            result = asyncio.run(_move_project())
-            console.print(f"[green]{result.message}[/green]")
+    try:
+        result = asyncio.run(_sync_config())
+        console.print(f"[green]{result.message}[/green]")
+    except Exception as e:  # pragma: no cover
+        console.print(f"[red]Error synchronizing projects: {str(e)}[/red]")
+        raise typer.Exit(1)
 
-            # Show important file movement reminder
-            console.print()  # Empty line for spacing
-            console.print(
-                Panel(
-                    "[bold red]IMPORTANT:[/bold red] Project configuration updated successfully.\n\n"
-                    "[yellow]You must manually move your project files from the old location to:[/yellow]\n"
-                    f"[cyan]{resolved_path}[/cyan]\n\n"
-                    "[dim]Basic Memory has only updated the configuration - your files remain in their original location.[/dim]",
-                    title="⚠️  Manual File Movement Required",
-                    border_style="yellow",
-                    expand=False,
-                )
+
+@project_app.command("move")
+def move_project(
+    name: str = typer.Argument(..., help="Name of the project to move"),
+    new_path: str = typer.Argument(..., help="New absolute path for the project"),
+) -> None:
+    """Move a project to a new location.
+
+    Note: This command is only available in local mode.
+    """
+    config = ConfigManager().config
+
+    if config.cloud_mode_enabled:
+        console.print("[red]Error: 'move' command is not available in cloud mode[/red]")
+        raise typer.Exit(1)
+
+    # Resolve to absolute path
+    resolved_path = Path(os.path.abspath(os.path.expanduser(new_path))).as_posix()
+
+    async def _move_project():
+        async with get_client() as client:
+            data = {"path": resolved_path}
+            project_permalink = generate_permalink(name)
+
+            # TODO fix route to use ProjectPathDep
+            response = await call_patch(client, f"/{name}/project/{project_permalink}", json=data)
+            return ProjectStatusResponse.model_validate(response.json())
+
+    try:
+        result = asyncio.run(_move_project())
+        console.print(f"[green]{result.message}[/green]")
+
+        # Show important file movement reminder
+        console.print()  # Empty line for spacing
+        console.print(
+            Panel(
+                "[bold red]IMPORTANT:[/bold red] Project configuration updated successfully.\n\n"
+                "[yellow]You must manually move your project files from the old location to:[/yellow]\n"
+                f"[cyan]{resolved_path}[/cyan]\n\n"
+                "[dim]Basic Memory has only updated the configuration - your files remain in their original location.[/dim]",
+                title="⚠️  Manual File Movement Required",
+                border_style="yellow",
+                expand=False,
             )
+        )
 
-        except Exception as e:
-            console.print(f"[red]Error moving project: {str(e)}[/red]")
-            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error moving project: {str(e)}[/red]")
+        raise typer.Exit(1)
 
 
 @project_app.command("info")
