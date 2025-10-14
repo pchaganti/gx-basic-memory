@@ -86,7 +86,6 @@ def upload(
             console.print(f"[blue]Syncing project '{project}'...[/blue]")
             try:
                 await sync_project(project)
-                console.print("[green]✓ Project synced[/green]")
             except Exception as e:
                 console.print(f"[yellow]Warning: Sync failed: {e}[/yellow]")
                 console.print("[dim]Files uploaded but may not be indexed yet[/dim]")
