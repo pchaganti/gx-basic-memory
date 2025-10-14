@@ -442,9 +442,11 @@ class TestCloudProjectAutoRegistration:
                 mock_permalink.return_value = "my-new-project"
                 mock_response = Mock()
                 mock_response.json.return_value = {
-                    "name": "My New Project",
-                    "path": "my-new-project",
-                    "message": "Created",
+                    "message": "Project 'My New Project' added successfully",
+                    "status": "success",
+                    "default": False,
+                    "old_project": None,
+                    "new_project": {"name": "My New Project", "path": "my-new-project"},
                 }
                 mock_request.return_value = mock_response
 

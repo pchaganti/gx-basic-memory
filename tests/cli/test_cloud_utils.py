@@ -110,18 +110,20 @@ class TestCreateCloudProject:
 
                     mock_response = Mock()
                     mock_response.json.return_value = {
-                        "name": "My Project",
-                        "path": "my-project",
-                        "message": "Created successfully",
+                        "message": "Project 'My Project' added successfully",
+                        "status": "success",
+                        "default": False,
+                        "old_project": None,
+                        "new_project": {"name": "My Project", "path": "my-project"},
                     }
                     mock_request.return_value = mock_response
 
                     result = await create_cloud_project("My Project")
 
         # Verify result
-        assert result.name == "My Project"
-        assert result.path == "my-project"
-        assert result.message == "Created successfully"
+        assert result.message == "Project 'My Project' added successfully"
+        assert result.status == "success"
+        assert result.default is False
 
         # Verify permalink was generated
         mock_permalink.assert_called_once_with("My Project")
@@ -150,9 +152,11 @@ class TestCreateCloudProject:
 
                     mock_response = Mock()
                     mock_response.json.return_value = {
-                        "name": "Test Project 123",
-                        "path": "test-project-123",
-                        "message": "Created",
+                        "message": "Project 'Test Project 123' added successfully",
+                        "status": "success",
+                        "default": False,
+                        "old_project": None,
+                        "new_project": {"name": "Test Project 123", "path": "test-project-123"},
                     }
                     mock_request.return_value = mock_response
 
@@ -191,9 +195,11 @@ class TestCreateCloudProject:
 
                     mock_response = Mock()
                     mock_response.json.return_value = {
-                        "name": "Project",
-                        "path": "project",
-                        "message": "Created",
+                        "message": "Project 'Project' added successfully",
+                        "status": "success",
+                        "default": False,
+                        "old_project": None,
+                        "new_project": {"name": "Project", "path": "project"},
                     }
                     mock_request.return_value = mock_response
 
