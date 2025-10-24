@@ -14,6 +14,7 @@
 The open source project continues as always. Cloud just makes it work everywhere.
 
 [Sign up now →](https://basicmemory.com/beta)
+
 with a 7 day free trial
 
 # Basic Memory
