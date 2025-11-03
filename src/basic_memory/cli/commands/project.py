@@ -307,8 +307,6 @@ def remove_project(
         if not delete_notes:
             if local_path:
                 console.print(f"[yellow]Note: Local files remain at {local_path}[/yellow]")
-            else:
-                console.print("[yellow]Note: Cloud project files have not been deleted.[/yellow]")
 
     except Exception as e:
         console.print(f"[red]Error removing project: {str(e)}[/red]")
@@ -485,7 +483,9 @@ def sync_project_command(
                 async def _trigger_db_sync():
                     async with get_client() as client:
                         permalink = generate_permalink(name)
-                        response = await call_post(client, f"/{permalink}/project/sync", json={})
+                        response = await call_post(
+                            client, f"/{permalink}/project/sync?force_full=true", json={}
+                        )
                         return response.json()
 
                 try:
@@ -581,7 +581,9 @@ def bisync_project_command(
                 async def _trigger_db_sync():
                     async with get_client() as client:
                         permalink = generate_permalink(name)
-                        response = await call_post(client, f"/{permalink}/project/sync", json={})
+                        response = await call_post(
+                            client, f"/{permalink}/project/sync?force_full=true", json={}
+                        )
                         return response.json()
 
                 try:
