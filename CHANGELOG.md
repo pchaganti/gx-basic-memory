@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## v0.16.1 (2025-11-11)
+
+### Bug Fixes
+
+- **#422**: Handle Windows line endings in rclone bisync
+  ([`e9d0a94`](https://github.com/basicmachines-co/basic-memory/commit/e9d0a94))
+  - Added `--compare=modtime` flag to rclone bisync to ignore size differences from line ending conversions
+  - Fixes issue where LF→CRLF conversion on Windows was treated as file corruption
+  - Resolves "corrupted on transfer: sizes differ" errors during cloud sync on Windows
+  - Users will need to run `--resync` once after updating to establish new baseline
+
 ## v0.16.0 (2025-11-10)
 
 ### Features
