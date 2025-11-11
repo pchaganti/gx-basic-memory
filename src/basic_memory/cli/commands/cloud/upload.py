@@ -90,7 +90,9 @@ async def upload_path(
                 for i, (file_path, relative_path) in enumerate(files_to_upload, 1):
                     # Skip archive files (zip, tar, gz, etc.)
                     if _is_archive_file(file_path):
-                        print(f"Skipping archive file: {relative_path} ({i}/{len(files_to_upload)})")
+                        print(
+                            f"Skipping archive file: {relative_path} ({i}/{len(files_to_upload)})"
+                        )
                         skipped_count += 1
                         continue
 
