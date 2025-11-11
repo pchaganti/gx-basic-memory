@@ -557,7 +557,7 @@ Adopt GraphQL instead of REST for our API layer.
 """,
     folder="decisions",
     tags=["decision", "api", "graphql"],
-    entity_type="decision",
+    note_type="decision",
     project="main"
 )
 ```
@@ -594,7 +594,7 @@ await write_note(
 """,
     folder="meetings",
     tags=["meeting", "api", "team"],
-    entity_type="meeting",
+    note_type="meeting",
     project="main"
 )
 ```
@@ -646,7 +646,7 @@ Specification for user authentication system using JWT tokens.
 """,
     folder="specs",
     tags=["spec", "auth", "security"],
-    entity_type="spec",
+    note_type="spec",
     project="main"
 )
 ```
@@ -1612,7 +1612,7 @@ await write_note(
 {related_entities}
 """,
     folder="decisions",
-    entity_type="decision",
+    note_type="decision",
     project="main"
 )
 ```
@@ -2687,14 +2687,14 @@ await write_note(
 
 ### Content Management
 
-**write_note(title, content, folder, tags, entity_type, project)**
+**write_note(title, content, folder, tags, note_type, project)**
 - Create or update markdown notes
 - Parameters:
   - `title` (required): Note title
   - `content` (required): Markdown content
   - `folder` (required): Destination folder
   - `tags` (optional): List of tags
-  - `entity_type` (optional): Entity type (note, person, meeting, etc.)
+  - `note_type` (optional): Type of note (stored in frontmatter). Can be "note", "person", "meeting", "guide", etc.
   - `project` (required unless default_project_mode): Target project
 - Returns: Created/updated entity with permalink
 - Example:
@@ -2704,7 +2704,7 @@ await write_note(
     content="# API Design\n...",
     folder="specs",
     tags=["api", "design"],
-    entity_type="spec",
+    note_type="spec",
     project="main"
 )
 ```
