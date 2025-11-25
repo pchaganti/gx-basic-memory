@@ -324,16 +324,8 @@ async def run_migrations(
         config.set_main_option("revision_environment", "false")
 
         # Get the correct database URL based on backend configuration
+        # No URL conversion needed - env.py now handles both async and sync engines
         db_url = DatabaseType.get_db_url(app_config.database_path, database_type, app_config)
-
-        # For Postgres, Alembic needs synchronous driver (psycopg2), not async (asyncpg)
-        if app_config.database_backend == DatabaseBackend.POSTGRES:
-            # Convert asyncpg URL to psycopg2 URL for Alembic
-            db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
-        elif app_config.database_backend == DatabaseBackend.SQLITE:
-            # Convert aiosqlite URL to pysqlite URL for Alembic
-            db_url = db_url.replace("sqlite+aiosqlite://", "sqlite:///")
-
         config.set_main_option("sqlalchemy.url", db_url)
 
         command.upgrade(config, "head")
