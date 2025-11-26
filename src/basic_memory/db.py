@@ -350,7 +350,10 @@ async def run_migrations(
         # For SQLite: Create FTS5 virtual table
         # For Postgres: No-op (tsvector column added by migrations)
         # The project_id is not used for init_search_index, so we pass a dummy value
-        if database_type == DatabaseType.POSTGRES or app_config.database_backend == DatabaseBackend.POSTGRES:
+        if (
+            database_type == DatabaseType.POSTGRES
+            or app_config.database_backend == DatabaseBackend.POSTGRES
+        ):
             await PostgresSearchRepository(session_maker, 1).init_search_index()
         else:
             await SQLiteSearchRepository(session_maker, 1).init_search_index()
