@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import http_exception_handler
 from loguru import logger
+import logfire
 
 from basic_memory import __version__ as version
 from basic_memory import db
@@ -100,7 +101,8 @@ app.include_router(v2_project, prefix="/v2")
 app.include_router(project.project_resource_router)
 app.include_router(management.router)
 
-# Auth routes are handled by FastMCP automatically when auth is enabled
+# instrument app with logfire
+logfire.instrument_fastapi(app)
 
 
 @app.exception_handler(Exception)
