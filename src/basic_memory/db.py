@@ -190,20 +190,28 @@ def _create_sqlite_engine(db_url: str, db_type: DatabaseType) -> AsyncEngine:
     return engine
 
 
-def _create_postgres_engine(db_url: str) -> AsyncEngine:
+def _create_postgres_engine(db_url: str, config: BasicMemoryConfig) -> AsyncEngine:
     """Create Postgres async engine with appropriate configuration.
 
     Args:
         db_url: Postgres connection URL (postgresql+asyncpg://...)
+        config: BasicMemoryConfig with pool settings
 
     Returns:
         Configured async engine for Postgres
     """
-    # Postgres with asyncpg - use standard async connection
+    # Postgres with asyncpg - pool sized for concurrent operations
     engine = create_async_engine(
         db_url,
         echo=False,
         pool_pre_ping=True,  # Verify connections before using them
+        pool_size=config.db_pool_size,
+        max_overflow=config.db_pool_overflow,
+        pool_recycle=config.db_pool_recycle,
+    )
+    logger.debug(
+        f"Created Postgres engine with pool_size={config.db_pool_size}, "
+        f"max_overflow={config.db_pool_overflow}, pool_recycle={config.db_pool_recycle}"
     )
 
     return engine
@@ -228,7 +236,7 @@ def _create_engine_and_session(
     # Delegate to backend-specific engine creation
     # Check explicit POSTGRES type first, then config setting
     if db_type == DatabaseType.POSTGRES or config.database_backend == DatabaseBackend.POSTGRES:
-        engine = _create_postgres_engine(db_url)
+        engine = _create_postgres_engine(db_url, config)
     else:
         engine = _create_sqlite_engine(db_url, db_type)
 
