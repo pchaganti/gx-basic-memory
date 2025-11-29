@@ -284,8 +284,16 @@ class SearchService:
             )
         )
 
-        # Add observation rows
+        # Add observation rows - dedupe by permalink to avoid unique constraint violations
+        # Two observations with same entity/category/content generate identical permalinks
+        seen_permalinks: set[str] = {entity.permalink} if entity.permalink else set()
         for obs in entity.observations:
+            obs_permalink = obs.permalink
+            if obs_permalink in seen_permalinks:
+                logger.debug(f"Skipping duplicate observation permalink: {obs_permalink}")
+                continue
+            seen_permalinks.add(obs_permalink)
+
             # Index with parent entity's file path since that's where it's defined
             obs_content_stems = "\n".join(
                 p for p in self._generate_variants(obs.content) if p and p.strip()
@@ -297,7 +305,7 @@ class SearchService:
                     title=f"{obs.category}: {obs.content[:100]}...",
                     content_stems=obs_content_stems,
                     content_snippet=obs.content,
-                    permalink=obs.permalink,
+                    permalink=obs_permalink,
                     file_path=entity.file_path,
                     category=obs.category,
                     entity_id=entity.id,

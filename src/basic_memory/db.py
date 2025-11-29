@@ -201,6 +201,7 @@ def _create_postgres_engine(db_url: str, config: BasicMemoryConfig) -> AsyncEngi
         Configured async engine for Postgres
     """
     # Postgres with asyncpg - pool sized for concurrent operations
+    # connect_args tuned for Neon serverless which scales to zero after ~5 minutes
     engine = create_async_engine(
         db_url,
         echo=False,
@@ -208,6 +209,19 @@ def _create_postgres_engine(db_url: str, config: BasicMemoryConfig) -> AsyncEngi
         pool_size=config.db_pool_size,
         max_overflow=config.db_pool_overflow,
         pool_recycle=config.db_pool_recycle,
+        connect_args={
+            # Disable statement cache to avoid issues with prepared statements on reconnect
+            "statement_cache_size": 0,
+            # Allow 10s for commands (Neon cold start can take 2-5s)
+            "command_timeout": 10,
+            # Allow 10s for initial connection (Neon wake-up time)
+            "timeout": 10,
+            "server_settings": {
+                "application_name": "basic-memory",
+                # Statement timeout for queries (10s to allow for cold start)
+                "statement_timeout": "10s",
+            },
+        },
     )
     logger.debug(
         f"Created Postgres engine with pool_size={config.db_pool_size}, "

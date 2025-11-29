@@ -112,8 +112,8 @@ class BasicMemoryConfig(BaseSettings):
         gt=0,
     )
     db_pool_recycle: int = Field(
-        default=3600,
-        description="Recycle connections after N seconds to prevent stale connections (Postgres only)",
+        default=180,
+        description="Recycle connections after N seconds to prevent stale connections. Default 180s works well with Neon's ~5 minute scale-to-zero (Postgres only)",
         gt=0,
     )
 
