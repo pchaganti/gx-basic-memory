@@ -200,33 +200,27 @@ def _create_postgres_engine(db_url: str, config: BasicMemoryConfig) -> AsyncEngi
     Returns:
         Configured async engine for Postgres
     """
-    # Postgres with asyncpg - pool sized for concurrent operations
-    # connect_args tuned for Neon serverless which scales to zero after ~5 minutes
+    # Use NullPool connection issues.
+    # Assume connection pooler like PgBouncer handles connection pooling.
     engine = create_async_engine(
         db_url,
         echo=False,
-        pool_pre_ping=True,  # Verify connections before using them
-        pool_size=config.db_pool_size,
-        max_overflow=config.db_pool_overflow,
-        pool_recycle=config.db_pool_recycle,
+        poolclass=NullPool,  # No pooling - fresh connection per request
         connect_args={
             # Disable statement cache to avoid issues with prepared statements on reconnect
             "statement_cache_size": 0,
-            # Allow 10s for commands (Neon cold start can take 2-5s)
-            "command_timeout": 10,
-            # Allow 10s for initial connection (Neon wake-up time)
-            "timeout": 10,
+            # Allow 30s for commands (Neon cold start can take 2-5s, sometimes longer)
+            "command_timeout": 30,
+            # Allow 30s for initial connection (Neon wake-up time)
+            "timeout": 30,
             "server_settings": {
                 "application_name": "basic-memory",
-                # Statement timeout for queries (10s to allow for cold start)
-                "statement_timeout": "10s",
+                # Statement timeout for queries (30s to allow for cold start)
+                "statement_timeout": "30s",
             },
         },
     )
-    logger.debug(
-        f"Created Postgres engine with pool_size={config.db_pool_size}, "
-        f"max_overflow={config.db_pool_overflow}, pool_recycle={config.db_pool_recycle}"
-    )
+    logger.debug("Created Postgres engine with NullPool (no connection pooling)")
 
     return engine
 
