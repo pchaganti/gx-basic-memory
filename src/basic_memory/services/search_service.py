@@ -36,12 +36,12 @@ class SearchService:
         self.entity_repository = entity_repository
         self.file_service = file_service
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def init_search_index(self):
         """Create FTS5 virtual table if it doesn't exist."""
         await self.repository.init_search_index()
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def reindex_all(self, background_tasks: Optional[BackgroundTasks] = None) -> None:
         """Reindex all content from database."""
 
@@ -58,7 +58,7 @@ class SearchService:
 
         logger.info("Reindex complete")
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def search(self, query: SearchQuery, limit=10, offset=0) -> List[SearchIndexRow]:
         """Search across all indexed content.
 
@@ -156,7 +156,7 @@ class SearchService:
 
         return []  # pragma: no cover
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def index_entity(
         self,
         entity: Entity,
@@ -168,7 +168,7 @@ class SearchService:
         else:
             await self.index_entity_data(entity, content)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def index_entity_data(
         self,
         entity: Entity,
@@ -182,7 +182,7 @@ class SearchService:
             entity, content
         ) if entity.is_markdown else await self.index_entity_file(entity)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def index_entity_file(
         self,
         entity: Entity,
@@ -205,7 +205,7 @@ class SearchService:
             )
         )
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def index_entity_markdown(
         self,
         entity: Entity,
@@ -343,17 +343,17 @@ class SearchService:
         # Batch insert all rows at once
         await self.repository.bulk_index_items(rows_to_index)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def delete_by_permalink(self, permalink: str):
         """Delete an item from the search index."""
         await self.repository.delete_by_permalink(permalink)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def delete_by_entity_id(self, entity_id: int):
         """Delete an item from the search index."""
         await self.repository.delete_by_entity_id(entity_id)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def handle_delete(self, entity: Entity):
         """Handle complete entity deletion from search index including observations and relations.
 

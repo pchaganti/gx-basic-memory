@@ -24,7 +24,7 @@ class DirectoryService:
         """
         self.entity_repository = entity_repository
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_directory_tree(self) -> DirectoryNode:
         """Build a hierarchical directory tree from indexed files."""
 
@@ -92,7 +92,7 @@ class DirectoryService:
         # Return the root node with its children
         return root_node
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_directory_structure(self) -> DirectoryNode:
         """Build a hierarchical directory structure without file details.
 
@@ -136,7 +136,7 @@ class DirectoryService:
 
         return root_node
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def list_directory(
         self,
         dir_name: str = "/",

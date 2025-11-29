@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import http_exception_handler
 from loguru import logger
-import logfire
 
 from basic_memory import __version__ as version
 from basic_memory import db

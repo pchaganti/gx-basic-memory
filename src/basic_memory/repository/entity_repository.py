@@ -33,7 +33,7 @@ class EntityRepository(Repository[Entity]):
         """
         super().__init__(session_maker, Entity, project_id=project_id)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_by_id(self, entity_id: int) -> Optional[Entity]:
         """Get entity by numeric ID.
 
@@ -46,7 +46,7 @@ class EntityRepository(Repository[Entity]):
         async with db.scoped_session(self.session_maker) as session:
             return await self.select_by_id(session, entity_id)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_by_permalink(self, permalink: str) -> Optional[Entity]:
         """Get entity by permalink.
 
@@ -56,7 +56,7 @@ class EntityRepository(Repository[Entity]):
         query = self.select().where(Entity.permalink == permalink).options(*self.get_load_options())
         return await self.find_one(query)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_by_title(self, title: str) -> Sequence[Entity]:
         """Get entity by title.
 
@@ -67,7 +67,7 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query)
         return list(result.scalars().all())
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_by_file_path(self, file_path: Union[Path, str]) -> Optional[Entity]:
         """Get entity by file_path.
 
@@ -81,7 +81,7 @@ class EntityRepository(Repository[Entity]):
         )
         return await self.find_one(query)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_by_file_paths(
         self, session: AsyncSession, file_paths: Sequence[Union[Path, str]]
     ) -> List[Row[Any]]:
@@ -110,7 +110,7 @@ class EntityRepository(Repository[Entity]):
         result = await session.execute(query)
         return list(result.all())
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def find_by_checksum(self, checksum: str) -> Sequence[Entity]:
         """Find entities with the given checksum.
 
@@ -128,7 +128,7 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query, use_query_options=False)
         return list(result.scalars().all())
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def find_by_checksums(self, checksums: Sequence[str]) -> Sequence[Entity]:
         """Find entities with any of the given checksums (batch query for move detection).
 
@@ -157,7 +157,7 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query, use_query_options=False)
         return list(result.scalars().all())
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def delete_by_file_path(self, file_path: Union[Path, str]) -> bool:
         """Delete entity with the provided file_path.
 
@@ -178,7 +178,7 @@ class EntityRepository(Repository[Entity]):
             selectinload(Entity.incoming_relations).selectinload(Relation.to_entity),
         ]
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def find_by_permalinks(self, permalinks: List[str]) -> Sequence[Entity]:
         """Find multiple entities by their permalink.
 
@@ -197,7 +197,7 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query)
         return list(result.scalars().all())
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def upsert_entity(self, entity: Entity) -> Entity:
         """Insert or update entity using simple try/catch with database-level conflict resolution.
 
@@ -299,7 +299,7 @@ class EntityRepository(Repository[Entity]):
                     entity = await self._handle_permalink_conflict(entity, session)
                     return entity
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_all_file_paths(self) -> List[str]:
         """Get all file paths for this project - optimized for deletion detection.
 
@@ -315,7 +315,7 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query, use_query_options=False)
         return list(result.scalars().all())
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_distinct_directories(self) -> List[str]:
         """Extract unique directory paths from file_path column.
 
@@ -344,7 +344,7 @@ class EntityRepository(Repository[Entity]):
 
         return sorted(directories)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def find_by_directory_prefix(self, directory_prefix: str) -> Sequence[Entity]:
         """Find entities whose file_path starts with the given directory prefix.
 
@@ -377,7 +377,7 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query, use_query_options=False)
         return list(result.scalars().all())
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def _handle_permalink_conflict(self, entity: Entity, session: AsyncSession) -> Entity:
         """Handle permalink conflicts by generating a unique permalink."""
         base_permalink = entity.permalink

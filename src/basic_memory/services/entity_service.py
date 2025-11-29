@@ -53,7 +53,7 @@ class EntityService(BaseService[EntityModel]):
         self.link_resolver = link_resolver
         self.app_config = app_config
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def detect_file_path_conflicts(
         self, file_path: str, skip_check: bool = False
     ) -> List[Entity]:
@@ -93,7 +93,7 @@ class EntityService(BaseService[EntityModel]):
 
         return conflicts
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def resolve_permalink(
         self,
         file_path: Permalink | Path,
@@ -152,7 +152,7 @@ class EntityService(BaseService[EntityModel]):
 
         return permalink
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def create_or_update_entity(self, schema: EntitySchema) -> Tuple[EntityModel, bool]:
         """Create new entity or update existing one.
         Returns: (entity, is_new) where is_new is True if a new entity was created
@@ -174,7 +174,7 @@ class EntityService(BaseService[EntityModel]):
             # Create new entity
             return await self.create_entity(schema), True
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def create_entity(self, schema: EntitySchema) -> EntityModel:
         """Create a new entity and write to filesystem."""
         logger.debug(f"Creating entity: {schema.title}")
@@ -241,7 +241,7 @@ class EntityService(BaseService[EntityModel]):
         # Set final checksum to mark complete
         return await self.repository.update(entity.id, {"checksum": checksum})
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def update_entity(self, entity: EntityModel, schema: EntitySchema) -> EntityModel:
         """Update an entity's content and metadata."""
         logger.debug(
@@ -322,7 +322,7 @@ class EntityService(BaseService[EntityModel]):
 
         return entity
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def delete_entity(self, permalink_or_id: str | int) -> bool:
         """Delete entity and its file."""
         logger.debug(f"Deleting entity: {permalink_or_id}")
@@ -352,7 +352,7 @@ class EntityService(BaseService[EntityModel]):
             logger.info(f"Entity not found: {permalink_or_id}")
             return True  # Already deleted
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_by_permalink(self, permalink: str) -> EntityModel:
         """Get entity by type and name combination."""
         logger.debug(f"Getting entity by permalink: {permalink}")
@@ -361,24 +361,24 @@ class EntityService(BaseService[EntityModel]):
             raise EntityNotFoundError(f"Entity not found: {permalink}")
         return db_entity
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_entities_by_id(self, ids: List[int]) -> Sequence[EntityModel]:
         """Get specific entities and their relationships."""
         logger.debug(f"Getting entities: {ids}")
         return await self.repository.find_by_ids(ids)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def get_entities_by_permalinks(self, permalinks: List[str]) -> Sequence[EntityModel]:
         """Get specific nodes and their relationships."""
         logger.debug(f"Getting entities permalinks: {permalinks}")
         return await self.repository.find_by_permalinks(permalinks)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def delete_entity_by_file_path(self, file_path: Union[str, Path]) -> None:
         """Delete entity by file path."""
         await self.repository.delete_by_file_path(str(file_path))
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def create_entity_from_markdown(
         self, file_path: Path, markdown: EntityMarkdown
     ) -> EntityModel:
@@ -402,7 +402,7 @@ class EntityService(BaseService[EntityModel]):
             logger.error(f"Failed to upsert entity for {file_path}: {e}")
             raise EntityCreationError(f"Failed to create entity: {str(e)}") from e
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def update_entity_and_observations(
         self, file_path: Path, markdown: EntityMarkdown
     ) -> EntityModel:
@@ -443,7 +443,7 @@ class EntityService(BaseService[EntityModel]):
             db_entity,
         )
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def update_entity_relations(
         self,
         path: str,
@@ -515,7 +515,7 @@ class EntityService(BaseService[EntityModel]):
 
         return await self.repository.get_by_file_path(path)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def edit_entity(
         self,
         identifier: str,
@@ -573,7 +573,7 @@ class EntityService(BaseService[EntityModel]):
 
         return entity
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     def apply_edit_operation(
         self,
         current_content: str,
@@ -626,7 +626,7 @@ class EntityService(BaseService[EntityModel]):
         else:
             raise ValueError(f"Unsupported operation: {operation}")
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     def replace_section_content(
         self, current_content: str, section_header: str, new_content: str
     ) -> str:
@@ -746,7 +746,7 @@ class EntityService(BaseService[EntityModel]):
             return content + "\n" + current_content  # pragma: no cover
         return content + current_content  # pragma: no cover
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def move_entity(
         self,
         identifier: str,

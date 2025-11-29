@@ -18,7 +18,7 @@ from basic_memory.repository import (
 )
 
 
-@logfire.instrument(record_return=True)
+@logfire.instrument()
 async def initialize_database(app_config: BasicMemoryConfig) -> None:
     """Initialize database with migrations handled automatically by get_or_create_db.
 
@@ -40,7 +40,7 @@ async def initialize_database(app_config: BasicMemoryConfig) -> None:
         # more specific error if the database is actually unusable
 
 
-@logfire.instrument(record_return=True)
+@logfire.instrument()
 async def reconcile_projects_with_config(app_config: BasicMemoryConfig):
     """Ensure all projects in config.json exist in the projects table and vice versa.
 
@@ -74,7 +74,7 @@ async def reconcile_projects_with_config(app_config: BasicMemoryConfig):
         logger.info("Continuing with initialization despite synchronization error")
 
 
-@logfire.instrument(record_return=True)
+@logfire.instrument()
 async def initialize_file_sync(
     app_config: BasicMemoryConfig,
 ):
@@ -145,7 +145,7 @@ async def initialize_file_sync(
     return None
 
 
-@logfire.instrument(record_return=True)
+@logfire.instrument()
 async def initialize_app(
     app_config: BasicMemoryConfig,
 ):

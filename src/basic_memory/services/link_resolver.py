@@ -27,7 +27,7 @@ class LinkResolver:
         self.entity_repository = entity_repository
         self.search_service = search_service
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def resolve_link(
         self, link_text: str, use_search: bool = True, strict: bool = False
     ) -> Optional[Entity]:

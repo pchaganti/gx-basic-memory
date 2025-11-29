@@ -60,7 +60,7 @@ class FileService:
         """
         return self.base_path / entity.file_path
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def read_entity_content(self, entity: EntityModel) -> str:
         """Get entity's content without frontmatter or structured sections.
 
@@ -79,7 +79,7 @@ class FileService:
         markdown = await self.markdown_processor.read_file(file_path)
         return markdown.content or ""
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def delete_entity_file(self, entity: EntityModel) -> None:
         """Delete entity file from filesystem.
 
@@ -92,7 +92,7 @@ class FileService:
         path = self.get_entity_path(entity)
         await self.delete_file(path)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def exists(self, path: FilePath) -> bool:
         """Check if file exists at the provided path.
 
@@ -119,7 +119,7 @@ class FileService:
             logger.error("Failed to check file existence", path=str(path), error=str(e))
             raise FileOperationError(f"Failed to check file existence: {e}")
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def ensure_directory(self, path: FilePath) -> None:
         """Ensure directory exists, creating if necessary.
 
@@ -147,7 +147,7 @@ class FileService:
             logger.error("Failed to create directory", path=str(path), error=str(e))
             raise FileOperationError(f"Failed to create directory {path}: {e}")
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def write_file(self, path: FilePath, content: str) -> str:
         """Write content to file and return checksum.
 
@@ -191,7 +191,7 @@ class FileService:
             logger.exception("File write error", path=str(full_path), error=str(e))
             raise FileOperationError(f"Failed to write file: {e}")
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def read_file_content(self, path: FilePath) -> str:
         """Read file content using true async I/O with aiofiles.
 
@@ -227,7 +227,7 @@ class FileService:
             logger.exception("File read error", path=str(full_path), error=str(e))
             raise FileOperationError(f"Failed to read file: {e}")
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def read_file(self, path: FilePath) -> Tuple[str, str]:
         """Read file and compute checksum using true async I/O.
 
@@ -270,7 +270,7 @@ class FileService:
             logger.exception("File read error", path=str(full_path), error=str(e))
             raise FileOperationError(f"Failed to read file: {e}")
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def delete_file(self, path: FilePath) -> None:
         """Delete file if it exists.
 
@@ -285,7 +285,7 @@ class FileService:
         full_path = path_obj if path_obj.is_absolute() else self.base_path / path_obj
         full_path.unlink(missing_ok=True)
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def update_frontmatter(self, path: FilePath, updates: Dict[str, Any]) -> str:
         """Update frontmatter fields in a file while preserving all content.
 
@@ -354,7 +354,7 @@ class FileService:
                 )
             raise FileOperationError(f"Failed to update frontmatter: {e}")
 
-    @logfire.instrument(record_return=True)
+    @logfire.instrument()
     async def compute_checksum(self, path: FilePath) -> str:
         """Compute checksum for a file using true async I/O.
 
