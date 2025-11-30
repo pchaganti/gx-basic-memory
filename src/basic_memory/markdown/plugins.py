@@ -32,7 +32,7 @@ def is_observation(token: Token) -> bool:
     match = re.match(r"^\[([^\[\]()]+)\]\s+(.+)", content)
     # Check for standalone hashtags (words starting with #)
     # This excludes # in HTML attributes like color="#4285F4"
-    has_tags = any(part.startswith('#') for part in content.split())
+    has_tags = any(part.startswith("#") for part in content.split())
     return bool(match) or has_tags
 
 

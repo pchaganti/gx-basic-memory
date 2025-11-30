@@ -109,6 +109,9 @@ class EntityService(BaseService[EntityModel]):
         4. Generate new unique permalink from file path
 
         Enhanced to detect and handle character-related conflicts.
+
+        Note: Uses lightweight repository methods that skip eager loading of
+        observations and relations for better performance during bulk operations.
         """
         file_path_str = Path(file_path).as_posix()
 
@@ -125,16 +128,20 @@ class EntityService(BaseService[EntityModel]):
         # If markdown has explicit permalink, try to validate it
         if markdown and markdown.frontmatter.permalink:
             desired_permalink = markdown.frontmatter.permalink
-            existing = await self.repository.get_by_permalink(desired_permalink)
+            # Use lightweight method - we only need to check file_path
+            existing_file_path = await self.repository.get_file_path_for_permalink(
+                desired_permalink
+            )
 
             # If no conflict or it's our own file, use as is
-            if not existing or existing.file_path == file_path_str:
+            if not existing_file_path or existing_file_path == file_path_str:
                 return desired_permalink
 
         # For existing files, try to find current permalink
-        existing = await self.repository.get_by_file_path(file_path_str)
-        if existing:
-            return existing.permalink
+        # Use lightweight method - we only need the permalink
+        existing_permalink = await self.repository.get_permalink_for_file_path(file_path_str)
+        if existing_permalink:
+            return existing_permalink
 
         # New file - generate permalink
         if markdown and markdown.frontmatter.permalink:
@@ -143,9 +150,10 @@ class EntityService(BaseService[EntityModel]):
             desired_permalink = generate_permalink(file_path_str)
 
         # Make unique if needed - enhanced to handle character conflicts
+        # Use lightweight existence check instead of loading full entity
         permalink = desired_permalink
         suffix = 1
-        while await self.repository.get_by_permalink(permalink):
+        while await self.repository.permalink_exists(permalink):
             permalink = f"{desired_permalink}-{suffix}"
             suffix += 1
             logger.debug(f"creating unique permalink: {permalink}")

@@ -81,6 +81,105 @@ class EntityRepository(Repository[Entity]):
         )
         return await self.find_one(query)
 
+    # -------------------------------------------------------------------------
+    # Lightweight methods for permalink resolution (no eager loading)
+    # -------------------------------------------------------------------------
+
+    @logfire.instrument()
+    async def permalink_exists(self, permalink: str) -> bool:
+        """Check if a permalink exists without loading the full entity.
+
+        This is much faster than get_by_permalink() as it skips eager loading
+        of observations and relations. Use for existence checks in bulk operations.
+
+        Args:
+            permalink: Permalink to check
+
+        Returns:
+            True if permalink exists, False otherwise
+        """
+        query = select(Entity.id).where(Entity.permalink == permalink).limit(1)
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return result.scalar_one_or_none() is not None
+
+    @logfire.instrument()
+    async def get_file_path_for_permalink(self, permalink: str) -> Optional[str]:
+        """Get the file_path for a permalink without loading the full entity.
+
+        Use when you only need the file_path, not the full entity with relations.
+
+        Args:
+            permalink: Permalink to look up
+
+        Returns:
+            file_path string if found, None otherwise
+        """
+        query = select(Entity.file_path).where(Entity.permalink == permalink)
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return result.scalar_one_or_none()
+
+    @logfire.instrument()
+    async def get_permalink_for_file_path(self, file_path: Union[Path, str]) -> Optional[str]:
+        """Get the permalink for a file_path without loading the full entity.
+
+        Use when you only need the permalink, not the full entity with relations.
+
+        Args:
+            file_path: File path to look up
+
+        Returns:
+            permalink string if found, None otherwise
+        """
+        query = select(Entity.permalink).where(Entity.file_path == Path(file_path).as_posix())
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return result.scalar_one_or_none()
+
+    @logfire.instrument()
+    async def get_all_permalinks(self) -> List[str]:
+        """Get all permalinks for this project.
+
+        Optimized for bulk operations - returns only permalink strings
+        without loading entities or relationships.
+
+        Returns:
+            List of all permalinks in the project
+        """
+        query = select(Entity.permalink)
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return list(result.scalars().all())
+
+    @logfire.instrument()
+    async def get_permalink_to_file_path_map(self) -> dict[str, str]:
+        """Get a mapping of permalink -> file_path for all entities.
+
+        Optimized for bulk permalink resolution - loads minimal data in one query.
+
+        Returns:
+            Dict mapping permalink to file_path
+        """
+        query = select(Entity.permalink, Entity.file_path)
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return {row.permalink: row.file_path for row in result.all()}
+
+    @logfire.instrument()
+    async def get_file_path_to_permalink_map(self) -> dict[str, str]:
+        """Get a mapping of file_path -> permalink for all entities.
+
+        Optimized for bulk permalink resolution - loads minimal data in one query.
+
+        Returns:
+            Dict mapping file_path to permalink
+        """
+        query = select(Entity.file_path, Entity.permalink)
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return {row.file_path: row.permalink for row in result.all()}
+
     @logfire.instrument()
     async def get_by_file_paths(
         self, session: AsyncSession, file_paths: Sequence[Union[Path, str]]
