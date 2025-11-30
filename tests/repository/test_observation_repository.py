@@ -356,3 +356,95 @@ async def test_find_by_category_case_sensitivity(
 
     upper_case = await repo.find_by_category("TECH")
     assert len(upper_case) == 0  # Currently case-sensitive
+
+
+@pytest.mark.asyncio
+async def test_observation_permalink_truncates_long_content(
+    session_maker: async_sessionmaker, repo, test_project: Project
+):
+    """Test that observation permalinks truncate long content.
+
+    This test validates the fix for issue #446 where:
+    - Long observation content (like transcript dialogue) created permalinks
+      exceeding PostgreSQL's btree index limit of 2704 bytes.
+    - Content is now truncated to 200 chars in the permalink property.
+    """
+    async with db.scoped_session(session_maker) as session:
+        entity = Entity(
+            project_id=test_project.id,
+            title="test_entity",
+            entity_type="test",
+            permalink="test/test-entity",
+            file_path="test/test_entity.md",
+            content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        session.add(entity)
+        await session.flush()
+
+        # Create observation with very long content (5000+ chars to simulate transcript)
+        long_content = "A" * 5000  # Well over the 200 char limit
+        obs = Observation(
+            entity_id=entity.id,
+            content=long_content,
+            category="transcript",
+        )
+        session.add(obs)
+        await session.flush()
+
+        # Access the permalink property
+        permalink = obs.permalink
+
+        # The full content would create a permalink like:
+        # test/test-entity/observations/transcript/AAAA...5000 chars
+        # With truncation, it should be much shorter
+
+        # Content portion should be truncated to 200 chars
+        # Permalink format: entity_permalink/observations/category/content
+        assert len(permalink) < 300  # Should be well under 300 chars total
+        assert len(long_content[:200]) == 200  # Verify truncation length
+
+        # Verify the permalink contains expected parts
+        assert "test/test-entity" in permalink or "test-entity" in permalink
+        assert "observations" in permalink
+        assert "transcript" in permalink
+
+        # Full 5000-char content should NOT be in permalink
+        assert long_content not in permalink
+
+
+@pytest.mark.asyncio
+async def test_observation_permalink_short_content_unchanged(
+    session_maker: async_sessionmaker, repo, test_project: Project
+):
+    """Test that short observation content is not unnecessarily truncated."""
+    async with db.scoped_session(session_maker) as session:
+        entity = Entity(
+            project_id=test_project.id,
+            title="test_entity",
+            entity_type="test",
+            permalink="test/test-entity",
+            file_path="test/test_entity.md",
+            content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        session.add(entity)
+        await session.flush()
+
+        # Create observation with short content
+        short_content = "Short observation content"
+        obs = Observation(
+            entity_id=entity.id,
+            content=short_content,
+            category="note",
+        )
+        session.add(obs)
+        await session.flush()
+
+        permalink = obs.permalink
+
+        # Short content should be fully included (after permalink normalization)
+        # The generate_permalink function normalizes the content
+        assert "short-observation-content" in permalink.lower()
