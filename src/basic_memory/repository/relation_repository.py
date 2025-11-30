@@ -4,6 +4,8 @@ from typing import Sequence, List, Optional
 
 import logfire
 from sqlalchemy import and_, delete, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.orm.interfaces import LoaderOption
@@ -91,6 +93,57 @@ class RelationRepository(Repository[Relation]):
         query = select(Relation).filter(Relation.from_id == entity_id, Relation.to_id.is_(None))
         result = await self.execute_query(query)
         return result.scalars().all()
+
+    @logfire.instrument()
+    async def add_all_ignore_duplicates(self, relations: List[Relation]) -> int:
+        """Bulk insert relations, ignoring duplicates.
+
+        Uses ON CONFLICT DO NOTHING to skip relations that would violate the
+        unique constraint on (from_id, to_name, relation_type). This is useful
+        for bulk operations where the same link may appear multiple times in
+        a document.
+
+        Works with both SQLite and PostgreSQL dialects.
+
+        Args:
+            relations: List of Relation objects to insert
+
+        Returns:
+            Number of relations actually inserted (excludes duplicates)
+        """
+        if not relations:
+            return 0
+
+        # Convert Relation objects to dicts for insert
+        values = [
+            {
+                "from_id": r.from_id,
+                "to_id": r.to_id,
+                "to_name": r.to_name,
+                "relation_type": r.relation_type,
+                "context": r.context,
+            }
+            for r in relations
+        ]
+
+        async with db.scoped_session(self.session_maker) as session:
+            # Check dialect to use appropriate insert
+            dialect_name = session.bind.dialect.name if session.bind else "sqlite"
+
+            if dialect_name == "postgresql":
+                stmt = pg_insert(Relation).values(values)
+                stmt = stmt.on_conflict_do_nothing(
+                    index_elements=["from_id", "to_name", "relation_type"]
+                )
+            else:
+                # SQLite
+                stmt = sqlite_insert(Relation).values(values)
+                stmt = stmt.on_conflict_do_nothing(
+                    index_elements=["from_id", "to_name", "relation_type"]
+                )
+
+            result = await session.execute(stmt)
+            return result.rowcount if result.rowcount else 0
 
     def get_load_options(self) -> List[LoaderOption]:
         return [selectinload(Relation.from_entity), selectinload(Relation.to_entity)]
