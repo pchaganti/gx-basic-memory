@@ -16,6 +16,10 @@ from basic_memory.repository.search_repository import SearchRepository, SearchIn
 from basic_memory.schemas.search import SearchQuery, SearchItemType
 from basic_memory.services import FileService
 
+# Maximum size for content_stems field to stay under Postgres's 8KB index row limit.
+# We use 6000 characters to leave headroom for other indexed columns and overhead.
+MAX_CONTENT_STEMS_SIZE = 6000
+
 
 def _mtime_to_datetime(entity: Entity) -> datetime:
     """Convert entity mtime (file modification time) to datetime.
@@ -275,6 +279,10 @@ class SearchService:
 
         entity_content_stems = "\n".join(p for p in content_stems if p and p.strip())
 
+        # Truncate to stay under Postgres's 8KB index row limit
+        if len(entity_content_stems) > MAX_CONTENT_STEMS_SIZE:
+            entity_content_stems = entity_content_stems[:MAX_CONTENT_STEMS_SIZE]
+
         # Add entity row
         rows_to_index.append(
             SearchIndexRow(
@@ -309,6 +317,9 @@ class SearchService:
             obs_content_stems = "\n".join(
                 p for p in self._generate_variants(obs.content) if p and p.strip()
             )
+            # Truncate to stay under Postgres's 8KB index row limit
+            if len(obs_content_stems) > MAX_CONTENT_STEMS_SIZE:
+                obs_content_stems = obs_content_stems[:MAX_CONTENT_STEMS_SIZE]
             rows_to_index.append(
                 SearchIndexRow(
                     id=obs.id,
