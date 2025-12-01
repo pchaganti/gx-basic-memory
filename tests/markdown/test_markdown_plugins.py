@@ -181,7 +181,7 @@ def test_relation_plugin():
     token = [t for t in md.parse(content) if t.type == "inline"][0]
     rels = token.meta["relations"]
     assert len(rels) == 2
-    assert rels[0]["type"] == "links to"
+    assert rels[0]["type"] == "links_to"
     assert rels[0]["target"] == "Link"
     assert rels[1]["target"] == "Another Link"
 
@@ -246,4 +246,4 @@ def test_combined_plugins():
     text_token = inline_tokens[4]
     assert "relations" in text_token.meta
     link = text_token.meta["relations"][0]
-    assert link["type"] == "links to"
+    assert link["type"] == "links_to"

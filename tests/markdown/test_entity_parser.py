@@ -179,7 +179,7 @@ async def test_parse_file_without_section_headers(project_config, entity_parser)
     assert entity.observations[0].tags == ["test"]
 
     assert len(entity.relations) == 2
-    assert entity.relations[0].type == "links to"
+    assert entity.relations[0].type == "links_to"
     assert entity.relations[0].target == "Random Link"
 
     assert entity.relations[1].type == "references"

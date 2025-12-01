@@ -162,7 +162,7 @@ def parse_inline_relations(content: str) -> List[Dict[str, Any]]:
 
         target = content[start + 2 : end].strip()
         if target:
-            relations.append({"type": "links to", "target": target, "context": None})
+            relations.append({"type": "links_to", "target": target, "context": None})
 
         start = end + 2
 

@@ -132,15 +132,11 @@ class RelationRepository(Repository[Relation]):
 
             if dialect_name == "postgresql":
                 stmt = pg_insert(Relation).values(values)
-                stmt = stmt.on_conflict_do_nothing(
-                    index_elements=["from_id", "to_name", "relation_type"]
-                )
+                stmt = stmt.on_conflict_do_nothing()
             else:
                 # SQLite
                 stmt = sqlite_insert(Relation).values(values)
-                stmt = stmt.on_conflict_do_nothing(
-                    index_elements=["from_id", "to_name", "relation_type"]
-                )
+                stmt = stmt.on_conflict_do_nothing()
 
             result = await session.execute(stmt)
             return result.rowcount if result.rowcount else 0
