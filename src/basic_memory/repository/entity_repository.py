@@ -1,14 +1,16 @@
 """Repository for managing entities in the knowledge graph."""
 
 from pathlib import Path
-from typing import List, Optional, Sequence, Union
+from typing import List, Optional, Sequence, Union, Any
 
+import logfire
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.interfaces import LoaderOption
+from sqlalchemy.engine import Row
 
 from basic_memory import db
 from basic_memory.models.knowledge import Entity, Observation, Relation
@@ -31,6 +33,20 @@ class EntityRepository(Repository[Entity]):
         """
         super().__init__(session_maker, Entity, project_id=project_id)
 
+    @logfire.instrument()
+    async def get_by_id(self, entity_id: int) -> Optional[Entity]:
+        """Get entity by numeric ID.
+
+        Args:
+            entity_id: Numeric entity ID
+
+        Returns:
+            Entity if found, None otherwise
+        """
+        async with db.scoped_session(self.session_maker) as session:
+            return await self.select_by_id(session, entity_id)
+
+    @logfire.instrument()
     async def get_by_permalink(self, permalink: str) -> Optional[Entity]:
         """Get entity by permalink.
 
@@ -40,6 +56,7 @@ class EntityRepository(Repository[Entity]):
         query = self.select().where(Entity.permalink == permalink).options(*self.get_load_options())
         return await self.find_one(query)
 
+    @logfire.instrument()
     async def get_by_title(self, title: str) -> Sequence[Entity]:
         """Get entity by title.
 
@@ -50,6 +67,7 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query)
         return list(result.scalars().all())
 
+    @logfire.instrument()
     async def get_by_file_path(self, file_path: Union[Path, str]) -> Optional[Entity]:
         """Get entity by file_path.
 
@@ -63,6 +81,135 @@ class EntityRepository(Repository[Entity]):
         )
         return await self.find_one(query)
 
+    # -------------------------------------------------------------------------
+    # Lightweight methods for permalink resolution (no eager loading)
+    # -------------------------------------------------------------------------
+
+    @logfire.instrument()
+    async def permalink_exists(self, permalink: str) -> bool:
+        """Check if a permalink exists without loading the full entity.
+
+        This is much faster than get_by_permalink() as it skips eager loading
+        of observations and relations. Use for existence checks in bulk operations.
+
+        Args:
+            permalink: Permalink to check
+
+        Returns:
+            True if permalink exists, False otherwise
+        """
+        query = select(Entity.id).where(Entity.permalink == permalink).limit(1)
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return result.scalar_one_or_none() is not None
+
+    @logfire.instrument()
+    async def get_file_path_for_permalink(self, permalink: str) -> Optional[str]:
+        """Get the file_path for a permalink without loading the full entity.
+
+        Use when you only need the file_path, not the full entity with relations.
+
+        Args:
+            permalink: Permalink to look up
+
+        Returns:
+            file_path string if found, None otherwise
+        """
+        query = select(Entity.file_path).where(Entity.permalink == permalink)
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return result.scalar_one_or_none()
+
+    @logfire.instrument()
+    async def get_permalink_for_file_path(self, file_path: Union[Path, str]) -> Optional[str]:
+        """Get the permalink for a file_path without loading the full entity.
+
+        Use when you only need the permalink, not the full entity with relations.
+
+        Args:
+            file_path: File path to look up
+
+        Returns:
+            permalink string if found, None otherwise
+        """
+        query = select(Entity.permalink).where(Entity.file_path == Path(file_path).as_posix())
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return result.scalar_one_or_none()
+
+    @logfire.instrument()
+    async def get_all_permalinks(self) -> List[str]:
+        """Get all permalinks for this project.
+
+        Optimized for bulk operations - returns only permalink strings
+        without loading entities or relationships.
+
+        Returns:
+            List of all permalinks in the project
+        """
+        query = select(Entity.permalink)
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return list(result.scalars().all())
+
+    @logfire.instrument()
+    async def get_permalink_to_file_path_map(self) -> dict[str, str]:
+        """Get a mapping of permalink -> file_path for all entities.
+
+        Optimized for bulk permalink resolution - loads minimal data in one query.
+
+        Returns:
+            Dict mapping permalink to file_path
+        """
+        query = select(Entity.permalink, Entity.file_path)
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return {row.permalink: row.file_path for row in result.all()}
+
+    @logfire.instrument()
+    async def get_file_path_to_permalink_map(self) -> dict[str, str]:
+        """Get a mapping of file_path -> permalink for all entities.
+
+        Optimized for bulk permalink resolution - loads minimal data in one query.
+
+        Returns:
+            Dict mapping file_path to permalink
+        """
+        query = select(Entity.file_path, Entity.permalink)
+        query = self._add_project_filter(query)
+        result = await self.execute_query(query, use_query_options=False)
+        return {row.file_path: row.permalink for row in result.all()}
+
+    @logfire.instrument()
+    async def get_by_file_paths(
+        self, session: AsyncSession, file_paths: Sequence[Union[Path, str]]
+    ) -> List[Row[Any]]:
+        """Get file paths and checksums for multiple entities (optimized for change detection).
+
+        Only queries file_path and checksum columns, skips loading full entities and relationships.
+        This is much faster than loading complete Entity objects when you only need checksums.
+
+        Args:
+            session: Database session to use for the query
+            file_paths: List of file paths to query
+
+        Returns:
+            List of (file_path, checksum) tuples for matching entities
+        """
+        if not file_paths:
+            return []
+
+        # Convert all paths to POSIX strings for consistent comparison
+        posix_paths = [Path(fp).as_posix() for fp in file_paths]
+
+        # Query ONLY file_path and checksum columns (not full Entity objects)
+        query = select(Entity.file_path, Entity.checksum).where(Entity.file_path.in_(posix_paths))
+        query = self._add_project_filter(query)
+
+        result = await session.execute(query)
+        return list(result.all())
+
+    @logfire.instrument()
     async def find_by_checksum(self, checksum: str) -> Sequence[Entity]:
         """Find entities with the given checksum.
 
@@ -80,6 +227,36 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query, use_query_options=False)
         return list(result.scalars().all())
 
+    @logfire.instrument()
+    async def find_by_checksums(self, checksums: Sequence[str]) -> Sequence[Entity]:
+        """Find entities with any of the given checksums (batch query for move detection).
+
+        This is a batch-optimized version of find_by_checksum() that queries multiple checksums
+        in a single database query. Used for efficient move detection in cloud indexing.
+
+        Performance: For 1000 new files, this makes 1 query vs 1000 individual queries (~100x faster).
+
+        Example:
+            When processing new files, we check if any are actually moved files by finding
+            entities with matching checksums at different paths.
+
+        Args:
+            checksums: List of file content checksums to search for
+
+        Returns:
+            Sequence of entities with matching checksums (may be empty).
+            Multiple entities may have the same checksum if files were copied.
+        """
+        if not checksums:
+            return []
+
+        # Query: SELECT * FROM entities WHERE checksum IN (checksum1, checksum2, ...)
+        query = self.select().where(Entity.checksum.in_(checksums))
+        # Don't load relationships for move detection - we only need file_path and checksum
+        result = await self.execute_query(query, use_query_options=False)
+        return list(result.scalars().all())
+
+    @logfire.instrument()
     async def delete_by_file_path(self, file_path: Union[Path, str]) -> bool:
         """Delete entity with the provided file_path.
 
@@ -100,6 +277,7 @@ class EntityRepository(Repository[Entity]):
             selectinload(Entity.incoming_relations).selectinload(Relation.to_entity),
         ]
 
+    @logfire.instrument()
     async def find_by_permalinks(self, permalinks: List[str]) -> Sequence[Entity]:
         """Find multiple entities by their permalink.
 
@@ -118,6 +296,7 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query)
         return list(result.scalars().all())
 
+    @logfire.instrument()
     async def upsert_entity(self, entity: Entity) -> Entity:
         """Insert or update entity using simple try/catch with database-level conflict resolution.
 
@@ -155,8 +334,13 @@ class EntityRepository(Repository[Entity]):
 
             except IntegrityError as e:
                 # Check if this is a FOREIGN KEY constraint failure
+                # SQLite: "FOREIGN KEY constraint failed"
+                # Postgres: "violates foreign key constraint"
                 error_str = str(e)
-                if "FOREIGN KEY constraint failed" in error_str:
+                if (
+                    "FOREIGN KEY constraint failed" in error_str
+                    or "violates foreign key constraint" in error_str
+                ):
                     # Import locally to avoid circular dependency (repository -> services -> repository)
                     from basic_memory.services.exceptions import SyncFatalError
 
@@ -214,6 +398,7 @@ class EntityRepository(Repository[Entity]):
                     entity = await self._handle_permalink_conflict(entity, session)
                     return entity
 
+    @logfire.instrument()
     async def get_all_file_paths(self) -> List[str]:
         """Get all file paths for this project - optimized for deletion detection.
 
@@ -229,6 +414,7 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query, use_query_options=False)
         return list(result.scalars().all())
 
+    @logfire.instrument()
     async def get_distinct_directories(self) -> List[str]:
         """Extract unique directory paths from file_path column.
 
@@ -257,6 +443,7 @@ class EntityRepository(Repository[Entity]):
 
         return sorted(directories)
 
+    @logfire.instrument()
     async def find_by_directory_prefix(self, directory_prefix: str) -> Sequence[Entity]:
         """Find entities whose file_path starts with the given directory prefix.
 
@@ -289,6 +476,7 @@ class EntityRepository(Repository[Entity]):
         result = await self.execute_query(query, use_query_options=False)
         return list(result.scalars().all())
 
+    @logfire.instrument()
     async def _handle_permalink_conflict(self, entity: Entity, session: AsyncSession) -> Entity:
         """Handle permalink conflicts by generating a unique permalink."""
         base_permalink = entity.permalink
@@ -310,5 +498,26 @@ class EntityRepository(Repository[Entity]):
 
         # Insert with unique permalink
         session.add(entity)
-        await session.flush()
+        try:
+            await session.flush()
+        except IntegrityError as e:
+            # Check if this is a FOREIGN KEY constraint failure
+            # SQLite: "FOREIGN KEY constraint failed"
+            # Postgres: "violates foreign key constraint"
+            error_str = str(e)
+            if (
+                "FOREIGN KEY constraint failed" in error_str
+                or "violates foreign key constraint" in error_str
+            ):
+                # Import locally to avoid circular dependency (repository -> services -> repository)
+                from basic_memory.services.exceptions import SyncFatalError
+
+                # Project doesn't exist in database - this is a fatal sync error
+                raise SyncFatalError(
+                    f"Cannot sync file '{entity.file_path}': "
+                    f"project_id={entity.project_id} does not exist in database. "
+                    f"The project may have been deleted. This sync will be terminated."
+                ) from e
+            # Re-raise if not a foreign key error
+            raise
         return entity

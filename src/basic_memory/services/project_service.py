@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Sequence
 
+import logfire
 from loguru import logger
 from sqlalchemy import text
 
@@ -81,6 +82,7 @@ class ProjectService:
         """
         return os.environ.get("BASIC_MEMORY_PROJECT", self.config_manager.default_project)
 
+    @logfire.instrument()
     async def list_projects(self) -> Sequence[Project]:
         """List all projects without loading entity relationships.
 
@@ -90,6 +92,7 @@ class ProjectService:
         """
         return await self.repository.find_all(use_load_options=False)
 
+    @logfire.instrument()
     async def get_project(self, name: str) -> Optional[Project]:
         """Get the file path for a project by name or permalink."""
         return await self.repository.get_by_name(name) or await self.repository.get_by_permalink(
@@ -130,6 +133,7 @@ class ProjectService:
                 # Not nested in either direction
                 return False
 
+    @logfire.instrument()
     async def add_project(self, name: str, path: str, set_default: bool = False) -> None:
         """Add a new project to the configuration and database.
 
@@ -221,6 +225,7 @@ class ProjectService:
 
         logger.info(f"Project '{name}' added at {resolved_path}")
 
+    @logfire.instrument()
     async def remove_project(self, name: str, delete_notes: bool = False) -> None:
         """Remove a project from configuration and database.
 
@@ -271,6 +276,7 @@ class ProjectService:
             except Exception as e:
                 logger.warning(f"Failed to delete project directory {project_path}: {e}")
 
+    @logfire.instrument()
     async def set_default_project(self, name: str) -> None:
         """Set the default project in configuration and database.
 
@@ -295,6 +301,7 @@ class ProjectService:
 
         logger.info(f"Project '{name}' set as default in configuration and database")
 
+    @logfire.instrument()
     async def _ensure_single_default_project(self) -> None:
         """Ensure only one project has is_default=True.
 
@@ -336,6 +343,7 @@ class ProjectService:
                     f"Set '{config_default}' as default project (was missing)"
                 )  # pragma: no cover
 
+    @logfire.instrument()
     async def synchronize_projects(self) -> None:  # pragma: no cover
         """Synchronize projects between database and configuration.
 
@@ -420,6 +428,7 @@ class ProjectService:
 
         logger.info("Project synchronization complete")
 
+    @logfire.instrument()
     async def move_project(self, name: str, new_path: str) -> None:
         """Move a project to a new location.
 
@@ -461,6 +470,7 @@ class ProjectService:
             self.config_manager.save_config(config)
             raise ValueError(f"Project '{name}' not found in database")
 
+    @logfire.instrument()
     async def update_project(  # pragma: no cover
         self, name: str, updated_path: Optional[str] = None, is_active: Optional[bool] = None
     ) -> None:
@@ -520,6 +530,7 @@ class ProjectService:
                     f"Changed default project to '{new_default.name}' as '{name}' was deactivated"
                 )
 
+    @logfire.instrument()
     async def get_project_info(self, project_name: Optional[str] = None) -> ProjectInfoResponse:
         """Get comprehensive information about the specified Basic Memory project.
 
@@ -587,6 +598,7 @@ class ProjectService:
             system=system,
         )
 
+    @logfire.instrument()
     async def get_statistics(self, project_id: int) -> ProjectStatistics:
         """Get statistics about the specified project.
 
@@ -703,6 +715,7 @@ class ProjectService:
             isolated_entities=isolated_count,
         )
 
+    @logfire.instrument()
     async def get_activity_metrics(self, project_id: int) -> ActivityMetrics:
         """Get activity metrics for the specified project.
 
@@ -766,25 +779,42 @@ class ProjectService:
         )
 
         # Query for monthly entity creation (project filtered)
+        # Use different date formatting for SQLite vs Postgres
+        from basic_memory.config import DatabaseBackend
+
+        is_postgres = self.config_manager.config.database_backend == DatabaseBackend.POSTGRES
+        date_format = (
+            "to_char(created_at, 'YYYY-MM')" if is_postgres else "strftime('%Y-%m', created_at)"
+        )
+
+        # Postgres needs datetime objects, SQLite needs ISO strings
+        six_months_param = six_months_ago if is_postgres else six_months_ago.isoformat()
+
         entity_growth_result = await self.repository.execute_query(
-            text("""
-            SELECT 
-                strftime('%Y-%m', created_at) AS month,
+            text(f"""
+            SELECT
+                {date_format} AS month,
                 COUNT(*) AS count
             FROM entity
             WHERE created_at >= :six_months_ago AND project_id = :project_id
             GROUP BY month
             ORDER BY month
         """),
-            {"six_months_ago": six_months_ago.isoformat(), "project_id": project_id},
+            {"six_months_ago": six_months_param, "project_id": project_id},
         )
         entity_growth = {row[0]: row[1] for row in entity_growth_result.fetchall()}
 
         # Query for monthly observation creation (project filtered)
+        date_format_entity = (
+            "to_char(entity.created_at, 'YYYY-MM')"
+            if is_postgres
+            else "strftime('%Y-%m', entity.created_at)"
+        )
+
         observation_growth_result = await self.repository.execute_query(
-            text("""
-            SELECT 
-                strftime('%Y-%m', entity.created_at) AS month,
+            text(f"""
+            SELECT
+                {date_format_entity} AS month,
                 COUNT(*) AS count
             FROM observation
             INNER JOIN entity ON observation.entity_id = entity.id
@@ -792,15 +822,15 @@ class ProjectService:
             GROUP BY month
             ORDER BY month
         """),
-            {"six_months_ago": six_months_ago.isoformat(), "project_id": project_id},
+            {"six_months_ago": six_months_param, "project_id": project_id},
         )
         observation_growth = {row[0]: row[1] for row in observation_growth_result.fetchall()}
 
         # Query for monthly relation creation (project filtered)
         relation_growth_result = await self.repository.execute_query(
-            text("""
-            SELECT 
-                strftime('%Y-%m', entity.created_at) AS month,
+            text(f"""
+            SELECT
+                {date_format_entity} AS month,
                 COUNT(*) AS count
             FROM relation
             INNER JOIN entity ON relation.from_id = entity.id
@@ -808,7 +838,7 @@ class ProjectService:
             GROUP BY month
             ORDER BY month
         """),
-            {"six_months_ago": six_months_ago.isoformat(), "project_id": project_id},
+            {"six_months_ago": six_months_param, "project_id": project_id},
         )
         relation_growth = {row[0]: row[1] for row in relation_growth_result.fetchall()}
 

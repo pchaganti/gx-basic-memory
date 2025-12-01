@@ -18,6 +18,11 @@ def runner():
 @pytest.fixture
 def mock_config(tmp_path, monkeypatch):
     """Create a mock config in cloud mode using environment variables."""
+    # Invalidate config cache to ensure clean state for each test
+    from basic_memory import config as config_module
+
+    config_module._CONFIG_CACHE = None
+
     config_dir = tmp_path / ".basic-memory"
     config_dir.mkdir(parents=True, exist_ok=True)
     config_file = config_dir / "config.json"
@@ -50,6 +55,7 @@ def mock_api_client():
             "default": False,
             "old_project": None,
             "new_project": {
+                "id": 1,
                 "name": "test-project",
                 "path": "/test-project",
                 "is_default": False,
