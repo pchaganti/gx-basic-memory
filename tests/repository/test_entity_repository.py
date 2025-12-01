@@ -177,6 +177,54 @@ async def test_update_entity(entity_repository: EntityRepository, sample_entity:
 
 
 @pytest.mark.asyncio
+async def test_update_entity_returns_with_relations_and_observations(
+    entity_repository: EntityRepository, entity_with_observations, test_project: Project
+):
+    """Test that update() returns entity with observations and relations eagerly loaded."""
+    entity = entity_with_observations
+
+    # Create a target entity and relation
+    async with db.scoped_session(entity_repository.session_maker) as session:
+        target = Entity(
+            project_id=test_project.id,
+            title="target",
+            entity_type="test",
+            permalink="target/target",
+            file_path="target/target.md",
+            content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        session.add(target)
+        await session.flush()
+
+        relation = Relation(
+            from_id=entity.id,
+            to_id=target.id,
+            to_name=target.title,
+            relation_type="connects_to",
+        )
+        session.add(relation)
+
+    # Now update the entity
+    updated = await entity_repository.update(entity.id, {"title": "Updated with relations"})
+
+    # Verify returned entity has observations and relations accessible
+    # (would raise DetachedInstanceError if not eagerly loaded)
+    assert updated is not None
+    assert updated.title == "Updated with relations"
+
+    # Access observations - should NOT raise DetachedInstanceError
+    assert len(updated.observations) == 2
+    assert updated.observations[0].content in ["First observation", "Second observation"]
+
+    # Access relations - should NOT raise DetachedInstanceError
+    assert len(updated.relations) == 1
+    assert updated.relations[0].relation_type == "connects_to"
+    assert updated.relations[0].to_name == "target"
+
+
+@pytest.mark.asyncio
 async def test_delete_entity(entity_repository: EntityRepository, sample_entity):
     """Test deleting an entity."""
     result = await entity_repository.delete(sample_entity.id)
