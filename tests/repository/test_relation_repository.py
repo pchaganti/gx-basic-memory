@@ -50,16 +50,18 @@ async def target_entity(session_maker, test_project: Project):
 
 
 @pytest_asyncio.fixture
-async def test_relations(session_maker, source_entity, target_entity):
+async def test_relations(session_maker, source_entity, target_entity, test_project: Project):
     """Create test relations."""
     relations = [
         Relation(
+            project_id=test_project.id,
             from_id=source_entity.id,
             to_id=target_entity.id,
             to_name=target_entity.title,
             relation_type="connects_to",
         ),
         Relation(
+            project_id=test_project.id,
             from_id=source_entity.id,
             to_id=target_entity.id,
             to_name=target_entity.title,

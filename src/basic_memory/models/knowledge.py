@@ -145,6 +145,7 @@ class Observation(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(Integer, ForeignKey("project.id"), index=True)
     entity_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
     content: Mapped[str] = mapped_column(Text)
     category: Mapped[str] = mapped_column(String, nullable=False, default="note")
@@ -191,6 +192,7 @@ class Relation(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(Integer, ForeignKey("project.id"), index=True)
     from_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
     to_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("entity.id", ondelete="CASCADE"), nullable=True
