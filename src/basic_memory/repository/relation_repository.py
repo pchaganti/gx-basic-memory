@@ -117,6 +117,7 @@ class RelationRepository(Repository[Relation]):
         # Convert Relation objects to dicts for insert
         values = [
             {
+                "project_id": r.project_id if r.project_id else self.project_id,
                 "from_id": r.from_id,
                 "to_id": r.to_id,
                 "to_name": r.to_name,

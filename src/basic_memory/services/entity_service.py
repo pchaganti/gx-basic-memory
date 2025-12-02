@@ -398,7 +398,9 @@ class EntityService(BaseService[EntityModel]):
         Uses UPSERT approach to handle permalink/file_path conflicts cleanly.
         """
         logger.debug(f"Creating entity: {markdown.frontmatter.title} file_path: {file_path}")
-        model = entity_model_from_markdown(file_path, markdown)
+        model = entity_model_from_markdown(
+            file_path, markdown, project_id=self.repository.project_id
+        )
 
         # Mark as incomplete because we still need to add relations
         model.checksum = None
@@ -429,6 +431,7 @@ class EntityService(BaseService[EntityModel]):
         # add new observations
         observations = [
             Observation(
+                project_id=self.observation_repository.project_id,
                 entity_id=db_entity.id,
                 content=obs.content,
                 category=obs.category,
@@ -496,6 +499,7 @@ class EntityService(BaseService[EntityModel]):
 
                 # Create the relation
                 relation = Relation(
+                    project_id=self.relation_repository.project_id,
                     from_id=db_entity.id,
                     to_id=target_id,
                     to_name=target_name,

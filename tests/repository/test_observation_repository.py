@@ -22,6 +22,7 @@ async def repo(observation_repository):
 async def sample_observation(repo, sample_entity: Entity):
     """Create a sample observation for testing"""
     observation_data = {
+        "project_id": sample_entity.project_id,
         "entity_id": sample_entity.id,
         "content": "Test observation",
         "context": "test-context",
@@ -35,6 +36,7 @@ async def test_create_observation(
 ):
     """Test creating a new observation"""
     observation_data = {
+        "project_id": sample_entity.project_id,
         "entity_id": sample_entity.id,
         "content": "Test content",
         "context": "test-context",
@@ -52,6 +54,7 @@ async def test_create_observation_entity_does_not_exist(
 ):
     """Test creating a new observation"""
     observation_data = {
+        "project_id": sample_entity.project_id,
         "entity_id": 99999,  # Non-existent entity ID (integer for Postgres compatibility)
         "content": "Test content",
         "context": "test-context",
@@ -104,10 +107,12 @@ async def test_delete_observations(session_maker: async_sessionmaker, repo, test
 
         # Create test observations
         obs1 = Observation(
+            project_id=test_project.id,
             entity_id=entity.id,
             content="Test observation 1",
         )
         obs2 = Observation(
+            project_id=test_project.id,
             entity_id=entity.id,
             content="Test observation 2",
         )
@@ -144,6 +149,7 @@ async def test_delete_observation_by_id(
 
         # Create test observation
         obs = Observation(
+            project_id=test_project.id,
             entity_id=entity.id,
             content="Test observation",
         )
@@ -180,10 +186,12 @@ async def test_delete_observation_by_content(
 
         # Create test observations
         obs1 = Observation(
+            project_id=test_project.id,
             entity_id=entity.id,
             content="Delete this observation",
         )
         obs2 = Observation(
+            project_id=test_project.id,
             entity_id=entity.id,
             content="Keep this observation",
         )
@@ -220,16 +228,19 @@ async def test_find_by_category(session_maker: async_sessionmaker, repo, test_pr
         # Create test observations with different categories
         observations = [
             Observation(
+                project_id=test_project.id,
                 entity_id=entity.id,
                 content="Tech observation",
                 category="tech",
             ),
             Observation(
+                project_id=test_project.id,
                 entity_id=entity.id,
                 content="Design observation",
                 category="design",
             ),
             Observation(
+                project_id=test_project.id,
                 entity_id=entity.id,
                 content="Another tech observation",
                 category="tech",
@@ -278,21 +289,25 @@ async def test_observation_categories(
         # Create observations with various categories
         observations = [
             Observation(
+                project_id=test_project.id,
                 entity_id=entity.id,
                 content="First tech note",
                 category="tech",
             ),
             Observation(
+                project_id=test_project.id,
                 entity_id=entity.id,
                 content="Second tech note",
                 category="tech",  # Duplicate category
             ),
             Observation(
+                project_id=test_project.id,
                 entity_id=entity.id,
                 content="Design note",
                 category="design",
             ),
             Observation(
+                project_id=test_project.id,
                 entity_id=entity.id,
                 content="Feature note",
                 category="feature",
@@ -341,6 +356,7 @@ async def test_find_by_category_case_sensitivity(
 
         # Create a test observation
         obs = Observation(
+            project_id=test_project.id,
             entity_id=entity.id,
             content="Tech note",
             category="tech",  # lowercase in database
@@ -386,6 +402,7 @@ async def test_observation_permalink_truncates_long_content(
         # Create observation with very long content (5000+ chars to simulate transcript)
         long_content = "A" * 5000  # Well over the 200 char limit
         obs = Observation(
+            project_id=test_project.id,
             entity_id=entity.id,
             content=long_content,
             category="transcript",
@@ -436,6 +453,7 @@ async def test_observation_permalink_short_content_unchanged(
         # Create observation with short content
         short_content = "Short observation content"
         obs = Observation(
+            project_id=test_project.id,
             entity_id=entity.id,
             content=short_content,
             category="note",

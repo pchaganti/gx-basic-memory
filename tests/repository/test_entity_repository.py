@@ -18,10 +18,12 @@ async def entity_with_observations(session_maker, sample_entity):
     async with db.scoped_session(session_maker) as session:
         observations = [
             Observation(
+                project_id=sample_entity.project_id,
                 entity_id=sample_entity.id,
                 content="First observation",
             ),
             Observation(
+                project_id=sample_entity.project_id,
                 entity_id=sample_entity.id,
                 content="Second observation",
             ),
@@ -59,6 +61,7 @@ async def related_results(session_maker, test_project: Project):
         await session.flush()
 
         relation = Relation(
+            project_id=test_project.id,
             from_id=source.id,
             to_id=target.id,
             to_name=target.title,
@@ -199,6 +202,7 @@ async def test_update_entity_returns_with_relations_and_observations(
         await session.flush()
 
         relation = Relation(
+            project_id=test_project.id,
             from_id=entity.id,
             to_id=target.id,
             to_name=target.title,
@@ -785,6 +789,7 @@ async def test_get_all_file_paths_performance(entity_repository: EntityRepositor
 
         # Add observations to entity1
         observation = Observation(
+            project_id=entity_repository.project_id,
             entity_id=entity1.id,
             content="Test observation",
             category="note",
@@ -793,6 +798,7 @@ async def test_get_all_file_paths_performance(entity_repository: EntityRepositor
 
         # Add relation between entities
         relation = Relation(
+            project_id=entity_repository.project_id,
             from_id=entity1.id,
             to_id=entity2.id,
             to_name=entity2.title,
