@@ -1,6 +1,6 @@
 """Search models and tables."""
 
-from sqlalchemy import DDL, Column, Integer, String, DateTime, Text
+from sqlalchemy import DDL, Column, Integer, String, DateTime, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.types import JSON
 
@@ -36,7 +36,9 @@ class SearchIndex(Base):
     relation_type = Column(String(100), nullable=True)
 
     # Observation fields
-    entity_id = Column(Integer, nullable=True)
+    # Note: FK with CASCADE only applies to Postgres. SQLite uses FTS5 virtual tables
+    # which don't support foreign keys, so cascade delete is handled explicitly there.
+    entity_id = Column(Integer, ForeignKey("entity.id", ondelete="CASCADE"), nullable=True)
     category = Column(String(100), nullable=True)
 
     # Common fields
