@@ -59,14 +59,25 @@ def upgrade() -> None:
         """)
 
     # Step 3: Make project_id NOT NULL and add foreign key
-    op.alter_column("relation", "project_id", nullable=False)
-    op.create_foreign_key(
-        "fk_relation_project_id",
-        "relation",
-        "project",
-        ["project_id"],
-        ["id"],
-    )
+    if dialect == "postgresql":
+        op.alter_column("relation", "project_id", nullable=False)
+        op.create_foreign_key(
+            "fk_relation_project_id",
+            "relation",
+            "project",
+            ["project_id"],
+            ["id"],
+        )
+    else:
+        # SQLite requires batch operations for ALTER COLUMN
+        with op.batch_alter_table("relation") as batch_op:
+            batch_op.alter_column("project_id", nullable=False)
+            batch_op.create_foreign_key(
+                "fk_relation_project_id",
+                "project",
+                ["project_id"],
+                ["id"],
+            )
 
     # Step 4: Create index on relation.project_id
     op.create_index("ix_relation_project_id", "relation", ["project_id"])
@@ -98,14 +109,25 @@ def upgrade() -> None:
         """)
 
     # Step 3: Make project_id NOT NULL and add foreign key
-    op.alter_column("observation", "project_id", nullable=False)
-    op.create_foreign_key(
-        "fk_observation_project_id",
-        "observation",
-        "project",
-        ["project_id"],
-        ["id"],
-    )
+    if dialect == "postgresql":
+        op.alter_column("observation", "project_id", nullable=False)
+        op.create_foreign_key(
+            "fk_observation_project_id",
+            "observation",
+            "project",
+            ["project_id"],
+            ["id"],
+        )
+    else:
+        # SQLite requires batch operations for ALTER COLUMN
+        with op.batch_alter_table("observation") as batch_op:
+            batch_op.alter_column("project_id", nullable=False)
+            batch_op.create_foreign_key(
+                "fk_observation_project_id",
+                "project",
+                ["project_id"],
+                ["id"],
+            )
 
     # Step 4: Create index on observation.project_id
     op.create_index("ix_observation_project_id", "observation", ["project_id"])
@@ -155,12 +177,23 @@ def downgrade() -> None:
         op.execute("DROP INDEX IF EXISTS idx_entity_title_trgm")
         # Note: We don't drop the pg_trgm extension as other code may depend on it
 
-    # Drop project_id from observation
-    op.drop_index("ix_observation_project_id", table_name="observation")
-    op.drop_constraint("fk_observation_project_id", "observation", type_="foreignkey")
-    op.drop_column("observation", "project_id")
+        # Drop project_id from observation
+        op.drop_index("ix_observation_project_id", table_name="observation")
+        op.drop_constraint("fk_observation_project_id", "observation", type_="foreignkey")
+        op.drop_column("observation", "project_id")
 
-    # Drop project_id from relation
-    op.drop_index("ix_relation_project_id", table_name="relation")
-    op.drop_constraint("fk_relation_project_id", "relation", type_="foreignkey")
-    op.drop_column("relation", "project_id")
+        # Drop project_id from relation
+        op.drop_index("ix_relation_project_id", table_name="relation")
+        op.drop_constraint("fk_relation_project_id", "relation", type_="foreignkey")
+        op.drop_column("relation", "project_id")
+    else:
+        # SQLite requires batch operations
+        op.drop_index("ix_observation_project_id", table_name="observation")
+        with op.batch_alter_table("observation") as batch_op:
+            batch_op.drop_constraint("fk_observation_project_id", type_="foreignkey")
+            batch_op.drop_column("project_id")
+
+        op.drop_index("ix_relation_project_id", table_name="relation")
+        with op.batch_alter_table("relation") as batch_op:
+            batch_op.drop_constraint("fk_relation_project_id", type_="foreignkey")
+            batch_op.drop_column("project_id")
