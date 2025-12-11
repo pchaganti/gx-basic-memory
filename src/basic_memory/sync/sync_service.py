@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import AsyncIterator, Dict, List, Optional, Set, Tuple
 
 import aiofiles.os
-import logfire
+
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 
@@ -215,17 +215,12 @@ class SyncService:
                 f"path={path}, error={error}"
             )
 
-            # Record metric for file failure
-            logfire.metric_counter("sync.circuit_breaker.failures").add(1)
-
             # Log when threshold is reached
             if failure_info.count >= MAX_CONSECUTIVE_FAILURES:
                 logger.error(
                     f"File {path} has failed {MAX_CONSECUTIVE_FAILURES} times and will be skipped. "
                     f"First failure: {failure_info.first_failure}, Last error: {error}"
                 )
-                # Record metric for file being blocked by circuit breaker
-                logfire.metric_counter("sync.circuit_breaker.blocked_files").add(1)
         else:
             # Create new failure record
             self._file_failures[path] = FileFailureInfo(
@@ -255,7 +250,6 @@ class SyncService:
             logger.info(f"Clearing failure history for {path} after successful sync")
             del self._file_failures[path]
 
-    @logfire.instrument()
     async def sync(
         self, directory: Path, project_name: Optional[str] = None, force_full: bool = False
     ) -> SyncReport:
@@ -282,63 +276,58 @@ class SyncService:
         )
 
         # sync moves first
-        with logfire.span("process_moves", move_count=len(report.moves)):
-            for old_path, new_path in report.moves.items():
-                # in the case where a file has been deleted and replaced by another file
-                # it will show up in the move and modified lists, so handle it in modified
-                if new_path in report.modified:
-                    report.modified.remove(new_path)
-                    logger.debug(
-                        f"File marked as moved and modified: old_path={old_path}, new_path={new_path}"
-                    )
-                else:
-                    await self.handle_move(old_path, new_path)
+        for old_path, new_path in report.moves.items():
+            # in the case where a file has been deleted and replaced by another file
+            # it will show up in the move and modified lists, so handle it in modified
+            if new_path in report.modified:
+                report.modified.remove(new_path)
+                logger.debug(
+                    f"File marked as moved and modified: old_path={old_path}, new_path={new_path}"
+                )
+            else:
+                await self.handle_move(old_path, new_path)
 
         # deleted next
-        with logfire.span("process_deletes", delete_count=len(report.deleted)):
-            for path in report.deleted:
-                await self.handle_delete(path)
+        for path in report.deleted:
+            await self.handle_delete(path)
 
         # then new and modified
-        with logfire.span("process_new_files", new_count=len(report.new)):
-            for path in report.new:
-                entity, _ = await self.sync_file(path, new=True)
+        for path in report.new:
+            entity, _ = await self.sync_file(path, new=True)
 
-                # Track if file was skipped
-                if entity is None and await self._should_skip_file(path):
-                    failure_info = self._file_failures[path]
-                    report.skipped_files.append(
-                        SkippedFile(
-                            path=path,
-                            reason=failure_info.last_error,
-                            failure_count=failure_info.count,
-                            first_failed=failure_info.first_failure,
-                        )
+            # Track if file was skipped
+            if entity is None and await self._should_skip_file(path):
+                failure_info = self._file_failures[path]
+                report.skipped_files.append(
+                    SkippedFile(
+                        path=path,
+                        reason=failure_info.last_error,
+                        failure_count=failure_info.count,
+                        first_failed=failure_info.first_failure,
                     )
+                )
 
-        with logfire.span("process_modified_files", modified_count=len(report.modified)):
-            for path in report.modified:
-                entity, _ = await self.sync_file(path, new=False)
+        for path in report.modified:
+            entity, _ = await self.sync_file(path, new=False)
 
-                # Track if file was skipped
-                if entity is None and await self._should_skip_file(path):
-                    failure_info = self._file_failures[path]
-                    report.skipped_files.append(
-                        SkippedFile(
-                            path=path,
-                            reason=failure_info.last_error,
-                            failure_count=failure_info.count,
-                            first_failed=failure_info.first_failure,
-                        )
+            # Track if file was skipped
+            if entity is None and await self._should_skip_file(path):
+                failure_info = self._file_failures[path]
+                report.skipped_files.append(
+                    SkippedFile(
+                        path=path,
+                        reason=failure_info.last_error,
+                        failure_count=failure_info.count,
+                        first_failed=failure_info.first_failure,
                     )
+                )
 
         # Only resolve relations if there were actual changes
         # If no files changed, no new unresolved relations could have been created
-        with logfire.span("resolve_relations"):
-            if report.total > 0:
-                await self.resolve_relations()
-            else:
-                logger.info("Skipping relation resolution - no file changes detected")
+        if report.total > 0:
+            await self.resolve_relations()
+        else:
+            logger.info("Skipping relation resolution - no file changes detected")
 
         # Update scan watermark after successful sync
         # Use the timestamp from sync start (not end) to ensure we catch files
@@ -361,15 +350,6 @@ class SyncService:
 
         duration_ms = int((time.time() - start_time) * 1000)
 
-        # Record metrics for sync operation
-        logfire.metric_histogram("sync.duration", unit="ms").record(duration_ms)
-        logfire.metric_counter("sync.files.new").add(len(report.new))
-        logfire.metric_counter("sync.files.modified").add(len(report.modified))
-        logfire.metric_counter("sync.files.deleted").add(len(report.deleted))
-        logfire.metric_counter("sync.files.moved").add(len(report.moves))
-        if report.skipped_files:
-            logfire.metric_counter("sync.files.skipped").add(len(report.skipped_files))
-
         # Log summary with skipped files if any
         if report.skipped_files:
             logger.warning(
@@ -390,7 +370,6 @@ class SyncService:
 
         return report
 
-    @logfire.instrument()
     async def scan(self, directory, force_full: bool = False):
         """Smart scan using watermark and file count for large project optimization.
 
@@ -471,12 +450,6 @@ class SyncService:
             scan_type = "full_fallback"
             logger.warning("No scan watermark available, falling back to full scan")
             file_paths_to_scan = await self._scan_directory_full(directory)
-
-        # Record scan type metric
-        logfire.metric_counter(f"sync.scan.{scan_type}").add(1)
-        logfire.metric_histogram("sync.scan.files_scanned", unit="files").record(
-            len(file_paths_to_scan)
-        )
 
         # Step 3: Process each file with mtime-based comparison
         scanned_paths: Set[str] = set()
@@ -589,7 +562,6 @@ class SyncService:
         report.checksums = changed_checksums
 
         scan_duration_ms = int((time.time() - scan_start_time) * 1000)
-        logfire.metric_histogram("sync.scan.duration", unit="ms").record(scan_duration_ms)
 
         logger.info(
             f"Completed {scan_type} scan for directory {directory} in {scan_duration_ms}ms, "
@@ -599,7 +571,6 @@ class SyncService:
         )
         return report
 
-    @logfire.instrument()
     async def sync_file(
         self, path: str, new: bool = True
     ) -> Tuple[Optional[Entity], Optional[str]]:
@@ -654,7 +625,6 @@ class SyncService:
 
             return None, None
 
-    @logfire.instrument()
     async def sync_markdown_file(self, path: str, new: bool = True) -> Tuple[Optional[Entity], str]:
         """Sync a markdown file with full processing.
 
@@ -737,7 +707,6 @@ class SyncService:
         # Return the final checksum to ensure everything is consistent
         return entity, final_checksum
 
-    @logfire.instrument()
     async def sync_regular_file(self, path: str, new: bool = True) -> Tuple[Optional[Entity], str]:
         """Sync a non-markdown file with basic tracking.
 
@@ -838,7 +807,6 @@ class SyncService:
 
             return updated, checksum
 
-    @logfire.instrument()
     async def handle_delete(self, file_path: str):
         """Handle complete entity deletion including search index cleanup."""
 
@@ -870,7 +838,6 @@ class SyncService:
                 else:
                     await self.search_service.delete_by_entity_id(entity.id)
 
-    @logfire.instrument()
     async def handle_move(self, old_path, new_path):
         logger.debug("Moving entity", old_path=old_path, new_path=new_path)
 
@@ -975,7 +942,6 @@ class SyncService:
             # update search index
             await self.search_service.index_entity(updated)
 
-    @logfire.instrument()
     async def resolve_relations(self, entity_id: int | None = None):
         """Try to resolve unresolved relations.
 
@@ -1074,8 +1040,6 @@ class SyncService:
                 f"error: {error_msg}. Falling back to manual count. "
                 f"This will slow down watermark detection!"
             )
-            # Track optimization failures for visibility
-            logfire.metric_counter("sync.scan.file_count_failure").add(1)
             # Fallback: count using scan_directory
             count = 0
             async for _ in self.scan_directory(directory):
@@ -1116,8 +1080,6 @@ class SyncService:
                 f"error: {error_msg}. Falling back to full scan. "
                 f"This will cause slow syncs on large projects!"
             )
-            # Track optimization failures for visibility
-            logfire.metric_counter("sync.scan.optimization_failure").add(1)
             # Fallback to full scan
             return await self._scan_directory_full(directory)
 

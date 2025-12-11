@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Sequence
 
-import logfire
+
 from loguru import logger
 from sqlalchemy import text
 
@@ -82,7 +82,6 @@ class ProjectService:
         """
         return os.environ.get("BASIC_MEMORY_PROJECT", self.config_manager.default_project)
 
-    @logfire.instrument()
     async def list_projects(self) -> Sequence[Project]:
         """List all projects without loading entity relationships.
 
@@ -92,7 +91,6 @@ class ProjectService:
         """
         return await self.repository.find_all(use_load_options=False)
 
-    @logfire.instrument()
     async def get_project(self, name: str) -> Optional[Project]:
         """Get the file path for a project by name or permalink."""
         return await self.repository.get_by_name(name) or await self.repository.get_by_permalink(
@@ -133,7 +131,6 @@ class ProjectService:
                 # Not nested in either direction
                 return False
 
-    @logfire.instrument()
     async def add_project(self, name: str, path: str, set_default: bool = False) -> None:
         """Add a new project to the configuration and database.
 
@@ -225,7 +222,6 @@ class ProjectService:
 
         logger.info(f"Project '{name}' added at {resolved_path}")
 
-    @logfire.instrument()
     async def remove_project(self, name: str, delete_notes: bool = False) -> None:
         """Remove a project from configuration and database.
 
@@ -276,7 +272,6 @@ class ProjectService:
             except Exception as e:
                 logger.warning(f"Failed to delete project directory {project_path}: {e}")
 
-    @logfire.instrument()
     async def set_default_project(self, name: str) -> None:
         """Set the default project in configuration and database.
 
@@ -301,7 +296,6 @@ class ProjectService:
 
         logger.info(f"Project '{name}' set as default in configuration and database")
 
-    @logfire.instrument()
     async def _ensure_single_default_project(self) -> None:
         """Ensure only one project has is_default=True.
 
@@ -343,7 +337,6 @@ class ProjectService:
                     f"Set '{config_default}' as default project (was missing)"
                 )  # pragma: no cover
 
-    @logfire.instrument()
     async def synchronize_projects(self) -> None:  # pragma: no cover
         """Synchronize projects between database and configuration.
 
@@ -428,7 +421,6 @@ class ProjectService:
 
         logger.info("Project synchronization complete")
 
-    @logfire.instrument()
     async def move_project(self, name: str, new_path: str) -> None:
         """Move a project to a new location.
 
@@ -470,7 +462,6 @@ class ProjectService:
             self.config_manager.save_config(config)
             raise ValueError(f"Project '{name}' not found in database")
 
-    @logfire.instrument()
     async def update_project(  # pragma: no cover
         self, name: str, updated_path: Optional[str] = None, is_active: Optional[bool] = None
     ) -> None:
@@ -530,7 +521,6 @@ class ProjectService:
                     f"Changed default project to '{new_default.name}' as '{name}' was deactivated"
                 )
 
-    @logfire.instrument()
     async def get_project_info(self, project_name: Optional[str] = None) -> ProjectInfoResponse:
         """Get comprehensive information about the specified Basic Memory project.
 
@@ -598,7 +588,6 @@ class ProjectService:
             system=system,
         )
 
-    @logfire.instrument()
     async def get_statistics(self, project_id: int) -> ProjectStatistics:
         """Get statistics about the specified project.
 
@@ -715,7 +704,6 @@ class ProjectService:
             isolated_entities=isolated_count,
         )
 
-    @logfire.instrument()
     async def get_activity_metrics(self, project_id: int) -> ActivityMetrics:
         """Get activity metrics for the specified project.
 

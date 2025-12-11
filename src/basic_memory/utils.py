@@ -67,9 +67,6 @@ class PathLike(Protocol):
 # This preserves compatibility with existing code while we migrate
 FilePath = Union[Path, str]
 
-# Disable the "Queue is full" warning
-logging.getLogger("opentelemetry.sdk.metrics._internal.instrument").setLevel(logging.ERROR)
-
 
 def generate_permalink(file_path: Union[Path, str, PathLike], split_extension: bool = True) -> str:
     """Generate a stable permalink from a file path.
