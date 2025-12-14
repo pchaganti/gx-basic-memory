@@ -2,7 +2,7 @@
 
 import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 from contextlib import asynccontextmanager
 
 from basic_memory.mcp.tools.move_note import move_note, _format_move_error_response
@@ -921,7 +921,10 @@ class TestMoveNoteErrorHandling:
                     "basic_memory.mcp.tools.move_note.call_post",
                     side_effect=Exception("entity not found"),
                 ):
-                    with patch("basic_memory.mcp.tools.move_note.call_get", side_effect=Exception("not found")):
+                    with patch(
+                        "basic_memory.mcp.tools.move_note.call_get",
+                        side_effect=Exception("not found"),
+                    ):
                         result = await move_note.fn(
                             "test-note", "target/file.md", project="test-project"
                         )
@@ -944,7 +947,10 @@ class TestMoveNoteErrorHandling:
                     "basic_memory.mcp.tools.move_note.call_post",
                     side_effect=Exception("permission denied"),
                 ):
-                    with patch("basic_memory.mcp.tools.move_note.call_get", side_effect=Exception("not found")):
+                    with patch(
+                        "basic_memory.mcp.tools.move_note.call_get",
+                        side_effect=Exception("not found"),
+                    ):
                         result = await move_note.fn(
                             "test-note", "target/file.md", project="test-project"
                         )

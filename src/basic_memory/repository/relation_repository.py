@@ -2,7 +2,7 @@
 
 from typing import Sequence, List, Optional
 
-import logfire
+
 from sqlalchemy import and_, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -27,7 +27,6 @@ class RelationRepository(Repository[Relation]):
         """
         super().__init__(session_maker, Relation, project_id=project_id)
 
-    @logfire.instrument()
     async def find_relation(
         self, from_permalink: str, to_permalink: str, relation_type: str
     ) -> Optional[Relation]:
@@ -49,21 +48,18 @@ class RelationRepository(Repository[Relation]):
         )
         return await self.find_one(query)
 
-    @logfire.instrument()
     async def find_by_entities(self, from_id: int, to_id: int) -> Sequence[Relation]:
         """Find all relations between two entities."""
         query = select(Relation).where((Relation.from_id == from_id) & (Relation.to_id == to_id))
         result = await self.execute_query(query)
         return result.scalars().all()
 
-    @logfire.instrument()
     async def find_by_type(self, relation_type: str) -> Sequence[Relation]:
         """Find all relations of a specific type."""
         query = select(Relation).filter(Relation.relation_type == relation_type)
         result = await self.execute_query(query)
         return result.scalars().all()
 
-    @logfire.instrument()
     async def delete_outgoing_relations_from_entity(self, entity_id: int) -> None:
         """Delete outgoing relations for an entity.
 
@@ -73,14 +69,12 @@ class RelationRepository(Repository[Relation]):
         async with db.scoped_session(self.session_maker) as session:
             await session.execute(delete(Relation).where(Relation.from_id == entity_id))
 
-    @logfire.instrument()
     async def find_unresolved_relations(self) -> Sequence[Relation]:
         """Find all unresolved relations, where to_id is null."""
         query = select(Relation).filter(Relation.to_id.is_(None))
         result = await self.execute_query(query)
         return result.scalars().all()
 
-    @logfire.instrument()
     async def find_unresolved_relations_for_entity(self, entity_id: int) -> Sequence[Relation]:
         """Find unresolved relations for a specific entity.
 
@@ -94,7 +88,6 @@ class RelationRepository(Repository[Relation]):
         result = await self.execute_query(query)
         return result.scalars().all()
 
-    @logfire.instrument()
     async def add_all_ignore_duplicates(self, relations: List[Relation]) -> int:
         """Bulk insert relations, ignoring duplicates.
 
