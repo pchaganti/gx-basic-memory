@@ -214,3 +214,36 @@ def test_sanitize_for_filename_removes_invalid_characters():
 )
 def test_sanitize_for_folder_edge_cases(input_folder, expected):
     assert sanitize_for_folder(input_folder) == expected
+
+
+class TestBOMHandling:
+    """Test handling of Byte Order Mark (BOM) in frontmatter.
+
+    BOM characters can be present in files created on Windows or copied
+    from certain sources. They should not break frontmatter detection
+    or parsing. See issue #452.
+    """
+
+    def test_has_frontmatter_with_bom(self):
+        """Test that has_frontmatter handles BOM correctly."""
+        # Content with UTF-8 BOM
+        content_with_bom = '\ufeff---\ntitle: Test\n---\nContent'
+        assert has_frontmatter(content_with_bom), "Should detect frontmatter even with BOM"
+
+    def test_has_frontmatter_with_bom_and_windows_crlf(self):
+        """Test BOM with Windows line endings."""
+        content = '\ufeff---\r\ntitle: Test\r\n---\r\nContent'
+        assert has_frontmatter(content), "Should detect frontmatter with BOM and CRLF"
+
+    def test_parse_frontmatter_with_bom(self):
+        """Test that parse_frontmatter handles BOM correctly."""
+        content_with_bom = '\ufeff---\ntitle: Test Title\ntype: note\n---\nContent'
+        result = parse_frontmatter(content_with_bom)
+        assert result['title'] == 'Test Title'
+        assert result['type'] == 'note'
+
+    def test_remove_frontmatter_with_bom(self):
+        """Test that remove_frontmatter handles BOM correctly."""
+        content_with_bom = '\ufeff---\ntitle: Test\n---\nContent here'
+        result = remove_frontmatter(content_with_bom)
+        assert result == 'Content here'
