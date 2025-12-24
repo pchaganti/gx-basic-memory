@@ -1,11 +1,13 @@
 """Utilities for file operations."""
 
+import asyncio
 import hashlib
+import shlex
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 import re
-from typing import Any, Dict, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import aiofiles
 import yaml
@@ -13,6 +15,9 @@ import frontmatter
 from loguru import logger
 
 from basic_memory.utils import FilePath
+
+if TYPE_CHECKING:
+    from basic_memory.config import BasicMemoryConfig
 
 
 @dataclass
@@ -70,7 +75,7 @@ async def compute_checksum(content: Union[str, bytes]) -> str:
 
 
 # UTF-8 BOM character that can appear at the start of files
-UTF8_BOM = '\ufeff'
+UTF8_BOM = "\ufeff"
 
 
 def strip_bom(content: str) -> str:
@@ -120,6 +125,168 @@ async def write_file_atomic(path: FilePath, content: str) -> None:
         temp_path.unlink(missing_ok=True)
         logger.error("Failed to write file", path=str(path_obj), error=str(e))
         raise FileWriteError(f"Failed to write file {path}: {e}")
+
+
+async def format_markdown_builtin(path: Path) -> Optional[str]:
+    """
+    Format a markdown file using the built-in mdformat formatter.
+
+    Uses mdformat with GFM (GitHub Flavored Markdown) support for consistent
+    formatting without requiring Node.js or external tools.
+
+    Args:
+        path: Path to the markdown file to format
+
+    Returns:
+        Formatted content if successful, None if formatting failed.
+    """
+    try:
+        import mdformat
+    except ImportError:
+        logger.warning(
+            "mdformat not installed, skipping built-in formatting",
+            path=str(path),
+        )
+        return None
+
+    try:
+        # Read original content
+        async with aiofiles.open(path, mode="r", encoding="utf-8") as f:
+            content = await f.read()
+
+        # Format using mdformat with GFM and frontmatter extensions
+        # mdformat is synchronous, so we run it in a thread executor
+        loop = asyncio.get_event_loop()
+        formatted_content = await loop.run_in_executor(
+            None,
+            lambda: mdformat.text(
+                content,
+                extensions={"gfm", "frontmatter"},  # GFM + YAML frontmatter support
+                options={"wrap": "no"},  # Don't wrap lines
+            ),
+        )
+
+        # Only write if content changed
+        if formatted_content != content:
+            async with aiofiles.open(path, mode="w", encoding="utf-8") as f:
+                await f.write(formatted_content)
+
+        logger.debug(
+            "Formatted file with mdformat",
+            path=str(path),
+            changed=formatted_content != content,
+        )
+        return formatted_content
+
+    except Exception as e:
+        logger.warning(
+            "mdformat formatting failed",
+            path=str(path),
+            error=str(e),
+        )
+        return None
+
+
+async def format_file(
+    path: Path,
+    config: "BasicMemoryConfig",
+    is_markdown: bool = False,
+) -> Optional[str]:
+    """
+    Format a file using configured formatter.
+
+    By default, uses the built-in mdformat formatter for markdown files (pure Python,
+    no Node.js required). External formatters like Prettier can be configured via
+    formatter_command or per-extension formatters.
+
+    Args:
+        path: File to format
+        config: Configuration with formatter settings
+        is_markdown: Whether this is a markdown file (caller should use FileService.is_markdown)
+
+    Returns:
+        Formatted content if successful, None if formatting was skipped or failed.
+        Failures are logged as warnings but don't raise exceptions.
+    """
+    if not config.format_on_save:
+        return None
+
+    extension = path.suffix.lstrip(".")
+    formatter = config.formatters.get(extension) or config.formatter_command
+
+    # Use built-in mdformat for markdown files when no external formatter configured
+    if not formatter:
+        if is_markdown:
+            return await format_markdown_builtin(path)
+        else:
+            logger.debug("No formatter configured for extension", extension=extension)
+            return None
+
+    # Use external formatter
+    # Replace {file} placeholder with the actual path
+    cmd = formatter.replace("{file}", str(path))
+
+    try:
+        # Parse command into args list for safer execution (no shell=True)
+        args = shlex.split(cmd)
+
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(),
+                timeout=config.formatter_timeout,
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            logger.warning(
+                "Formatter timed out",
+                path=str(path),
+                timeout=config.formatter_timeout,
+            )
+            return None
+
+        if proc.returncode != 0:
+            logger.warning(
+                "Formatter exited with non-zero status",
+                path=str(path),
+                returncode=proc.returncode,
+                stderr=stderr.decode("utf-8", errors="replace") if stderr else "",
+            )
+            # Still try to read the file - formatter may have partially worked
+            # or the file may be unchanged
+
+        # Read formatted content
+        async with aiofiles.open(path, mode="r", encoding="utf-8") as f:
+            formatted_content = await f.read()
+
+        logger.debug(
+            "Formatted file successfully",
+            path=str(path),
+            formatter=args[0] if args else formatter,
+        )
+        return formatted_content
+
+    except FileNotFoundError:
+        # Formatter executable not found
+        logger.warning(
+            "Formatter executable not found",
+            command=cmd.split()[0] if cmd else "",
+            path=str(path),
+        )
+        return None
+    except Exception as e:
+        logger.warning(
+            "Formatter failed",
+            path=str(path),
+            error=str(e),
+        )
+        return None
 
 
 def has_frontmatter(content: str) -> bool:

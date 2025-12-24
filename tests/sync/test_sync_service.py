@@ -2102,12 +2102,14 @@ async def test_sync_handles_file_not_found_gracefully(
     async def mock_read_that_fails(*args, **kwargs):
         raise FileNotFoundError("Simulated file not found")
 
-    with patch.object(sync_service.file_service, "read_file_content", side_effect=mock_read_that_fails):
+    with patch.object(
+        sync_service.file_service, "read_file_content", side_effect=mock_read_that_fails
+    ):
         # Force full scan to detect the file
         await force_full_scan(sync_service)
 
         # Sync should handle the error gracefully and delete the orphaned entity
-        report = await sync_service.sync(project_dir)
+        await sync_service.sync(project_dir)
 
         # Should not crash and should not have errors (FileNotFoundError is handled specially)
         # The file should be treated as deleted
