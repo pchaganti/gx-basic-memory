@@ -58,11 +58,69 @@ See the [README.md](README.md) file for a project overview.
 - Follow the repository pattern for data access
 - Tools communicate to api routers via the httpx ASGI client (in process)
 
+### Code Change Guidelines
+
+- **Full file read before edits**: Before editing any file, read it in full first to ensure complete context; partial reads lead to corrupted edits
+- **Minimize diffs**: Prefer the smallest change that satisfies the request. Avoid unrelated refactors or style rewrites unless necessary for correctness
+- **No speculative getattr**: Never use `getattr(obj, "attr", default)` when unsure about attribute names. Check the class definition or source code first
+- **Fail fast**: Write code with fail-fast logic by default. Do not swallow exceptions with errors or warnings
+- **No fallback logic**: Do not add fallback logic unless explicitly told to and agreed with the user
+- **No guessing**: Do not say "The issue is..." before you actually know what the issue is. Investigate first.
+
+### Literate Programming Style
+
+Code should tell a story. Comments must explain the "why" and narrative flow, not just the "what".
+
+**Section Headers:**
+For files with multiple phases of logic, add section headers so the control flow reads like chapters:
+```python
+# --- Authentication ---
+# ... auth logic ...
+
+# --- Data Validation ---
+# ... validation logic ...
+
+# --- Business Logic ---
+# ... core logic ...
+```
+
+**Decision Point Comments:**
+For conditionals that materially change behavior (gates, fallbacks, retries, feature flags), add comments with:
+- **Trigger**: what condition causes this branch
+- **Why**: the rationale (cost, correctness, UX, determinism)
+- **Outcome**: what changes downstream
+
+```python
+# Trigger: project has no active sync watcher
+# Why: avoid duplicate file system watchers consuming resources
+# Outcome: starts new watcher, registers in active_watchers dict
+if project_id not in active_watchers:
+    start_watcher(project_id)
+```
+
+**Constraint Comments:**
+If code exists because of a constraint (async requirements, rate limits, schema compatibility), explain the constraint near the code:
+```python
+# SQLite requires WAL mode for concurrent read/write access
+connection.execute("PRAGMA journal_mode=WAL")
+```
+
+**What NOT to Comment:**
+Avoid comments that restate obvious code:
+```python
+# Bad - restates code
+counter += 1  # increment counter
+
+# Good - explains why
+counter += 1  # track retries for backoff calculation
+```
+
 ### Codebase Architecture
 
 - `/alembic` - Alembic db migrations
 - `/api` - FastAPI implementation of REST endpoints
 - `/cli` - Typer command-line interface
+- `/importers` - Import functionality for Claude, ChatGPT, and other sources
 - `/markdown` - Markdown parsing and processing
 - `/mcp` - Model Context Protocol server implementation
 - `/models` - SQLAlchemy ORM models
@@ -140,22 +198,26 @@ See SPEC-16 for full context manager refactor details.
 ### Basic Memory Commands
 
 **Local Commands:**
-- Sync knowledge: `basic-memory sync` or `basic-memory sync --watch`
+- Check sync status: `basic-memory status`
 - Import from Claude: `basic-memory import claude conversations`
 - Import from ChatGPT: `basic-memory import chatgpt`
 - Import from Memory JSON: `basic-memory import memory-json`
-- Check sync status: `basic-memory status`
-- Tool access: `basic-memory tools` (provides CLI access to MCP tools)
-    - Guide: `basic-memory tools basic-memory-guide`
-    - Continue: `basic-memory tools continue-conversation --topic="search"`
+- Tool access: `basic-memory tool` (provides CLI access to MCP tools)
+    - Continue: `basic-memory tool continue-conversation --topic="search"`
+
+**Project Management:**
+- List projects: `basic-memory project list`
+- Add project: `basic-memory project add "name" ~/path`
+- Project info: `basic-memory project info`
+- One-way sync (local -> cloud): `basic-memory project sync`
+- Bidirectional sync: `basic-memory project bisync`
+- Integrity check: `basic-memory project check`
 
 **Cloud Commands (requires subscription):**
 - Authenticate: `basic-memory cloud login`
 - Logout: `basic-memory cloud logout`
-- Bidirectional sync: `basic-memory cloud sync`
-- Integrity check: `basic-memory cloud check`
-- Mount cloud storage: `basic-memory cloud mount`
-- Unmount cloud storage: `basic-memory cloud unmount`
+- Check cloud status: `basic-memory cloud status`
+- Setup cloud sync: `basic-memory cloud setup`
 
 ### MCP Capabilities
 
@@ -182,18 +244,19 @@ See SPEC-16 for full context manager refactor details.
     - `list_memory_projects()` - List all available projects with their status
     - `create_memory_project(project_name, project_path, set_default)` - Create new Basic Memory projects
     - `delete_project(project_name)` - Delete a project from configuration
-    - `get_current_project()` - Get current project information and stats
-    - `sync_status()` - Check file synchronization and background operation status
 
   **Visualization:**
     - `canvas(nodes, edges, title, folder)` - Generate Obsidian canvas files for knowledge graph visualization
+
+  **ChatGPT-Compatible Tools:**
+    - `search(query)` - Search across knowledge base (OpenAI actions compatible)
+    - `fetch(id)` - Fetch full content of a search result document
 
 - MCP Prompts for better AI interaction:
     - `ai_assistant_guide()` - Guidance on effectively using Basic Memory tools for AI assistants
     - `continue_conversation(topic, timeframe)` - Continue previous conversations with relevant historical context
     - `search(query, after_date)` - Search with detailed, formatted results for better context understanding
     - `recent_activity(timeframe)` - View recently changed items with formatted output
-    - `json_canvas_spec()` - Full JSON Canvas specification for Obsidian visualization
 
 ### Cloud Features (v0.15.0+)
 
