@@ -3,7 +3,6 @@ Basic Memory FastMCP server.
 """
 
 import asyncio
-import os
 from contextlib import asynccontextmanager
 
 from fastmcp import FastMCP
@@ -42,12 +41,7 @@ async def lifespan(app: FastMCP):
 
     # Start file sync as background task (if enabled and not in cloud mode)
     sync_task = None
-    is_test_env = (
-        app_config.env == "test"
-        or os.getenv("BASIC_MEMORY_ENV", "").lower() == "test"
-        or os.getenv("PYTEST_CURRENT_TEST") is not None
-    )
-    if is_test_env:
+    if app_config.is_test_env:
         logger.info("Test environment detected - skipping local file sync")
     elif app_config.sync_changes and not app_config.cloud_mode_enabled:
         logger.info("Starting file sync in background")

@@ -233,6 +233,23 @@ class BasicMemoryConfig(BaseSettings):
     )
 
     @property
+    def is_test_env(self) -> bool:
+        """Check if running in a test environment.
+
+        Returns True if any of:
+        - env field is set to "test"
+        - BASIC_MEMORY_ENV environment variable is "test"
+        - PYTEST_CURRENT_TEST environment variable is set (pytest is running)
+
+        Used to disable features like telemetry and file watchers during tests.
+        """
+        return (
+            self.env == "test"
+            or os.getenv("BASIC_MEMORY_ENV", "").lower() == "test"
+            or os.getenv("PYTEST_CURRENT_TEST") is not None
+        )
+
+    @property
     def cloud_mode_enabled(self) -> bool:
         """Check if cloud mode is enabled.
 

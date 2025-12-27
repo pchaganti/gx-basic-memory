@@ -90,15 +90,16 @@ def _get_client() -> OpenPanel:
 
         # Trigger: first call to track an event
         # Why: lazy init avoids work if telemetry never used; disabled flag
-        #      tells OpenPanel to skip network calls when user opts out
+        #      tells OpenPanel to skip network calls when user opts out or during tests
         # Outcome: client ready to queue events (or silently discard if disabled)
+        is_disabled = not config.telemetry_enabled or config.is_test_env
         _client = OpenPanel(
             client_id=OPENPANEL_CLIENT_ID,
             client_secret=OPENPANEL_CLIENT_SECRET,
-            disabled=not config.telemetry_enabled,
+            disabled=is_disabled,
         )
 
-        if config.telemetry_enabled and not _initialized:
+        if config.telemetry_enabled and not config.is_test_env and not _initialized:
             # Set global properties that go with every event
             _client.set_global_properties(
                 {
