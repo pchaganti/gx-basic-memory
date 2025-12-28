@@ -108,7 +108,7 @@ def _get_client() -> OpenPanel:
                     "os": platform.system().lower(),
                     "arch": platform.machine(),
                     "install_id": get_install_id(),
-                    "source": "foss"
+                    "source": "foss",
                 }
             )
             _initialized = True
