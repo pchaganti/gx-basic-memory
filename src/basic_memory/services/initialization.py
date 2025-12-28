@@ -162,6 +162,11 @@ async def initialize_app(
     Args:
         app_config: The Basic Memory project configuration
     """
+    # Skip initialization in cloud mode - cloud manages its own projects
+    if app_config.cloud_mode_enabled:
+        logger.debug("Skipping initialization in cloud mode - projects managed by cloud")
+        return
+
     logger.info("Initializing app...")
     # Initialize database first
     await initialize_database(app_config)
