@@ -37,11 +37,11 @@ test-postgres: test-unit-postgres test-int-postgres
 
 # Run unit tests against SQLite
 test-unit-sqlite:
-    uv run pytest -p pytest_mock -v --no-cov tests
+    BASIC_MEMORY_ENV=test uv run pytest -p pytest_mock -v --no-cov tests
 
 # Run unit tests against Postgres
 test-unit-postgres:
-    BASIC_MEMORY_TEST_POSTGRES=1 uv run pytest -p pytest_mock -v --no-cov tests
+    BASIC_MEMORY_ENV=test BASIC_MEMORY_TEST_POSTGRES=1 uv run pytest -p pytest_mock -v --no-cov tests
 
 # Run integration tests against SQLite
 test-int-sqlite:
