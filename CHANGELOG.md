@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## v0.17.1 (2025-12-29)
+
+### Bug Fixes
+
+- **#482**: Only set BASIC_MEMORY_ENV=test during pytest runs
+  ([`98fbd60`](https://github.com/basicmachines-co/basic-memory/commit/98fbd60))
+  - Fixes environment variable pollution affecting alembic migrations
+  - Test environment detection now scoped to pytest execution only
+
 ## v0.17.0 (2025-12-28)
 
 ### Features
