@@ -31,7 +31,7 @@ class ClaudeConversationsImporter(Importer[ChatImportResult]):
         """
         try:
             # Ensure the destination folder exists
-            folder_path = self.ensure_folder_exists(destination_folder)
+            folder_path = await self.ensure_folder_exists(destination_folder)
 
             conversations = source_data
 

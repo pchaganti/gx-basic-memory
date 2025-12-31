@@ -30,7 +30,7 @@ class ChatGPTImporter(Importer[ChatImportResult]):
         """
         try:  # pragma: no cover
             # Ensure the destination folder exists
-            self.ensure_folder_exists(destination_folder)
+            await self.ensure_folder_exists(destination_folder)
             conversations = source_data
 
             # Process each conversation

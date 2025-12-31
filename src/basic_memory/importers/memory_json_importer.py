@@ -37,7 +37,7 @@ class MemoryJsonImporter(Importer[EntityImportResult]):
             # Ensure the base path exists
             base_path = config.home  # pragma: no cover
             if destination_folder:  # pragma: no cover
-                base_path = self.ensure_folder_exists(destination_folder)
+                base_path = await self.ensure_folder_exists(destination_folder)
 
             # First pass - collect entities and relations
             for line in source_data:
@@ -68,9 +68,9 @@ class MemoryJsonImporter(Importer[EntityImportResult]):
                 # Get entity type with fallback
                 entity_type = entity_data.get("entityType") or entity_data.get("type") or "entity"
 
-                # Ensure entity type directory exists
+                # Ensure entity type directory exists using FileService
                 entity_type_dir = base_path / entity_type
-                entity_type_dir.mkdir(parents=True, exist_ok=True)
+                await self.file_service.ensure_directory(entity_type_dir)
 
                 # Get observations with fallback to empty list
                 observations = entity_data.get("observations", [])

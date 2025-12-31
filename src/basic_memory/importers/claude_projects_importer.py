@@ -31,7 +31,7 @@ class ClaudeProjectsImporter(Importer[ProjectImportResult]):
             # Ensure the base folder exists
             base_path = self.base_path
             if destination_folder:
-                base_path = self.ensure_folder_exists(destination_folder)
+                base_path = await self.ensure_folder_exists(destination_folder)
 
             projects = source_data
 
@@ -42,9 +42,9 @@ class ClaudeProjectsImporter(Importer[ProjectImportResult]):
             for project in projects:
                 project_dir = clean_filename(project["name"])
 
-                # Create project directories
+                # Create project directories using FileService
                 docs_dir = base_path / project_dir / "docs"
-                docs_dir.mkdir(parents=True, exist_ok=True)
+                await self.file_service.ensure_directory(docs_dir)
 
                 # Import prompt template if it exists
                 if prompt_entity := self._format_prompt_markdown(project):
