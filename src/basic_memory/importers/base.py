@@ -55,7 +55,7 @@ class Importer[T: ImportResult]:
         """
         pass  # pragma: no cover
 
-    async def write_entity(self, entity: EntityMarkdown, file_path: Path) -> str:
+    async def write_entity(self, entity: EntityMarkdown, file_path: str | Path) -> str:
         """Write entity to file using FileService.
 
         This method serializes the entity to markdown and writes it using
@@ -64,7 +64,7 @@ class Importer[T: ImportResult]:
 
         Args:
             entity: EntityMarkdown instance to write.
-            file_path: Path to write the entity to.
+            file_path: Relative path to write the entity to. FileService handles base_path.
 
         Returns:
             Checksum of written file.
@@ -73,21 +73,16 @@ class Importer[T: ImportResult]:
         # FileService.write_file handles directory creation and returns checksum
         return await self.file_service.write_file(file_path, content)
 
-    async def ensure_folder_exists(self, folder: str) -> Path:
+    async def ensure_folder_exists(self, folder: str) -> None:
         """Ensure folder exists using FileService.
 
         For cloud storage (S3), this is essentially a no-op since S3 doesn't
         have actual folders - they're just key prefixes.
 
         Args:
-            folder: Folder name or path within the project.
-
-        Returns:
-            Path to the folder.
+            folder: Relative folder path within the project. FileService handles base_path.
         """
-        folder_path = self.base_path / folder
-        await self.file_service.ensure_directory(folder_path)
-        return folder_path
+        await self.file_service.ensure_directory(folder)
 
     @abstractmethod
     def handle_error(

@@ -69,15 +69,15 @@ def test_importer(tmp_path, mock_markdown_processor, mock_file_service):
 
 
 @pytest.mark.asyncio
-async def test_import_data_success(test_importer, mock_file_service, tmp_path):
+async def test_import_data_success(test_importer, mock_file_service):
     """Test successful import_data implementation."""
     result = await test_importer.import_data({}, "test_folder")
     assert result.success
     assert result.import_count == {"files": 1}
     assert result.error_message is None
 
-    # Verify file_service.ensure_directory was called
-    mock_file_service.ensure_directory.assert_called_once_with(tmp_path / "test_folder")
+    # Verify file_service.ensure_directory was called with relative path
+    mock_file_service.ensure_directory.assert_called_once_with("test_folder")
 
 
 @pytest.mark.asyncio
@@ -105,19 +105,15 @@ async def test_write_entity(test_importer, mock_markdown_processor, mock_file_se
 
 
 @pytest.mark.asyncio
-async def test_ensure_folder_exists(test_importer, mock_file_service, tmp_path):
+async def test_ensure_folder_exists(test_importer, mock_file_service):
     """Test ensure_folder_exists method."""
-    # Test with simple folder
-    folder_path = await test_importer.ensure_folder_exists("test_folder")
-    assert folder_path == tmp_path / "test_folder"
+    # Test with simple folder - now passes relative path to FileService
+    await test_importer.ensure_folder_exists("test_folder")
+    mock_file_service.ensure_directory.assert_called_with("test_folder")
 
-    # Verify file_service.ensure_directory was called
-    mock_file_service.ensure_directory.assert_called_with(tmp_path / "test_folder")
-
-    # Test with nested folder
-    nested_path = await test_importer.ensure_folder_exists("nested/folder/path")
-    assert nested_path == tmp_path / "nested" / "folder" / "path"
-    mock_file_service.ensure_directory.assert_called_with(tmp_path / "nested" / "folder" / "path")
+    # Test with nested folder - FileService handles base_path resolution
+    await test_importer.ensure_folder_exists("nested/folder/path")
+    mock_file_service.ensure_directory.assert_called_with("nested/folder/path")
 
 
 @pytest.mark.asyncio

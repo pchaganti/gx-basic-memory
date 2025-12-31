@@ -3,7 +3,6 @@
 import logging
 from typing import Any, Dict, List
 
-from basic_memory.config import get_project_config
 from basic_memory.markdown.schemas import EntityFrontmatter, EntityMarkdown, Observation, Relation
 from basic_memory.importers.base import Importer
 from basic_memory.schemas.importer import EntityImportResult
@@ -27,17 +26,15 @@ class MemoryJsonImporter(Importer[EntityImportResult]):
         Returns:
             EntityImportResult containing statistics and status of the import.
         """
-        config = get_project_config()
         try:
             # First pass - collect all relations by source entity
             entity_relations: Dict[str, List[Relation]] = {}
             entities: Dict[str, Dict[str, Any]] = {}
             skipped_entities: int = 0
 
-            # Ensure the base path exists
-            base_path = config.home  # pragma: no cover
+            # Ensure the destination folder exists if provided
             if destination_folder:  # pragma: no cover
-                base_path = await self.ensure_folder_exists(destination_folder)
+                await self.ensure_folder_exists(destination_folder)
 
             # First pass - collect entities and relations
             for line in source_data:
@@ -68,8 +65,19 @@ class MemoryJsonImporter(Importer[EntityImportResult]):
                 # Get entity type with fallback
                 entity_type = entity_data.get("entityType") or entity_data.get("type") or "entity"
 
-                # Ensure entity type directory exists using FileService
-                entity_type_dir = base_path / entity_type
+                # Build permalink with optional destination folder prefix
+                permalink = (
+                    f"{destination_folder}/{entity_type}/{name}"
+                    if destination_folder
+                    else f"{entity_type}/{name}"
+                )
+
+                # Ensure entity type directory exists using FileService with relative path
+                entity_type_dir = (
+                    f"{destination_folder}/{entity_type}"
+                    if destination_folder
+                    else entity_type
+                )
                 await self.file_service.ensure_directory(entity_type_dir)
 
                 # Get observations with fallback to empty list
@@ -80,7 +88,7 @@ class MemoryJsonImporter(Importer[EntityImportResult]):
                         metadata={
                             "type": entity_type,
                             "title": name,
-                            "permalink": f"{entity_type}/{name}",
+                            "permalink": permalink,
                         }
                     ),
                     content=f"# {name}\n",
@@ -88,8 +96,8 @@ class MemoryJsonImporter(Importer[EntityImportResult]):
                     relations=entity_relations.get(name, []),
                 )
 
-                # Write entity file
-                file_path = base_path / f"{entity_type}/{name}.md"
+                # Write file using relative path - FileService handles base_path
+                file_path = f"{entity.frontmatter.metadata['permalink']}.md"
                 await self.write_entity(entity, file_path)
                 entities_created += 1
 
