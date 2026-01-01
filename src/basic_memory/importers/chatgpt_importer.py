@@ -30,7 +30,7 @@ class ChatGPTImporter(Importer[ChatImportResult]):
         """
         try:  # pragma: no cover
             # Ensure the destination folder exists
-            self.ensure_folder_exists(destination_folder)
+            await self.ensure_folder_exists(destination_folder)
             conversations = source_data
 
             # Process each conversation
@@ -41,8 +41,8 @@ class ChatGPTImporter(Importer[ChatImportResult]):
                 # Convert to entity
                 entity = self._format_chat_content(destination_folder, chat)
 
-                # Write file
-                file_path = self.base_path / f"{entity.frontmatter.metadata['permalink']}.md"
+                # Write file using relative path - FileService handles base_path
+                file_path = f"{entity.frontmatter.metadata['permalink']}.md"
                 await self.write_entity(entity, file_path)
 
                 # Count messages

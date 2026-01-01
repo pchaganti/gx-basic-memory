@@ -8,7 +8,8 @@ from fastmcp import Context
 from basic_memory.mcp.async_client import get_client
 from basic_memory.mcp.project_context import get_active_project, add_project_metadata
 from basic_memory.mcp.server import mcp
-from basic_memory.mcp.tools.utils import call_patch
+from basic_memory.mcp.tools.utils import call_patch, resolve_entity_id
+from basic_memory.telemetry import track_mcp_tool
 from basic_memory.schemas import EntityResponse
 
 
@@ -214,9 +215,9 @@ async def edit_note(
         search_notes() first to find the correct identifier. The tool provides detailed
         error messages with suggestions if operations fail.
     """
+    track_mcp_tool("edit_note")
     async with get_client() as client:
         active_project = await get_active_project(client, project, context)
-        project_url = active_project.project_url
 
         logger.info("MCP tool call", tool="edit_note", identifier=identifier, operation=operation)
 
@@ -235,6 +236,9 @@ async def edit_note(
 
         # Use the PATCH endpoint to edit the entity
         try:
+            # Resolve identifier to entity ID
+            entity_id = await resolve_entity_id(client, active_project.id, identifier)
+
             # Prepare the edit request data
             edit_data = {
                 "operation": operation,
@@ -250,7 +254,7 @@ async def edit_note(
                 edit_data["expected_replacements"] = str(expected_replacements)
 
             # Call the PATCH endpoint
-            url = f"{project_url}/knowledge/entities/{identifier}"
+            url = f"/v2/projects/{active_project.id}/knowledge/entities/{entity_id}"
             response = await call_patch(client, url, json=edit_data)
             result = EntityResponse.model_validate(response.json())
 

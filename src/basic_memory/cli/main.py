@@ -13,8 +13,15 @@ from basic_memory.cli.commands import (  # noqa: F401  # pragma: no cover
     mcp,
     project,
     status,
+    telemetry,
     tool,
 )
+
+# Re-apply warning filter AFTER all imports
+# (authlib adds a DeprecationWarning filter that overrides ours)
+import warnings  # pragma: no cover
+
+warnings.filterwarnings("ignore")  # pragma: no cover
 
 if __name__ == "__main__":  # pragma: no cover
     # start the app

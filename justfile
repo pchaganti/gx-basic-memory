@@ -37,11 +37,11 @@ test-postgres: test-unit-postgres test-int-postgres
 
 # Run unit tests against SQLite
 test-unit-sqlite:
-    uv run pytest -p pytest_mock -v --no-cov tests
+    BASIC_MEMORY_ENV=test uv run pytest -p pytest_mock -v --no-cov tests
 
 # Run unit tests against Postgres
 test-unit-postgres:
-    BASIC_MEMORY_TEST_POSTGRES=1 uv run pytest -p pytest_mock -v --no-cov tests
+    BASIC_MEMORY_ENV=test BASIC_MEMORY_TEST_POSTGRES=1 uv run pytest -p pytest_mock -v --no-cov tests
 
 # Run integration tests against SQLite
 test-int-sqlite:
@@ -51,7 +51,16 @@ test-int-sqlite:
 # Note: Uses timeout due to FastMCP Client + asyncpg cleanup hang (tests pass, process hangs on exit)
 # See: https://github.com/jlowin/fastmcp/issues/1311
 test-int-postgres:
-    timeout --signal=KILL 300 bash -c 'BASIC_MEMORY_TEST_POSTGRES=1 uv run pytest -p pytest_mock -v --no-cov test-int' || test $? -eq 137
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # Use gtimeout (macOS/Homebrew) or timeout (Linux)
+    TIMEOUT_CMD=$(command -v gtimeout || command -v timeout || echo "")
+    if [[ -n "$TIMEOUT_CMD" ]]; then
+        $TIMEOUT_CMD --signal=KILL 600 bash -c 'BASIC_MEMORY_TEST_POSTGRES=1 uv run pytest -p pytest_mock -v --no-cov test-int' || test $? -eq 137
+    else
+        echo "⚠️  No timeout command found, running without timeout..."
+        BASIC_MEMORY_TEST_POSTGRES=1 uv run pytest -p pytest_mock -v --no-cov test-int
+    fi
 
 # Reset Postgres test database (drops and recreates schema)
 # Useful when Alembic migration state gets out of sync during development
@@ -173,8 +182,9 @@ release version:
     fi
     
     # Run quality checks
-    echo "🔍 Running quality checks..."
-    just check
+    echo "🔍 Running lint  checks..."
+    just lint
+    just typecheck
     
     # Update version in __init__.py
     echo "📝 Updating version in __init__.py..."

@@ -9,6 +9,7 @@ from basic_memory.mcp.async_client import get_client
 from basic_memory.mcp.project_context import get_active_project
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_get
+from basic_memory.telemetry import track_mcp_tool
 from basic_memory.schemas.base import TimeFrame
 from basic_memory.schemas.memory import (
     GraphContext,
@@ -87,6 +88,7 @@ async def build_context(
     Raises:
         ToolError: If project doesn't exist or depth parameter is invalid
     """
+    track_mcp_tool("build_context")
     logger.info(f"Building context from {url} in project {project}")
 
     # Convert string depth to integer if needed
@@ -104,11 +106,9 @@ async def build_context(
         # Get the active project using the new stateless approach
         active_project = await get_active_project(client, project, context)
 
-        project_url = active_project.project_url
-
         response = await call_get(
             client,
-            f"{project_url}/memory/{memory_url_path(url)}",
+            f"/v2/projects/{active_project.id}/memory/{memory_url_path(url)}",
             params={
                 "depth": depth,
                 "timeframe": timeframe,

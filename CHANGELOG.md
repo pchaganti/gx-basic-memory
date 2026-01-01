@@ -1,5 +1,203 @@
 # CHANGELOG
 
+## v0.17.2 (2025-12-29)
+
+### Bug Fixes
+
+- Allow recent_activity discovery mode in cloud mode
+  ([`0bcda4a`](https://github.com/basicmachines-co/basic-memory/commit/0bcda4a))
+  - Add `allow_discovery` parameter to `resolve_project_parameter()`
+  - Tools like `recent_activity` can now work across all projects in cloud mode
+  - Fix circular import in project_context module
+
+### Internal
+
+- Optimize release workflow by running lint/typecheck only (skip full tests)
+  ([`0b5425f`](https://github.com/basicmachines-co/basic-memory/commit/0b5425f))
+
+## v0.17.1 (2025-12-29)
+
+### Bug Fixes
+
+- **#482**: Only set BASIC_MEMORY_ENV=test during pytest runs
+  ([`98fbd60`](https://github.com/basicmachines-co/basic-memory/commit/98fbd60))
+  - Fixes environment variable pollution affecting alembic migrations
+  - Test environment detection now scoped to pytest execution only
+
+## v0.17.0 (2025-12-28)
+
+### Features
+
+- **#478**: Add anonymous usage telemetry with Homebrew-style opt-out
+  ([`856737f`](https://github.com/basicmachines-co/basic-memory/commit/856737f))
+  - Privacy-respecting anonymous usage analytics
+  - Easy opt-out via `BASIC_MEMORY_NO_ANALYTICS=1` environment variable
+  - Helps improve Basic Memory based on real usage patterns
+
+- **#474**: Add auto-format files on save with built-in Python formatter
+  ([`1fd680c`](https://github.com/basicmachines-co/basic-memory/commit/1fd680c))
+  - Automatic markdown formatting on file save
+  - Built-in Python formatter for consistent code style
+  - Configurable formatting options
+
+- **#447**: Complete Phase 2 of API v2 migration - MCP tools use v2 endpoints
+  ([`1a74d85`](https://github.com/basicmachines-co/basic-memory/commit/1a74d85))
+  - All MCP tools now use optimized v2 API endpoints
+  - Improved performance for knowledge graph operations
+  - Foundation for future API enhancements
+
+### Bug Fixes
+
+- Fix UTF-8 BOM handling in frontmatter parsing
+  ([`85684f8`](https://github.com/basicmachines-co/basic-memory/commit/85684f8))
+  - Handles files with UTF-8 byte order marks correctly
+  - Prevents frontmatter parsing failures
+
+- **#475**: Handle null titles in ChatGPT import
+  ([`14ce5a3`](https://github.com/basicmachines-co/basic-memory/commit/14ce5a3))
+  - Gracefully handles conversations without titles
+  - Improved import robustness
+
+- Remove MaxLen constraint from observation content
+  ([`45d6caf`](https://github.com/basicmachines-co/basic-memory/commit/45d6caf))
+  - Allows longer observation content without truncation
+  - Removes arbitrary 2000 character limit
+
+- Handle FileNotFoundError gracefully during sync
+  ([`1652f86`](https://github.com/basicmachines-co/basic-memory/commit/1652f86))
+  - Prevents sync failures when files are deleted during sync
+  - More resilient file watching
+
+- Use canonical project names in API response messages
+  ([`c23927d`](https://github.com/basicmachines-co/basic-memory/commit/c23927d))
+  - Consistent project name formatting in all responses
+
+- Suppress CLI warnings for cleaner output
+  ([`d71c6e8`](https://github.com/basicmachines-co/basic-memory/commit/d71c6e8))
+  - Cleaner terminal output without spurious warnings
+
+- Prevent DEBUG logs from appearing on CLI stdout
+  ([`63b9849`](https://github.com/basicmachines-co/basic-memory/commit/63b9849))
+  - Debug logging no longer pollutes CLI output
+
+- **#473**: Detect rclone version for --create-empty-src-dirs support
+  ([`622d37e`](https://github.com/basicmachines-co/basic-memory/commit/622d37e))
+  - Automatic rclone version detection for compatibility
+  - Prevents errors on older rclone versions
+
+- **#471**: Prevent CLI commands from hanging on exit
+  ([`916baf8`](https://github.com/basicmachines-co/basic-memory/commit/916baf8))
+  - Fixes CLI hang on shutdown
+  - Proper async cleanup
+
+- Add cloud_mode check to initialize_app()
+  ([`ef7adb7`](https://github.com/basicmachines-co/basic-memory/commit/ef7adb7))
+  - Correct initialization for cloud deployments
+
+### Internal
+
+- Centralize test environment detection in config.is_test_env
+  ([`3cd9178`](https://github.com/basicmachines-co/basic-memory/commit/3cd9178))
+  - Unified test environment detection
+  - Disables analytics in test environments
+
+- Make test-int-postgres compatible with macOS
+  ([`95937c6`](https://github.com/basicmachines-co/basic-memory/commit/95937c6))
+  - Cross-platform PostgreSQL testing support
+
+## v0.16.3 (2025-12-20)
+
+### Features
+
+- **#439**: Add PostgreSQL database backend support
+  ([`fb5e9e1`](https://github.com/basicmachines-co/basic-memory/commit/fb5e9e1))
+  - Full PostgreSQL/Neon database support as alternative to SQLite
+  - Async connection pooling with asyncpg
+  - Alembic migrations support for both backends
+  - Configurable via `BASIC_MEMORY_DATABASE_BACKEND` environment variable
+
+- **#441**: Implement API v2 with ID-based endpoints (Phase 1)
+  ([`28cc522`](https://github.com/basicmachines-co/basic-memory/commit/28cc522))
+  - New ID-based API endpoints for improved performance
+  - Foundation for future API enhancements
+  - Backward compatible with existing endpoints
+
+- Add project_id to Relation and Observation for efficient project-scoped queries
+  ([`a920a9f`](https://github.com/basicmachines-co/basic-memory/commit/a920a9f))
+  - Enables faster queries in multi-project environments
+  - Improved database schema for cloud deployments
+
+- Add bulk insert with ON CONFLICT handling for relations
+  ([`0818bda`](https://github.com/basicmachines-co/basic-memory/commit/0818bda))
+  - Faster relation creation during sync operations
+  - Handles duplicate relations gracefully
+
+### Performance
+
+- Lightweight permalink resolution to avoid eager loading
+  ([`6f99d2e`](https://github.com/basicmachines-co/basic-memory/commit/6f99d2e))
+  - Reduces database queries during entity lookups
+  - Improved response times for read operations
+
+### Bug Fixes
+
+- **#464**: Pin FastMCP to 2.12.3 to fix MCP tools visibility
+  ([`f227ef6`](https://github.com/basicmachines-co/basic-memory/commit/f227ef6))
+  - Fixes issue where MCP tools were not visible to Claude
+  - Reverts to last known working FastMCP version
+
+- **#458**: Reduce watch service CPU usage by increasing reload interval
+  ([`897b1ed`](https://github.com/basicmachines-co/basic-memory/commit/897b1ed))
+  - Lowers CPU usage during file watching
+  - More efficient resource utilization
+
+- **#456**: Await background sync task cancellation in lifespan shutdown
+  ([`efbc758`](https://github.com/basicmachines-co/basic-memory/commit/efbc758))
+  - Prevents hanging on shutdown
+  - Clean async task cleanup
+
+- **#434**: Respect --project flag in background sync
+  ([`70bb10b`](https://github.com/basicmachines-co/basic-memory/commit/70bb10b))
+  - Background sync now correctly uses specified project
+  - Fixes multi-project sync issues
+
+- **#446**: Fix observation parsing and permalink limits
+  ([`73d940e`](https://github.com/basicmachines-co/basic-memory/commit/73d940e))
+  - Handles edge cases in observation content
+  - Prevents permalink truncation issues
+
+- **#424**: Handle periods in kebab_filenames mode
+  ([`b004565`](https://github.com/basicmachines-co/basic-memory/commit/b004565))
+  - Fixes filename handling for files with multiple periods
+  - Improved kebab-case conversion
+
+- Fix Postgres/Neon connection settings and search index dedupe
+  ([`b5d4fb5`](https://github.com/basicmachines-co/basic-memory/commit/b5d4fb5))
+  - Optimized connection pooling for Postgres
+  - Prevents duplicate search index entries
+
+### Testing & CI
+
+- Replace py-pglite with testcontainers for Postgres testing
+  ([`c462faf`](https://github.com/basicmachines-co/basic-memory/commit/c462faf))
+  - More reliable Postgres testing infrastructure
+  - Uses Docker-based test containers
+
+- Add PostgreSQL testing to GitHub Actions workflow
+  ([`66b91b2`](https://github.com/basicmachines-co/basic-memory/commit/66b91b2))
+  - CI now tests both SQLite and PostgreSQL backends
+  - Ensures cross-database compatibility
+
+- **#416**: Add integration test for read_note with underscored folders
+  ([`0c12a39`](https://github.com/basicmachines-co/basic-memory/commit/0c12a39))
+  - Verifies folder name handling edge cases
+
+### Internal
+
+- Cloud compatibility fixes and performance improvements (#454)
+- Remove logfire instrumentation for cleaner production deployments
+- Truncate content_stems to fix Postgres 8KB index row limit
+
 ## v0.16.2 (2025-11-16)
 
 ### Bug Fixes

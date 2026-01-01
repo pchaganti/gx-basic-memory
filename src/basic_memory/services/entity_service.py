@@ -29,6 +29,7 @@ from basic_memory.schemas.base import Permalink
 from basic_memory.services import BaseService, FileService
 from basic_memory.services.exceptions import EntityCreationError, EntityNotFoundError
 from basic_memory.services.link_resolver import LinkResolver
+from basic_memory.services.search_service import SearchService
 from basic_memory.utils import generate_permalink
 
 
@@ -43,6 +44,7 @@ class EntityService(BaseService[EntityModel]):
         relation_repository: RelationRepository,
         file_service: FileService,
         link_resolver: LinkResolver,
+        search_service: Optional[SearchService] = None,
         app_config: Optional[BasicMemoryConfig] = None,
     ):
         super().__init__(entity_repository)
@@ -51,6 +53,7 @@ class EntityService(BaseService[EntityModel]):
         self.entity_parser = entity_parser
         self.file_service = file_service
         self.link_resolver = link_resolver
+        self.search_service = search_service
         self.app_config = app_config
 
     async def detect_file_path_conflicts(
@@ -233,8 +236,11 @@ class EntityService(BaseService[EntityModel]):
         final_content = dump_frontmatter(post)
         checksum = await self.file_service.write_file(file_path, final_content)
 
-        # parse entity from file
-        entity_markdown = await self.entity_parser.parse_file(file_path)
+        # parse entity from content we just wrote (avoids re-reading file for cloud compatibility)
+        entity_markdown = await self.entity_parser.parse_markdown_content(
+            file_path=file_path,
+            content=final_content,
+        )
 
         # create entity
         created = await self.create_entity_from_markdown(file_path, entity_markdown)
@@ -254,8 +260,12 @@ class EntityService(BaseService[EntityModel]):
         # Convert file path string to Path
         file_path = Path(entity.file_path)
 
-        # Read existing frontmatter from the file if it exists
-        existing_markdown = await self.entity_parser.parse_file(file_path)
+        # Read existing content via file_service (for cloud compatibility)
+        existing_content = await self.file_service.read_file_content(file_path)
+        existing_markdown = await self.entity_parser.parse_markdown_content(
+            file_path=file_path,
+            content=existing_content,
+        )
 
         # Parse content frontmatter to check for user-specified permalink and entity_type
         content_markdown = None
@@ -311,8 +321,11 @@ class EntityService(BaseService[EntityModel]):
         final_content = dump_frontmatter(merged_post)
         checksum = await self.file_service.write_file(file_path, final_content)
 
-        # parse entity from file
-        entity_markdown = await self.entity_parser.parse_file(file_path)
+        # parse entity from content we just wrote (avoids re-reading file for cloud compatibility)
+        entity_markdown = await self.entity_parser.parse_markdown_content(
+            file_path=file_path,
+            content=final_content,
+        )
 
         # update entity in db
         entity = await self.update_entity_and_observations(file_path, entity_markdown)
@@ -344,7 +357,11 @@ class EntityService(BaseService[EntityModel]):
                     )
                 entity = entities[0]
 
-            # Delete file first
+            # Delete from search index first (if search_service is available)
+            if self.search_service:
+                await self.search_service.handle_delete(entity)
+
+            # Delete file
             await self.file_service.delete_entity_file(entity)
 
             # Delete from DB (this will cascade to observations/relations)
@@ -559,8 +576,11 @@ class EntityService(BaseService[EntityModel]):
         # Write the updated content back to the file
         checksum = await self.file_service.write_file(file_path, new_content)
 
-        # Parse the updated file to get new observations/relations
-        entity_markdown = await self.entity_parser.parse_file(file_path)
+        # Parse the content we just wrote (avoids re-reading file for cloud compatibility)
+        entity_markdown = await self.entity_parser.parse_markdown_content(
+            file_path=file_path,
+            content=new_content,
+        )
 
         # Update entity and its relationships
         entity = await self.update_entity_and_observations(file_path, entity_markdown)
@@ -779,23 +799,20 @@ class EntityService(BaseService[EntityModel]):
             raise ValueError(f"Invalid destination path: {destination_path}")
 
         # 3. Validate paths
-        source_file = project_config.home / current_path
-        destination_file = project_config.home / destination_path
-
-        # Validate source exists
-        if not source_file.exists():
+        # NOTE: In tenantless/cloud mode, we cannot rely on local filesystem paths.
+        # Use FileService for existence checks and moving.
+        if not await self.file_service.exists(current_path):
             raise ValueError(f"Source file not found: {current_path}")
 
-        # Check if destination already exists
-        if destination_file.exists():
+        if await self.file_service.exists(destination_path):
             raise ValueError(f"Destination already exists: {destination_path}")
 
         try:
-            # 4. Create destination directory if needed
-            destination_file.parent.mkdir(parents=True, exist_ok=True)
+            # 4. Ensure destination directory if needed (no-op for S3)
+            await self.file_service.ensure_directory(Path(destination_path).parent)
 
-            # 5. Move physical file
-            source_file.rename(destination_file)
+            # 5. Move physical file via FileService (filesystem rename or cloud move)
+            await self.file_service.move_file(current_path, destination_path)
             logger.info(f"Moved file: {current_path} -> {destination_path}")
 
             # 6. Prepare database updates
@@ -834,12 +851,14 @@ class EntityService(BaseService[EntityModel]):
 
         except Exception as e:
             # Rollback: try to restore original file location if move succeeded
-            if destination_file.exists() and not source_file.exists():
-                try:
-                    destination_file.rename(source_file)
+            try:
+                if await self.file_service.exists(
+                    destination_path
+                ) and not await self.file_service.exists(current_path):
+                    await self.file_service.move_file(destination_path, current_path)
                     logger.info(f"Rolled back file move: {destination_path} -> {current_path}")
-                except Exception as rollback_error:  # pragma: no cover
-                    logger.error(f"Failed to rollback file move: {rollback_error}")
+            except Exception as rollback_error:  # pragma: no cover
+                logger.error(f"Failed to rollback file move: {rollback_error}")
 
             # Re-raise the original error with context
             raise ValueError(f"Move failed: {str(e)}") from e

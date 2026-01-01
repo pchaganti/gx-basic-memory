@@ -9,6 +9,7 @@ from basic_memory.mcp.async_client import get_client
 from basic_memory.mcp.project_context import get_active_project, resolve_project_parameter
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.utils import call_get
+from basic_memory.telemetry import track_mcp_tool
 from basic_memory.schemas.base import TimeFrame
 from basic_memory.schemas.memory import (
     GraphContext,
@@ -98,6 +99,7 @@ async def recent_activity(
         - For focused queries, consider using build_context with a specific URI
         - Max timeframe is 1 year in the past
     """
+    track_mcp_tool("recent_activity")
     async with get_client() as client:
         # Build common parameters for API calls
         params = {
@@ -133,7 +135,8 @@ async def recent_activity(
             params["type"] = [t.value for t in validated_types]  # pyright: ignore
 
         # Resolve project parameter using the three-tier hierarchy
-        resolved_project = await resolve_project_parameter(project)
+        # allow_discovery=True enables Discovery Mode, so a project is not required
+        resolved_project = await resolve_project_parameter(project, allow_discovery=True)
 
         if resolved_project is None:
             # Discovery Mode: Get activity across all projects
@@ -247,11 +250,10 @@ async def recent_activity(
             )
 
             active_project = await get_active_project(client, resolved_project, context)
-            project_url = active_project.project_url
 
             response = await call_get(
                 client,
-                f"{project_url}/memory/recent",
+                f"/v2/projects/{active_project.id}/memory/recent",
                 params=params,
             )
             activity_data = GraphContext.model_validate(response.json())
@@ -274,10 +276,9 @@ async def _get_project_activity(
     Returns:
         ProjectActivity with activity data or empty activity on error
     """
-    project_url = f"/{project_info.permalink}"
     activity_response = await call_get(
         client,
-        f"{project_url}/memory/recent",
+        f"/v2/projects/{project_info.id}/memory/recent",
         params=params,
     )
     activity = GraphContext.model_validate(activity_response.json())

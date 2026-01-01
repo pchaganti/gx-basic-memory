@@ -91,6 +91,49 @@ def test_relation_response():
     assert relation.context is None
 
 
+def test_relation_response_with_null_permalink():
+    """Test RelationResponse handles null permalinks by falling back to file_path (fixes issue #483).
+
+    When entities are imported from environments without permalinks enabled,
+    the from_entity.permalink and to_entity.permalink can be None.
+    In this case, we fall back to file_path to ensure the API always returns
+    a usable identifier for the related entities.
+
+    We use file_path directly (not converted to permalink format) because if the
+    entity doesn't have a permalink, the system won't find it by a generated one.
+    """
+    data = {
+        "permalink": "test/relation/123",
+        "relation_type": "relates_to",
+        "from_entity": {"permalink": None, "file_path": "notes/source-note.md"},
+        "to_entity": {
+            "permalink": None,
+            "file_path": "notes/target-note.md",
+            "title": "Target Note",
+        },
+    }
+    relation = RelationResponse.model_validate(data)
+    # Falls back to file_path directly (not converted to permalink)
+    assert relation.from_id == "notes/source-note.md"
+    assert relation.to_id == "notes/target-note.md"
+    assert relation.to_name == "Target Note"
+    assert relation.relation_type == "relates_to"
+
+
+def test_relation_response_with_permalink_preferred_over_file_path():
+    """Test that permalink is preferred over file_path when both are available."""
+    data = {
+        "permalink": "test/relation/123",
+        "relation_type": "links_to",
+        "from_entity": {"permalink": "from-permalink", "file_path": "notes/from-file.md"},
+        "to_entity": {"permalink": "to-permalink", "file_path": "notes/to-file.md"},
+    }
+    relation = RelationResponse.model_validate(data)
+    # Prefers permalink over file_path
+    assert relation.from_id == "from-permalink"
+    assert relation.to_id == "to-permalink"
+
+
 def test_entity_out_from_attributes():
     """Test EntityOut creation from database model attributes."""
     # Simulate database model attributes
@@ -466,3 +509,45 @@ class TestTimeframeParsing:
         # They should be approximately the same time (within an hour due to parsing differences)
         time_diff = abs((today_parsed - oneday_parsed).total_seconds())
         assert time_diff < 3600, f"'today' and '1d' should be similar times, diff: {time_diff}s"
+
+
+class TestObservationContentLength:
+    """Test observation content length validation matches DB schema."""
+
+    def test_observation_accepts_long_content(self):
+        """Observation content should accept unlimited length to match DB Text column."""
+        from basic_memory.schemas.base import Observation
+
+        # Very long content that would have failed with old MaxLen(1000) limit
+        long_content = "x" * 10000
+
+        obs = Observation(category="test", content=long_content)
+        assert len(obs.content) == 10000
+
+    def test_observation_accepts_very_long_content(self):
+        """Observation content should accept very long content like JSON schemas."""
+        from basic_memory.schemas.base import Observation
+
+        # Simulate the JSON schema content from issue #385 (1458+ chars)
+        json_schema_content = '{"$schema": "http://json-schema.org/draft-07/schema#"' + "x" * 50000
+
+        obs = Observation(category="schema", content=json_schema_content)
+        assert len(obs.content) > 50000
+
+    def test_observation_still_requires_non_empty_content(self):
+        """Observation content must still be non-empty after stripping."""
+        from basic_memory.schemas.base import Observation
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            Observation(category="test", content="")
+
+        with pytest.raises(ValidationError):
+            Observation(category="test", content="   ")  # whitespace only
+
+    def test_observation_strips_whitespace(self):
+        """Observation content should have whitespace stripped."""
+        from basic_memory.schemas.base import Observation
+
+        obs = Observation(category="test", content="  some content  ")
+        assert obs.content == "some content"

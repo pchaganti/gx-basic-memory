@@ -25,9 +25,87 @@ from basic_memory.schemas.project_info import (
     ProjectItem,
     ProjectStatusResponse,
 )
-from basic_memory.utils import normalize_project_path
+from basic_memory.schemas.v2 import ProjectResolveRequest, ProjectResolveResponse
+from basic_memory.utils import normalize_project_path, generate_permalink
 
 router = APIRouter(prefix="/projects", tags=["project_management-v2"])
+
+
+@router.post("/resolve", response_model=ProjectResolveResponse)
+async def resolve_project_identifier(
+    data: ProjectResolveRequest,
+    project_repository: ProjectRepositoryDep,
+) -> ProjectResolveResponse:
+    """Resolve a project identifier (name or permalink) to a project ID.
+
+    This endpoint provides efficient lookup of projects by name without
+    needing to fetch the entire project list. Supports case-insensitive
+    matching on both name and permalink.
+
+    Args:
+        data: Request containing the identifier to resolve
+
+    Returns:
+        Project information including the numeric ID
+
+    Raises:
+        HTTPException: 404 if project not found
+
+    Example:
+        POST /v2/projects/resolve
+        {"identifier": "my-project"}
+
+        Returns:
+        {
+            "project_id": 1,
+            "name": "my-project",
+            "permalink": "my-project",
+            "path": "/path/to/project",
+            "is_active": true,
+            "is_default": false,
+            "resolution_method": "name"
+        }
+    """
+    logger.info(f"API v2 request: resolve_project_identifier for '{data.identifier}'")
+
+    # Generate permalink for comparison
+    identifier_permalink = generate_permalink(data.identifier)
+
+    # Try to find project by ID first (if identifier is numeric)
+    resolution_method = "name"
+    project = None
+
+    if data.identifier.isdigit():
+        project_id = int(data.identifier)
+        project = await project_repository.get_by_id(project_id)
+        if project:
+            resolution_method = "id"
+
+    # If not found by ID, try by permalink first (exact match)
+    if not project:
+        project = await project_repository.get_by_permalink(identifier_permalink)
+        if project:
+            resolution_method = "permalink"
+
+    # If not found by permalink, try case-insensitive name search
+    # Uses efficient database query instead of fetching all projects
+    if not project:
+        project = await project_repository.get_by_name_case_insensitive(data.identifier)
+        if project:
+            resolution_method = "name"
+
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project not found: '{data.identifier}'")
+
+    return ProjectResolveResponse(
+        project_id=project.id,
+        name=project.name,
+        permalink=generate_permalink(project.name),
+        path=normalize_project_path(project.path),
+        is_active=project.is_active if hasattr(project, "is_active") else True,
+        is_default=project.is_default or False,
+        resolution_method=resolution_method,
+    )
 
 
 @router.get("/{project_id}", response_model=ProjectItem)
@@ -126,7 +204,7 @@ async def update_project_by_id(
         return ProjectStatusResponse(
             message=f"Project '{updated_project.name}' updated successfully",
             status="success",
-            default=(old_project.name == project_service.default_project),
+            default=old_project.is_default or False,
             old_project=old_project_info,
             new_project=ProjectItem(
                 id=updated_project.id,
@@ -173,7 +251,8 @@ async def delete_project_by_id(
             raise HTTPException(status_code=404, detail=f"Project with ID {project_id} not found")
 
         # Check if trying to delete the default project
-        if old_project.name == project_service.default_project:
+        # Use is_default from database, not ConfigManager (which doesn't work in cloud mode)
+        if old_project.is_default:
             available_projects = await project_service.list_projects()
             other_projects = [p.name for p in available_projects if p.id != project_id]
             detail = f"Cannot delete default project '{old_project.name}'. "
@@ -227,12 +306,11 @@ async def set_default_project_by_id(
     logger.info(f"API v2 request: set_default_project_by_id for project_id={project_id}")
 
     try:
-        # Get the old default project
-        default_name = project_service.default_project
-        default_project = await project_service.get_project(default_name)
+        # Get the old default project from database
+        default_project = await project_repository.get_default_project()
         if not default_project:
             raise HTTPException(
-                status_code=404, detail=f"Default Project: '{default_name}' does not exist"
+                status_code=404, detail="No default project is currently set"
             )
 
         # Get the new default project
@@ -249,7 +327,7 @@ async def set_default_project_by_id(
             default=True,
             old_project=ProjectItem(
                 id=default_project.id,
-                name=default_name,
+                name=default_project.name,
                 path=default_project.path,
                 is_default=False,
             ),

@@ -433,6 +433,72 @@ See the [Documentation](https://memory.basicmachines.co/) for more info, includi
 - [Managing multiple Projects](https://docs.basicmemory.com/guides/cli-reference/#project)
 - [Importing data from OpenAI/Claude Projects](https://docs.basicmemory.com/guides/cli-reference/#import)
 
+## Logging
+
+Basic Memory uses [Loguru](https://github.com/Delgan/loguru) for logging. The logging behavior varies by entry point:
+
+| Entry Point | Default Behavior | Use Case |
+|-------------|------------------|----------|
+| CLI commands | File only | Prevents log output from interfering with command output |
+| MCP server | File only | Stdout would corrupt the JSON-RPC protocol |
+| API server | File (local) or stdout (cloud) | Docker/cloud deployments use stdout |
+
+**Log file location:** `~/.basic-memory/basic-memory.log` (10MB rotation, 10 days retention)
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BASIC_MEMORY_LOG_LEVEL` | `INFO` | Log level: DEBUG, INFO, WARNING, ERROR |
+| `BASIC_MEMORY_CLOUD_MODE` | `false` | When `true`, API logs to stdout with structured context |
+| `BASIC_MEMORY_ENV` | `dev` | Set to `test` for test mode (stderr only) |
+
+### Examples
+
+```bash
+# Enable debug logging
+BASIC_MEMORY_LOG_LEVEL=DEBUG basic-memory sync
+
+# View logs
+tail -f ~/.basic-memory/basic-memory.log
+
+# Cloud/Docker mode (stdout logging with structured context)
+BASIC_MEMORY_CLOUD_MODE=true uvicorn basic_memory.api.app:app
+```
+
+## Telemetry
+
+Basic Memory collects anonymous usage statistics to help improve the software. This follows the [Homebrew model](https://docs.brew.sh/Analytics) - telemetry is on by default with easy opt-out.
+
+**What we collect:**
+- App version, Python version, OS, architecture
+- Feature usage (which MCP tools and CLI commands are used)
+- Error types (sanitized - no file paths or personal data)
+
+**What we NEVER collect:**
+- Note content, file names, or paths
+- Personal information
+- IP addresses
+
+**Opting out:**
+```bash
+# Disable telemetry
+basic-memory telemetry disable
+
+# Check status
+basic-memory telemetry status
+
+# Re-enable
+basic-memory telemetry enable
+```
+
+Or set the environment variable:
+```bash
+export BASIC_MEMORY_TELEMETRY_ENABLED=false
+```
+
+For more details, see the [Telemetry documentation](https://basicmemory.com/telemetry).
+
 ## Development
 
 ### Running Tests
