@@ -13,6 +13,7 @@ The issue occurs when:
 The fix ensures db.shutdown_db() is called before asyncio.run() returns.
 """
 
+import os
 import platform
 import subprocess
 import sys
@@ -62,7 +63,7 @@ class TestCLIToolExit:
                 "This indicates database connections are not being cleaned up properly."
             )
 
-    def test_ensure_initialization_exits_cleanly(self):
+    def test_ensure_initialization_exits_cleanly(self, tmp_path):
         """Test that ensure_initialization doesn't cause process hang.
 
         This test directly tests the initialization function that's called
@@ -78,11 +79,20 @@ ensure_initialization(app_config)
 print("OK")
 """
         try:
+            # Ensure the subprocess uses an isolated home directory so ConfigManager doesn't
+            # touch the real user profile/AppData (which can be slow/flaky on CI Windows).
+            env = dict(os.environ)
+            bm_home = tmp_path / "basic-memory-home"
+            env["BASIC_MEMORY_HOME"] = str(bm_home)
+            env["HOME"] = str(tmp_path)
+            env["USERPROFILE"] = str(tmp_path)
+
             result = subprocess.run(
                 [sys.executable, "-c", code],
                 capture_output=True,
                 text=True,
                 timeout=SUBPROCESS_TIMEOUT,
+                env=env,
             )
             assert "OK" in result.stdout, f"Unexpected output: {result.stdout}"
         except subprocess.TimeoutExpired:

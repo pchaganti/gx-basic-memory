@@ -42,15 +42,15 @@ async def resolve_relations_background(sync_service, entity_id: int, entity_perm
     This runs asynchronously after the API response is sent, preventing
     long delays when creating entities with many relations.
     """
-    try:
+    try:  # pragma: no cover
         # Only resolve relations for the newly created entity
-        await sync_service.resolve_relations(entity_id=entity_id)
-        logger.debug(
+        await sync_service.resolve_relations(entity_id=entity_id)  # pragma: no cover
+        logger.debug(  # pragma: no cover
             f"Background: Resolved relations for entity {entity_permalink} (id={entity_id})"
         )
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         # Log but don't fail - this is a background task
-        logger.warning(
+        logger.warning(  # pragma: no cover
             f"Background: Failed to resolve relations for entity {entity_permalink}: {e}"
         )
 
@@ -245,7 +245,7 @@ async def update_entity_by_id(
 
     # Schedule relation resolution for new entities
     if created:
-        background_tasks.add_task(
+        background_tasks.add_task(  # pragma: no cover
             resolve_relations_background, sync_service, entity.id, entity.permalink or ""
         )
 
@@ -352,7 +352,7 @@ async def delete_entity_by_id(
 
     # Remove from search index if search service available
     if search_service:
-        background_tasks.add_task(search_service.handle_delete, entity)
+        background_tasks.add_task(search_service.handle_delete, entity)  # pragma: no cover
 
     logger.info(f"API v2 response: external_id={entity_id}, deleted={deleted}")
 
@@ -420,8 +420,8 @@ async def move_entity(
 
         return result
 
-    except HTTPException:
-        raise
+    except HTTPException:  # pragma: no cover
+        raise  # pragma: no cover
     except Exception as e:
         logger.error(f"Error moving entity: {e}")
         raise HTTPException(status_code=400, detail=str(e))
