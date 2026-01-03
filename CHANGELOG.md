@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## v0.17.3 (2026-01-03)
+
+### Features
+
+- **#485**: Add stable external_id (UUID) to Project and Entity models
+  ([`a4000f6`](https://github.com/basicmachines-co/basic-memory/commit/a4000f6))
+  - Projects and entities now have immutable UUID identifiers
+  - API v2 endpoints use external_id for stable references
+  - Directory responses include external_id for entities
+
+### Bug Fixes
+
+- **#501**: Update mcp dependency to support protocol version 2025-11-25
+  ([`c6baf58`](https://github.com/basicmachines-co/basic-memory/commit/c6baf58))
+  - Fixes "Unsupported protocol version" error when using Claude Code
+  - Bump mcp from >=1.2.0 to >=1.23.1
+
+- **#499**: Fix route ordering for cloud deployments
+  ([`53c4c20`](https://github.com/basicmachines-co/basic-memory/commit/53c4c20))
+
+- **#486**: Skip config file update for set_default_project in cloud mode
+  ([`fd732aa`](https://github.com/basicmachines-co/basic-memory/commit/fd732aa))
+
+- **#484**: Make RelationResponse.from_id optional to handle null permalinks
+  ([`537e58a`](https://github.com/basicmachines-co/basic-memory/commit/537e58a))
+
+- Use upsert to prevent IntegrityError during parallel search indexing
+  ([`4ce2198`](https://github.com/basicmachines-co/basic-memory/commit/4ce2198))
+
+- Use relative file paths in importers for cloud storage compatibility
+  ([`8adf1f4`](https://github.com/basicmachines-co/basic-memory/commit/8adf1f4))
+
+### Internal
+
+- Refactor importers to use FileService for cloud compatibility
+  ([`45ce181`](https://github.com/basicmachines-co/basic-memory/commit/45ce181))
+
+- Strengthen integration test coverage, remove stdlib mocks
+  ([`b4486d2`](https://github.com/basicmachines-co/basic-memory/commit/b4486d2))
+
 ## v0.17.2 (2025-12-29)
 
 ### Bug Fixes
