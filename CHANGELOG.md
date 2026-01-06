@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## v0.17.4 (2026-01-05)
+
+### Bug Fixes
+
+- **#503**: Preserve search index across server restarts
+  ([`26f7e98`](https://github.com/basicmachines-co/basic-memory/commit/26f7e98))
+  - Fixes critical bug where search index was wiped on every MCP server restart
+  - Bug was introduced in v0.16.3, affecting v0.16.3-v0.17.3
+  - **User action**: Run `basic-memory reset` once after updating to rebuild search index
+
+### Internal
+
+- **#502**: Major architecture refactor with composition roots and typed API clients
+  ([`5947f04`](https://github.com/basicmachines-co/basic-memory/commit/5947f04))
+  - Add composition roots for API, MCP, and CLI entrypoints
+  - Split deps.py into feature-scoped modules (config, db, projects, repositories, services, importers)
+  - Add ProjectResolver for unified project selection
+  - Add SyncCoordinator for centralized sync/watch lifecycle
+  - Introduce typed API clients for MCP tools (KnowledgeClient, SearchClient, MemoryClient, etc.)
+
 ## v0.17.3 (2026-01-03)
 
 ### Features
