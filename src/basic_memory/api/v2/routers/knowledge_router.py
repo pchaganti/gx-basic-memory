@@ -31,7 +31,10 @@ from basic_memory.schemas.v2 import (
     EntityResolveResponse,
     EntityResponseV2,
     MoveEntityRequestV2,
+    MoveDirectoryRequestV2,
+    DeleteDirectoryRequestV2,
 )
+from basic_memory.schemas.response import DirectoryMoveResult, DirectoryDeleteResult
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge-v2"])
 
@@ -422,4 +425,101 @@ async def move_entity(
         raise  # pragma: no cover
     except Exception as e:
         logger.error(f"Error moving entity: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+## Move directory endpoint
+
+
+@router.post("/move-directory", response_model=DirectoryMoveResult)
+async def move_directory(
+    data: MoveDirectoryRequestV2,
+    background_tasks: BackgroundTasks,
+    project_id: ProjectExternalIdPathDep,
+    entity_service: EntityServiceV2ExternalDep,
+    project_config: ProjectConfigV2ExternalDep,
+    app_config: AppConfigDep,
+    search_service: SearchServiceV2ExternalDep,
+) -> DirectoryMoveResult:
+    """Move all entities in a directory to a new location.
+
+    V2 API uses project external_id in the URL path for stable references.
+    Moves all files within a source directory to a destination directory,
+    updating database records and optionally updating permalinks.
+
+    Args:
+        project_id: Project external ID from URL path
+        data: Move request with source and destination directories
+
+    Returns:
+        DirectoryMoveResult with counts and details of moved files
+    """
+    logger.info(
+        f"API v2 request: move_directory source='{data.source_directory}', destination='{data.destination_directory}'"
+    )
+
+    try:
+        # Move the directory using the service
+        result = await entity_service.move_directory(
+            source_directory=data.source_directory,
+            destination_directory=data.destination_directory,
+            project_config=project_config,
+            app_config=app_config,
+        )
+
+        # Reindex moved entities
+        for file_path in result.moved_files:
+            entity = await entity_service.link_resolver.resolve_link(file_path)
+            if entity:
+                await search_service.index_entity(entity, background_tasks=background_tasks)
+
+        logger.info(
+            f"API v2 response: move_directory "
+            f"total={result.total_files}, success={result.successful_moves}, failed={result.failed_moves}"
+        )
+        return result
+
+    except Exception as e:
+        logger.error(f"Error moving directory: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+## Delete directory endpoint
+
+
+@router.post("/delete-directory", response_model=DirectoryDeleteResult)
+async def delete_directory(
+    data: DeleteDirectoryRequestV2,
+    project_id: ProjectExternalIdPathDep,
+    entity_service: EntityServiceV2ExternalDep,
+) -> DirectoryDeleteResult:
+    """Delete all entities in a directory.
+
+    V2 API uses project external_id in the URL path for stable references.
+    Deletes all files within a directory, updating database records and
+    removing files from the filesystem.
+
+    Args:
+        project_id: Project external ID from URL path
+        data: Delete request with directory path
+
+    Returns:
+        DirectoryDeleteResult with counts and details of deleted files
+    """
+    logger.info(f"API v2 request: delete_directory directory='{data.directory}'")
+
+    try:
+        # Delete the directory using the service
+        result = await entity_service.delete_directory(
+            directory=data.directory,
+        )
+
+        logger.info(
+            f"API v2 response: delete_directory "
+            f"total={result.total_files}, success={result.successful_deletes}, failed={result.failed_deletes}"
+        )
+        return result
+
+    except Exception as e:
+        logger.error(f"Error deleting directory: {e}")
         raise HTTPException(status_code=400, detail=str(e))

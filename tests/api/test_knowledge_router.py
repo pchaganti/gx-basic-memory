@@ -9,6 +9,7 @@ from basic_memory.schemas import (
     Entity,
     EntityResponse,
 )
+from basic_memory.schemas.response import DirectoryMoveResult
 from basic_memory.schemas.search import SearchItemType, SearchResponse
 from basic_memory.utils import normalize_newlines
 
@@ -19,7 +20,7 @@ async def test_create_entity(client: AsyncClient, file_service, project_url):
 
     data = {
         "title": "TestEntity",
-        "folder": "test",
+        "directory": "test",
         "entity_type": "test",
         "content": "TestContent",
         "project": "Test Project Context",
@@ -53,7 +54,7 @@ async def test_create_entity_observations_relations(client: AsyncClient, file_se
 
     data = {
         "title": "TestEntity",
-        "folder": "test",
+        "directory": "test",
         "content": """
 # TestContent
 
@@ -98,7 +99,7 @@ async def test_relation_resolution_after_creation(client: AsyncClient, project_u
     # Create first entity with unresolved relation
     entity1_data = {
         "title": "EntityOne",
-        "folder": "test",
+        "directory": "test",
         "entity_type": "test",
         "content": "This entity references [[EntityTwo]]",
     }
@@ -116,7 +117,7 @@ async def test_relation_resolution_after_creation(client: AsyncClient, project_u
     # Create the referenced entity
     entity2_data = {
         "title": "EntityTwo",
-        "folder": "test",
+        "directory": "test",
         "entity_type": "test",
         "content": "This is the referenced entity",
     }
@@ -141,7 +142,7 @@ async def test_relation_resolution_after_creation(client: AsyncClient, project_u
 async def test_get_entity_by_permalink(client: AsyncClient, project_url):
     """Should retrieve an entity by path ID."""
     # First create an entity
-    data = {"title": "TestEntity", "folder": "test", "entity_type": "test"}
+    data = {"title": "TestEntity", "directory": "test", "entity_type": "test"}
     response = await client.post(f"{project_url}/knowledge/entities", json=data)
     assert response.status_code == 200
     data = response.json()
@@ -163,7 +164,7 @@ async def test_get_entity_by_permalink(client: AsyncClient, project_url):
 async def test_get_entity_by_file_path(client: AsyncClient, project_url):
     """Should retrieve an entity by path ID."""
     # First create an entity
-    data = {"title": "TestEntity", "folder": "test", "entity_type": "test"}
+    data = {"title": "TestEntity", "directory": "test", "entity_type": "test"}
     response = await client.post(f"{project_url}/knowledge/entities", json=data)
     assert response.status_code == 200
     data = response.json()
@@ -187,11 +188,11 @@ async def test_get_entities(client: AsyncClient, project_url):
     # Create a few entities with different names
     await client.post(
         f"{project_url}/knowledge/entities",
-        json={"title": "AlphaTest", "folder": "", "entity_type": "test"},
+        json={"title": "AlphaTest", "directory": "", "entity_type": "test"},
     )
     await client.post(
         f"{project_url}/knowledge/entities",
-        json={"title": "BetaTest", "folder": "", "entity_type": "test"},
+        json={"title": "BetaTest", "directory": "", "entity_type": "test"},
     )
 
     # Open nodes by path IDs
@@ -241,7 +242,7 @@ async def test_delete_entity(client: AsyncClient, project_url):
 async def test_delete_single_entity(client: AsyncClient, project_url):
     """Test DELETE /knowledge/entities with path ID."""
     # Create test entity
-    entity_data = {"title": "TestEntity", "folder": "", "entity_type": "test"}
+    entity_data = {"title": "TestEntity", "directory": "", "entity_type": "test"}
     await client.post(f"{project_url}/knowledge/entities", json=entity_data)
 
     # Test deletion
@@ -259,7 +260,7 @@ async def test_delete_single_entity(client: AsyncClient, project_url):
 async def test_delete_single_entity_by_title(client: AsyncClient, project_url):
     """Test DELETE /knowledge/entities with file path."""
     # Create test entity
-    entity_data = {"title": "TestEntity", "folder": "", "entity_type": "test"}
+    entity_data = {"title": "TestEntity", "directory": "", "entity_type": "test"}
     response = await client.post(f"{project_url}/knowledge/entities", json=entity_data)
     assert response.status_code == 200
     data = response.json()
@@ -328,7 +329,7 @@ async def test_entity_indexing(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "SearchTest",
-            "folder": "",
+            "directory": "",
             "entity_type": "test",
             "observations": ["Unique searchable observation"],
         },
@@ -356,7 +357,7 @@ async def test_entity_delete_indexing(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "DeleteTest",
-            "folder": "",
+            "directory": "",
             "entity_type": "test",
             "observations": ["Searchable observation that should be removed"],
         },
@@ -394,7 +395,7 @@ async def test_update_entity_basic(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "test",
-            "folder": "",
+            "directory": "",
             "entity_type": "test",
             "content": "Initial summary",
             "entity_metadata": {"status": "draft"},
@@ -403,7 +404,7 @@ async def test_update_entity_basic(client: AsyncClient, project_url):
     entity_response = response.json()
 
     # Update fields
-    entity = Entity(**entity_response, folder="")
+    entity = Entity(**entity_response, directory="")
     entity.entity_metadata["status"] = "final"
     entity.content = "Updated summary"
 
@@ -429,12 +430,12 @@ async def test_update_entity_content(client: AsyncClient, project_url):
     # Create a note entity
     response = await client.post(
         f"{project_url}/knowledge/entities",
-        json={"title": "test-note", "folder": "", "entity_type": "note", "summary": "Test note"},
+        json={"title": "test-note", "directory": "", "entity_type": "note", "summary": "Test note"},
     )
     note = response.json()
 
     # Update fields
-    entity = Entity(**note, folder="")
+    entity = Entity(**note, directory="")
     entity.content = "# Updated Note\n\nNew content."
 
     response = await client.put(
@@ -458,7 +459,7 @@ async def test_update_entity_type_conversion(client: AsyncClient, project_url):
     # Create a note
     note_data = {
         "title": "test-note",
-        "folder": "",
+        "directory": "",
         "entity_type": "note",
         "summary": "Test note",
         "content": "# Test Note\n\nInitial content.",
@@ -467,7 +468,7 @@ async def test_update_entity_type_conversion(client: AsyncClient, project_url):
     note = response.json()
 
     # Update fields
-    entity = Entity(**note, folder="")
+    entity = Entity(**note, directory="")
     entity.entity_type = "test"
 
     response = await client.put(
@@ -491,7 +492,7 @@ async def test_update_entity_metadata(client: AsyncClient, project_url):
     # Create entity
     data = {
         "title": "test",
-        "folder": "",
+        "directory": "",
         "entity_type": "test",
         "entity_metadata": {"status": "draft"},
     }
@@ -499,7 +500,7 @@ async def test_update_entity_metadata(client: AsyncClient, project_url):
     entity_response = response.json()
 
     # Update fields
-    entity = Entity(**entity_response, folder="")
+    entity = Entity(**entity_response, directory="")
     entity.entity_metadata["status"] = "final"
     entity.entity_metadata["reviewed"] = True
 
@@ -521,7 +522,7 @@ async def test_update_entity_not_found_does_create(client: AsyncClient, project_
 
     data = {
         "title": "nonexistent",
-        "folder": "",
+        "directory": "",
         "entity_type": "test",
         "observations": ["First observation", "Second observation"],
     }
@@ -538,7 +539,7 @@ async def test_update_entity_incorrect_permalink(client: AsyncClient, project_ur
 
     data = {
         "title": "Test Entity",
-        "folder": "",
+        "directory": "",
         "entity_type": "test",
         "observations": ["First observation", "Second observation"],
     }
@@ -555,7 +556,7 @@ async def test_update_entity_search_index(client: AsyncClient, project_url):
     # Create entity
     data = {
         "title": "test",
-        "folder": "",
+        "directory": "",
         "entity_type": "test",
         "content": "Initial searchable content",
     }
@@ -563,7 +564,7 @@ async def test_update_entity_search_index(client: AsyncClient, project_url):
     entity_response = response.json()
 
     # Update fields
-    entity = Entity(**entity_response, folder="")
+    entity = Entity(**entity_response, directory="")
     entity.content = "Updated with unique sphinx marker"
 
     response = await client.put(
@@ -592,7 +593,7 @@ async def test_edit_entity_append(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "Test Note",
-            "folder": "test",
+            "directory": "test",
             "entity_type": "note",
             "content": "Original content",
         },
@@ -627,7 +628,7 @@ async def test_edit_entity_prepend(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "Test Note",
-            "folder": "test",
+            "directory": "test",
             "entity_type": "note",
             "content": "Original content",
         },
@@ -671,7 +672,7 @@ async def test_edit_entity_find_replace(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "Test Note",
-            "folder": "test",
+            "directory": "test",
             "entity_type": "note",
             "content": "This is old content that needs updating",
         },
@@ -704,7 +705,7 @@ async def test_edit_entity_find_replace_with_expected_replacements(
         f"{project_url}/knowledge/entities",
         json={
             "title": "Sample Note",
-            "folder": "docs",
+            "directory": "docs",
             "entity_type": "note",
             "content": "The word banana appears here. Another banana word here.",
         },
@@ -747,7 +748,7 @@ Original section 2 content"""
         f"{project_url}/knowledge/entities",
         json={
             "title": "Sample Note",
-            "folder": "docs",
+            "directory": "docs",
             "entity_type": "note",
             "content": content,
         },
@@ -794,7 +795,7 @@ async def test_edit_entity_invalid_operation(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "Test Note",
-            "folder": "test",
+            "directory": "test",
             "entity_type": "note",
             "content": "Original content",
         },
@@ -819,7 +820,7 @@ async def test_edit_entity_find_replace_missing_find_text(client: AsyncClient, p
         f"{project_url}/knowledge/entities",
         json={
             "title": "Test Note",
-            "folder": "test",
+            "directory": "test",
             "entity_type": "note",
             "content": "Original content",
         },
@@ -844,7 +845,7 @@ async def test_edit_entity_replace_section_missing_section(client: AsyncClient, 
         f"{project_url}/knowledge/entities",
         json={
             "title": "Test Note",
-            "folder": "test",
+            "directory": "test",
             "entity_type": "note",
             "content": "Original content",
         },
@@ -869,7 +870,7 @@ async def test_edit_entity_find_replace_not_found(client: AsyncClient, project_u
         f"{project_url}/knowledge/entities",
         json={
             "title": "Test Note",
-            "folder": "test",
+            "directory": "test",
             "entity_type": "note",
             "content": "This is some content",
         },
@@ -894,7 +895,7 @@ async def test_edit_entity_find_replace_wrong_expected_count(client: AsyncClient
         f"{project_url}/knowledge/entities",
         json={
             "title": "Sample Note",
-            "folder": "docs",
+            "directory": "docs",
             "entity_type": "note",
             "content": "The word banana appears here. Another banana word here.",
         },
@@ -925,7 +926,7 @@ async def test_edit_entity_search_reindex(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "Search Test",
-            "folder": "test",
+            "directory": "test",
             "entity_type": "note",
             "content": "Original searchable content",
         },
@@ -961,7 +962,7 @@ async def test_move_entity_success(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "TestNote",
-            "folder": "source",
+            "directory": "source",
             "entity_type": "note",
             "content": "Test content",
         },
@@ -1006,7 +1007,7 @@ async def test_move_entity_with_folder_creation(client: AsyncClient, project_url
         f"{project_url}/knowledge/entities",
         json={
             "title": "TestNote",
-            "folder": "",
+            "directory": "",
             "entity_type": "note",
             "content": "Test content",
         },
@@ -1047,7 +1048,7 @@ Some additional content."""
         f"{project_url}/knowledge/entities",
         json={
             "title": "ComplexEntity",
-            "folder": "source",
+            "directory": "source",
             "entity_type": "note",
             "content": content,
         },
@@ -1098,7 +1099,7 @@ async def test_move_entity_search_reindexing(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "SearchableNote",
-            "folder": "source",
+            "directory": "source",
             "entity_type": "note",
             "content": "Unique searchable elephant content",
         },
@@ -1144,7 +1145,7 @@ async def test_move_entity_invalid_destination_path(client: AsyncClient, project
         f"{project_url}/knowledge/entities",
         json={
             "title": "TestNote",
-            "folder": "",
+            "directory": "",
             "entity_type": "note",
             "content": "Test content",
         },
@@ -1177,7 +1178,7 @@ async def test_move_entity_destination_exists(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "SourceNote",
-            "folder": "source",
+            "directory": "source",
             "entity_type": "note",
             "content": "Source content",
         },
@@ -1190,7 +1191,7 @@ async def test_move_entity_destination_exists(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "DestinationNote",
-            "folder": "target",
+            "directory": "target",
             "entity_type": "note",
             "content": "Destination content",
         },
@@ -1235,7 +1236,7 @@ async def test_move_entity_by_file_path(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "TestNote",
-            "folder": "source",
+            "directory": "source",
             "entity_type": "note",
             "content": "Test content",
         },
@@ -1266,7 +1267,7 @@ async def test_move_entity_by_title(client: AsyncClient, project_url):
         f"{project_url}/knowledge/entities",
         json={
             "title": "UniqueTestTitle",
-            "folder": "source",
+            "directory": "source",
             "entity_type": "note",
             "content": "Test content",
         },
@@ -1287,3 +1288,119 @@ async def test_move_entity_by_title(client: AsyncClient, project_url):
     moved_entity = response.json()
     assert moved_entity["file_path"] == "target/MovedByTitle.md"
     assert moved_entity["title"] == "UniqueTestTitle"
+
+
+# --- Move directory tests ---
+
+
+@pytest.mark.asyncio
+async def test_move_directory_success(client: AsyncClient, project_url):
+    """Test POST /move-directory endpoint successfully moves all files in a directory."""
+    # Create multiple notes in a source directory
+    for i in range(3):
+        response = await client.post(
+            f"{project_url}/knowledge/entities",
+            json={
+                "title": f"DirMoveDoc{i + 1}",
+                "directory": "move-source",
+                "entity_type": "note",
+                "content": f"Content for document {i + 1}",
+            },
+        )
+        assert response.status_code == 200
+
+    # Move the entire directory
+    move_data = {
+        "source_directory": "move-source",
+        "destination_directory": "move-dest",
+    }
+    response = await client.post(f"{project_url}/knowledge/move-directory", json=move_data)
+    assert response.status_code == 200
+
+    result = DirectoryMoveResult.model_validate(response.json())
+    assert result.total_files == 3
+    assert result.successful_moves == 3
+    assert result.failed_moves == 0
+    assert len(result.moved_files) == 3
+
+    # Verify notes are accessible at new location
+    for i in range(3):
+        response = await client.get(
+            f"{project_url}/knowledge/entities/move-dest/dir-move-doc{i + 1}"
+        )
+        assert response.status_code == 200
+        entity = response.json()
+        assert entity["file_path"].startswith("move-dest/")
+
+
+@pytest.mark.asyncio
+async def test_move_directory_empty_directory(client: AsyncClient, project_url):
+    """Test move_directory with no files in source returns zero counts."""
+    move_data = {
+        "source_directory": "nonexistent-source-dir",
+        "destination_directory": "some-dest",
+    }
+    response = await client.post(f"{project_url}/knowledge/move-directory", json=move_data)
+    assert response.status_code == 200
+
+    result = DirectoryMoveResult.model_validate(response.json())
+    assert result.total_files == 0
+    assert result.successful_moves == 0
+    assert result.failed_moves == 0
+    assert len(result.moved_files) == 0
+
+
+@pytest.mark.asyncio
+async def test_move_directory_validation_error(client: AsyncClient, project_url):
+    """Test move_directory with missing required fields returns validation error."""
+    # Missing destination_directory
+    move_data = {
+        "source_directory": "some-source",
+    }
+    response = await client.post(f"{project_url}/knowledge/move-directory", json=move_data)
+    assert response.status_code == 422
+
+    # Missing source_directory
+    move_data = {
+        "destination_directory": "some-dest",
+    }
+    response = await client.post(f"{project_url}/knowledge/move-directory", json=move_data)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_move_directory_nested_structure(client: AsyncClient, project_url):
+    """Test move_directory preserves nested directory structure."""
+    # Create notes in nested structure
+    directories = [
+        "nested-move/2024",
+        "nested-move/2024/q1",
+    ]
+
+    for dir_path in directories:
+        response = await client.post(
+            f"{project_url}/knowledge/entities",
+            json={
+                "title": f"Note in {dir_path.split('/')[-1]}",
+                "directory": dir_path,
+                "entity_type": "note",
+                "content": f"Content in {dir_path}",
+            },
+        )
+        assert response.status_code == 200
+
+    # Move the parent directory
+    move_data = {
+        "source_directory": "nested-move/2024",
+        "destination_directory": "archive/2024",
+    }
+    response = await client.post(f"{project_url}/knowledge/move-directory", json=move_data)
+    assert response.status_code == 200
+
+    result = DirectoryMoveResult.model_validate(response.json())
+    assert result.total_files == 2
+    assert result.successful_moves == 2
+
+    # Verify nested note is at new location
+    response = await client.get(f"{project_url}/knowledge/entities/archive/2024/q1/note-in-q1")
+    assert response.status_code == 200

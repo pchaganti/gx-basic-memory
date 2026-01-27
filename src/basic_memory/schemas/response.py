@@ -284,3 +284,71 @@ class DeleteEntitiesResponse(SQLAlchemyModel):
     """
 
     deleted: bool
+
+
+class DirectoryMoveError(BaseModel):
+    """Error details for a failed file move within a directory move operation."""
+
+    path: str
+    error: str
+
+
+class DirectoryDeleteError(BaseModel):
+    """Error details for a failed file delete within a directory delete operation."""
+
+    path: str
+    error: str
+
+
+class DirectoryMoveResult(SQLAlchemyModel):
+    """Response schema for directory move operations.
+
+    Returns detailed results of moving all files within a directory,
+    including counts and any errors encountered.
+
+    Example Response:
+    {
+        "total_files": 5,
+        "successful_moves": 5,
+        "failed_moves": 0,
+        "moved_files": [
+            "docs/file1.md",
+            "docs/file2.md",
+            "docs/subdir/file3.md"
+        ],
+        "errors": []
+    }
+    """
+
+    total_files: int
+    successful_moves: int
+    failed_moves: int
+    moved_files: List[str]  # List of file paths that were moved
+    errors: List[DirectoryMoveError]  # List of errors for failed moves
+
+
+class DirectoryDeleteResult(SQLAlchemyModel):
+    """Response schema for directory delete operations.
+
+    Returns detailed results of deleting all files within a directory,
+    including counts and any errors encountered.
+
+    Example Response:
+    {
+        "total_files": 5,
+        "successful_deletes": 5,
+        "failed_deletes": 0,
+        "deleted_files": [
+            "docs/file1.md",
+            "docs/file2.md",
+            "docs/subdir/file3.md"
+        ],
+        "errors": []
+    }
+    """
+
+    total_files: int
+    successful_deletes: int
+    failed_deletes: int
+    deleted_files: List[str]  # List of file paths that were deleted
+    errors: List[DirectoryDeleteError]  # List of errors for failed deletes
