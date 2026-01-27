@@ -5,6 +5,7 @@ from httpx import AsyncClient
 
 from basic_memory.models import Project
 from basic_memory.schemas import DeleteEntitiesResponse
+from basic_memory.schemas.response import DirectoryMoveResult, DirectoryDeleteResult
 from basic_memory.schemas.v2 import EntityResponseV2, EntityResolveResponse
 
 
@@ -19,7 +20,7 @@ async def test_resolve_identifier_by_permalink(
     # Create an entity first
     entity_data = {
         "title": "TestResolve",
-        "folder": "test",
+        "directory": "test",
         "content": "Test content for resolve",
     }
     response = await client.post(f"{v2_project_url}/knowledge/entities", json=entity_data)
@@ -57,7 +58,7 @@ async def test_get_entity_by_id(client: AsyncClient, test_graph, v2_project_url,
     # Create an entity first
     entity_data = {
         "title": "TestGetById",
-        "folder": "test",
+        "directory": "test",
         "content": "Test content for get by ID",
     }
     response = await client.post(f"{v2_project_url}/knowledge/entities", json=entity_data)
@@ -94,7 +95,7 @@ async def test_create_entity(client: AsyncClient, file_service, v2_project_url):
     """Test creating an entity via v2 endpoint."""
     data = {
         "title": "TestV2Entity",
-        "folder": "test",
+        "directory": "test",
         "entity_type": "test",
         "content_type": "text/markdown",
         "content": "TestContent for V2",
@@ -127,7 +128,7 @@ async def test_create_entity_with_observations_and_relations(
     """Test creating an entity with observations and relations via v2."""
     data = {
         "title": "TestV2Complex",
-        "folder": "test",
+        "directory": "test",
         "content": """
 # TestV2Complex
 
@@ -164,7 +165,7 @@ async def test_update_entity_by_id(
     # Create an entity first
     create_data = {
         "title": "TestUpdate",
-        "folder": "test",
+        "directory": "test",
         "content": "Original content",
     }
     response = await client.post(f"{v2_project_url}/knowledge/entities", json=create_data)
@@ -178,7 +179,7 @@ async def test_update_entity_by_id(
     # Update it by external_id
     update_data = {
         "title": "TestUpdate",
-        "folder": "test",
+        "directory": "test",
         "content": "Updated content via V2",
     }
     response = await client.put(
@@ -208,7 +209,7 @@ async def test_edit_entity_by_id_append(
     # Create an entity first
     create_data = {
         "title": "TestEdit",
-        "folder": "test",
+        "directory": "test",
         "content": "# TestEdit\n\nOriginal content",
     }
     response = await client.post(f"{v2_project_url}/knowledge/entities", json=create_data)
@@ -251,7 +252,7 @@ async def test_edit_entity_by_id_find_replace(
     # Create an entity first
     create_data = {
         "title": "TestFindReplace",
-        "folder": "test",
+        "directory": "test",
         "content": "# TestFindReplace\n\nOld text that will be replaced",
     }
     response = await client.post(f"{v2_project_url}/knowledge/entities", json=create_data)
@@ -295,7 +296,7 @@ async def test_delete_entity_by_id(
     # Create an entity first
     create_data = {
         "title": "TestDelete",
-        "folder": "test",
+        "directory": "test",
         "content": "Content to be deleted",
     }
     response = await client.post(f"{v2_project_url}/knowledge/entities", json=create_data)
@@ -337,7 +338,7 @@ async def test_move_entity(client: AsyncClient, file_service, v2_project_url, en
     # Create an entity first
     create_data = {
         "title": "TestMove",
-        "folder": "test",
+        "directory": "test",
         "content": "Content to be moved",
     }
     response = await client.post(f"{v2_project_url}/knowledge/entities", json=create_data)
@@ -390,7 +391,7 @@ async def test_entity_response_v2_has_api_version(
     # Create an entity
     entity_data = {
         "title": "TestApiVersion",
-        "folder": "test",
+        "directory": "test",
         "content": "Test content",
     }
     response = await client.post(f"{v2_project_url}/knowledge/entities", json=entity_data)
@@ -409,3 +410,174 @@ async def test_entity_response_v2_has_api_version(
     entity_v2 = EntityResponseV2.model_validate(response.json())
     assert entity_v2.api_version == "v2"
     assert entity_v2.external_id == entity_external_id
+
+
+# --- Move directory tests (V2) ---
+
+
+@pytest.mark.asyncio
+async def test_move_directory_v2_success(client: AsyncClient, v2_project_url):
+    """Test POST /v2/.../move-directory endpoint successfully moves all files."""
+    # Create multiple notes in a source directory
+    for i in range(3):
+        response = await client.post(
+            f"{v2_project_url}/knowledge/entities",
+            json={
+                "title": f"V2DirMoveDoc{i + 1}",
+                "directory": "v2-move-source",
+                "content": f"Content for document {i + 1}",
+            },
+        )
+        assert response.status_code == 200
+
+    # Move the entire directory
+    move_data = {
+        "source_directory": "v2-move-source",
+        "destination_directory": "v2-move-dest",
+    }
+    response = await client.post(f"{v2_project_url}/knowledge/move-directory", json=move_data)
+    assert response.status_code == 200
+
+    result = DirectoryMoveResult.model_validate(response.json())
+    assert result.total_files == 3
+    assert result.successful_moves == 3
+    assert result.failed_moves == 0
+    assert len(result.moved_files) == 3
+
+
+@pytest.mark.asyncio
+async def test_move_directory_v2_empty_directory(client: AsyncClient, v2_project_url):
+    """Test move_directory V2 with no files in source returns zero counts."""
+    move_data = {
+        "source_directory": "v2-nonexistent-source",
+        "destination_directory": "v2-some-dest",
+    }
+    response = await client.post(f"{v2_project_url}/knowledge/move-directory", json=move_data)
+    assert response.status_code == 200
+
+    result = DirectoryMoveResult.model_validate(response.json())
+    assert result.total_files == 0
+    assert result.successful_moves == 0
+    assert result.failed_moves == 0
+
+
+@pytest.mark.asyncio
+async def test_move_directory_v2_validation_error(client: AsyncClient, v2_project_url):
+    """Test move_directory V2 with missing required fields returns validation error."""
+    # Missing destination_directory
+    response = await client.post(
+        f"{v2_project_url}/knowledge/move-directory",
+        json={"source_directory": "some-source"},
+    )
+    assert response.status_code == 422
+
+    # Missing source_directory
+    response = await client.post(
+        f"{v2_project_url}/knowledge/move-directory",
+        json={"destination_directory": "some-dest"},
+    )
+    assert response.status_code == 422
+
+
+# --- Delete directory tests (V2) ---
+
+
+@pytest.mark.asyncio
+async def test_delete_directory_v2_success(client: AsyncClient, v2_project_url):
+    """Test POST /v2/.../delete-directory endpoint successfully deletes all files."""
+    # Create multiple notes in a directory to delete
+    for i in range(3):
+        response = await client.post(
+            f"{v2_project_url}/knowledge/entities",
+            json={
+                "title": f"V2DeleteDoc{i + 1}",
+                "directory": "v2-delete-dir",
+                "content": f"Content for document {i + 1}",
+            },
+        )
+        assert response.status_code == 200
+
+    # Verify notes exist
+    created_entity = EntityResponseV2.model_validate(response.json())
+    get_response = await client.get(
+        f"{v2_project_url}/knowledge/entities/{created_entity.external_id}"
+    )
+    assert get_response.status_code == 200
+
+    # Delete the entire directory
+    delete_data = {
+        "directory": "v2-delete-dir",
+    }
+    response = await client.post(f"{v2_project_url}/knowledge/delete-directory", json=delete_data)
+    assert response.status_code == 200
+
+    result = DirectoryDeleteResult.model_validate(response.json())
+    assert result.total_files == 3
+    assert result.successful_deletes == 3
+    assert result.failed_deletes == 0
+    assert len(result.deleted_files) == 3
+
+    # Verify entity is no longer accessible
+    get_response = await client.get(
+        f"{v2_project_url}/knowledge/entities/{created_entity.external_id}"
+    )
+    assert get_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_directory_v2_empty_directory(client: AsyncClient, v2_project_url):
+    """Test delete_directory V2 with no files returns zero counts."""
+    delete_data = {
+        "directory": "v2-nonexistent-delete-dir",
+    }
+    response = await client.post(f"{v2_project_url}/knowledge/delete-directory", json=delete_data)
+    assert response.status_code == 200
+
+    result = DirectoryDeleteResult.model_validate(response.json())
+    assert result.total_files == 0
+    assert result.successful_deletes == 0
+    assert result.failed_deletes == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_directory_v2_validation_error(client: AsyncClient, v2_project_url):
+    """Test delete_directory V2 with missing required fields returns validation error."""
+    # Missing directory field
+    response = await client.post(
+        f"{v2_project_url}/knowledge/delete-directory",
+        json={},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_delete_directory_v2_nested_structure(client: AsyncClient, v2_project_url):
+    """Test delete_directory V2 handles nested directory structure."""
+    # Create notes in nested structure
+    directories = [
+        "v2-nested-delete/2024",
+        "v2-nested-delete/2024/q1",
+    ]
+
+    for dir_path in directories:
+        response = await client.post(
+            f"{v2_project_url}/knowledge/entities",
+            json={
+                "title": f"Note in {dir_path.split('/')[-1]}",
+                "directory": dir_path,
+                "content": f"Content in {dir_path}",
+            },
+        )
+        assert response.status_code == 200
+
+    # Delete the parent directory
+    delete_data = {
+        "directory": "v2-nested-delete/2024",
+    }
+    response = await client.post(f"{v2_project_url}/knowledge/delete-directory", json=delete_data)
+    assert response.status_code == 200
+
+    result = DirectoryDeleteResult.model_validate(response.json())
+    assert result.total_files == 2
+    assert result.successful_deletes == 2
+    assert result.failed_deletes == 0
