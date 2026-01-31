@@ -85,10 +85,8 @@ async def add_project(
     if existing_project:
         # Project exists - check if paths match for true idempotency
         # Normalize paths for comparison (resolve symlinks, etc.)
-        from pathlib import Path
-
-        requested_path = Path(project_data.path).resolve()
-        existing_path = Path(existing_project.path).resolve()
+        requested_path = os.path.abspath(os.path.expanduser(project_data.path))
+        existing_path = os.path.abspath(os.path.expanduser(existing_project.path))
 
         if requested_path == existing_path:
             # Same name, same path - return 200 OK (idempotent)

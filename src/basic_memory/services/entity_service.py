@@ -411,10 +411,9 @@ class EntityService(BaseService[EntityModel]):
                 raise ValueError(f"Failed to update entity in database: {existing.id}")
             return updated
 
-        create_data = {
-            **update_data,
-            "external_id": external_id,
-        }
+        create_data = dict(update_data)
+        if external_id is not None:
+            create_data["external_id"] = external_id
         return await self.repository.create(create_data)
 
     async def fast_edit_entity(

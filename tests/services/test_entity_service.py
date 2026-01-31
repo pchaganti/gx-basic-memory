@@ -398,6 +398,20 @@ async def test_fast_write_and_reindex_entity(
 
 
 @pytest.mark.asyncio
+async def test_fast_write_entity_generates_external_id(entity_service: EntityService):
+    """Fast write should generate an external_id when one is not provided."""
+    title = f"Fast Write {uuid.uuid4()}"
+    schema = EntitySchema(
+        title=title,
+        directory="test",
+        entity_type="note",
+    )
+
+    fast_entity = await entity_service.fast_write_entity(schema)
+    assert fast_entity.external_id
+
+
+@pytest.mark.asyncio
 async def test_create_or_update_new(entity_service: EntityService, file_service: FileService):
     """Should create a new entity."""
     # Create test entity
