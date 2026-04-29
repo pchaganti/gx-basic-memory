@@ -154,21 +154,28 @@ class TestSetCloud:
 class TestSetLocal:
     """Tests for bm project set-local command."""
 
-    def test_set_local_success(self, runner, mock_config):
+    def test_set_local_success(self, runner, mock_config, tmp_path):
         """Test reverting a project to local mode."""
-        # First set to cloud
+        # First set to cloud (clears the local path as part of the cutover)
         runner.invoke(app, ["project", "set-cloud", "research"])
         config_data = json.loads(mock_config.read_text())
         assert config_data["projects"]["research"]["mode"] == "cloud"
 
-        # Now set back to local
-        result = runner.invoke(app, ["project", "set-local", "research"])
+        # Now set back to local — must supply a path since set-cloud blanked it
+        new_path = tmp_path / "research"
+        result = runner.invoke(
+            app, ["project", "set-local", "research", "--local-path", str(new_path)]
+        )
         assert result.exit_code == 0
         assert "local mode" in result.stdout.lower()
 
-        # Verify config was updated — mode reset to local
+        # Verify config was updated — mode reset to local, path restored.
+        # set-local normalizes the path via Path.as_posix(), matching the
+        # convention used by `bm project add`. On Windows that means
+        # backslashes are converted to forward slashes.
         config_data = json.loads(mock_config.read_text())
         assert config_data["projects"]["research"]["mode"] == "local"
+        assert config_data["projects"]["research"]["path"] == new_path.as_posix()
 
     def test_set_local_nonexistent_project(self, runner, mock_config):
         """Test set-local with a project that doesn't exist in config."""
@@ -177,12 +184,23 @@ class TestSetLocal:
         assert "not found" in result.stdout.lower()
 
     def test_set_local_already_local(self, runner, mock_config):
-        """Test set-local on a project that's already local (no-op, should succeed)."""
+        """Test set-local on a project that's already local (reuses existing path)."""
         result = runner.invoke(app, ["project", "set-local", "main"])
         assert result.exit_code == 0
         assert "local mode" in result.stdout.lower()
 
-    def test_set_local_clears_workspace_id(self, runner, mock_config):
+    def test_set_local_requires_path_after_set_cloud(self, runner, mock_config):
+        """Regression for #680: after set-cloud blanks the path, set-local must
+        refuse to silently default — the user has to specify where the project
+        lives now."""
+        runner.invoke(app, ["project", "set-cloud", "research"])
+
+        # No --local-path; config no longer has a path either.
+        result = runner.invoke(app, ["project", "set-local", "research"])
+        assert result.exit_code == 1
+        assert "--local-path" in result.stdout
+
+    def test_set_local_clears_workspace_id(self, runner, mock_config, tmp_path):
         """Test that set-local clears workspace_id from the project entry."""
         from basic_memory import config as config_module
 
@@ -198,8 +216,12 @@ class TestSetLocal:
         config_module._CONFIG_MTIME = None
         config_module._CONFIG_SIZE = None
 
-        # Set back to local
-        result = runner.invoke(app, ["project", "set-local", "research"])
+        # Set back to local — supply --local-path; existing config path is preserved
+        # in this test setup, but new behavior recommends explicit path passing.
+        new_path = tmp_path / "research"
+        result = runner.invoke(
+            app, ["project", "set-local", "research", "--local-path", str(new_path)]
+        )
         assert result.exit_code == 0
 
         # Verify workspace_id was cleared
@@ -209,6 +231,57 @@ class TestSetLocal:
         updated_data = json.loads(mock_config.read_text())
         assert updated_data["projects"]["research"]["workspace_id"] is None
         assert updated_data["projects"]["research"]["mode"] == "local"
+
+    def test_set_local_update_path_when_row_exists(self, runner, mock_config, tmp_path):
+        """Re-running set-local with a different --local-path must update the
+        existing DB row (covers the repo.update_path() branch in
+        _attach_local_project_row)."""
+        path_a = tmp_path / "research_v1"
+        path_b = tmp_path / "research_v2"
+
+        # First call seeds the DB row at path_a.
+        result_a = runner.invoke(
+            app, ["project", "set-local", "research", "--local-path", str(path_a)]
+        )
+        assert result_a.exit_code == 0
+
+        # Second call must update the existing row's path to path_b.
+        result_b = runner.invoke(
+            app, ["project", "set-local", "research", "--local-path", str(path_b)]
+        )
+        assert result_b.exit_code == 0
+
+        updated = json.loads(mock_config.read_text())
+        assert updated["projects"]["research"]["path"] == path_b.as_posix()
+
+
+class TestSetCloudCutover:
+    """Regression tests for #680 — set-cloud as a one-way cutover."""
+
+    def test_set_cloud_clears_path(self, runner, mock_config):
+        """After set-cloud, config.projects[name].path must be blanked so the
+        merged project list reports source: cloud (not local+cloud)."""
+        runner.invoke(app, ["project", "set-cloud", "research"])
+        updated = json.loads(mock_config.read_text())
+        assert updated["projects"]["research"]["mode"] == "cloud"
+        assert updated["projects"]["research"]["path"] == ""
+
+    def test_set_cloud_removes_existing_db_row(self, runner, mock_config, tmp_path):
+        """When set-cloud runs against a project with a DB row, the row must
+        be removed and the user-facing message must mention the cleanup
+        (covers the repo.delete() → return True branch in
+        _detach_local_project_row)."""
+        # Seed a DB row first by going through set-local.
+        research_path = tmp_path / "research"
+        seed = runner.invoke(
+            app, ["project", "set-local", "research", "--local-path", str(research_path)]
+        )
+        assert seed.exit_code == 0
+
+        # Now flip to cloud — _detach_local_project_row should find and drop the row.
+        result = runner.invoke(app, ["project", "set-cloud", "research"])
+        assert result.exit_code == 0
+        assert "local index entry removed" in result.stdout.lower()
 
 
 class TestSetCloudWithWorkspace:
