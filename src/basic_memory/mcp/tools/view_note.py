@@ -1,10 +1,11 @@
 """View note tool for Basic Memory MCP server."""
 
 from textwrap import dedent
-from typing import Optional
+from typing import Annotated, Optional
 
 from loguru import logger
 from fastmcp import Context
+from pydantic import AliasChoices, Field
 
 from basic_memory.mcp.server import mcp
 from basic_memory.mcp.tools.read_note import read_note
@@ -18,8 +19,16 @@ async def view_note(
     identifier: str,
     project: Optional[str] = None,
     workspace: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 10,
+    # `offset` is intentionally NOT aliased: it has different semantics
+    # (item-indexed vs. 1-indexed page-number).
+    page: Annotated[
+        int,
+        Field(default=1, validation_alias=AliasChoices("page", "page_number")),
+    ] = 1,
+    page_size: Annotated[
+        int,
+        Field(default=10, validation_alias=AliasChoices("page_size", "limit", "per_page")),
+    ] = 10,
     context: Context | None = None,
 ) -> str:
     """View a markdown note as a formatted artifact.
