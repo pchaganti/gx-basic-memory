@@ -11,11 +11,10 @@ from fastmcp import Context
 from loguru import logger
 
 from basic_memory.config import ConfigManager, has_cloud_credentials
-from basic_memory.mcp.async_client import get_client, get_cloud_proxy_client, is_factory_mode
+from basic_memory.mcp.async_client import get_client, is_factory_mode
 from basic_memory.mcp.project_context import (
     WorkspaceProjectEntry,
     ensure_workspace_project_index,
-    resolve_workspace_parameter,
 )
 from basic_memory.mcp.server import mcp
 from basic_memory.schemas.project_info import ProjectInfoRequest, ProjectItem, ProjectList
@@ -23,36 +22,6 @@ from basic_memory.utils import generate_permalink
 
 
 # --- Helpers for dual-fetch + merge ---
-
-
-async def _fetch_cloud_projects(
-    workspace: str | None = None,
-    context: Context | None = None,
-) -> ProjectList | None:
-    """Fetch projects from the cloud API, returning None on failure.
-
-    Logs warnings on failure so list_memory_projects can fall back to local-only
-    results. Project-scoped routing does not use this listing fallback.
-    """
-    try:
-        from basic_memory.mcp.clients import ProjectClient
-
-        async with get_cloud_proxy_client(workspace=workspace) as cloud_client:
-            cloud_project_client = ProjectClient(cloud_client)
-            cloud_list = await cloud_project_client.list_projects()
-        if context:  # pragma: no cover
-            await context.info(f"Discovered {len(cloud_list.projects)} cloud projects")
-        return cloud_list
-    except Exception as exc:
-        logger.warning(
-            f"Cloud project discovery failed while listing projects; "
-            f"showing local-only project list: {exc}"
-        )
-        if context:  # pragma: no cover
-            await context.info(
-                "Cloud project discovery failed while listing projects; showing local projects only"
-            )
-        return None
 
 
 def _merge_projects(
@@ -126,9 +95,13 @@ def _merge_projects(
         ws_type = cloud_workspace_type if cloud_proj else None
         ws_tenant_id = cloud_workspace_tenant_id if cloud_proj else None
 
+        proj = cloud_proj or local_proj
+        external_id = proj.external_id if proj else None
+
         merged.append(
             {
                 "name": name,
+                "external_id": external_id,
                 "path": path,
                 "local_path": local_path,
                 "cloud_path": cloud_path,
@@ -184,6 +157,7 @@ def _merge_workspace_projects(
         merged.append(
             {
                 "name": cloud_proj.name,
+                "external_id": cloud_proj.external_id,
                 "path": local_path or cloud_path,
                 "local_path": local_path,
                 "cloud_path": cloud_path,
@@ -207,6 +181,7 @@ def _merge_workspace_projects(
             merged.append(
                 {
                     "name": project.name,
+                    "external_id": project.external_id,
                     "path": project.path,
                     "local_path": project.path,
                     "cloud_path": None,
@@ -248,9 +223,9 @@ def _format_project_list_text(merged: list[dict]) -> str:
         name = project["name"]
         label = f"{display_name} ({name})" if display_name else name
         source = project["source"]
-        qualified_name = project.get("qualified_name")
-        qualified_suffix = f" [{qualified_name}]" if qualified_name else ""
-        result += f"- {label} ({source}){qualified_suffix}\n"
+        external_id = project.get("external_id", "")
+        id_suffix = f" [{external_id}]" if external_id else ""
+        result += f"- {label} ({source}){id_suffix}\n"
 
     result += "\n" + "─" * 40 + "\n"
     result += "Next: Ask which project to use for this session.\n"
@@ -282,7 +257,6 @@ def _format_project_list_json(
 )
 async def list_memory_projects(
     output_format: Literal["text", "json"] = "text",
-    workspace: str | None = None,
     context: Context | None = None,
 ) -> str | dict:
     """List all available projects with their status.
@@ -290,11 +264,14 @@ async def list_memory_projects(
     Shows projects from both local and cloud sources when cloud credentials
     are available, merging by permalink to give a unified view.
 
+    Each project entry includes an `external_id` (UUID). Pass that value as the
+    `project_id` parameter on other tools to address a specific project
+    unambiguously across cloud workspaces — useful when the same project name
+    exists in more than one workspace.
+
     Args:
         output_format: "text" returns the existing human-readable project list.
             "json" returns structured project metadata.
-        workspace: Cloud workspace name or tenant_id. Falls back to
-            config.default_workspace when not specified.
         context: Optional FastMCP context for progress/status logging.
     """
     if context:  # pragma: no cover
@@ -309,7 +286,7 @@ async def list_memory_projects(
     # Why: there is no local ASGI server; the factory IS the cloud source
     # Outcome: single fetch, projects reported as source="cloud" with workspace metadata
     if is_factory_mode():
-        async with get_client(workspace=workspace) as client:
+        async with get_client() as client:
             project_client = ProjectClient(client)
             project_list = await project_client.list_projects()
 
@@ -324,13 +301,7 @@ async def list_memory_projects(
 
             workspaces = await get_available_workspaces(context)
             if workspaces:
-                # In factory mode the user is authenticated to a single workspace;
-                # use the explicit workspace param or fall back to the first available.
-                matched = None
-                if workspace:
-                    matched = next((ws for ws in workspaces if ws.tenant_id == workspace), None)
-                if matched is None:
-                    matched = workspaces[0]
+                matched = workspaces[0]
                 cloud_ws_name = matched.name
                 cloud_ws_type = matched.workspace_type
                 cloud_ws_tenant_id = matched.tenant_id
@@ -372,42 +343,19 @@ async def list_memory_projects(
     cloud_ws_is_default = False
     config = ConfigManager().config
     if has_cloud_credentials(config):
-        if workspace:
-            try:
-                active_workspace = await resolve_workspace_parameter(workspace, context)
-            except Exception as exc:
-                logger.warning(
-                    f"Cloud workspace discovery failed while listing projects for "
-                    f"workspace '{workspace}'; trying direct workspace routing before "
-                    f"falling back to local-only project list: {exc}"
+        try:
+            workspace_index = await ensure_workspace_project_index(context=context)
+            cloud_entries = workspace_index.entries
+        except Exception as exc:
+            logger.warning(
+                f"Cloud workspace project index discovery failed while listing projects; "
+                f"showing local-only project list: {exc}"
+            )
+            if context:  # pragma: no cover
+                await context.info(
+                    "Cloud workspace project discovery failed while listing projects; "
+                    "showing local projects only"
                 )
-                if context:  # pragma: no cover
-                    await context.info(
-                        "Cloud workspace discovery failed while listing projects; "
-                        "trying direct workspace routing"
-                    )
-                cloud_list = await _fetch_cloud_projects(workspace, context)
-            else:
-                cloud_list = await _fetch_cloud_projects(active_workspace.tenant_id, context)
-                cloud_ws_name = active_workspace.name
-                cloud_ws_type = active_workspace.workspace_type
-                cloud_ws_tenant_id = active_workspace.tenant_id
-                cloud_ws_slug = active_workspace.slug
-                cloud_ws_is_default = active_workspace.is_default
-        else:
-            try:
-                workspace_index = await ensure_workspace_project_index(context=context)
-                cloud_entries = workspace_index.entries
-            except Exception as exc:
-                logger.warning(
-                    f"Cloud workspace project index discovery failed while listing projects; "
-                    f"showing local-only project list: {exc}"
-                )
-                if context:  # pragma: no cover
-                    await context.info(
-                        "Cloud workspace project discovery failed while listing projects; "
-                        "showing local projects only"
-                    )
 
     if cloud_entries:
         merged = _merge_workspace_projects(local_list, cloud_entries)
@@ -515,6 +463,7 @@ async def create_memory_project(
             if output_format == "json":
                 return {
                     "name": existing_match.name,
+                    "external_id": existing_match.external_id,
                     "path": existing_match.path,
                     "is_default": is_default,
                     "created": False,
@@ -524,6 +473,7 @@ async def create_memory_project(
                 f"✓ Project already exists: {existing_match.name}\n\n"
                 f"Project Details:\n"
                 f"• Name: {existing_match.name}\n"
+                f"• External ID: {existing_match.external_id}\n"
                 f"• Path: {existing_match.path}\n"
                 f"{'• Set as default project\n' if is_default else ''}"
                 "\nProject is already available for use in tool calls.\n"
@@ -538,6 +488,7 @@ async def create_memory_project(
             new_project = status_response.new_project
             return {
                 "name": new_project.name if new_project else project_name,
+                "external_id": new_project.external_id if new_project else None,
                 "path": new_project.path if new_project else project_path,
                 "is_default": bool(
                     (new_project.is_default if new_project else False) or set_default
@@ -551,6 +502,7 @@ async def create_memory_project(
         if status_response.new_project:
             result += "Project Details:\n"
             result += f"• Name: {status_response.new_project.name}\n"
+            result += f"• External ID: {status_response.new_project.external_id}\n"
             result += f"• Path: {status_response.new_project.path}\n"
 
             if set_default:

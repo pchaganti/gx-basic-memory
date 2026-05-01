@@ -176,13 +176,11 @@ async def edit_note(
     content: Annotated[
         str,
         Field(
-            validation_alias=AliasChoices(
-                "content", "new_content", "replacement", "replace_with"
-            )
+            validation_alias=AliasChoices("content", "new_content", "replacement", "replace_with")
         ),
     ],
     project: Optional[str] = None,
-    workspace: Optional[str] = None,
+    project_id: Optional[str] = None,
     # Section/heading naming varies across tools; accept the descriptive forms.
     section: Annotated[
         Optional[str],
@@ -197,9 +195,7 @@ async def edit_note(
         Optional[str],
         Field(
             default=None,
-            validation_alias=AliasChoices(
-                "find_text", "find", "old_text", "old_content", "search"
-            ),
+            validation_alias=AliasChoices("find_text", "find", "old_text", "old_content", "search"),
         ),
     ] = None,
     expected_replacements: Optional[int] = None,
@@ -228,6 +224,9 @@ async def edit_note(
         content: The content to add or use for replacement
         project: Project name to edit in. Optional - server will resolve using hierarchy.
                 If unknown, use list_memory_projects() to discover available projects.
+        project_id: Project external_id (UUID). Prefer this over `project` when known —
+                it routes to the exact project regardless of name collisions across cloud
+                workspaces. Takes precedence over `project`. Get from list_memory_projects().
         section: For replace_section operation - the markdown header to replace content under (e.g., "## Notes", "### Implementation")
         find_text: For find_replace operation - the text to find and replace
         expected_replacements: For find_replace operation - the expected number of replacements (validation will fail if actual doesn't match)
@@ -303,14 +302,17 @@ async def edit_note(
         entrypoint="mcp",
         tool_name="edit_note",
         requested_project=project,
-        workspace_id=workspace,
+        requested_project_id=project_id,
         edit_operation=operation,
         output_format=output_format,
         has_section=bool(section),
         has_find_text=bool(find_text),
         expected_replacements=effective_replacements,
     ):
-        async with get_project_client(project, workspace, context) as (client, active_project):
+        async with get_project_client(project, context=context, project_id=project_id) as (
+            client,
+            active_project,
+        ):
             logger.info(
                 f"MCP tool call tool=edit_note project={active_project.name} "
                 f"identifier={identifier} operation={operation} output_format={output_format}"

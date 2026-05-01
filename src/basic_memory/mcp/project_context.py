@@ -10,8 +10,9 @@ compatibility with existing MCP tools.
 
 import asyncio
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import AsyncIterator, Awaitable, Callable, Optional, List, Tuple, cast
+from uuid import UUID
 
 from httpx import AsyncClient
 from httpx._types import (
@@ -52,11 +53,12 @@ class WorkspaceProjectEntry:
 
 @dataclass(frozen=True)
 class WorkspaceProjectIndex:
-    """Session-local cloud project lookup index keyed by project permalink."""
+    """Session-local cloud project lookup index keyed by project permalink and external_id."""
 
     workspaces: tuple[WorkspaceInfo, ...]
     entries: tuple[WorkspaceProjectEntry, ...]
     entries_by_permalink: dict[str, tuple[WorkspaceProjectEntry, ...]]
+    entries_by_external_id: dict[str, WorkspaceProjectEntry] = field(default_factory=dict)
     failed_workspaces: tuple[WorkspaceInfo, ...] = ()
 
 
@@ -351,10 +353,12 @@ def _build_workspace_project_index(
     *,
     failed_workspaces: tuple[WorkspaceInfo, ...] = (),
 ) -> WorkspaceProjectIndex:
-    """Build the permalink lookup table for workspace-project entries."""
+    """Build the permalink and external_id lookup tables for workspace-project entries."""
     grouped: dict[str, list[WorkspaceProjectEntry]] = {}
+    by_external_id: dict[str, WorkspaceProjectEntry] = {}
     for entry in entries:
         grouped.setdefault(entry.project.permalink, []).append(entry)
+        by_external_id[entry.project.external_id] = entry
 
     return WorkspaceProjectIndex(
         workspaces=workspaces,
@@ -363,6 +367,7 @@ def _build_workspace_project_index(
             permalink: tuple(items)
             for permalink, items in sorted(grouped.items(), key=lambda item: item[0])
         },
+        entries_by_external_id=by_external_id,
         failed_workspaces=failed_workspaces,
     )
 
@@ -549,8 +554,20 @@ async def resolve_workspace_project_identifier(
     project: str,
     context: Optional[Context] = None,
 ) -> WorkspaceProjectEntry:
-    """Resolve an unqualified or ``<workspace>/<project>`` cloud project identifier."""
+    """Resolve a project by external_id (UUID), qualified name, or unqualified name."""
     index = await _ensure_workspace_project_index(context=context)
+
+    # Fast path: direct lookup by external_id when the identifier is a UUID
+    # Canonicalize via str(UUID(...)) so uppercase, brace-wrapped, or urn:uuid forms
+    # all hash to the same lowercase-hyphenated key as the stored external_ids.
+    try:
+        canonical_external_id = str(UUID(project))
+        entry = index.entries_by_external_id.get(canonical_external_id)
+        if entry:
+            return entry
+    except ValueError:
+        pass
+
     workspace_slug, project_identifier = _split_qualified_project_identifier(project)
     project_permalink = generate_permalink(project_identifier)
 
@@ -617,6 +634,11 @@ async def resolve_workspace_project_identifier(
             return cached_matches[0]
 
     if len(matches) > 1:
+        # Prefer the project in the default workspace when name is ambiguous
+        default_match = next((entry for entry in matches if entry.workspace.is_default), None)
+        if default_match:
+            return default_match
+
         choices = _format_qualified_choices(matches)
         details = "\n".join(
             f"- {entry.workspace.name} ({entry.workspace.slug}): {entry.qualified_name}"
@@ -956,8 +978,8 @@ def detect_project_from_url_prefix(identifier: str, config: BasicMemoryConfig) -
 @asynccontextmanager
 async def get_project_client(
     project: Optional[str] = None,
-    workspace: Optional[str] = None,
     context: Optional[Context] = None,
+    project_id: Optional[str] = None,
 ) -> AsyncIterator[Tuple[AsyncClient, ProjectItem]]:
     """Resolve project, create correctly-routed client, and validate project.
 
@@ -972,16 +994,13 @@ async def get_project_client(
     3. Cloud project mode → resolve project through workspace/project index
     4. Otherwise → local ASGI client
 
-    Workspace resolution priority (when cloud routing):
-    1. Explicit ``workspace`` parameter
-    2. Per-project ``workspace_id`` from config
-    3. Qualified project identifier (``<workspace-slug>/<project>``)
-    4. Workspace/project index lookup with collision detection
-
     Args:
-        project: Optional explicit project parameter
-        workspace: Optional cloud workspace selector (tenant_id or unique name)
+        project: Optional explicit project parameter (name or permalink)
         context: Optional FastMCP context for caching
+        project_id: Optional project external_id (UUID). When provided, takes
+            precedence over ``project`` and disambiguates the project across
+            workspaces. Use this when the same project name exists in multiple
+            cloud workspaces.
 
     Yields:
         Tuple of (client, active_project)
@@ -998,8 +1017,12 @@ async def get_project_client(
         is_factory_mode,
     )
 
+    # When project_id (UUID) is provided, prefer it as the resolution identifier.
+    # external_id is unambiguous across workspaces; project name can collide.
+    project_identifier = project_id if project_id else project
+
     # Step 1: Resolve project name from config (no network call)
-    resolved_project = await resolve_project_parameter(project, context=context)
+    resolved_project = await resolve_project_parameter(project_identifier, context=context)
     config = ConfigManager().config
     factory_mode = is_factory_mode()
     explicit_cloud_routing = _explicit_routing() and not _force_local_mode()
@@ -1050,19 +1073,14 @@ async def get_project_client(
     project_entry = config.projects.get(resolved_project)
     project_mode = config.get_project_mode(resolved_project)
 
-    # Trigger: workspace provided for a local project (without explicit --cloud)
-    # Why: workspace selection is a cloud routing concern only
-    # Outcome: fail fast with a deterministic guidance message
-    if (
-        not factory_mode
-        and project_mode != ProjectMode.CLOUD
-        and workspace is not None
-        and not _explicit_routing()
-    ):
-        raise ValueError(
-            f"Workspace '{workspace}' cannot be used with local project '{resolved_project}'. "
-            "Workspace selection is only supported for cloud-mode projects."
-        )
+    # Trigger: identifier is a UUID (project_id) but local config keys by name only
+    # Why: get_project_mode defaults to CLOUD for unknown identifiers; a UUID is
+    #   never registered in local config, so it would always falsely route cloud
+    # Outcome: in pure local mode, treat UUID identifiers as local routing; cloud
+    #   discovery still happens when factory/explicit/credentials are present
+    cloud_available = factory_mode or explicit_cloud_routing or has_cloud_credentials(config)
+    if project_id and not cloud_available:
+        project_mode = ProjectMode.LOCAL
 
     if factory_mode or project_mode == ProjectMode.CLOUD or explicit_cloud_routing:
         route_mode = "factory" if factory_mode else "cloud_proxy"
@@ -1070,17 +1088,8 @@ async def get_project_client(
         workspace_id: str
         project_for_api = _unqualified_project_identifier(resolved_project)
 
-        # Trigger: a script or config entry pins the tenant explicitly
-        # Why: explicit tenant configuration remains the escape hatch during migration
-        # Outcome: route to that workspace, but validate the project name inside it
-        if workspace is not None:
-            active_ws = await resolve_workspace_parameter(workspace=workspace, context=context)
-            workspace_id = active_ws.tenant_id
-        elif project_entry and project_entry.workspace_id:
-            # Trigger: the local project config already stores the cloud tenant id.
-            # Why: routing can send that id directly; requiring workspace discovery here
-            #   would turn a control-plane listing outage into a project routing failure.
-            # Outcome: preserve project-scoped routing even when discovery is unavailable.
+        if project_entry and project_entry.workspace_id:
+            # Per-project config stores the cloud tenant id directly
             workspace_id = project_entry.workspace_id
         else:
             resolved_entry = cloud_default_entry
@@ -1120,6 +1129,12 @@ async def get_project_client(
         route_mode=route_mode,
     ):
         logger.debug("Using default local ASGI routing for project client")
-        async with get_client(project_name=resolved_project) as client:
+        # Trigger: UUID identifiers won't match name-keyed local config entries.
+        # Why: get_client(project_name=<uuid>) would consult get_project_mode and
+        #   default to CLOUD for unknown identifiers, breaking pure-local routing.
+        # Outcome: skip per-project routing for UUIDs — local mode routes every
+        #   project through the same ASGI client; the API resolves the UUID below.
+        client_kwargs = {} if project_id else {"project_name": resolved_project}
+        async with get_client(**client_kwargs) as client:
             active_project = await get_active_project(client, resolved_project, context)
             yield client, active_project
