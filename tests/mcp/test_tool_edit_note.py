@@ -799,13 +799,44 @@ async def test_edit_note_detects_project_from_memory_url(client, test_project):
 
 
 @pytest.mark.asyncio
+async def test_edit_note_workspace_qualified_memory_url_keeps_complete_permalink(
+    client,
+    test_project,
+):
+    from basic_memory.workspace_context import workspace_permalink_context
+
+    expected_permalink = f"team-paul/{test_project.name}/team/tool-edit-note"
+
+    with workspace_permalink_context(workspace_slug="team-paul", workspace_type="organization"):
+        await write_note(
+            project=test_project.name,
+            title="Tool Edit Note",
+            directory="team",
+            content="# Tool Edit Note\nOriginal content.",
+        )
+
+        result = await edit_note(
+            project=test_project.name,
+            identifier=f"memory://{expected_permalink}",
+            operation="append",
+            content="\nAppended in team workspace.",
+        )
+
+    assert isinstance(result, str)
+    assert "Edited note (append)" in result
+    assert f"permalink: {expected_permalink}" in result
+
+
+@pytest.mark.asyncio
 async def test_edit_note_skips_detection_for_plain_path(client, test_project):
     """edit_note should NOT call detect_project_from_url_prefix for plain path identifiers.
 
     A plain path like 'research/note' should not be misrouted to a project
     named 'research' — the 'research' segment is a directory, not a project.
     """
-    with patch("basic_memory.mcp.tools.edit_note.detect_project_from_url_prefix") as mock_detect:
+    with patch(
+        "basic_memory.mcp.tools.edit_note.detect_project_from_memory_url_prefix"
+    ) as mock_detect:
         # Use a plain path (no memory:// prefix) — detection should not be called
         await edit_note(
             identifier="test/some-note",
@@ -820,7 +851,9 @@ async def test_edit_note_skips_detection_for_plain_path(client, test_project):
 @pytest.mark.asyncio
 async def test_edit_note_skips_detection_when_project_provided(client, test_project):
     """edit_note should skip URL detection when project is explicitly provided."""
-    with patch("basic_memory.mcp.tools.edit_note.detect_project_from_url_prefix") as mock_detect:
+    with patch(
+        "basic_memory.mcp.tools.edit_note.detect_project_from_memory_url_prefix"
+    ) as mock_detect:
         await edit_note(
             identifier=f"memory://{test_project.name}/test/some-note",
             operation="append",
@@ -829,3 +862,37 @@ async def test_edit_note_skips_detection_when_project_provided(client, test_proj
         )
 
         mock_detect.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_edit_note_skips_detection_when_project_id_provided(
+    monkeypatch,
+    client,
+    test_project,
+):
+    """project_id is authoritative, so memory URL discovery must not run first."""
+    await write_note(
+        project=test_project.name,
+        title="Project ID Memory URL Edit",
+        directory="test",
+        content="# Project ID Memory URL Edit\nOriginal content.",
+    )
+
+    async def fail_if_called(*args, **kwargs):
+        raise AssertionError("project_id routing should bypass URL discovery")
+
+    import importlib
+
+    edit_note_module = importlib.import_module("basic_memory.mcp.tools.edit_note")
+    monkeypatch.setattr(edit_note_module, "detect_project_from_memory_url_prefix", fail_if_called)
+
+    result = await edit_note(
+        identifier=f"memory://{test_project.name}/test/project-id-memory-url-edit",
+        project_id=test_project.external_id,
+        operation="append",
+        content="\nAppended via project_id.",
+    )
+
+    assert isinstance(result, str)
+    assert "Edited note (append)" in result
+    assert f"project: {test_project.name}" in result

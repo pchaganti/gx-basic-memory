@@ -18,7 +18,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 
 from basic_memory.config import ConfigManager
 from basic_memory.mcp.project_context import (
-    detect_project_from_url_prefix,
+    detect_project_from_memory_url_prefix,
     get_project_client,
     resolve_project_and_path,
 )
@@ -217,9 +217,14 @@ async def read_content(
         HTTPError: If project doesn't exist or is inaccessible
         SecurityError: If path attempts path traversal
     """
-    # Detect project from memory URL prefix before routing
-    if project is None:
-        detected = detect_project_from_url_prefix(path, ConfigManager().config)
+    # Detect project from memory URL prefix before routing.
+    # project_id routes by external UUID, so it bypasses URL discovery entirely.
+    if project is None and project_id is None:
+        detected = await detect_project_from_memory_url_prefix(
+            path,
+            ConfigManager().config,
+            context=context,
+        )
         if detected:
             project = detected
 

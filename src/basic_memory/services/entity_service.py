@@ -48,6 +48,7 @@ from basic_memory.services.exceptions import (
 from basic_memory.services.link_resolver import LinkResolver
 from basic_memory.services.search_service import SearchService
 from basic_memory.utils import build_canonical_permalink
+from basic_memory.workspace_context import workspace_slug_for_canonical_permalinks
 
 
 @dataclass(frozen=True)
@@ -205,15 +206,20 @@ class EntityService(BaseService[EntityModel]):
             if self.app_config:
                 include_project = self.app_config.permalinks_include_project
 
+            workspace_permalink = workspace_slug_for_canonical_permalinks()
             project_permalink = None
-            # Trigger: project-prefixed permalinks are enabled
-            # Why: we need the project slug to build the canonical permalink
-            # Outcome: fetch and cache the project's permalink
-            if include_project:
+            # Trigger: project-prefixed permalinks are enabled, or organization workspace
+            #   context requires a complete workspace/project canonical permalink.
+            # Why: project slug is the stable middle segment for globally addressable links.
+            # Outcome: fetch and cache the project's permalink before building the canonical URL.
+            if include_project or workspace_permalink:
                 project_permalink = await self._get_project_permalink()
 
             desired_permalink = build_canonical_permalink(
-                project_permalink, file_path_str, include_project=include_project
+                project_permalink,
+                file_path_str,
+                include_project=include_project,
+                workspace_permalink=workspace_permalink,
             )
 
         # Make unique if needed - enhanced to handle character conflicts

@@ -9,7 +9,7 @@ from pydantic import AliasChoices, Field
 
 from basic_memory.config import ConfigManager
 from basic_memory.mcp.project_context import (
-    detect_project_from_url_prefix,
+    detect_project_from_memory_url_prefix,
     get_project_client,
     resolve_project_and_path,
 )
@@ -209,9 +209,14 @@ async def build_context(
     Raises:
         ToolError: If project doesn't exist or depth parameter is invalid
     """
-    # Detect project from memory URL prefix before routing
-    if project is None:
-        detected = detect_project_from_url_prefix(url, ConfigManager().config)
+    # Detect project from memory URL prefix before routing.
+    # project_id routes by external UUID, so it bypasses URL discovery entirely.
+    if project is None and project_id is None:
+        detected = await detect_project_from_memory_url_prefix(
+            url,
+            ConfigManager().config,
+            context=context,
+        )
         if detected:
             project = detected
 

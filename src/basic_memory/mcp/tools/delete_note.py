@@ -7,8 +7,15 @@ from mcp.server.fastmcp.exceptions import ToolError
 from pydantic import AliasChoices, Field
 
 from basic_memory.config import ConfigManager
-from basic_memory.mcp.project_context import detect_project_from_url_prefix, get_project_client
+from basic_memory.mcp.project_context import (
+    detect_project_from_memory_url_prefix,
+    get_project_client,
+    resolve_project_and_path,
+)
 from basic_memory.mcp.server import mcp
+from basic_memory.schemas.project_info import ProjectItem
+from basic_memory.utils import generate_permalink, normalize_project_reference
+from basic_memory.workspace_context import current_workspace_permalink_context
 
 
 def _format_delete_error_response(project: str, error_message: str, identifier: str) -> str:
@@ -148,6 +155,32 @@ delete_note("{project}", "correct-identifier-from-search")
 If the note should be deleted but the operation keeps failing, send a message to support@basicmemory.com."""
 
 
+def _directory_path_for_delete(
+    target_identifier: str,
+    active_project: ProjectItem,
+    *,
+    include_project_prefix: bool,
+) -> str:
+    """Return the project-relative directory path expected by the delete API."""
+    directory = normalize_project_reference(target_identifier).strip("/")
+    project_permalink = active_project.permalink
+
+    route_prefixes: list[str] = []
+    workspace_context = current_workspace_permalink_context()
+    if workspace_context and workspace_context.should_prefix_permalinks:
+        route_prefixes.append(
+            f"{generate_permalink(workspace_context.workspace_slug)}/{project_permalink}"
+        )
+    if include_project_prefix:
+        route_prefixes.append(project_permalink)
+
+    for route_prefix in route_prefixes:
+        if directory.startswith(f"{route_prefix}/"):
+            return directory.removeprefix(f"{route_prefix}/")
+
+    return directory
+
+
 @mcp.tool(
     description="Delete a note or directory by title, permalink, or path",
     annotations={"destructiveHint": True, "openWorldHint": False},
@@ -231,12 +264,16 @@ async def delete_note(
         commands and alternative formats to try.
     """
     # Detect project from memory URL prefix before routing
-    # Trigger: identifier starts with memory:// and no explicit project was provided
+    # Trigger: identifier starts with memory:// and no explicit project/project_id was provided
     # Why: only gate on memory:// to avoid misrouting plain paths like "research/note"
     #      where "research" is a directory, not a project name
     # Outcome: project is set from the URL prefix, routing goes to the correct project
-    if project is None and identifier.strip().startswith("memory://"):
-        detected = detect_project_from_url_prefix(identifier, ConfigManager().config)
+    if project is None and project_id is None and identifier.strip().startswith("memory://"):
+        detected = await detect_project_from_memory_url_prefix(
+            identifier,
+            ConfigManager().config,
+            context=context,
+        )
         if detected:
             project = detected
 
@@ -253,11 +290,30 @@ async def delete_note(
 
         # Use typed KnowledgeClient for API calls
         knowledge_client = KnowledgeClient(client, active_project.external_id)
+        _, target_identifier, is_memory_url = await resolve_project_and_path(
+            client,
+            identifier,
+            active_project.name,
+            context,
+        )
 
         # Handle directory deletes
         if is_directory:
             try:
-                result = await knowledge_client.delete_directory(identifier)
+                # Trigger: directory input was routed from a memory:// URL.
+                # Why: resolve_project_and_path returns canonical permalinks, while
+                #   delete_directory filters by project-relative file_path prefixes.
+                # Outcome: strip only the route prefix before calling the delete API.
+                directory_identifier = (
+                    _directory_path_for_delete(
+                        target_identifier,
+                        active_project,
+                        include_project_prefix=ConfigManager().config.permalinks_include_project,
+                    )
+                    if is_memory_url
+                    else target_identifier
+                )
+                result = await knowledge_client.delete_directory(directory_identifier)
                 if output_format == "json":
                     return {
                         "deleted": result.failed_deletes == 0,
@@ -339,7 +395,7 @@ delete_note("path/to/file.md")
         note_file_path = None
         try:
             # Resolve identifier to entity ID
-            entity_id = await knowledge_client.resolve_entity(identifier, strict=True)
+            entity_id = await knowledge_client.resolve_entity(target_identifier, strict=True)
             if output_format == "json":
                 entity = await knowledge_client.get_entity(entity_id)
                 note_title = entity.title

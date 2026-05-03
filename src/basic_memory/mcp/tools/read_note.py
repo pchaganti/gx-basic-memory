@@ -11,7 +11,7 @@ from fastmcp import Context
 
 from basic_memory.config import ConfigManager
 from basic_memory.mcp.project_context import (
-    detect_project_from_url_prefix,
+    detect_project_from_memory_url_prefix,
     get_project_client,
     resolve_project_and_path,
 )
@@ -33,10 +33,10 @@ def _parse_opening_frontmatter(content: str) -> tuple[str, dict | None]:
     If parsing fails or frontmatter is not a mapping, returns body unchanged and None.
     """
     original_content = content
-    if not content.startswith("---\n"):
+    lines = content.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
         return original_content, None
 
-    lines = content.splitlines(keepends=True)
     closing_index = None
     for i in range(1, len(lines)):
         if lines[i].strip() == "---":
@@ -130,9 +130,14 @@ async def read_note(
         If the exact note isn't found, this tool provides helpful suggestions
         including related notes, search commands, and note creation templates.
     """
-    # Detect project from memory URL prefix before routing
-    if project is None:
-        detected = detect_project_from_url_prefix(identifier, ConfigManager().config)
+    # Detect project from memory URL prefix before routing.
+    # project_id routes by external UUID, so it bypasses URL discovery entirely.
+    if project is None and project_id is None:
+        detected = await detect_project_from_memory_url_prefix(
+            identifier,
+            ConfigManager().config,
+            context=context,
+        )
         if detected:
             project = detected
 
