@@ -187,9 +187,7 @@ async def recent_activity(
     # project_id (UUID) takes precedence over project name — without this fallback,
     # callers passing only project_id would fall into Discovery Mode.
     effective_identifier = project_id if project_id else project
-    resolved_project = await resolve_project_parameter(
-        effective_identifier, allow_discovery=True
-    )
+    resolved_project = await resolve_project_parameter(effective_identifier, allow_discovery=True)
 
     if resolved_project is None:
         # Discovery Mode: Get activity across all projects
@@ -304,9 +302,7 @@ async def recent_activity(
             f"Getting recent activity from project {resolved_project}: type={type}, depth={depth}, timeframe={timeframe}"
         )
 
-        async with get_project_client(
-            resolved_project, context=context, project_id=project_id
-        ) as (
+        async with get_project_client(resolved_project, context=context, project_id=project_id) as (
             client,
             active_project,
         ):
@@ -492,10 +488,12 @@ def _format_project_output(
         elif result.primary_result.type == "observation":
             observations.append(result.primary_result)
 
-    # Show entities (notes/documents)
+    # Show entities (notes/documents). Render every row the API returned —
+    # `page_size` is the single knob for how much comes back, so heading count
+    # and body row count always agree (regression: #784 silent truncation).
     if entities:
         lines.append(f"\n**📄 Recent Notes & Documents ({len(entities)}):**")
-        for entity in entities[:5]:  # Show top 5
+        for entity in entities:
             title = entity.title or "Untitled"
             # Get folder from file_path
             folder = ""
@@ -528,7 +526,7 @@ def _format_project_output(
     # Show relations (connections)
     if relations:
         lines.append(f"\n**🔗 Recent Connections ({len(relations)}):**")
-        for rel in relations[:5]:  # Show top 5
+        for rel in relations:
             rel_type = rel.relation_type
             from_entity = rel.from_entity or "Unknown"
             to_entity = rel.to_entity

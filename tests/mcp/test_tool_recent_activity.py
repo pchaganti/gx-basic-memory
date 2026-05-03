@@ -259,6 +259,83 @@ def test_recent_activity_format_project_output_no_results():
     assert "No recent activity found" in out
 
 
+def test_recent_activity_format_project_output_renders_all_entities_and_relations():
+    """Regression for #784: the formatter must render every row the API returned.
+    Previously the body was hardcoded to `[:5]` while the heading reported the
+    true total — a result set of N>5 entities would show 5 rows under a heading
+    that claimed N, with no signal the body was truncated. `page_size` is now
+    the only knob; heading count and body row count must always agree.
+    """
+    import importlib
+
+    from basic_memory.schemas.memory import RelationSummary
+
+    recent_activity_module = importlib.import_module("basic_memory.mcp.tools.recent_activity")
+    now = datetime.now(timezone.utc)
+
+    # Counts chosen to comfortably exceed the old hardcoded `[:5]` slice and any
+    # plausible reintroduced default cap.
+    entity_titles = [f"Entity {i}" for i in range(15)]
+    relation_titles = [f"Relation {i}" for i in range(12)]
+
+    results = [
+        ContextResult(
+            primary_result=EntitySummary(
+                external_id=f"550e8400-e29b-41d4-a716-44665544{i:04d}",
+                entity_id=i,
+                permalink=f"notes/entity-{i}",
+                title=title,
+                content=None,
+                file_path=f"notes/entity-{i}.md",
+                created_at=now,
+            ),
+            observations=[],
+            related_results=[],
+        )
+        for i, title in enumerate(entity_titles)
+    ] + [
+        ContextResult(
+            primary_result=RelationSummary(
+                relation_id=100 + i,
+                entity_id=i,
+                title=title,
+                file_path=f"notes/entity-{i}.md",
+                permalink=f"notes/entity-{i}",
+                relation_type="references",
+                from_entity=f"Entity {i}",
+                to_entity=f"Entity {i + 1}",
+                created_at=now,
+            ),
+            observations=[],
+            related_results=[],
+        )
+        for i, title in enumerate(relation_titles)
+    ]
+
+    activity = GraphContext(
+        results=results,
+        metadata=MemoryMetadata(depth=1, generated_at=now),
+    )
+
+    out = recent_activity_module._format_project_output(
+        project_name="proj",
+        activity_data=activity,
+        timeframe="7d",
+        type_filter=["entity", "relation"],
+        page=1,
+    )
+
+    for title in entity_titles:
+        assert title in out, f"Entity {title!r} missing from formatter output"
+    for i in range(len(relation_titles)):
+        assert f"[[Entity {i}]] → references → [[Entity {i + 1}]]" in out, (
+            f"Relation {i} missing from formatter output"
+        )
+    # Heading total matches the body — no silent truncation.
+    assert f"Recent Notes & Documents ({len(entity_titles)})" in out
+    assert f"Recent Connections ({len(relation_titles)})" in out
+
+
 def test_recent_activity_format_project_output_includes_observation_truncation():
     import importlib
 
