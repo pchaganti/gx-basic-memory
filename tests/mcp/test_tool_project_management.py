@@ -133,6 +133,201 @@ async def test_create_and_delete_project_and_name_match_branch(
     assert delete_result.startswith("✓")
 
 
+@pytest.mark.asyncio
+async def test_create_memory_project_resolves_workspace_slug(app, tmp_path_factory):
+    """A friendly workspace slug resolves to the tenant id used for cloud routing."""
+    from contextlib import asynccontextmanager
+    import httpx
+
+    from basic_memory.mcp.clients import ProjectClient
+    from basic_memory.schemas.project_info import ProjectStatusResponse
+
+    project_root = tmp_path_factory.mktemp("ws-project-home")
+    captured: dict[str, str | None] = {}
+
+    @asynccontextmanager
+    async def fake_get_client(*, workspace=None, project_name=None):
+        captured["workspace"] = workspace
+        async with httpx.AsyncClient(base_url="http://testserver") as client:
+            yield client
+
+    fake_status = ProjectStatusResponse(
+        message="Project created",
+        status="success",
+        default=False,
+        new_project=_make_project("WS Project", str(project_root)),
+    )
+
+    with (
+        patch(
+            "basic_memory.mcp.tools.project_management.get_client",
+            new=fake_get_client,
+        ),
+        patch(
+            "basic_memory.mcp.tools.project_management.is_factory_mode",
+            return_value=True,
+        ),
+        patch(
+            "basic_memory.mcp.tools.project_management.resolve_workspace_parameter",
+            new_callable=AsyncMock,
+            return_value=_make_workspace(
+                "tenant-abc-123",
+                "Team Paul",
+                workspace_type="organization",
+                slug="team-paul",
+            ),
+        ) as mock_resolve_workspace,
+        patch.object(
+            ProjectClient,
+            "list_projects",
+            new_callable=AsyncMock,
+            return_value=_make_list([], default=None),
+        ),
+        patch.object(
+            ProjectClient,
+            "create_project",
+            new_callable=AsyncMock,
+            return_value=fake_status,
+        ),
+        patch(
+            "basic_memory.mcp.project_context.invalidate_workspace_project_index",
+            new_callable=AsyncMock,
+        ),
+    ):
+        await create_memory_project(
+            project_name="WS Project",
+            project_path=str(project_root),
+            workspace="team-paul",
+        )
+
+    mock_resolve_workspace.assert_awaited_once_with(workspace="team-paul", context=None)
+    assert captured["workspace"] == "tenant-abc-123"
+
+
+@pytest.mark.asyncio
+async def test_create_memory_project_workspace_is_local_noop(app, tmp_path_factory):
+    """Local create accepts workspace without requiring cloud workspace discovery."""
+    from contextlib import asynccontextmanager
+    import httpx
+
+    from basic_memory.mcp.clients import ProjectClient
+    from basic_memory.schemas.project_info import ProjectStatusResponse
+
+    project_root = tmp_path_factory.mktemp("local-ws-project-home")
+    captured: dict[str, str | None] = {}
+
+    @asynccontextmanager
+    async def fake_get_client(*, workspace=None, project_name=None):
+        captured["workspace"] = workspace
+        async with httpx.AsyncClient(base_url="http://testserver") as client:
+            yield client
+
+    fake_status = ProjectStatusResponse(
+        message="Project created",
+        status="success",
+        default=False,
+        new_project=_make_project("Local WS Project", str(project_root)),
+    )
+
+    with (
+        patch(
+            "basic_memory.mcp.tools.project_management.get_client",
+            new=fake_get_client,
+        ),
+        patch(
+            "basic_memory.mcp.tools.project_management.is_factory_mode",
+            return_value=False,
+        ),
+        patch(
+            "basic_memory.mcp.tools.project_management.has_cloud_credentials",
+            return_value=False,
+        ),
+        patch(
+            "basic_memory.mcp.tools.project_management.resolve_workspace_parameter",
+            new_callable=AsyncMock,
+        ) as mock_resolve_workspace,
+        patch.object(
+            ProjectClient,
+            "list_projects",
+            new_callable=AsyncMock,
+            return_value=_make_list([], default=None),
+        ),
+        patch.object(
+            ProjectClient,
+            "create_project",
+            new_callable=AsyncMock,
+            return_value=fake_status,
+        ),
+        patch(
+            "basic_memory.mcp.project_context.invalidate_workspace_project_index",
+            new_callable=AsyncMock,
+        ),
+    ):
+        await create_memory_project(
+            project_name="Local WS Project",
+            project_path=str(project_root),
+            workspace="team-paul",
+        )
+
+    mock_resolve_workspace.assert_not_awaited()
+    assert captured["workspace"] == "team-paul"
+
+
+@pytest.mark.asyncio
+async def test_create_memory_project_default_workspace_is_none(app, tmp_path_factory):
+    """When workspace is omitted, get_client receives workspace=None (default workspace)."""
+    from contextlib import asynccontextmanager
+    import httpx
+
+    from basic_memory.mcp.clients import ProjectClient
+    from basic_memory.schemas.project_info import ProjectStatusResponse
+
+    project_root = tmp_path_factory.mktemp("default-ws-project-home")
+    captured: dict[str, str | None] = {"workspace": "sentinel"}
+
+    @asynccontextmanager
+    async def fake_get_client(*, workspace=None, project_name=None):
+        captured["workspace"] = workspace
+        async with httpx.AsyncClient(base_url="http://testserver") as client:
+            yield client
+
+    fake_status = ProjectStatusResponse(
+        message="Project created",
+        status="success",
+        default=False,
+        new_project=_make_project("Default WS Project", str(project_root)),
+    )
+
+    with (
+        patch(
+            "basic_memory.mcp.tools.project_management.get_client",
+            new=fake_get_client,
+        ),
+        patch.object(
+            ProjectClient,
+            "list_projects",
+            new_callable=AsyncMock,
+            return_value=_make_list([], default=None),
+        ),
+        patch.object(
+            ProjectClient,
+            "create_project",
+            new_callable=AsyncMock,
+            return_value=fake_status,
+        ),
+        patch(
+            "basic_memory.mcp.project_context.invalidate_workspace_project_index",
+            new_callable=AsyncMock,
+        ),
+    ):
+        await create_memory_project(
+            project_name="Default WS Project",
+            project_path=str(project_root),
+        )
+
+    assert captured["workspace"] is None
+
+
 # --- Cloud merge tests ---
 
 
