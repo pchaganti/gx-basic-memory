@@ -247,6 +247,24 @@ class SearchRepositoryBase(ABC):
         """
         pass
 
+    async def count(
+        self,
+        search_text: Optional[str] = None,
+        permalink: Optional[str] = None,
+        permalink_match: Optional[str] = None,
+        title: Optional[str] = None,
+        note_types: Optional[List[str]] = None,
+        after_date: Optional[datetime] = None,
+        search_item_types: Optional[List[SearchItemType]] = None,
+        metadata_filters: Optional[Dict[str, Any]] = None,
+        retrieval_mode: SearchRetrievalMode = SearchRetrievalMode.FTS,
+        min_similarity: Optional[float] = None,
+    ) -> int:
+        """Count results when a backend-specific COUNT query is available."""
+        if retrieval_mode != SearchRetrievalMode.FTS:
+            raise ValueError("Exact counts are only supported for full-text search retrieval.")
+        raise NotImplementedError("Backend search repositories must implement full-text counts.")
+
     # ------------------------------------------------------------------
     # Abstract methods — semantic search (backend-specific DB operations)
     # ------------------------------------------------------------------

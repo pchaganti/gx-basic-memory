@@ -57,7 +57,7 @@ async def test_search_entities(
     )
 
     # Search for the entity
-    response = await client.post(f"{v2_project_url}/search/", json={"search_text": "Searchable"})
+    response = await client.post(f"{v2_project_url}/search/", json={"text": "Searchable"})
 
     assert response.status_code == 200
     data = response.json()
@@ -94,7 +94,7 @@ async def test_search_with_pagination(
     # Search with pagination
     response = await client.post(
         f"{v2_project_url}/search/",
-        json={"search_text": "Search Entity"},
+        json={"text": "Search Entity"},
         params={"page": 1, "page_size": 3},
     )
 
@@ -102,6 +102,57 @@ async def test_search_with_pagination(
     data = response.json()
     assert data["current_page"] == 1
     assert data["page_size"] == 3
+    assert data["total"] == 5
+    assert data["has_more"] is True
+
+    response = await client.post(
+        f"{v2_project_url}/search/",
+        json={"text": "Search Entity"},
+        params={"page": 2, "page_size": 3},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["current_page"] == 2
+    assert data["page_size"] == 3
+    assert data["total"] == 5
+    assert data["has_more"] is False
+    assert len(data["results"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_search_with_item_type_filter_returns_total(
+    client: AsyncClient,
+    test_project: Project,
+    v2_project_url: str,
+    entity_repository,
+    search_service,
+    file_service,
+):
+    """Metadata-only graph searches should include exact totals for pagination."""
+    for i in range(5):
+        entity_data = {
+            "title": f"Structured Entity {i}",
+            "note_type": "note",
+            "content_type": "text/markdown",
+            "file_path": f"structured_{i}.md",
+            "checksum": f"structuredsum{i}",
+        }
+        await create_test_entity(
+            test_project, entity_data, entity_repository, search_service, file_service
+        )
+
+    response = await client.post(
+        f"{v2_project_url}/search/",
+        json={"entity_types": ["entity"]},
+        params={"page": 1, "page_size": 3},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 5
+    assert data["has_more"] is True
+    assert len(data["results"]) == 3
 
 
 @pytest.mark.asyncio
@@ -192,7 +243,7 @@ async def test_search_with_type_filter(
 
     # Search with type filter
     response = await client.post(
-        f"{v2_project_url}/search/", json={"search_text": "Type", "note_types": ["note"]}
+        f"{v2_project_url}/search/", json={"text": "Type", "note_types": ["note"]}
     )
 
     assert response.status_code == 200
@@ -225,7 +276,7 @@ async def test_search_with_date_filter(
     # Search with date filter
     response = await client.post(
         f"{v2_project_url}/search/",
-        json={"search_text": "Date Filtered", "after_date": "2024-01-01T00:00:00Z"},
+        json={"text": "Date Filtered", "after_date": "2024-01-01T00:00:00Z"},
     )
 
     assert response.status_code == 200
@@ -247,11 +298,41 @@ async def test_search_empty_query(
 
 
 @pytest.mark.asyncio
+async def test_search_whitespace_text_is_treated_as_empty(
+    client: AsyncClient,
+    test_project: Project,
+    v2_project_url: str,
+    entity_repository,
+    search_service,
+    file_service,
+):
+    """Whitespace-only text should not become an unfiltered project-wide search."""
+    entity_data = {
+        "title": "Whitespace Regression Entity",
+        "note_type": "note",
+        "content_type": "text/markdown",
+        "file_path": "whitespace_regression.md",
+        "checksum": "whitespace123",
+    }
+    await create_test_entity(
+        test_project, entity_data, entity_repository, search_service, file_service
+    )
+
+    response = await client.post(f"{v2_project_url}/search/", json={"text": "   "})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 0
+    assert data["has_more"] is False
+    assert data["results"] == []
+
+
+@pytest.mark.asyncio
 async def test_search_invalid_project_id(
     client: AsyncClient,
 ):
     """Test searching with invalid project ID returns 404."""
-    response = await client.post("/v2/projects/999999/search/", json={"search_text": "test"})
+    response = await client.post("/v2/projects/999999/search/", json={"text": "test"})
 
     assert response.status_code == 404
 
@@ -291,7 +372,7 @@ async def test_v2_search_endpoints_use_project_id_not_name(
 ):
     """Test that v2 search endpoints reject string project names."""
     # Try to use project name instead of ID - should fail
-    response = await client.post(f"/v2/{test_project.name}/search/", json={"search_text": "test"})
+    response = await client.post(f"/v2/{test_project.name}/search/", json={"text": "test"})
 
     # FastAPI path validation should reject non-integer project_id
     assert response.status_code in [404, 422]
@@ -307,11 +388,14 @@ async def test_search_router_returns_400_for_semantic_disabled(
         async def search(self, *args, **kwargs):
             raise SemanticSearchDisabledError("Semantic search is disabled for this project.")
 
+        async def count(self, *args, **kwargs):
+            raise SemanticSearchDisabledError("Semantic search is disabled for this project.")
+
     app.dependency_overrides[get_search_service_v2_external] = lambda: RaisingSearchService()
     try:
         response = await client.post(
             f"{v2_project_url}/search/",
-            json={"search_text": "semantic query", "retrieval_mode": "vector"},
+            json={"text": "semantic query", "retrieval_mode": "vector"},
         )
     finally:
         app.dependency_overrides.pop(get_search_service_v2_external, None)
@@ -330,11 +414,14 @@ async def test_search_router_returns_400_for_semantic_missing_deps(
         async def search(self, *args, **kwargs):
             raise SemanticDependenciesMissingError("Semantic dependencies are missing.")
 
+        async def count(self, *args, **kwargs):
+            raise SemanticDependenciesMissingError("Semantic dependencies are missing.")
+
     app.dependency_overrides[get_search_service_v2_external] = lambda: RaisingSearchService()
     try:
         response = await client.post(
             f"{v2_project_url}/search/",
-            json={"search_text": "semantic query", "retrieval_mode": "hybrid"},
+            json={"text": "semantic query", "retrieval_mode": "hybrid"},
         )
     finally:
         app.dependency_overrides.pop(get_search_service_v2_external, None)
@@ -353,6 +440,9 @@ async def test_search_router_returns_400_for_invalid_vector_query(
         async def search(self, *args, **kwargs):
             raise ValueError("Vector retrieval requires a text query.")
 
+        async def count(self, *args, **kwargs):
+            raise ValueError("Vector retrieval requires a text query.")
+
     app.dependency_overrides[get_search_service_v2_external] = lambda: RaisingSearchService()
     try:
         response = await client.post(
@@ -364,6 +454,56 @@ async def test_search_router_returns_400_for_invalid_vector_query(
 
     assert response.status_code == 400
     assert "Vector retrieval requires a text query" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_semantic_search_uses_probe_pagination_without_count(
+    client: AsyncClient,
+    app,
+    v2_project_url: str,
+):
+    """Semantic searches should not run an extra count query."""
+    now = datetime.now(timezone.utc)
+    fake_rows = [
+        SearchIndexRow(
+            project_id=1,
+            id=row_id,
+            type="entity",
+            file_path=f"notes/semantic-{row_id}.md",
+            created_at=now,
+            updated_at=now,
+            title=f"Semantic Result {row_id}",
+            permalink=f"notes/semantic-{row_id}",
+            score=1.0 - (row_id / 10),
+        )
+        for row_id in range(1, 4)
+    ]
+
+    class FakeSearchService:
+        async def search(self, query, *, limit, offset):
+            assert query.retrieval_mode.value == "vector"
+            assert limit == 3
+            assert offset == 0
+            return fake_rows
+
+        async def count(self, *args, **kwargs):
+            raise AssertionError("semantic search must not run count")
+
+    app.dependency_overrides[get_search_service_v2_external] = lambda: FakeSearchService()
+    try:
+        response = await client.post(
+            f"{v2_project_url}/search/",
+            json={"text": "semantic query", "retrieval_mode": "vector"},
+            params={"page": 1, "page_size": 2},
+        )
+    finally:
+        app.dependency_overrides.pop(get_search_service_v2_external, None)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 0
+    assert data["has_more"] is True
+    assert len(data["results"]) == 2
 
 
 @pytest.mark.asyncio
@@ -459,11 +599,14 @@ async def test_search_result_includes_matched_chunk(
         async def search(self, *args, **kwargs):
             return [fake_row]
 
+        async def count(self, *args, **kwargs):
+            return 1
+
     app.dependency_overrides[get_search_service_v2_external] = lambda: FakeSearchService()
     try:
         response = await client.post(
             f"{v2_project_url}/search/",
-            json={"search_text": "pricing"},
+            json={"text": "pricing"},
         )
     finally:
         app.dependency_overrides.pop(get_search_service_v2_external, None)
@@ -500,11 +643,14 @@ async def test_search_result_omits_matched_chunk_when_none(
         async def search(self, *args, **kwargs):
             return [fake_row]
 
+        async def count(self, *args, **kwargs):
+            return 1
+
     app.dependency_overrides[get_search_service_v2_external] = lambda: FakeSearchService()
     try:
         response = await client.post(
             f"{v2_project_url}/search/",
-            json={"search_text": "general"},
+            json={"text": "general"},
         )
     finally:
         app.dependency_overrides.pop(get_search_service_v2_external, None)
