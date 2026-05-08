@@ -86,6 +86,35 @@ async def test_search_uses_dynamic_default_search_type(monkeypatch, client, test
 
 
 @pytest.mark.asyncio
+async def test_search_delegates_to_search_notes_without_project_iteration(
+    monkeypatch, client, test_project
+):
+    """ChatGPT search is only a compatibility wrapper around search_notes."""
+    import basic_memory.mcp.tools.chatgpt_tools as chatgpt_tools
+
+    captured_kwargs: dict = {}
+
+    async def fake_search_notes_fn(*args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return {"results": []}
+
+    monkeypatch.setattr(chatgpt_tools, "search_notes", fake_search_notes_fn)
+
+    result = await chatgpt_tools.search("MCP Test Note")
+
+    content = json.loads(result[0]["text"])
+    assert content["results"] == []
+    assert content["query"] == "MCP Test Note"
+    assert captured_kwargs == {
+        "query": "MCP Test Note",
+        "page": 1,
+        "page_size": 10,
+        "output_format": "json",
+        "context": None,
+    }
+
+
+@pytest.mark.asyncio
 async def test_fetch_successful_document(client, test_project):
     """Test fetch with successful document retrieval."""
     await write_note(
@@ -125,6 +154,27 @@ async def test_fetch_document_not_found(client, test_project):
     content = json.loads(result[0]["text"])
     assert content["id"] == "nonexistent-doc"
     assert content["metadata"]["error"] == "Document not found"
+
+
+@pytest.mark.asyncio
+async def test_fetch_routes_path_ids_as_memory_urls(monkeypatch, client, test_project):
+    """Workspace-qualified search ids need memory URL routing during fetch."""
+    import basic_memory.mcp.tools.chatgpt_tools as chatgpt_tools
+
+    captured: dict[str, str] = {}
+
+    async def fake_read_note(*, identifier: str, context=None):
+        captured["identifier"] = identifier
+        return "# MCP Test Note\n\nFetched from the requested workspace."
+
+    monkeypatch.setattr(chatgpt_tools, "read_note", fake_read_note)
+
+    result = await chatgpt_tools.fetch("team-paul/main/tests/mcp-test-note")
+
+    content = json.loads(result[0]["text"])
+    assert captured["identifier"] == "memory://team-paul/main/tests/mcp-test-note"
+    assert content["id"] == "team-paul/main/tests/mcp-test-note"
+    assert content["title"] == "MCP Test Note"
 
 
 def test_format_search_results_for_chatgpt():

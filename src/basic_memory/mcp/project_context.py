@@ -439,19 +439,16 @@ def _canonical_memory_path_for_workspace(
     workspace_type: str,
     project_permalink: str,
     remainder: str,
-    include_project: bool,
 ) -> str:
     """Return the stored canonical path for a workspace-qualified memory URL."""
     normalized_remainder = remainder.strip("/")
-    if workspace_type == "organization":
-        prefix = f"{generate_permalink(workspace_slug)}/{project_permalink}"
-    elif workspace_type == "personal":
-        prefix = project_permalink if include_project else ""
-    else:
+    if workspace_type not in {"organization", "personal"}:
         raise ValueError(f"Unsupported workspace_type for memory URL routing: {workspace_type}")
 
-    if not prefix:
-        return normalized_remainder
+    # Trigger: a caller supplied a workspace-qualified memory URL.
+    # Why: the first two path segments are the global route, even for Personal.
+    # Outcome: lookups preserve the complete workspace/project canonical permalink.
+    prefix = f"{generate_permalink(workspace_slug)}/{project_permalink}"
     if not normalized_remainder:
         return prefix
     return f"{prefix}/{normalized_remainder}"
@@ -483,7 +480,6 @@ def _canonical_memory_path_for_active_route(
             workspace_type=workspace_context.workspace_type,
             project_permalink=active_project.permalink,
             remainder=workspace_remainder,
-            include_project=include_project,
         )
 
     if cached_workspace is not None:
@@ -492,7 +488,6 @@ def _canonical_memory_path_for_active_route(
             workspace_type=cached_workspace.workspace_type,
             project_permalink=active_project.permalink,
             remainder=workspace_remainder,
-            include_project=include_project,
         )
 
     if not include_project:
@@ -582,7 +577,6 @@ async def resolve_workspace_qualified_memory_url(
         workspace_type=entry.workspace.workspace_type,
         project_permalink=entry.project.permalink,
         remainder=remainder,
-        include_project=ConfigManager().config.permalinks_include_project,
     )
     return WorkspaceMemoryUrlResolution(entry=entry, canonical_path=canonical_path)
 
@@ -1130,7 +1124,6 @@ async def resolve_project_and_path(
                     workspace_type=cached_workspace.workspace_type,
                     project_permalink=cached_project.permalink,
                     remainder=remainder,
-                    include_project=bool(include_project),
                 )
                 return cached_project, resolved_path, True
 
@@ -1153,7 +1146,6 @@ async def resolve_project_and_path(
                     workspace_type=workspace_context.workspace_type,
                     project_permalink=project_permalink,
                     remainder=remainder,
-                    include_project=bool(include_project),
                 )
                 return active_project, resolved_path, True
 
