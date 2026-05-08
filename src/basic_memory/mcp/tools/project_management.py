@@ -369,11 +369,11 @@ def _format_constrained_text(constrained_project: str) -> str:
     return result
 
 
-async def _resolve_create_project_workspace(
+async def _resolve_workspace_routing(
     workspace: str | None,
     context: Context | None,
 ) -> str | None:
-    """Resolve the create-project workspace selector to the routing tenant id."""
+    """Resolve an optional workspace selector to the routing tenant id."""
     if workspace is None:
         return None
 
@@ -389,7 +389,8 @@ async def _resolve_create_project_workspace(
     #   a friendly selector such as a slug, name, or tenant id.
     # Why: MCP callers should not need to paste UUIDs, but the transport still
     #   uses X-Workspace-ID with the tenant id as its routing authority.
-    # Outcome: resolve once at create time and pass only the tenant id downstream.
+    # Outcome: resolve once before the project-management request and pass only
+    #   the tenant id downstream.
     resolved_workspace = await resolve_workspace_parameter(workspace=workspace, context=context)
     return resolved_workspace.tenant_id
 
@@ -418,8 +419,8 @@ async def create_memory_project(
         workspace: Optional cloud workspace selector to create the project in. Slug is
             preferred for AI callers, but tenant_id and unique name are also accepted.
             When omitted, the connection's default workspace is used. Discover values
-            via `list_workspaces`. Only meaningful in cloud mode; ignored for local
-            projects.
+            via `list_workspaces`. In local mode the selector is passed through
+            without slug resolution.
         output_format: "text" returns the existing human-readable result text.
             "json" returns structured project creation metadata.
         context: Optional FastMCP context for progress/status logging.
@@ -432,31 +433,34 @@ async def create_memory_project(
         create_memory_project("work-notes", "/home/user/work", set_default=True)
         create_memory_project("team-notes", "/team/notes", workspace="team-paul")
     """
-    workspace_id = await _resolve_create_project_workspace(workspace, context)
+    # Trigger: MCP server is constrained to a single project.
+    # Why: constrained sessions cannot create projects, and workspace selectors
+    # may be invalid or unavailable in that locked context.
+    # Outcome: return the existing disabled response before opening a routed client.
+    constrained_project = os.environ.get("BASIC_MEMORY_MCP_PROJECT")
+    if constrained_project:
+        if output_format == "json":
+            return {
+                "name": project_name,
+                "path": project_path,
+                "is_default": False,
+                "created": False,
+                "already_exists": False,
+                "error": "PROJECT_CONSTRAINED",
+                "message": (
+                    f"Project creation disabled - MCP server is constrained to project "
+                    f"'{constrained_project}'."
+                ),
+            }
+        return f'# Error\n\nProject creation disabled - MCP server is constrained to project \'{constrained_project}\'.\nUse the CLI to create projects: `basic-memory project add "{project_name}" "{project_path}"`'
+
+    workspace_id = await _resolve_workspace_routing(workspace, context)
 
     # workspace targets a non-default cloud workspace at create time.
     # Trigger: caller passed workspace (e.g. a slug discovered via list_workspaces).
     # Why: there is no project_id yet for per-project routing — the project doesn't exist.
     # Outcome: cloud factory routes the create request to the resolved workspace tenant id.
     async with get_client(workspace=workspace_id) as client:
-        # Check if server is constrained to a specific project
-        constrained_project = os.environ.get("BASIC_MEMORY_MCP_PROJECT")
-        if constrained_project:
-            if output_format == "json":
-                return {
-                    "name": project_name,
-                    "path": project_path,
-                    "is_default": False,
-                    "created": False,
-                    "already_exists": False,
-                    "error": "PROJECT_CONSTRAINED",
-                    "message": (
-                        f"Project creation disabled - MCP server is constrained to project "
-                        f"'{constrained_project}'."
-                    ),
-                }
-            return f'# Error\n\nProject creation disabled - MCP server is constrained to project \'{constrained_project}\'.\nUse the CLI to create projects: `basic-memory project add "{project_name}" "{project_path}"`'
-
         if context:  # pragma: no cover
             await context.info(f"Creating project: {project_name} at {project_path}")
 
@@ -536,7 +540,11 @@ async def create_memory_project(
 @mcp.tool(
     annotations={"destructiveHint": True, "openWorldHint": False},
 )
-async def delete_project(project_name: str, context: Context | None = None) -> str:
+async def delete_project(
+    project_name: str,
+    workspace: str | None = None,
+    context: Context | None = None,
+) -> str:
     """Delete a Basic Memory project.
 
     Removes a project from the configuration and database. This does NOT delete
@@ -545,23 +553,33 @@ async def delete_project(project_name: str, context: Context | None = None) -> s
 
     Args:
         project_name: Name of the project to delete
+        workspace: Optional cloud workspace selector to delete the project from.
+            Slug is preferred for AI callers, but tenant_id and unique name are
+            also accepted. When omitted, the connection's default workspace is
+            used. In local mode the selector is passed through without slug
+            resolution, matching create_memory_project behavior.
 
     Returns:
         Confirmation message about project deletion
 
     Example:
         delete_project("old-project")
+        delete_project("team-project", workspace="team-paul")
 
     Warning:
         This action cannot be undone. The project will need to be re-added
         to access its content through Basic Memory again.
     """
-    async with get_client() as client:
-        # Check if server is constrained to a specific project
-        constrained_project = os.environ.get("BASIC_MEMORY_MCP_PROJECT")
-        if constrained_project:
-            return f"# Error\n\nProject deletion disabled - MCP server is constrained to project '{constrained_project}'.\nUse the CLI to delete projects: `basic-memory project remove \"{project_name}\"`"
+    # Trigger: MCP server is constrained to a single project.
+    # Why: constrained sessions cannot delete projects, and workspace selectors
+    # may be invalid or unavailable in that locked context.
+    # Outcome: return the existing disabled message before opening a routed client.
+    constrained_project = os.environ.get("BASIC_MEMORY_MCP_PROJECT")
+    if constrained_project:
+        return f"# Error\n\nProject deletion disabled - MCP server is constrained to project '{constrained_project}'.\nUse the CLI to delete projects: `basic-memory project remove \"{project_name}\"`"
 
+    workspace_id = await _resolve_workspace_routing(workspace, context)
+    async with get_client(workspace=workspace_id) as client:
         if context:  # pragma: no cover
             await context.info(f"Deleting project: {project_name}")
 
