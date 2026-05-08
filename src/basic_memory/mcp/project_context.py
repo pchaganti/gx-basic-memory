@@ -162,6 +162,17 @@ async def _set_cached_active_workspace(
     await context.set_state("active_workspace", active_workspace.model_dump())
 
 
+async def _clear_cached_active_workspace_for_local_route(context: Optional[Context]) -> None:
+    """Drop tenant workspace metadata before routing through a local project."""
+    if not context:
+        return
+
+    # Trigger: local routing follows a cloud route in the same MCP session
+    # Why: active_workspace is tenant metadata, not part of local project identity
+    # Outcome: memory:// resolution uses project-only local permalinks
+    await context.set_state("active_workspace", None)
+
+
 async def _get_cached_default_project(context: Optional[Context]) -> Optional[str]:
     """Return the cached default project name from context when available."""
     if not context:
@@ -444,6 +455,52 @@ def _canonical_memory_path_for_workspace(
     if not normalized_remainder:
         return prefix
     return f"{prefix}/{normalized_remainder}"
+
+
+def _canonical_memory_path_for_active_route(
+    active_project: ProjectItem,
+    path: str,
+    *,
+    include_project: bool,
+    cached_workspace: WorkspaceInfo | None = None,
+) -> str:
+    """Return the canonical permalink path for the currently routed project/workspace."""
+    project_prefix = active_project.permalink
+    workspace_remainder = path
+    if include_project and (path == project_prefix or path.startswith(f"{project_prefix}/")):
+        # Trigger: the memory URL already names the active project root/prefix
+        # Why: workspace canonicalization adds the project prefix itself, so
+        #   keeping it in the remainder would produce <workspace>/<project>/<project>
+        # Outcome: keep project-root and project-prefixed URLs canonical once
+        workspace_remainder = (
+            "" if path == project_prefix else path.removeprefix(f"{project_prefix}/")
+        )
+
+    workspace_context = current_workspace_permalink_context()
+    if workspace_context is not None:
+        return _canonical_memory_path_for_workspace(
+            workspace_slug=workspace_context.workspace_slug,
+            workspace_type=workspace_context.workspace_type,
+            project_permalink=active_project.permalink,
+            remainder=workspace_remainder,
+            include_project=include_project,
+        )
+
+    if cached_workspace is not None:
+        return _canonical_memory_path_for_workspace(
+            workspace_slug=cached_workspace.slug,
+            workspace_type=cached_workspace.workspace_type,
+            project_permalink=active_project.permalink,
+            remainder=workspace_remainder,
+            include_project=include_project,
+        )
+
+    if not include_project:
+        return path
+
+    if path == project_prefix or path.startswith(f"{project_prefix}/"):
+        return path
+    return f"{project_prefix}/{path}"
 
 
 def _cloud_workspace_discovery_available(config: BasicMemoryConfig) -> bool:
@@ -1115,8 +1172,11 @@ async def resolve_project_and_path(
                         f"Project is constrained to '{resolved_project}', cannot use '{project_prefix}'."
                     )
 
-                resolved_path = (
-                    f"{cached_project.permalink}/{remainder}" if include_project else remainder
+                resolved_path = _canonical_memory_path_for_active_route(
+                    cached_project,
+                    remainder,
+                    include_project=include_project,
+                    cached_workspace=cached_workspace,
                 )
                 return cached_project, resolved_path, True
 
@@ -1151,25 +1211,24 @@ async def resolve_project_and_path(
                 )
                 await _set_cached_active_project(context, active_project)
 
-                resolved_path = (
-                    f"{resolved.permalink}/{remainder}" if include_project else remainder
+                resolved_path = _canonical_memory_path_for_active_route(
+                    active_project,
+                    remainder,
+                    include_project=include_project,
+                    cached_workspace=cached_workspace,
                 )
                 return active_project, resolved_path, True
 
-        # Trigger: no resolvable project prefix in the memory URL
-        # Why: preserve existing memory URL behavior within the active project
-        # Outcome: use the active project and normalize the path for lookup
+        # Trigger: memory URL has no resolvable project route segment
+        # Why: preserve active-project behavior while honoring workspace paths
+        # Outcome: normalize against the already-selected local/cloud route
         active_project = await get_active_project(client, project, context, headers)
-        resolved_path = normalized_path
-        if include_project:
-            # Trigger: project-prefixed permalinks are enabled and the path lacks a prefix
-            # Why: ensure memory URL lookups align with canonical permalinks
-            # Outcome: prefix the path with the active project's permalink
-            project_prefix = active_project.permalink
-            if resolved_path != project_prefix and not resolved_path.startswith(
-                f"{project_prefix}/"
-            ):
-                resolved_path = f"{project_prefix}/{resolved_path}"
+        resolved_path = _canonical_memory_path_for_active_route(
+            active_project,
+            normalized_path,
+            include_project=include_project,
+            cached_workspace=cached_workspace,
+        )
         return active_project, resolved_path, True
 
 
@@ -1325,6 +1384,7 @@ async def get_project_client(
     # Outcome: route strictly based on explicit flag, no workspace network calls
     if _explicit_routing() and _force_local_mode():
         route_mode = "explicit_local"
+        await _clear_cached_active_workspace_for_local_route(context)
         with logfire.span(
             "routing.client_session",
             project_name=resolved_project,
@@ -1397,6 +1457,7 @@ async def get_project_client(
 
     # Step 4: Local routing (default)
     route_mode = "local_asgi"
+    await _clear_cached_active_workspace_for_local_route(context)
     with logfire.span(
         "routing.client_session",
         project_name=resolved_project,
