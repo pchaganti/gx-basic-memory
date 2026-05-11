@@ -15,6 +15,7 @@ from basic_memory.schemas.response import (
     DirectoryMoveResult,
     DirectoryDeleteResult,
 )
+from basic_memory.schemas.v2.graph import GraphNode, OrphanEntitiesResponse
 
 
 class KnowledgeClient:
@@ -274,6 +275,24 @@ class KnowledgeClient:
                 path_template="/v2/projects/{project_id}/knowledge/delete-directory",
             )
         return DirectoryDeleteResult.model_validate(response.json())
+
+    # --- Orphan detection ---
+
+    async def get_orphans(self) -> list[GraphNode]:
+        """Get entities that have no incoming or outgoing relations."""
+        with logfire.span(
+            "mcp.client.knowledge.get_orphans",
+            client_name="knowledge",
+            operation="get_orphans",
+        ):
+            response = await call_get(
+                self.http_client,
+                f"{self._base_path}/orphans",
+                client_name="knowledge",
+                operation="get_orphans",
+                path_template="/v2/projects/{project_id}/knowledge/orphans",
+            )
+        return OrphanEntitiesResponse.model_validate(response.json()).entities
 
     # --- Resolution ---
 
