@@ -416,10 +416,6 @@ structured responses. Full tool reference in the
 ## CLI essentials
 
 ```bash
-# Sync
-basic-memory sync                # one-time sync
-basic-memory sync --watch        # real-time
-
 # Projects
 basic-memory project list
 basic-memory project add research ~/research
