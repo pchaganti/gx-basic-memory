@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'  # Trigger on version tags like v1.0.0, v0.13.0, etc.
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -13,12 +16,12 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -39,7 +42,7 @@ jobs:
           echo "Build completed successfully"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/*.whl
@@ -64,7 +67,7 @@ jobs:
       actions: read
     steps:
       - name: Update Homebrew formula
-        uses: mislav/bump-homebrew-formula-action@v3
+        uses: mislav/bump-homebrew-formula-action@v4.1
         with:
           # Formula name in homebrew-basic-memory repo
           formula-name: basic-memory
@@ -82,4 +85,3 @@ jobs:
         env:
           # Personal Access Token with repo scope for homebrew-basic-memory repo
           COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TOKEN }}
-
