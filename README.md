@@ -33,6 +33,9 @@ search.
 - **A real knowledge graph.** Observations and wikilinks compound into context.
 - **Semantic search.** Find notes by meaning, not just keywords.
 - **MCP-native.** Works with every major AI client and IDE.
+- **Progressive tool discovery.** Every tool is tagged with behavior hints
+  (read-only, destructive, idempotent) so agents pick the right tool on
+  demand — no wasted context trying things to see what they do.
 - **Cloud, optional.** Sync across devices when you want — never required.
 
 ## Get started
@@ -136,7 +139,7 @@ Unlimited notes, unlimited projects, every feature.
 
 [**Start your 7-day free trial →**](https://basicmemory.com?utm_source=github&utm_medium=referral&utm_campaign=readme&utm_content=cloud-section)
 
-## Cloud vs. local — honest comparison
+## Cloud vs. local
 
 |  | Cloud | Local |
 |---|---|---|
@@ -281,7 +284,10 @@ Try a prompt:
   missing; `write_note` guards against accidental overwrites.
 - **Richer search results.** Matched chunk text is included so the LLM gets
   context, not just hits.
-- **FastMCP 3.0** with tool annotations.
+- **FastMCP 3.0 + tool annotations.** Every tool ships with MCP behavior
+  hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`,
+  `openWorldHint`) so agents can discover capabilities progressively at
+  runtime instead of guessing or burning tokens.
 - **CLI overhaul.** `--json` output for scripting, workspace-aware commands,
   and an htop-inspired project dashboard.
 
@@ -396,7 +402,9 @@ Bare `- [[Target]]` and prose `- Worth checking out [[Target]]` index as
 
 ## MCP tools
 
-Basic Memory exposes these tools to any MCP client:
+Basic Memory exposes these tools to any MCP client. Every tool is annotated
+with MCP behavior hints (read-only, destructive, idempotent, open-world) so
+agents can pick the right one without trial-and-error:
 
 - **Content:** `write_note`, `read_note`, `edit_note`, `move_note`,
   `delete_note`, `read_content`, `view_note`
