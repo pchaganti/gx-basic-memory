@@ -157,15 +157,15 @@ lock-in either way — flip between them when your needs change.
 
 | Client | Transport | Notes |
 |---|---|---|
-| Cloud web app | HTTPS | Sign in at basicmemory.com — no install |
-| [Claude Desktop](#claude-desktop) | stdio | macOS / Windows / Linux |
-| [Claude Code](#claude-code) | stdio | `claude mcp add` |
-| [Codex CLI](#codex-cli) | stdio | OpenAI's coding agent |
-| [Cursor](#cursor) | stdio | `.cursor/mcp.json` |
-| [VS Code](#vs-code) | stdio | Native MCP support |
-| [ChatGPT](#chatgpt) | HTTP | Custom GPT actions (`search` / `fetch`) |
+| Cloud web app | https | Sign in at basicmemory.com — no install |
+| [Claude Desktop](#claude-desktop) | stdio/https | macOS / Windows / Linux |
+| [Claude Code](#claude-code) | stdio/https | `claude mcp add` |
+| [Codex](#codex-cli) | stdio/https | OpenAI's coding agent |
+| [Cursor](#cursor) | stdio/https | `.cursor/mcp.json` |
+| [VS Code](#vs-code) | stdio/https | Native MCP support |
+| [ChatGPT](#chatgpt) | https | Custom GPT actions (`search` / `fetch`) |
 | [Obsidian](#obsidian) | — | Reads/writes the same Markdown directly |
-| Anything MCP | stdio / HTTP | If it speaks MCP, it works |
+| Anything MCP | stdio/https | If it speaks MCP, it works |
 
 ## Pick up where you left off
 
