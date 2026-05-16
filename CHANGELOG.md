@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## v0.21.1 (2026-05-16)
+
+CI-only release. No user-facing changes.
+
+### Maintenance
+
+- **#833**: Replace `mislav/bump-homebrew-formula-action` with an inline
+  bash bump step. The action's `resolveRedirect` HEAD-requests
+  `api.github.com /repos/.../tarball/<ref>` expecting HTTP 302; GitHub now
+  returns 303 for authenticated requests on that endpoint, which broke
+  the v0.21.0 Homebrew job and required a manual tap bump. The inline
+  step does the same work (curl + sha256sum, clone tap, sed-bump
+  `url`/`sha256`, commit, push) without any third-party dependency.
+
 ## v0.21.0 (2026-05-16)
 
 Workspace-aware everywhere: every MCP tool and CLI command now routes through the
