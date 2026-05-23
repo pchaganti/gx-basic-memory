@@ -123,8 +123,7 @@ phone.
   time — same files, same format, same wikilinks. Cancel anytime, your data
   stays yours.
 
-Built on WorkOS AuthKit, Neon Postgres, and Tigris S3. Platform source at
-[basic-memory-cloud](https://github.com/basicmachines-co/basic-memory-cloud).
+Built on WorkOS AuthKit, Neon Postgres, and Tigris S3.
 
 ### Pricing
 
