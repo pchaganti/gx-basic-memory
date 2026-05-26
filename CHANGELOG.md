@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## v0.21.5 (2026-05-26)
+
+Workspace/project routing fixes for MCP, plus a SQLite vector reindex stability fix.
+
+### Bug Fixes
+
+- **#854**: MCP project listing now keeps duplicate cloud project rows distinct by
+  workspace, so only the selected workspace row inherits local project state.
+- **#853**: `write_note` returns workspace-qualified permalinks for cloud
+  workspace writes, allowing follow-up `memory://` reads to route back to the
+  correct workspace/project.
+- **#852**: Full SQLite vector reindex now loads `sqlite-vec` before dropping
+  `vec0` virtual tables, preventing reindex crashes.
+- **#838**: Local ASGI database initialization is preloaded so MCP routing can
+  safely enter local project contexts.
+
 ## v0.21.1 (2026-05-16)
 
 CI-only release. No user-facing changes.
