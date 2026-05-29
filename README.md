@@ -62,7 +62,7 @@ Pick the path that fits you. Both run the same product on the same Markdown.
 - Cross-device sync built in
 - We handle hosting, backups, snapshots
 
-**$14.25/mo locked for life** · 7-day free trial · cancel any time
+**$15.00/mo locked for life** · 7-day free trial · cancel any time
 
 [**Start free trial →**](https://basicmemory.com?utm_source=github&utm_medium=referral&utm_campaign=readme&utm_content=quickstart)
 
@@ -132,7 +132,7 @@ Built on WorkOS AuthKit, Neon Postgres, and Tigris S3.
 
 ### Pricing
 
-**$14.25/mo, locked in for the life of your subscription** (regular price
+**$15.00/mo, locked in for the life of your subscription** (regular price
 $19). Sign up during beta and the rate never goes up — as long as you stay
 subscribed, you keep the price. One plan, no tiers, no surprise upgrades.
 Unlimited notes, unlimited projects, every feature.
@@ -148,7 +148,7 @@ Unlimited notes, unlimited projects, every feature.
 |  | Cloud | Local |
 |---|---|---|
 | **Setup time** | 30 seconds | 2 minutes (requires Python) |
-| **Cost** | $14.25/mo, locked for life (7-day trial) | Free |
+| **Cost** | $15.00/mo, locked for life (7-day trial) | Free |
 | **Storage** | We host (Tigris S3) | Your disk |
 | **Cross-device sync** | Built in | Manual (Git, Syncthing, etc.) |
 | **Mobile access** | Yes (web + app) | No |
