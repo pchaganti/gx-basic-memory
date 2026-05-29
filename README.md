@@ -10,12 +10,17 @@
 ## Skip the install — try Basic Memory in the cloud
 
 Claude, Codex, or Cursor connected in 30 seconds. No Python, no JSON, no
-terminal. **$14.25/mo locked in for life** (regular price $19). 7-day free
+terminal. **$15.00/mo locked in for life** (12.50/mo yearly pricing). 7-day free
 trial — cancel any time before day 7 if it's not for you. Beta pricing —
 sign up now and your rate never goes up. OSS users: code `BMFOSS` takes
 another 20% off for 3 months.
 
 [Start free trial →](https://basicmemory.com?utm_source=github&utm_medium=referral&utm_campaign=readme&utm_content=banner)
+
+### Basic Memory Teams is now available!
+
+Give your team a single, shared cloud workspace. Knowledge isn't confined to one person — anything a teammate writes is immediately available to everyone else and to their AI assistants. 
+Edit a note together in real time, hand work off between humans and agents, and build one connected knowledge base instead of scattered copies. Same pricing - start with one user and add more as needed. 
 
 ---
 
