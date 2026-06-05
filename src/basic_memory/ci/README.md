@@ -4,9 +4,16 @@ Basic Memory CI turns meaningful GitHub delivery moments into durable
 `project_update` notes in Basic Memory.
 
 GitHub records the mechanics: pull requests, workflow runs, SHAs, URLs, labels,
-and timestamps. The agent reads those facts and writes a short synthesis of what
-changed and why it matters. The Basic Memory CLI owns authentication, schema
-guidance, idempotency, and publishing.
+changed files, commits, linked issues, and timestamps. The agent reads those
+facts and writes the delivery story: what problem was being addressed, why the
+fix solved it, what changed in the system, what complexity or cleanup came with
+it, and why future humans or agents should care. The Basic Memory CLI owns
+authentication, schema guidance, idempotency, and publishing.
+
+The semantic layer is the point: GitHub can answer when something merged or
+deployed, but the project memory should answer later questions such as what
+problem was solved, what choices were made, what changed in the architecture,
+and what risks, cleanup, or follow-up work came with the change.
 
 The product voice is:
 
@@ -31,7 +38,7 @@ Basic Memory API key.
 ## Setup CI/CD
 
 Use `bm ci setup` from the GitHub repository root. The command installs the
-workflow/config/prompt files and seeds the Basic Memory schema notes.
+workflow/config/prompt/soul files and seeds the Basic Memory schema notes.
 
 For the common cloud path:
 
@@ -51,12 +58,27 @@ than one workspace:
 bm ci setup --project <project-name> --project-id <project-external-id> --cloud --yes
 ```
 
+Setup does not overwrite existing schema notes by default. After upgrading Auto
+BM, refresh the installed schema guidance with either spelling:
+
+```bash
+bm ci setup --project <project-name> --workspace <workspace-slug-or-id> --cloud --yes --refresh-schemas
+bm ci setup --project <project-name> --workspace <workspace-slug-or-id> --cloud --yes --update-schemas
+```
+
+The shorter aliases `--refresh` and `--update` are also accepted. Refresh keeps
+custom schema note paths when it finds existing notes, and only writes the
+canonical Auto BM schema content. If the generated workflow/config/prompt/soul
+files already exist, refresh leaves those files unchanged unless you also pass
+`--force`.
+
 Then review and commit the generated files:
 
 ```text
 .github/workflows/basic-memory.yml
 .github/basic-memory/config.yml
 .github/basic-memory/memory-ci-capture.md
+.github/basic-memory/SOUL.md
 ```
 
 Add these GitHub repository secrets:
@@ -113,6 +135,11 @@ Installs the repository automation files:
 - `.github/workflows/basic-memory.yml`
 - `.github/basic-memory/config.yml`
 - `.github/basic-memory/memory-ci-capture.md`
+- `.github/basic-memory/SOUL.md`
+
+`SOUL.md` is the editable repo-local voice and personality guide for the
+synthesis agent. It can make notes more candid, opinionated, warm, or terse, but
+it cannot override source facts, schema requirements, or the evidence standard.
 
 It also seeds the canonical Basic Memory schema notes when they do not already
 exist:
@@ -121,21 +148,31 @@ exist:
 - `GitHubPullRequestUpdate`
 - `GitHubProductionDeployUpdate`
 
+Use `--refresh-schemas` or `--update-schemas` when you want setup to update
+those schema notes instead of only creating missing ones.
+
 `bm ci collect`
 
 Reads the current GitHub event payload and normalizes it into
 `ProjectUpdateContext`. This command decides whether the event is eligible.
 Merged pull requests and configured successful production deploy workflow runs
 are eligible. Routine CI runs, failed deploys, and unmerged PR closures are
-no-ops. In v0, collection is intentionally limited to the GitHub event payload;
-GitHub API enrichment for file lists, checks, reviews, or commit lists can be
-added later without changing the publishing boundary.
+no-ops.
+
+For merged pull requests, the generated workflow passes `GITHUB_TOKEN` to
+`bm ci collect` so the context can include changed files, commit messages, and
+linked issue details. If `GITHUB_TOKEN` is unavailable, local collection still
+uses the event payload fields. If the token is present and GitHub API enrichment
+fails, the Auto BM workflow fails fast instead of publishing a weak note.
 
 `bm ci agent-schema`
 
 Writes the optional `AgentSynthesis` JSON schema used by the generated workflow
 as a CI guardrail. This schema is not a Basic Memory domain schema and is not
-committed by setup.
+committed by setup. The schema intentionally requires narrative fields such as
+`story`, `problem_addressed`, `solution`, `system_impact`,
+`components_changed`, `complexity_introduced`, and `refactors_or_removals` so
+the agent does more than fill out shallow buckets.
 
 `bm ci publish`
 
@@ -180,7 +217,7 @@ project-updates/github/<owner>/<repo>/
 
 - `ProjectUpdateConfig`: non-secret repo configuration.
 - `ProjectUpdateContext`: normalized immutable GitHub facts.
-- `AgentSynthesis`: agent-authored summary fields.
+- `AgentSynthesis`: agent-authored narrative fields.
 - `ProjectUpdateNote`: final Basic Memory note payload.
 - workflow, prompt, and schema-note seed rendering.
 
