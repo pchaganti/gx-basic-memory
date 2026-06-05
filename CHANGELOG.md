@@ -1,6 +1,12 @@
 # CHANGELOG
 
-## Unreleased
+## v0.21.6 (2026-06-04)
+
+Monorepo consolidation plus a redesigned Claude Code plugin. The satellite
+repositories now live in the main `basic-memory` tree, and the plugin is
+rebuilt as a memory bridge with a guided setup interview, capture skills, and
+team workspaces. Codex, Hermes, and OpenClaw integration packages ship
+alongside it.
 
 ### Core
 
@@ -8,38 +14,59 @@
   `basic-memory` tree as the canonical source, discovery, documentation,
   issue, and release home.
 - Added root marketplace/package validation for the consolidated repository
-  layout while keeping Phase 1 focused on parity.
-- Added root and package-local justfile targets so Claude Code, skills,
+  layout.
+- Added root and package-local justfile targets so Claude Code, Codex, skills,
   Hermes, and OpenClaw builds can be verified from the monorepo.
+- Removed the legacy `ui/` directory.
+
+### API
+
+- Entity resolution now exposes the owning project on resolved entities so
+  callers can route follow-up reads to the correct workspace/project.
+
+### CLI
+
+- Added an "auto BM" GitHub CI workflow that captures notes from CI runs.
+- Exposed project sync-support metadata and surfaced copyable workspace
+  identifiers in project listings.
+- `cloud login` now surfaces non-subscription errors instead of masking them.
+- Team workspaces block `rclone sync`, with the team-workspace guard limited
+  to `bisync`.
+
+### Claude Code
+
+- Rebuilt the Claude Code plugin as a memory bridge with SessionStart and
+  PreCompact hooks, a bundled output style, and seeded note schemas.
+- Added the `/basic-memory:setup` bootstrap interview and the
+  `/basic-memory:remember`, `/basic-memory:status`, and `/basic-memory:share`
+  skills.
+- Added team workspace support with attribution for shared writes.
+- Prefixed plugin skills with `bm-` and installed the shared `memory-*` skills
+  instead of duplicating them in the plugin.
+- Hooks fall back to `uvx`/`uv` when no CLI binary is on PATH.
+
+### Codex
+
+- Added the Codex plugin under `plugins/codex/` with its native
+  `.codex-plugin`, hooks, seeded schemas, and `bm-*` skills.
 
 ### Skills
 
 - Added the shared Basic Memory `SKILL.md` collection under top-level
-  `skills/`.
-- Updated skills documentation to point at `basicmachines-co/basic-memory`
-  and document manual copy as the temporary fallback when subpath installs are
-  unavailable.
-
-### Claude Code
-
-- Added the Claude Code plugin under `plugins/claude-code/` with its native
-  `.claude-plugin`, hooks, skills, agent, changelog, and docs.
-- Added the root Claude marketplace manifest pointing `basic-memory` to
-  `./plugins/claude-code`.
+  `skills/` and ported useful retired plugin skills into the `memory-*` set.
+- Fixed invalid picoschema enum YAML in the memory skills.
 
 ### Hermes
 
 - Added the Hermes memory provider plugin under `integrations/hermes/` with
   its native Python module, `plugin.yaml`, skill, tests, docs, and release
   metadata.
-- Updated Hermes install and development docs for monorepo subpath usage.
 
 ### OpenClaw
 
 - Added the OpenClaw plugin under `integrations/openclaw/` with its native
-  npm/TypeScript package shape, tests, docs, and release metadata.
-- Updated OpenClaw package metadata to point at the monorepo subdirectory and
-  changed skill bundling to copy from the top-level `skills/` source.
+  npm/TypeScript package shape, tests, docs, and release metadata; skill
+  bundling copies from the top-level `skills/` source.
 
 ## v0.21.5 (2026-05-26)
 
