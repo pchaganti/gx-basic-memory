@@ -1,0 +1,382 @@
+import json
+import subprocess
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
+from typer.testing import CliRunner
+
+from basic_memory.cli.main import app as cli_app
+
+
+runner = CliRunner()
+
+
+def _init_github_repo(path: Path) -> None:
+    subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://github.com/basicmachines-co/demo.git"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+    )
+
+
+def _write_pr_event(path: Path) -> Path:
+    payload = {
+        "action": "closed",
+        "repository": {
+            "full_name": "basicmachines-co/demo",
+            "html_url": "https://github.com/basicmachines-co/demo",
+        },
+        "pull_request": {
+            "number": 7,
+            "title": "Add project update capture",
+            "body": "Closes #4",
+            "html_url": "https://github.com/basicmachines-co/demo/pull/7",
+            "merged": True,
+            "merged_at": "2026-06-04T18:42:00Z",
+            "merge_commit_sha": "abc123",
+            "labels": [{"name": "ci"}],
+        },
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+@patch("basic_memory.cli.commands.ci.seed_project_update_schemas", new_callable=AsyncMock)
+def test_setup_writes_workflow_config_and_prompt(
+    mock_seed: AsyncMock,
+    tmp_path: Path,
+) -> None:
+    _init_github_repo(tmp_path)
+
+    result = runner.invoke(
+        cli_app,
+        [
+            "ci",
+            "setup",
+            "--project",
+            "team-memory",
+            "--repo-root",
+            str(tmp_path),
+            "--yes",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / ".github/workflows/basic-memory.yml").exists()
+    assert (tmp_path / ".github/basic-memory/config.yml").exists()
+    assert (tmp_path / ".github/basic-memory/memory-ci-capture.md").exists()
+    assert "OPENAI_API_KEY" in result.output
+    assert "BASIC_MEMORY_API_KEY" in result.output
+    mock_seed.assert_awaited_once_with(
+        project="team-memory",
+        project_id=None,
+        workspace=None,
+    )
+
+
+@patch("basic_memory.cli.commands.ci.seed_project_update_schemas", new_callable=AsyncMock)
+def test_setup_does_not_partially_write_generated_files_when_target_exists(
+    mock_seed: AsyncMock,
+    tmp_path: Path,
+) -> None:
+    _init_github_repo(tmp_path)
+    config_path = tmp_path / ".github/basic-memory/config.yml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text("project: existing\n", encoding="utf-8")
+
+    result = runner.invoke(
+        cli_app,
+        [
+            "ci",
+            "setup",
+            "--project",
+            "team-memory",
+            "--repo-root",
+            str(tmp_path),
+            "--yes",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "pass --force to overwrite" in result.output
+    assert not (tmp_path / ".github/workflows/basic-memory.yml").exists()
+    assert not (tmp_path / ".github/basic-memory/memory-ci-capture.md").exists()
+    mock_seed.assert_not_awaited()
+
+
+def test_setup_rejects_non_github_repo(tmp_path: Path) -> None:
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://example.com/basicmachines-co/demo.git"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+    )
+
+    result = runner.invoke(
+        cli_app,
+        [
+            "ci",
+            "setup",
+            "--project",
+            "team-memory",
+            "--repo-root",
+            str(tmp_path),
+            "--yes",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "GitHub remote" in result.output
+
+
+def test_collect_command_writes_context_and_github_outputs(tmp_path: Path) -> None:
+    event_path = _write_pr_event(tmp_path / "event.json")
+    config_path = tmp_path / "config.yml"
+    config_path.write_text("project: team-memory\nworkspace: product\n", encoding="utf-8")
+    output_path = tmp_path / "context.json"
+    github_output = tmp_path / "github-output.txt"
+
+    result = runner.invoke(
+        cli_app,
+        [
+            "ci",
+            "collect",
+            "--event-name",
+            "pull_request",
+            "--event-path",
+            str(event_path),
+            "--config",
+            str(config_path),
+            "--output",
+            str(output_path),
+        ],
+        env={"GITHUB_OUTPUT": str(github_output)},
+    )
+
+    assert result.exit_code == 0, result.output
+    context = json.loads(output_path.read_text(encoding="utf-8"))
+    assert context["eligible"] is True
+    assert context["source_event"] == "pull_request_merged"
+    assert "eligible=true" in github_output.read_text(encoding="utf-8")
+
+
+def test_agent_schema_command_writes_schema(tmp_path: Path) -> None:
+    output_path = tmp_path / "agent-synthesis.schema.json"
+
+    result = runner.invoke(cli_app, ["ci", "agent-schema", "--output", str(output_path)])
+
+    assert result.exit_code == 0, result.output
+    schema = json.loads(output_path.read_text(encoding="utf-8"))
+    assert schema["title"] == "AgentSynthesis"
+
+
+@patch("basic_memory.cli.commands.ci.mcp_search_notes", new_callable=AsyncMock)
+@patch("basic_memory.cli.commands.ci.mcp_write_note", new_callable=AsyncMock)
+def test_publish_command_upserts_project_update_note(
+    mock_write: AsyncMock,
+    mock_search: AsyncMock,
+    tmp_path: Path,
+) -> None:
+    mock_search.return_value = {"results": []}
+    mock_write.return_value = {
+        "title": "PR #7: Add project update capture",
+        "permalink": "project-updates/github/basicmachines-co/demo/pr-7-add-project-update-capture",
+        "action": "created",
+    }
+    event_path = _write_pr_event(tmp_path / "event.json")
+    context_path = tmp_path / "context.json"
+    config_path = tmp_path / "config.yml"
+    synthesis_path = tmp_path / "synthesis.json"
+    config_path.write_text("project: team-memory\nworkspace: product\n", encoding="utf-8")
+
+    collect_result = runner.invoke(
+        cli_app,
+        [
+            "ci",
+            "collect",
+            "--event-name",
+            "pull_request",
+            "--event-path",
+            str(event_path),
+            "--config",
+            str(config_path),
+            "--output",
+            str(context_path),
+        ],
+    )
+    assert collect_result.exit_code == 0, collect_result.output
+    synthesis_path.write_text(
+        json.dumps(
+            {
+                "summary": "Auto BM records project updates.",
+                "why_it_matters": "Future agents can recover project context.",
+                "repo": "evil/repo",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        cli_app,
+        [
+            "ci",
+            "publish",
+            "--config",
+            str(config_path),
+            "--context",
+            str(context_path),
+            "--synthesis",
+            str(synthesis_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    mock_search.assert_awaited_once()
+    mock_write.assert_awaited_once()
+    assert mock_search.call_args.kwargs["project"] == "product/team-memory"
+    kwargs = mock_write.call_args.kwargs
+    assert kwargs["project"] == "product/team-memory"
+    assert kwargs["note_type"] == "project_update"
+    assert kwargs["overwrite"] is True
+    assert kwargs["metadata"]["repo"] == "basicmachines-co/demo"
+    assert kwargs["metadata"]["source_event"] == "pull_request_merged"
+    assert (
+        kwargs["metadata"]["idempotency_key"]
+        == "github:basicmachines-co/demo:pull_request_merged:7"
+    )
+
+
+@patch("basic_memory.cli.commands.ci.mcp_search_notes", new_callable=AsyncMock)
+@patch("basic_memory.cli.commands.ci.mcp_write_note", new_callable=AsyncMock)
+def test_publish_command_preserves_existing_note_path_for_idempotency_match(
+    mock_write: AsyncMock,
+    mock_search: AsyncMock,
+    tmp_path: Path,
+) -> None:
+    mock_search.return_value = {
+        "results": [
+            {
+                "title": "Existing PR update",
+                "file_path": "custom/project-updates/existing-pr-update.md",
+            }
+        ]
+    }
+    mock_write.return_value = {"title": "Existing PR update", "action": "updated"}
+    event_path = _write_pr_event(tmp_path / "event.json")
+    context_path = tmp_path / "context.json"
+    config_path = tmp_path / "config.yml"
+    synthesis_path = tmp_path / "synthesis.json"
+    config_path.write_text("project: team-memory\n", encoding="utf-8")
+
+    collect_result = runner.invoke(
+        cli_app,
+        [
+            "ci",
+            "collect",
+            "--event-name",
+            "pull_request",
+            "--event-path",
+            str(event_path),
+            "--config",
+            str(config_path),
+            "--output",
+            str(context_path),
+        ],
+    )
+    assert collect_result.exit_code == 0, collect_result.output
+    synthesis_path.write_text(
+        json.dumps(
+            {
+                "summary": "Auto BM records project updates.",
+                "why_it_matters": "Future agents can recover project context.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        cli_app,
+        [
+            "ci",
+            "publish",
+            "--config",
+            str(config_path),
+            "--context",
+            str(context_path),
+            "--synthesis",
+            str(synthesis_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    kwargs = mock_write.call_args.kwargs
+    assert kwargs["title"] == "Existing PR update"
+    assert kwargs["directory"] == "custom/project-updates"
+
+
+@patch("basic_memory.cli.commands.ci.mcp_search_notes", new_callable=AsyncMock)
+@patch("basic_memory.cli.commands.ci.mcp_write_note", new_callable=AsyncMock)
+def test_publish_command_uses_project_id_without_workspace_qualifying_project(
+    mock_write: AsyncMock,
+    mock_search: AsyncMock,
+    tmp_path: Path,
+) -> None:
+    mock_search.return_value = {"results": []}
+    mock_write.return_value = {"title": "Project update", "action": "created"}
+    event_path = _write_pr_event(tmp_path / "event.json")
+    context_path = tmp_path / "context.json"
+    config_path = tmp_path / "config.yml"
+    synthesis_path = tmp_path / "synthesis.json"
+    config_path.write_text(
+        "project: team-memory\nproject_id: project-uuid\nworkspace: product\n",
+        encoding="utf-8",
+    )
+
+    collect_result = runner.invoke(
+        cli_app,
+        [
+            "ci",
+            "collect",
+            "--event-name",
+            "pull_request",
+            "--event-path",
+            str(event_path),
+            "--config",
+            str(config_path),
+            "--output",
+            str(context_path),
+        ],
+    )
+    assert collect_result.exit_code == 0, collect_result.output
+    synthesis_path.write_text(
+        json.dumps(
+            {
+                "summary": "Auto BM records project updates.",
+                "why_it_matters": "Future agents can recover project context.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        cli_app,
+        [
+            "ci",
+            "publish",
+            "--config",
+            str(config_path),
+            "--context",
+            str(context_path),
+            "--synthesis",
+            str(synthesis_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert mock_search.call_args.kwargs["project"] == "team-memory"
+    assert mock_search.call_args.kwargs["project_id"] == "project-uuid"
+    assert mock_write.call_args.kwargs["project"] == "team-memory"
+    assert mock_write.call_args.kwargs["project_id"] == "project-uuid"
