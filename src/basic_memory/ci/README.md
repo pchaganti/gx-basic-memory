@@ -37,8 +37,12 @@ For the common cloud path:
 
 ```bash
 bm cloud api-key save bmc_...
-bm ci setup --project <project-name> --workspace <workspace-slug> --cloud --yes
+bm cloud workspace list
+bm ci setup --project <project-name> --workspace <workspace-slug-or-id> --cloud --yes
 ```
+
+Use the `Slug` column from `bm cloud workspace list` for `--workspace`; the
+`Workspace ID` column also works when a slug is unavailable or ambiguous.
 
 Prefer `--project-id <external_id>` when the same project name exists in more
 than one workspace:
@@ -70,7 +74,7 @@ Configure production deploy capture in `.github/basic-memory/config.yml`:
 
 ```yaml
 project: <project-name>
-workspace: <workspace-slug>
+workspace: <workspace-slug-or-id>
 deploy_workflows:
   - Deploy Production
 production_environments:
