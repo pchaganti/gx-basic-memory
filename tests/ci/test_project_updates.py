@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from basic_memory.ci.project_updates import (
@@ -397,6 +398,16 @@ def test_render_workflow_invokes_codex_read_only_without_basic_memory_secret() -
         "- name: Publish project update", 1
     )[0]
     assert "BASIC_MEMORY_API_KEY" not in codex_step
+
+
+def test_render_workflow_outputs_valid_github_actions_yaml() -> None:
+    workflow = render_workflow(ProjectUpdateConfig(project="team-memory"))
+
+    parsed = yaml.safe_load(workflow)
+
+    assert isinstance(parsed, dict)
+    assert parsed["on"]["pull_request"]["types"] == ["closed"]
+    assert parsed["on"]["workflow_run"]["types"] == ["completed"]
 
 
 def test_render_capture_prompt_uses_workspace_context_path() -> None:

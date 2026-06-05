@@ -489,7 +489,7 @@ def render_workflow(config: ProjectUpdateConfig) -> str:
     effort_line = f"          effort: {config.codex_effort}\n" if config.codex_effort else ""
     return f"""name: Basic Memory Project Updates
 
-on:
+"on":
   pull_request:
     types: [closed]
   workflow_run:
@@ -527,7 +527,8 @@ jobs:
 
       - name: Stop when event is not eligible
         if: steps.collect.outputs.eligible != 'true'
-        run: echo "Auto BM skipped: ${{{{ steps.collect.outputs.skip_reason }}}}"
+        run: |
+          echo "Auto BM skipped: ${{{{ steps.collect.outputs.skip_reason }}}}"
 
       - name: Write Codex output schema
         if: steps.collect.outputs.eligible == 'true'
