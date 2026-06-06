@@ -248,7 +248,19 @@ class BasicMemoryConfig(BaseSettings):
     )
     semantic_embedding_dimensions: int | None = Field(
         default=None,
-        description="Embedding vector dimensions. Auto-detected from provider if not set (384 for FastEmbed, 1536 for OpenAI).",
+        description=(
+            "Embedding vector dimensions. Uses provider defaults when unset "
+            "(384 for FastEmbed, 1536 for OpenAI and LiteLLM OpenAI default); "
+            "required for custom LiteLLM models."
+        ),
+    )
+    semantic_embedding_forward_dimensions: bool | None = Field(
+        default=None,
+        description=(
+            "LiteLLM-only override for sending semantic_embedding_dimensions as a "
+            "provider-side output-size request parameter. When unset, Basic Memory "
+            "auto-detects model strings such as text-embedding-3."
+        ),
     )
     # Trigger: full local rebuilds spend most of their time waiting behind shared
     # embed flushes, not constructing vectors themselves.
@@ -265,6 +277,20 @@ class BasicMemoryConfig(BaseSettings):
         default=4,
         description="Maximum number of concurrent provider requests for batched embedding generation when the active provider supports request-level concurrency.",
         gt=0,
+    )
+    semantic_embedding_document_input_type: str | None = Field(
+        default=None,
+        description=(
+            "Optional LiteLLM input_type for indexed document/passages. "
+            "Use with asymmetric embedding models such as Cohere or NVIDIA retrieval models."
+        ),
+    )
+    semantic_embedding_query_input_type: str | None = Field(
+        default=None,
+        description=(
+            "Optional LiteLLM input_type for search queries. "
+            "Use with asymmetric embedding models such as Cohere or NVIDIA retrieval models."
+        ),
     )
     semantic_embedding_sync_batch_size: int = Field(
         default=2,
