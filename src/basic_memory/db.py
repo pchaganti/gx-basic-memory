@@ -1,7 +1,7 @@
 import asyncio
 import os
 import sys
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from enum import Enum, auto
 from pathlib import Path
 from typing import AsyncGenerator, Optional
@@ -38,6 +38,44 @@ from basic_memory.repository.sqlite_search_repository import SQLiteSearchReposit
 # detect Windows and use fallback implementations.
 if sys.platform == "win32":  # pragma: no cover
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
+def maybe_install_uvloop(config: BasicMemoryConfig) -> bool:
+    """Install the uvloop event-loop policy for the Postgres backend.
+
+    Trigger: process entrypoint starting with database_backend == postgres,
+    uvloop importable, and a non-Windows platform.
+    Why: asyncpg engine teardown (engine.dispose()) races the stdlib asyncio
+    loop shutdown and surfaces "IndexError: pop from an empty deque" from
+    base_events._run_once (see #831/#877). uvloop's C scheduler has no
+    self._ready.popleft() codepath, so that class of crash cannot fire under it.
+    Outcome: Postgres deployments run on uvloop; SQLite users keep the default
+    loop (no behavior change, smaller blast radius). Must run before the event
+    loop is created, i.e. before asyncio.run().
+
+    Returns:
+        True if the uvloop policy was installed, False otherwise.
+    """
+    # uvloop is not available on Windows; the default loop already differs there.
+    if sys.platform == "win32":  # pragma: no cover
+        return False
+
+    # Limit the change to the backend that actually hits the asyncpg dispose race.
+    if config.database_backend != DatabaseBackend.POSTGRES:
+        return False
+
+    # Deferred import: uvloop is an optional, platform-gated dependency and the
+    # default (SQLite) path must not require it to be installed.
+    try:
+        import uvloop
+    except ImportError:  # pragma: no cover
+        logger.warning("uvloop not available - using default event loop for Postgres backend")
+        return False
+
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+    logger.info("Installed uvloop event-loop policy for Postgres backend")
+    return True
+
 
 # Module level state
 _engine: Optional[AsyncEngine] = None
@@ -320,7 +358,15 @@ async def shutdown_db() -> None:  # pragma: no cover
     global _engine, _session_maker
 
     if _engine:
-        await _engine.dispose()
+        # Trigger: teardown can run while the surrounding task is being cancelled
+        # (e.g. lifespan shutdown, unshielded CLI cleanup).
+        # Why: a cancellation landing mid-dispose surfaces the asyncpg
+        # "IndexError: pop from an empty deque" race (#831/#877); shielding lets
+        # dispose finish atomically, and suppressing CancelledError keeps a
+        # cancelled shutdown from re-raising the underlying race.
+        # Outcome: connections always close cleanly even under cancellation.
+        with suppress(asyncio.CancelledError):
+            await asyncio.shield(_engine.dispose())
         _engine = None
         _session_maker = None
 
@@ -364,7 +410,14 @@ async def engine_session_factory(
 
         yield created_engine, created_session_maker
     finally:
-        await created_engine.dispose()
+        # Trigger: context-manager teardown can run while the surrounding task is
+        # being cancelled (e.g. a test aborting mid-fixture).
+        # Why: on the asyncpg backend a cancellation landing mid-dispose surfaces
+        # the "IndexError: pop from an empty deque" race (#831/#877); shield the
+        # dispose and suppress CancelledError to match the other dispose seams.
+        # Outcome: the per-context engine always disposes cleanly under cancellation.
+        with suppress(asyncio.CancelledError):
+            await asyncio.shield(created_engine.dispose())
 
         # Only clear module-level globals if they still point to this context's
         # engine/session. This avoids clobbering newer globals from other callers.
@@ -433,7 +486,11 @@ async def run_migrations(
         # Trigger: run_migrations() created a temporary engine while module-level
         # session maker was not initialized.
         # Why: temporary aiosqlite worker threads can outlive CLI command execution
-        # and block process shutdown if the engine is not disposed.
-        # Outcome: always dispose temporary engines after migration work completes.
+        # and block process shutdown if the engine is not disposed. On the asyncpg
+        # backend a cancellation landing mid-dispose surfaces the same "IndexError:
+        # pop from an empty deque" race as the other dispose seams (#831/#877), so
+        # shield the dispose and suppress CancelledError to match them.
+        # Outcome: always dispose temporary engines cleanly, even under cancellation.
         if temp_engine is not None:
-            await temp_engine.dispose()
+            with suppress(asyncio.CancelledError):
+                await asyncio.shield(temp_engine.dispose())

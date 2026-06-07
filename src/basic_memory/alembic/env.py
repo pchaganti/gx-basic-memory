@@ -2,7 +2,10 @@
 
 import asyncio
 import os
+from contextlib import suppress
 from logging.config import fileConfig
+
+from loguru import logger
 
 # Allow nested event loops (needed for pytest-asyncio and other async contexts)
 # Note: nest_asyncio doesn't work with uvloop or Python 3.14+, so we handle those cases separately
@@ -13,9 +16,15 @@ if sys.version_info < (3, 14):
         import nest_asyncio
 
         nest_asyncio.apply()
-    except (ImportError, ValueError):
-        # nest_asyncio not available or can't patch this loop type (e.g., uvloop)
-        pass
+    except (ImportError, ValueError) as exc:
+        # Trigger: nest_asyncio is absent (ImportError) or refuses to patch the
+        # running loop (ValueError, e.g. the uvloop policy installed for the
+        # Postgres backend - #831/#877).
+        # Why: the uvloop ValueError is now an *expected* path on every Postgres
+        # startup, so swallowing it silently hides a routine branch.
+        # Outcome: log at DEBUG (observable, not noisy) and fall through to the
+        # thread-based migration fallback.
+        logger.debug(f"nest_asyncio not applied ({exc!r}); using thread-based migration fallback")
 # For Python 3.14+, we rely on the thread-based fallback in run_migrations_online()
 
 from sqlalchemy import engine_from_config, pool
@@ -115,7 +124,15 @@ async def run_async_migrations(connectable):
     """Run migrations asynchronously with AsyncEngine."""
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
+    # Trigger: startup migrations on the asyncpg backend dispose the engine
+    # while the event loop may be tearing down around them.
+    # Why: that race surfaces "IndexError: pop from an empty deque" from
+    # base_events._run_once (#831/#877); shielding lets dispose finish atomically
+    # and suppressing CancelledError keeps a cancelled teardown from re-raising it.
+    # Outcome: the migration engine always disposes cleanly. (uvloop is the
+    # structural fix for the race; this hardens the teardown path.)
+    with suppress(asyncio.CancelledError):
+        await asyncio.shield(connectable.dispose())
 
 
 def _run_async_migrations_with_asyncio_run(connectable) -> None:
