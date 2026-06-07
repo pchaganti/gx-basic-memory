@@ -36,6 +36,66 @@ async def test_detect_cross_project_move_attempt_is_defensive_on_api_error(monke
 
 
 @pytest.mark.asyncio
+async def test_detect_cross_project_only_flags_workspace_shape(monkeypatch):
+    """Detection 2 must flag '<workspace>/projects/<x>/...' but not interior 'projects'.
+
+    Regression: the original interior-scan loop rejected ANY path with a 'projects'
+    segment anywhere except the last, breaking legitimate nested folders like
+    'team/2026/projects/alpha/note.md'. The narrowed check fires only when 'projects'
+    is the second segment (index 1), the actual cloud workspace layout.
+    """
+    import importlib
+
+    clients_mod = importlib.import_module("basic_memory.mcp.clients")
+
+    class _Project:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    class _ProjectList:
+        projects = [_Project("test-project")]
+
+    class MockProjectClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def list_projects(self, *args, **kwargs):
+            return _ProjectList()
+
+    monkeypatch.setattr(clients_mod, "ProjectClient", MockProjectClient)
+
+    move_note_module = importlib.import_module("basic_memory.mcp.tools.move_note")
+
+    # Workspace shape: projects at index 1 -> rejected.
+    rejected = await move_note_module._detect_cross_project_move_attempt(
+        client=None,
+        identifier="source/note",
+        destination_path="other-workspace/projects/x/note.md",
+        current_project="test-project",
+    )
+    assert rejected is not None
+    assert "Cross-Project Move Not Supported" in rejected
+
+    # Interior 'projects' NOT at index 1 -> allowed (no false positive).
+    allowed = await move_note_module._detect_cross_project_move_attempt(
+        client=None,
+        identifier="source/note",
+        destination_path="team/2026/projects/alpha/note.md",
+        current_project="test-project",
+    )
+    assert allowed is None
+
+    # Top-level 'projects/...' (index 0) -> allowed.
+    top_level = await move_note_module._detect_cross_project_move_attempt(
+        client=None,
+        identifier="source/note",
+        destination_path="projects/2025/note.md",
+        current_project="test-project",
+    )
+    assert top_level is None
+
+
+@pytest.mark.asyncio
 async def test_move_note_success(app, client, test_project):
     """Test successfully moving a note to a new location."""
     # Create initial note
@@ -1152,3 +1212,80 @@ class TestMoveNoteDestinationFolder:
 
             assert isinstance(result, str)
             assert "Security Validation Error" in result
+
+
+class TestMoveNoteOutcomeValidation:
+    """Test the outcome-vs-intent backstop (#881 Gap 2).
+
+    The move service stores the path verbatim relative to the project root, so a
+    divergence between the requested destination and the resulting file_path cannot
+    occur through the real stack. We inject a divergent result to exercise the backstop
+    that prevents a falsely-reported "✅ moved successfully".
+    """
+
+    @pytest.mark.asyncio
+    async def test_move_note_outcome_mismatch_reports_failure(
+        self, app, client, test_project, monkeypatch
+    ):
+        """A move whose file_path diverges from the request must NOT report success."""
+        await write_note(
+            project=test_project.name,
+            title="Outcome Mismatch Note",
+            directory="source",
+            content="# Outcome Mismatch Note\nContent.",
+        )
+
+        from basic_memory.mcp.clients import KnowledgeClient
+
+        real_move_entity = KnowledgeClient.move_entity
+
+        async def diverging_move_entity(self, entity_id, destination_path):
+            # Perform the real move, then return a result that landed elsewhere.
+            result = await real_move_entity(self, entity_id, destination_path)
+            return result.model_copy(update={"file_path": "somewhere/else/diverged.md"})
+
+        monkeypatch.setattr(KnowledgeClient, "move_entity", diverging_move_entity)
+
+        result = await move_note(
+            project=test_project.name,
+            identifier="source/outcome-mismatch-note",
+            destination_path="target/outcome-mismatch-note.md",
+        )
+
+        assert isinstance(result, str)
+        assert "✅ Note moved successfully" not in result
+        assert "Unexpected Result Location" in result
+        assert "target/outcome-mismatch-note.md" in result
+        assert "somewhere/else/diverged.md" in result
+
+    @pytest.mark.asyncio
+    async def test_move_note_outcome_mismatch_json(self, app, client, test_project, monkeypatch):
+        """JSON output for an outcome mismatch reports moved=False with the diagnostic."""
+        await write_note(
+            project=test_project.name,
+            title="Outcome Mismatch JSON",
+            directory="source",
+            content="# Outcome Mismatch JSON\nContent.",
+        )
+
+        from basic_memory.mcp.clients import KnowledgeClient
+
+        real_move_entity = KnowledgeClient.move_entity
+
+        async def diverging_move_entity(self, entity_id, destination_path):
+            result = await real_move_entity(self, entity_id, destination_path)
+            return result.model_copy(update={"file_path": "somewhere/else/diverged.md"})
+
+        monkeypatch.setattr(KnowledgeClient, "move_entity", diverging_move_entity)
+
+        result = await move_note(
+            project=test_project.name,
+            identifier="source/outcome-mismatch-json",
+            destination_path="target/outcome-mismatch-json.md",
+            output_format="json",
+        )
+
+        assert isinstance(result, dict)
+        assert result["moved"] is False
+        assert result["error"] == "MOVE_OUTCOME_MISMATCH"
+        assert result["file_path"] == "somewhere/else/diverged.md"
