@@ -371,6 +371,93 @@ async def test_search_with_entity_type_filter(client, test_project):
 
 
 @pytest.mark.asyncio
+async def test_search_with_categories_filter(client, test_project):
+    """Observation category filter returns only the exact category (#430).
+
+    Writes a note whose body has a [requirement] observation and a [decision]
+    observation that also mentions the word "requirement". The categories filter
+    must return only the requirement observation.
+    """
+    await write_note(
+        project=test_project.name,
+        title="Category Filter Note",
+        directory="test",
+        content=(
+            "# Category Filter Note\n"
+            "- [requirement] The system must enforce auth on every request\n"
+            "- [decision] We deferred the auth requirement to next sprint\n"
+        ),
+    )
+
+    response = await search_notes(
+        project=test_project.name,
+        query="requirement",
+        search_type="text",
+        entity_types=["observation"],
+        categories=["requirement"],
+        output_format="json",
+    )
+
+    assert isinstance(response, dict), f"Search failed with error: {response}"
+    results = response["results"]
+    assert len(results) > 0
+    # Every result is a requirement observation; the [decision] row is excluded
+    # even though its text contains the word "requirement".
+    assert all(r["type"] == "observation" for r in results)
+    assert all(r["category"] == "requirement" for r in results)
+
+    # A non-matching category yields no results for the same text query.
+    decision = await search_notes(
+        project=test_project.name,
+        query="requirement",
+        search_type="text",
+        entity_types=["observation"],
+        categories=["decision"],
+        output_format="json",
+    )
+    assert isinstance(decision, dict), f"Search failed with error: {decision}"
+    assert all(r["category"] == "decision" for r in decision["results"])
+    # The requirement observation must not leak into a decision-scoped search.
+    assert all("requirement" != r.get("category") for r in decision["results"])
+
+
+@pytest.mark.asyncio
+async def test_search_categories_without_entity_types_returns_observations(client, test_project):
+    """categories=[...] WITHOUT entity_types must return the matching observations (#908).
+
+    search_notes defaults entity_types to "entity" when unset, but categories only exist on
+    observations — so a category filter without an explicit entity_types would AND the
+    category against entity rows (which have NULL category) and return nothing. The implicit
+    default must scope to observations when categories is supplied.
+    """
+    await write_note(
+        project=test_project.name,
+        title="Category Default Note",
+        directory="test",
+        content=(
+            "# Category Default Note\n"
+            "- [requirement] Auth tokens must rotate every 24 hours\n"
+            "- [decision] We chose JWT for the auth token format\n"
+        ),
+    )
+
+    # Note: no entity_types passed — exercises the implicit default.
+    response = await search_notes(
+        project=test_project.name,
+        query="auth",
+        search_type="text",
+        categories=["requirement"],
+        output_format="json",
+    )
+
+    assert isinstance(response, dict), f"Search failed with error: {response}"
+    results = response["results"]
+    assert len(results) > 0, "category-only search must return matching observations"
+    assert all(r["type"] == "observation" for r in results)
+    assert all(r["category"] == "requirement" for r in results)
+
+
+@pytest.mark.asyncio
 async def test_search_with_date_filter(client, test_project):
     """Test search with date filter."""
     # Create test content
