@@ -526,8 +526,20 @@ def parse_tags(tags: Union[List[str], str, None]) -> List[str]:
 
     # Process list of tags
     if isinstance(tags, list):
-        # First strip whitespace, then strip leading '#' characters to prevent accumulation
-        return [tag.strip().lstrip("#") for tag in tags if tag and tag.strip()]
+        # Trigger: a list element may itself be a comma-separated string (e.g. typer collects
+        #   `--tags "a,b"` into the one-element list `["a,b"]`).
+        # Why: keep the CLI list path and the MCP bare-string path on a single source of truth so
+        #   `--tags "a,b"`, `--tags a --tags b`, and `tags="a,b"` all converge to the same tags.
+        # Outcome: flatten by splitting each element on commas before stripping '#' / whitespace.
+        # Skip None entries (e.g. a YAML `tags: [alpha, null]`) so they are not revived as
+        # the literal tag "None" by str(raw); the old list branch ignored such falsy entries.
+        return [
+            tag.strip().lstrip("#")
+            for raw in tags
+            if raw is not None
+            for tag in str(raw).split(",")
+            if tag and tag.strip()
+        ]
 
     # Process string input
     if isinstance(tags, str):
