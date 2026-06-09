@@ -1,4 +1,22 @@
+import json
+from pathlib import Path
+from typing import Mapping
+
+import pytest
+from typer.testing import CliRunner
+
 from scripts import bm_bossbot_status
+
+
+def _event_payload(body: str = "Event snapshot body") -> dict[str, object]:
+    return {
+        "repository": {"full_name": "basicmachines-co/basic-memory"},
+        "pull_request": {
+            "number": 925,
+            "body": body,
+            "head": {"sha": "abc123"},
+        },
+    }
 
 
 def test_status_script_is_uv_typer_entrypoint() -> None:
@@ -84,3 +102,103 @@ def test_upsert_summary_block_replaces_existing_block() -> None:
     assert "New summary" in updated
     assert updated.startswith("Intro")
     assert updated.endswith("Footer")
+
+
+def test_finalize_review_fetches_current_pr_body_before_upserting(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event_path = tmp_path / "event.json"
+    review_path = tmp_path / "review.json"
+    event_path.write_text(json.dumps(_event_payload()), encoding="utf-8")
+    review_path.write_text(json.dumps(_review_payload()), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+
+    updated_bodies: list[str] = []
+    statuses: list[Mapping[str, str]] = []
+
+    def fake_get_pull_request_body(*, token: str, repo: str, number: int) -> str:
+        assert token == "token"
+        assert repo == "basicmachines-co/basic-memory"
+        assert number == 925
+        return "Current body edited while the workflow was running"
+
+    def fake_update_pull_request_body(*, token: str, repo: str, number: int, body: str) -> None:
+        updated_bodies.append(body)
+
+    def fake_set_commit_status(
+        *,
+        token: str,
+        repo: str,
+        sha: str,
+        payload: Mapping[str, str],
+    ) -> None:
+        statuses.append(payload)
+
+    monkeypatch.setattr(bm_bossbot_status, "get_pull_request_body", fake_get_pull_request_body)
+    monkeypatch.setattr(bm_bossbot_status, "update_pull_request_body", fake_update_pull_request_body)
+    monkeypatch.setattr(bm_bossbot_status, "set_commit_status", fake_set_commit_status)
+
+    result = bm_bossbot_status.finalize_review(
+        event_path=event_path,
+        review_path=review_path,
+        repo=None,
+        run_url="https://github.com/basicmachines-co/basic-memory/actions/runs/1",
+        token_env="GITHUB_TOKEN",
+    )
+
+    assert result.approved is True
+    assert "Current body edited while the workflow was running" in updated_bodies[0]
+    assert "Event snapshot body" not in updated_bodies[0]
+    assert statuses[0]["state"] == "success"
+
+
+def test_finalize_cli_marks_failure_when_review_file_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event_path = tmp_path / "event.json"
+    missing_review_path = tmp_path / "missing-review.json"
+    event_path.write_text(json.dumps(_event_payload(body="Current body")), encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+
+    updated_bodies: list[str] = []
+    statuses: list[Mapping[str, str]] = []
+
+    def fake_get_pull_request_body(*, token: str, repo: str, number: int) -> str:
+        return "Current body"
+
+    def fake_update_pull_request_body(*, token: str, repo: str, number: int, body: str) -> None:
+        updated_bodies.append(body)
+
+    def fake_set_commit_status(
+        *,
+        token: str,
+        repo: str,
+        sha: str,
+        payload: Mapping[str, str],
+    ) -> None:
+        statuses.append(payload)
+
+    monkeypatch.setattr(bm_bossbot_status, "get_pull_request_body", fake_get_pull_request_body)
+    monkeypatch.setattr(bm_bossbot_status, "update_pull_request_body", fake_update_pull_request_body)
+    monkeypatch.setattr(bm_bossbot_status, "set_commit_status", fake_set_commit_status)
+
+    result = CliRunner().invoke(
+        bm_bossbot_status.app,
+        [
+            "finalize",
+            "--event",
+            str(event_path),
+            "--review",
+            str(missing_review_path),
+            "--repo",
+            "basicmachines-co/basic-memory",
+            "--run-url",
+            "https://github.com/basicmachines-co/basic-memory/actions/runs/1",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "BM Bossbot review output was invalid" in updated_bodies[0]
+    assert statuses[0]["state"] == "failure"

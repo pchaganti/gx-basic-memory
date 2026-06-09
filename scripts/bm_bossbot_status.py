@@ -191,6 +191,17 @@ def update_pull_request_body(*, token: str, repo: str, number: int, body: str) -
     )
 
 
+def get_pull_request_body(*, token: str, repo: str, number: int) -> str:
+    response = _github_request(
+        method="GET",
+        path=f"/repos/{repo}/pulls/{number}",
+        token=token,
+    )
+    if not isinstance(response, Mapping):
+        raise SystemExit("GitHub API response for pull request was invalid")
+    return _string(response.get("body"))
+
+
 def mark_pending(
     *,
     event_path: Path,
@@ -234,7 +245,8 @@ def finalize_review(
         review = {}
 
     result = validate_review(review, expected_head_sha=event.head_sha)
-    updated_body = upsert_summary_block(event.body, render_summary(review, result))
+    current_body = get_pull_request_body(token=token, repo=event.repo, number=event.number)
+    updated_body = upsert_summary_block(current_body, render_summary(review, result))
     update_pull_request_body(token=token, repo=event.repo, number=event.number, body=updated_body)
     set_commit_status(
         token=token,
@@ -255,9 +267,9 @@ def _github_request(
     method: str,
     path: str,
     token: str,
-    payload: Mapping[str, Any],
+    payload: Mapping[str, Any] | None = None,
 ) -> Any:
-    data = json.dumps(payload).encode("utf-8")
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         f"https://api.github.com{path}",
         data=data,
@@ -343,9 +355,7 @@ def finalize(
         Path,
         typer.Option(
             "--review",
-            exists=True,
             dir_okay=False,
-            readable=True,
             help="Structured BM Bossbot review JSON.",
         ),
     ],
