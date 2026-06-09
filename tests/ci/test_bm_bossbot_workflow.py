@@ -106,8 +106,36 @@ def test_bm_bossbot_rejects_oversized_diffs_without_partial_approval() -> None:
     assert "review_complete: false" in workflow_text
     assert 'verdict: "needs_human"' in workflow_text
     assert "Diff exceeds BM Bossbot review limit" in workflow_text
-    assert run_codex["if"] == "steps.context.outputs.diff_truncated != 'true'"
+    assert (
+        run_codex["if"]
+        == "steps.trust.outputs.trusted_author == 'true' && steps.context.outputs.diff_truncated != 'true'"
+    )
     assert "head -c 120000" not in workflow_text
+
+
+def test_bm_bossbot_does_not_run_codex_for_outside_contributors() -> None:
+    workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = _workflow()
+    steps = workflow["jobs"]["review"]["steps"]
+
+    classify = next(step for step in steps if step["name"] == "Classify PR author")
+    outside = next(step for step in steps if step["name"] == "Decline outside contributor PRs")
+    collect = next(step for step in steps if step["name"] == "Collect sanitized PR context")
+    run_codex = next(step for step in steps if step["name"] == "Run BM Bossbot review with Codex")
+    select_review = next(step for step in steps if step["name"] == "Select BM Bossbot review output")
+    finalize = next(step for step in steps if step["name"] == "Finalize BM Bossbot approval")
+
+    assert "OWNER|MEMBER|COLLABORATOR" in classify["run"]
+    assert outside["if"] == "steps.trust.outputs.trusted_author != 'true'"
+    assert collect["if"] == "steps.trust.outputs.trusted_author == 'true'"
+    assert (
+        run_codex["if"]
+        == "steps.trust.outputs.trusted_author == 'true' && steps.context.outputs.diff_truncated != 'true'"
+    )
+    assert select_review["if"] == "always()"
+    assert "BM Bossbot does not run for outside contributors" in workflow_text
+    assert "missing-bm-bossbot-review.json" in workflow_text
+    assert '--review "${{ steps.review_output.outputs.review_file }}"' in finalize["run"]
 
 
 def test_bm_bossbot_prompt_references_engineering_style_and_json_bullets() -> None:
