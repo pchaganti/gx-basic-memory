@@ -1,0 +1,223 @@
+name: BM Bossbot
+
+"on":
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to review
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+  issues: read
+
+concurrency:
+  group: bm-bossbot-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  BM_BOSSBOT_STATUS_CONTEXT: "BM Bossbot Approval"
+
+jobs:
+  review:
+    name: BM Bossbot Review
+    if: github.event.pull_request.draft != true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout trusted base ref
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Normalize PR event
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          event_file="${RUNNER_TEMP}/bm-bossbot-event.json"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            gh api "repos/${GITHUB_REPOSITORY}/pulls/${{ inputs.pr_number }}" > "${RUNNER_TEMP}/pull.json"
+            jq --arg repo "${GITHUB_REPOSITORY}" \
+              '{repository:{full_name:$repo}, pull_request:{number:.number,title:.title,body:(.body // ""),html_url:.html_url,head:{sha:.head.sha,ref:.head.ref},base:{ref:.base.ref,sha:.base.sha},author_association:.author_association,draft:.draft}}' \
+              "${RUNNER_TEMP}/pull.json" > "${event_file}"
+          else
+            cp "${GITHUB_EVENT_PATH}" "${event_file}"
+          fi
+          echo "event_file=${event_file}" >> "${GITHUB_OUTPUT}"
+          echo "pr_number=$(jq -r '.pull_request.number' "${event_file}")" >> "${GITHUB_OUTPUT}"
+          echo "head_sha=$(jq -r '.pull_request.head.sha' "${event_file}")" >> "${GITHUB_OUTPUT}"
+          echo "head_ref=$(jq -r '.pull_request.head.ref' "${event_file}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Mark BM Bossbot approval pending
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          uv run --script scripts/bm_bossbot_status.py pending \
+            --event "${{ steps.pr.outputs.event_file }}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      - name: Collect sanitized PR context
+        id: context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          metadata="${RUNNER_TEMP}/bm-bossbot-pr.json"
+          diff_file="${RUNNER_TEMP}/bm-bossbot-pr.diff"
+          prompt_file="${RUNNER_TEMP}/bm-bossbot-prompt.md"
+
+          gh pr view "${PR_NUMBER}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --json number,title,body,author,headRefName,headRefOid,baseRefName,labels,files,commits,reviewDecision,mergeStateStatus,isDraft \
+            > "${metadata}"
+          gh pr diff "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --patch > "${diff_file}"
+
+          cat .github/basic-memory/bm-bossbot-review.md > "${prompt_file}"
+          {
+            echo ""
+            echo "## Pull Request Context"
+            echo ""
+            echo "Head SHA to review: ${HEAD_SHA}"
+            echo ""
+            echo "### Metadata JSON"
+            jq . "${metadata}"
+            echo ""
+            echo "### Diff"
+            echo ""
+            echo '```diff'
+            head -c 120000 "${diff_file}"
+            echo ""
+            echo '```'
+          } >> "${prompt_file}"
+
+          echo "prompt_file=${prompt_file}" >> "${GITHUB_OUTPUT}"
+          echo "review_file=${RUNNER_TEMP}/bm-bossbot-review.json" >> "${GITHUB_OUTPUT}"
+
+      - name: Run BM Bossbot review with Codex
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ steps.context.outputs.prompt_file }}
+          output-file: ${{ steps.context.outputs.review_file }}
+          codex-args: --output-schema ${{ github.workspace }}/.github/basic-memory/bm-bossbot-review.schema.json
+          sandbox: read-only
+          safety-strategy: drop-sudo
+
+      - name: Finalize BM Bossbot approval
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          uv run --script scripts/bm_bossbot_status.py finalize \
+            --event "${{ steps.pr.outputs.event_file }}" \
+            --review "${{ steps.context.outputs.review_file }}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      - name: Generate non-gating PR infographic
+        if: success()
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          gh pr view "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --json body --jq '.body // ""' > "${RUNNER_TEMP}/bm-bossbot-pr-body.md"
+          uv run --script scripts/generate_pr_infographic.py \
+            --pr-number "${PR_NUMBER}" \
+            --pr-body-file "${RUNNER_TEMP}/bm-bossbot-pr-body.md" \
+            --provenance-output "${RUNNER_TEMP}/bm-bossbot-infographic-provenance.md" \
+            --output "docs/assets/infographics/pr-${PR_NUMBER}.webp"
+
+      - name: Publish non-gating PR infographic
+        if: success()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+        run: |
+          set -euo pipefail
+          asset_path="docs/assets/infographics/pr-${PR_NUMBER}.webp"
+          provenance_file="${RUNNER_TEMP}/bm-bossbot-infographic-provenance.md"
+          test -f "${asset_path}"
+          test -f "${provenance_file}"
+
+          safe_ref="$(printf '%s' "${HEAD_REF}" | tr -c 'A-Za-z0-9._-' '-')"
+          asset_branch="pr-assets/${safe_ref}"
+          tmp_asset="$(mktemp)"
+          cp "${asset_path}" "${tmp_asset}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --orphan "${asset_branch}"
+          git rm -rf .
+          mkdir -p "$(dirname "${asset_path}")"
+          cp "${tmp_asset}" "${asset_path}"
+          git add "${asset_path}"
+          git commit -m "chore: publish PR ${PR_NUMBER} infographic"
+          git push --force origin "HEAD:${asset_branch}"
+
+          asset_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${asset_branch}/${asset_path}"
+          body_file="${RUNNER_TEMP}/bm-bossbot-pr-body.md"
+          updated_body="${RUNNER_TEMP}/bm-bossbot-pr-body-updated.md"
+          gh pr view "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --json body --jq '.body // ""' > "${body_file}"
+          python3 - "${body_file}" "${updated_body}" "${asset_url}" "${PR_NUMBER}" "${provenance_file}" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          body_path, output_path, asset_url, pr_number, provenance_path = sys.argv[1:]
+          body = Path(body_path).read_text(encoding="utf-8")
+
+          def upsert_block(body: str, block: str, start: str, end: str) -> str:
+              pattern = re.compile(rf"{re.escape(start)}.*?{re.escape(end)}", flags=re.DOTALL)
+              if pattern.search(body):
+                  return pattern.sub(block, body, count=1)
+              if body.strip():
+                  return f"{body.rstrip()}\n\n{block}\n"
+              return f"{block}\n"
+
+          image_block = "\n".join(
+              [
+                  "<!-- pr-infographic:start -->",
+                  f"![BM Bossbot infographic for PR #{pr_number}]({asset_url})",
+                  "<!-- pr-infographic:end -->",
+              ]
+          )
+          provenance_block = Path(provenance_path).read_text(encoding="utf-8")
+          body = upsert_block(
+              body,
+              image_block,
+              "<!-- pr-infographic:start -->",
+              "<!-- pr-infographic:end -->",
+          )
+          body = upsert_block(
+              body,
+              provenance_block,
+              "<!-- BM_INFOGRAPHIC_PROVENANCE:start -->",
+              "<!-- BM_INFOGRAPHIC_PROVENANCE:end -->",
+          )
+          Path(output_path).write_text(body, encoding="utf-8")
+          PY
+          gh pr edit "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --body-file "${updated_body}"
