@@ -32,6 +32,9 @@ jobs:
     name: BM Bossbot Review
     if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+      head_ref: ${{ steps.pr.outputs.head_ref }}
 
     steps:
       - name: Checkout trusted base ref
@@ -83,12 +86,20 @@ jobs:
           metadata="${RUNNER_TEMP}/bm-bossbot-pr.json"
           diff_file="${RUNNER_TEMP}/bm-bossbot-pr.diff"
           prompt_file="${RUNNER_TEMP}/bm-bossbot-prompt.md"
+          review_file="${RUNNER_TEMP}/bm-bossbot-review.json"
+          max_diff_bytes=120000
 
           gh pr view "${PR_NUMBER}" \
             --repo "${GITHUB_REPOSITORY}" \
             --json number,title,body,author,headRefName,headRefOid,baseRefName,labels,files,commits,reviewDecision,mergeStateStatus,isDraft \
             > "${metadata}"
           gh pr diff "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --patch > "${diff_file}"
+
+          diff_bytes="$(wc -c < "${diff_file}" | tr -d '[:space:]')"
+          diff_truncated=false
+          if [ "${diff_bytes}" -gt "${max_diff_bytes}" ]; then
+            diff_truncated=true
+          fi
 
           cat .github/basic-memory/bm-bossbot-review.md > "${prompt_file}"
           {
@@ -103,16 +114,42 @@ jobs:
             echo "### Diff"
             echo ""
             echo '```diff'
-            head -c 120000 "${diff_file}"
+            if [ "${diff_truncated}" = "true" ]; then
+              echo "[Diff omitted: ${diff_bytes} bytes exceeds BM Bossbot's ${max_diff_bytes} byte review limit.]"
+            else
+              cat "${diff_file}"
+            fi
             echo ""
             echo '```'
           } >> "${prompt_file}"
 
+          if [ "${diff_truncated}" = "true" ]; then
+            jq -n \
+              --arg sha "${HEAD_SHA}" \
+              --argjson bytes "${diff_bytes}" \
+              --argjson max_bytes "${max_diff_bytes}" \
+              '{
+                reviewed_head_sha: $sha,
+                review_complete: false,
+                verdict: "needs_human",
+                blocking_findings: [
+                  {
+                    title: "Diff exceeds BM Bossbot review limit",
+                    body: "The PR diff is \($bytes) bytes, exceeding the deterministic \($max_bytes) byte review limit. A human review is required or the PR must be split before BM Bossbot can approve."
+                  }
+                ],
+                nonblocking_findings: [],
+                summary: "BM Bossbot did not approve because the PR diff exceeded the deterministic review limit."
+              }' > "${review_file}"
+          fi
+
           echo "prompt_file=${prompt_file}" >> "${GITHUB_OUTPUT}"
-          echo "review_file=${RUNNER_TEMP}/bm-bossbot-review.json" >> "${GITHUB_OUTPUT}"
+          echo "review_file=${review_file}" >> "${GITHUB_OUTPUT}"
+          echo "diff_truncated=${diff_truncated}" >> "${GITHUB_OUTPUT}"
 
       - name: Run BM Bossbot review with Codex
         id: codex
+        if: steps.context.outputs.diff_truncated != 'true'
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -133,13 +170,31 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
+  assets:
+    name: BM Bossbot Assets
+    needs: review
+    if: needs.review.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout trusted base ref
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+
       - name: Generate non-gating PR infographic
-        if: success()
         continue-on-error: true
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          PR_NUMBER: ${{ needs.review.outputs.pr_number }}
         run: |
           set -euo pipefail
           gh pr view "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --json body --jq '.body // ""' > "${RUNNER_TEMP}/bm-bossbot-pr-body.md"
@@ -150,12 +205,11 @@ jobs:
             --output "docs/assets/infographics/pr-${PR_NUMBER}.webp"
 
       - name: Publish non-gating PR infographic
-        if: success()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
-          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          PR_NUMBER: ${{ needs.review.outputs.pr_number }}
+          HEAD_REF: ${{ needs.review.outputs.head_ref }}
         run: |
           set -euo pipefail
           asset_path="docs/assets/infographics/pr-${PR_NUMBER}.webp"

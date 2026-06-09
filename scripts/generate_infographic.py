@@ -45,7 +45,8 @@ def validate_output_path(path: Path, *, repo_root: Path | None = None) -> Path:
     output = path.resolve()
     allowed_root = (root / "docs" / "assets" / "infographics").resolve()
     if not output.is_relative_to(allowed_root):
-        raise ValueError(f"Output path must be under {allowed_root.relative_to(root)}")
+        allowed_path = allowed_root.relative_to(root).as_posix()
+        raise ValueError(f"Output path must be under {allowed_path}")
     if output.suffix != ".webp":
         raise ValueError("Output path must end with .webp")
     return output

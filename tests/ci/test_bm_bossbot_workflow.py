@@ -29,6 +29,10 @@ def test_bm_bossbot_uses_safe_pull_request_target_gate() -> None:
     assert permissions["pull-requests"] == "write"
     assert permissions["statuses"] == "write"
 
+    asset_permissions = workflow["jobs"]["assets"]["permissions"]
+    assert asset_permissions["contents"] == "write"
+    assert asset_permissions["pull-requests"] == "write"
+
 
 def test_bm_bossbot_workflow_never_checks_out_untrusted_head() -> None:
     workflow = _workflow()
@@ -65,12 +69,45 @@ def test_bm_bossbot_workflow_has_deterministic_status_steps() -> None:
     assert "uv run --script scripts/bm_bossbot_status.py finalize" in WORKFLOW_PATH.read_text(
         encoding="utf-8"
     )
+
+
+def test_bm_bossbot_assets_are_non_gating_and_separate_from_review_job() -> None:
+    workflow = _workflow()
+    review_steps = workflow["jobs"]["review"]["steps"]
+    asset_job = workflow["jobs"]["assets"]
+    asset_steps = asset_job["steps"]
+
+    assert asset_job["needs"] == "review"
+    assert asset_job["if"] == "needs.review.result == 'success'"
+    assert not any(step["name"] == "Generate non-gating PR infographic" for step in review_steps)
+    assert not any(step["name"] == "Publish non-gating PR infographic" for step in review_steps)
+
+    generate = next(step for step in asset_steps if step["name"] == "Generate non-gating PR infographic")
+    publish = next(step for step in asset_steps if step["name"] == "Publish non-gating PR infographic")
+
+    assert generate["continue-on-error"] is True
+    assert publish["continue-on-error"] is True
     assert "uv run --script scripts/generate_pr_infographic.py" in WORKFLOW_PATH.read_text(
         encoding="utf-8"
     )
     assert "--provenance-output" in WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "BM_INFOGRAPHIC_PROVENANCE:start" in WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "BM_INFOGRAPHIC_PROVENANCE:end" in WORKFLOW_PATH.read_text(encoding="utf-8")
+
+
+def test_bm_bossbot_rejects_oversized_diffs_without_partial_approval() -> None:
+    workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = _workflow()
+    steps = workflow["jobs"]["review"]["steps"]
+    run_codex = next(step for step in steps if step["name"] == "Run BM Bossbot review with Codex")
+
+    assert "max_diff_bytes=120000" in workflow_text
+    assert "diff_truncated=true" in workflow_text
+    assert "review_complete: false" in workflow_text
+    assert 'verdict: "needs_human"' in workflow_text
+    assert "Diff exceeds BM Bossbot review limit" in workflow_text
+    assert run_codex["if"] == "steps.context.outputs.diff_truncated != 'true'"
+    assert "head -c 120000" not in workflow_text
 
 
 def test_bm_bossbot_prompt_references_engineering_style_and_json_bullets() -> None:

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from scripts import generate_infographic, generate_pr_infographic
@@ -20,16 +21,17 @@ def test_infographic_scripts_are_uv_typer_entrypoints() -> None:
 
 def test_generate_pr_infographic_cli_help_exposes_useful_options() -> None:
     result = CliRunner().invoke(generate_pr_infographic.app, ["--help"])
+    help_text = unstyle(result.output)
 
     assert result.exit_code == 0
-    assert "--pr-number" in result.output
-    assert "--pr-body-file" in result.output
-    assert "--output" in result.output
-    assert "--theme" in result.output
-    assert "--visual-format" in result.output
-    assert "--provenance-output" in result.output
-    assert "--print-prompt" in result.output
-    assert "--dry-run" in result.output
+    assert "--pr-number" in help_text
+    assert "--pr-body-file" in help_text
+    assert "--output" in help_text
+    assert "--theme" in help_text
+    assert "--visual-format" in help_text
+    assert "--provenance-output" in help_text
+    assert "--print-prompt" in help_text
+    assert "--dry-run" in help_text
 
 
 def test_extract_bossbot_summary_from_pr_body() -> None:
