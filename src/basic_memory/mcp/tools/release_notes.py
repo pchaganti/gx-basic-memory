@@ -1,7 +1,6 @@
 """Release notes MCP tool."""
 
-from pathlib import Path
-
+from basic_memory.mcp.resources.discovery import load_discovery_resource
 from basic_memory.mcp.server import mcp
 
 
@@ -13,5 +12,4 @@ from basic_memory.mcp.server import mcp
 )
 def release_notes() -> str:
     """Return the latest product release notes for optional user review."""
-    content_path = Path(__file__).parent.parent / "resources" / "release_notes.md"
-    return content_path.read_text(encoding="utf-8")
+    return load_discovery_resource("release_notes.md")
