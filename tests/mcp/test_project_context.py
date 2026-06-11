@@ -679,7 +679,7 @@ async def test_resolve_workspace_project_identifier_handles_qualified_and_collis
     )
     index = _build_workspace_project_index((personal, acme), entries)
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -701,7 +701,7 @@ def _patch_index(monkeypatch, workspaces, entries):
 
     index = _build_workspace_project_index(workspaces, entries)
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -895,7 +895,7 @@ async def test_detect_project_from_memory_url_prefix_resolves_workspace_slug(mon
     )
     index = _build_workspace_project_index((personal, team), entries)
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -1026,7 +1026,7 @@ async def test_detect_project_from_identifier_prefix_resolves_workspace_with_loc
         ),
     )
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -1081,7 +1081,7 @@ async def test_resolve_workspace_qualified_memory_url_ignores_workspace_project_
     )
     index = _build_workspace_project_index((workspace,), entries)
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -1121,7 +1121,7 @@ async def test_resolve_workspace_qualified_memory_url_fails_on_duplicate_project
     )
     index = _build_workspace_project_index((team,), entries)
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -1162,7 +1162,7 @@ async def test_resolve_workspace_qualified_memory_url_uses_personal_canonical_pa
     )
     index = _build_workspace_project_index((personal,), entries)
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -1204,7 +1204,7 @@ async def test_resolve_workspace_qualified_memory_url_keeps_org_canonical_path_w
     )
     index = _build_workspace_project_index((team,), entries)
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -1318,7 +1318,7 @@ async def test_resolve_workspace_project_identifier_uses_active_workspace_for_du
     )
     index = _build_workspace_project_index((personal, acme), entries)
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -1374,7 +1374,7 @@ async def test_resolve_workspace_project_identifier_resolves_by_external_id(monk
     )
     index = _build_workspace_project_index((personal, acme), entries)
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -1411,7 +1411,7 @@ async def test_resolve_workspace_project_identifier_normalizes_uuid_forms(monkey
     )
     index = _build_workspace_project_index((workspace,), entries)
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
@@ -1666,7 +1666,7 @@ async def test_get_project_client_with_cloud_project_id_routes_to_workspace_with
         (WorkspaceProjectEntry(workspace=personal, project=cloud_project),),
     )
 
-    async def fake_index(context=None):
+    async def fake_index(context=None, force_refresh=False):
         return index
 
     get_client_calls: list[dict[str, str | None]] = []
@@ -3153,3 +3153,142 @@ class TestGetProjectClientRoutingOrder:
         finally:
             # Restore original factory to avoid polluting other tests
             async_client._client_factory = original_factory
+
+
+@pytest.mark.asyncio
+async def test_resolver_refreshes_index_on_miss(monkeypatch):
+    """A stale index miss triggers one rebuild and the retry resolves (#956).
+
+    Mirrors the field failure: a teammate (or the CLI) creates a project after
+    the session index was built; project_id routing must find it without a
+    session restart.
+    """
+    import basic_memory.mcp.project_context as project_context
+    from basic_memory.mcp.project_context import (
+        WorkspaceProjectEntry,
+        WorkspaceProjectLookupMiss,
+        _build_workspace_project_index,
+        resolve_workspace_project_identifier,
+    )
+
+    team = _workspace(
+        tenant_id="team-tenant",
+        workspace_type="organization",
+        slug="team",
+        name="Team",
+        role="owner",
+        is_default=True,
+    )
+    old_entry = WorkspaceProjectEntry(
+        workspace=team,
+        project=_project("Existing", id=1, external_id="11111111-1111-4111-8111-111111111111"),
+    )
+    new_entry = WorkspaceProjectEntry(
+        workspace=team,
+        project=_project("Manual", id=2, external_id="22222222-2222-4222-8222-222222222222"),
+    )
+    stale = _build_workspace_project_index((team,), (old_entry,))
+    fresh = _build_workspace_project_index((team,), (old_entry, new_entry))
+
+    calls = []
+
+    async def fake_index(context=None, force_refresh=False):
+        calls.append(force_refresh)
+        return fresh if force_refresh else stale
+
+    monkeypatch.setattr(project_context, "_ensure_workspace_project_index", fake_index)
+
+    # By external_id (the project_id routing path that failed in the field)
+    resolved = await resolve_workspace_project_identifier(
+        "22222222-2222-4222-8222-222222222222"
+    )
+    assert resolved.project.permalink == "manual"
+    assert calls == [False, True]
+
+    # By name, same refresh-and-retry
+    calls.clear()
+    resolved = await resolve_workspace_project_identifier("manual")
+    assert resolved.project.permalink == "manual"
+    assert calls == [False, True]
+
+    # A project absent from the fresh index too: exactly one refresh, then the
+    # authoritative miss propagates
+    calls.clear()
+    with pytest.raises(WorkspaceProjectLookupMiss):
+        await resolve_workspace_project_identifier("never-existed")
+    assert calls == [False, True]
+
+    # A hit on the cached index never triggers a rebuild
+    calls.clear()
+    resolved = await resolve_workspace_project_identifier("existing")
+    assert resolved.project.permalink == "existing"
+    assert calls == [False]
+
+
+@pytest.mark.asyncio
+async def test_resolve_project_and_path_keeps_patterns_project_qualified(
+    config_manager,
+    monkeypatch,
+):
+    """Glob patterns are qualified with the project prefix only, never the workspace (#957).
+
+    The search index stores project-qualified permalinks (manual/man3/...), so a
+    workspace-qualified pattern (<ws>/manual/man3*) can never match anything.
+    Direct URLs keep workspace qualification (the link resolver handles them);
+    patterns have no resolver fallback and must match the index form.
+    """
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    from basic_memory.mcp.project_context import resolve_project_and_path
+    from basic_memory.schemas.project_info import ProjectItem
+
+    config = config_manager.load_config()
+    config.permalinks_include_project = True
+    config_manager.save_config(config)
+
+    context = ContextState()
+    cached_project = ProjectItem(
+        id=1,
+        external_id="11111111-1111-1111-1111-111111111111",
+        name="manual",
+        path="/tmp/manual",
+        is_default=False,
+    )
+    team_workspace = _workspace(
+        tenant_id="team-tenant",
+        workspace_type="organization",
+        slug="team-paul",
+        name="Team Paul",
+        role="editor",
+    )
+    await context.set_state("active_project", cached_project.model_dump())
+    await context.set_state("active_workspace", team_workspace.model_dump())
+
+    async def fake_call_post(*args, **kwargs):
+        raise ToolError("project not found")
+
+    monkeypatch.setattr("basic_memory.mcp.tools.utils.call_post", fake_call_post)
+
+    # Bare pattern: project prefix only — no workspace slug
+    _, resolved_path, _ = await resolve_project_and_path(
+        client=cast(Any, None),
+        identifier="memory://man3/*",
+        context=ctx(context),
+    )
+    assert resolved_path == "manual/man3/*"
+
+    # Workspace-qualified pattern URL: workspace stripped down to index form
+    _, resolved_path, _ = await resolve_project_and_path(
+        client=cast(Any, None),
+        identifier="memory://team-paul/manual/man3/*",
+        context=ctx(context),
+    )
+    assert resolved_path == "manual/man3/*"
+
+    # Direct URLs keep the full workspace-qualified canonical path
+    _, resolved_path, _ = await resolve_project_and_path(
+        client=cast(Any, None),
+        identifier="memory://man3/write-note-3",
+        context=ctx(context),
+    )
+    assert resolved_path == "team-paul/manual/man3/write-note-3"
