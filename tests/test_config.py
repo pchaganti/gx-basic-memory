@@ -91,6 +91,69 @@ class TestBasicMemoryConfig:
         assert Path(config.projects["other"].path) == other_path
         assert config.default_project == "other"
 
+    def test_model_post_init_seeds_default_for_local_postgres(self, config_home, monkeypatch):
+        """A LOCAL Postgres backend still seeds a default project, like SQLite.
+
+        The seeding skip is for stateless/cloud (skip_initialization_sync), not the
+        Postgres backend — otherwise a fresh local Postgres has no default project
+        and create_memory_project raises "No default project configured".
+        """
+        monkeypatch.delenv("BASIC_MEMORY_HOME", raising=False)
+        monkeypatch.delenv("BASIC_MEMORY_CLOUD_MODE", raising=False)
+
+        config = BasicMemoryConfig(database_backend="postgres")
+
+        assert "main" in config.projects
+        assert config.default_project == "main"
+
+    def test_model_post_init_skips_seeding_for_stateless_deployments(
+        self, config_home, monkeypatch
+    ):
+        """Stateless/cloud configs discover projects from the DB, so seed nothing."""
+        monkeypatch.delenv("BASIC_MEMORY_HOME", raising=False)
+
+        config = BasicMemoryConfig(database_backend="postgres", skip_initialization_sync=True)
+
+        assert config.projects == {}
+        assert config.default_project is None
+
+    def test_model_post_init_skips_seeding_in_cloud_mode(self, config_home, monkeypatch):
+        """BASIC_MEMORY_CLOUD_MODE deployments build config via ConfigManager, not
+        for_cloud_tenant, so skip_initialization_sync is false — they must still skip
+        seeding (and reconcile) so cloud startup can't delete tenant project rows."""
+        monkeypatch.delenv("BASIC_MEMORY_HOME", raising=False)
+        monkeypatch.setenv("BASIC_MEMORY_CLOUD_MODE", "1")
+
+        config = BasicMemoryConfig(database_backend="postgres", skip_initialization_sync=False)
+
+        assert config.cloud_mode is True
+        assert config.skip_local_initialization is True
+        assert config.projects == {}
+        assert config.default_project is None
+
+    def test_local_postgres_creates_project_directories(self, config_home, tmp_path):
+        """Local Postgres creates its project directories like SQLite — the
+        ensure_project_paths_exists skip is gated on skip_initialization_sync."""
+        proj = tmp_path / "pg-project"
+        BasicMemoryConfig(
+            database_backend="postgres",
+            skip_initialization_sync=False,
+            projects={"main": {"path": str(proj)}},
+            default_project="main",
+        )
+        assert proj.exists()
+
+    def test_stateless_postgres_skips_project_directories(self, config_home, tmp_path):
+        """Stateless/cloud deployments don't touch the local filesystem."""
+        proj = tmp_path / "cloud-project"
+        BasicMemoryConfig(
+            database_backend="postgres",
+            skip_initialization_sync=True,
+            projects={"main": {"path": str(proj)}},
+            default_project="main",
+        )
+        assert not proj.exists()
+
     def test_basic_memory_home_with_relative_path(self, config_home, monkeypatch):
         """Test that BASIC_MEMORY_HOME works with relative paths."""
         relative_path = "relative/memory/path"
