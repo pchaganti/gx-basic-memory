@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import NoReturn, Protocol, cast
+from typing import NoReturn, Protocol
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -28,10 +28,8 @@ from basic_memory.indexing.accepted_note_write_runner import (
     prepare_accepted_note_replace,
 )
 from basic_memory.models import Entity, NoteContent, Project
-from basic_memory.repository import NoteContentRepository, NoteContentVersionConflict
+from basic_memory.repository import NoteContentVersionConflict
 from basic_memory.services.exceptions import EntityAlreadyExistsError
-from basic_memory.repository.accepted_note_search_repository import AcceptedNoteSearchRepository
-from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.runtime.note_content import (
     RuntimeAcceptedNoteChange,
     RuntimeAcceptedNoteWriteConflictKind,
@@ -267,36 +265,6 @@ class AcceptedNoteMutationRepositories(Protocol):
     ) -> AcceptedNoteMutationNoteContentRepository: ...
 
 
-class AcceptedNoteRepositories(
-    AcceptedNoteMutationRepositories,
-    AcceptedNoteWriteRepositories,
-    Protocol,
-):
-    """Repository capability set for DB-first accepted-note mutations."""
-
-
-@dataclass(frozen=True, slots=True)
-class DefaultAcceptedNoteRepositories:
-    """Default core repositories for accepted-note mutation orchestration."""
-
-    def entity_repository(self, project_id: ProjectId) -> EntityRepository:
-        return EntityRepository(project_id=project_id)
-
-    def pending_entity_repository(self, project_id: ProjectId) -> EntityRepository:
-        return EntityRepository(project_id=project_id)
-
-    def note_content_repository(self, project_id: ProjectId) -> NoteContentRepository:
-        return NoteContentRepository(project_id=project_id)
-
-    def search_repository(self, project_id: ProjectId) -> AcceptedNoteSearchRepository:
-        return AcceptedNoteSearchRepository(project_id=project_id)
-
-
-def build_default_accepted_note_repositories() -> AcceptedNoteRepositories:
-    """Compose default repositories for accepted-note mutation orchestration."""
-    return DefaultAcceptedNoteRepositories()
-
-
 @dataclass(frozen=True, slots=True)
 class AcceptedNoteMutationDependencies:
     """Dependencies required by accepted-note mutation orchestration."""
@@ -439,13 +407,11 @@ async def run_accepted_note_delete(
         load_relations=False,
     )
     if entity is None:
-        return cast(
-            AcceptedNoteMutationChange,
-            await delete_accepted_note(
-                session,
-                project_id=project.id,
-                entity=None,
-            ),
+        return await delete_accepted_note(
+            session,
+            project_id=project.id,
+            entity=None,
+            repositories=dependencies.write_repositories,
         )
 
     note_content = await load_accepted_note_content(
@@ -455,14 +421,13 @@ async def run_accepted_note_delete(
         dependencies=dependencies,
         missing_kind=None,
     )
-    accepted = await delete_accepted_note(
+    return await delete_accepted_note(
         session,
         project_id=project.id,
         entity=entity,
         note_content=note_content,
         repositories=dependencies.write_repositories,
     )
-    return cast(AcceptedNoteMutationChange, accepted)
 
 
 async def _run_accepted_note_create(
@@ -529,7 +494,7 @@ async def _run_accepted_note_create(
         updated_at=now,
         repositories=dependencies.write_repositories,
     )
-    accepted = plan_accepted_note_write_change(
+    return plan_accepted_note_write_change(
         status_code=201,
         entity=entity,
         note_content=persisted.note_content,
@@ -538,7 +503,6 @@ async def _run_accepted_note_create(
         actor_name=request.actor.name,
         fallback_source=request.source,
     )
-    return cast(AcceptedNoteMutationChange, accepted)
 
 
 async def _run_accepted_note_update(
@@ -670,7 +634,7 @@ async def _run_accepted_note_update(
         accepted_file_path=entity.file_path,
         repositories=dependencies.write_repositories,
     )
-    accepted = plan_accepted_note_write_change(
+    return plan_accepted_note_write_change(
         status_code=201 if created else 200,
         entity=entity,
         note_content=persisted.note_content,
@@ -680,7 +644,6 @@ async def _run_accepted_note_update(
         cleanup_after_write=persisted.previous_file_delete,
         fallback_source=request.source,
     )
-    return cast(AcceptedNoteMutationChange, accepted)
 
 
 async def _run_accepted_note_edit(
@@ -730,7 +693,7 @@ async def _run_accepted_note_edit(
         accepted_file_path=entity.file_path,
         repositories=dependencies.write_repositories,
     )
-    accepted = plan_accepted_note_write_change(
+    return plan_accepted_note_write_change(
         status_code=200,
         entity=entity,
         note_content=persisted.note_content,
@@ -739,7 +702,6 @@ async def _run_accepted_note_edit(
         actor_name=request.actor.name,
         fallback_source=request.source,
     )
-    return cast(AcceptedNoteMutationChange, accepted)
 
 
 async def _run_accepted_note_move(
@@ -821,7 +783,7 @@ async def _run_accepted_note_move(
         accepted_file_path=prepared_move.file_path,
         repositories=dependencies.write_repositories,
     )
-    accepted = plan_accepted_note_write_change(
+    return plan_accepted_note_write_change(
         status_code=200,
         entity=entity,
         note_content=persisted.note_content,
@@ -831,7 +793,6 @@ async def _run_accepted_note_move(
         cleanup_after_write=persisted.previous_file_delete,
         fallback_source=request.source,
     )
-    return cast(AcceptedNoteMutationChange, accepted)
 
 
 async def load_accepted_note_mutation_project(

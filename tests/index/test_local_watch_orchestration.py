@@ -33,8 +33,8 @@ from basic_memory.index.storage_events import (
 )
 from basic_memory.runtime.projects import ProjectRuntimeReference
 from basic_memory.runtime.storage import (
+    RuntimeJobCounts,
     RuntimeStorageEventOperation,
-    RuntimeStorageEventProcessingResult,
 )
 
 
@@ -199,6 +199,8 @@ def test_local_watch_request_builds_storage_prefix_from_project(tmp_path: Path) 
     note_path = project_root / "notes" / "a.md"
     note_path.parent.mkdir()
     note_path.write_text("# A\n", encoding="utf-8")
+    # No permalink/name attributes at all: a structural caller without the
+    # optional identity shape falls back to the root directory name.
     project = SimpleNamespace(path=str(project_root))
 
     request = LocalWatchEventIndexRequest.from_project_changes(
@@ -212,6 +214,23 @@ def test_local_watch_request_builds_storage_prefix_from_project(tmp_path: Path) 
     assert request.project_root == project_root.resolve()
     assert request.project_prefix == "configured-project-root"
     assert [event.object_key for event in source.events()] == ["configured-project-root/notes/a.md"]
+
+    # None-valued identity attributes also fall back to the directory name,
+    # and a Path-typed project path is coerced rather than crashing.
+    none_identity_request = LocalWatchEventIndexRequest.from_project_changes(
+        project=SimpleNamespace(path=project_root, permalink=None, name=None),
+        changes=((Change.added, str(note_path)),),
+    )
+
+    assert none_identity_request.project_root == project_root.resolve()
+    assert none_identity_request.project_prefix == "configured-project-root"
+
+    # A project without a usable path has no watch root at all.
+    with pytest.raises(ValueError, match="requires path"):
+        LocalWatchEventIndexRequest.from_project_changes(
+            project=SimpleNamespace(path=""),
+            changes=(),
+        )
 
 
 def test_local_watch_request_uses_project_permalink_for_duplicate_leaf_roots(
@@ -453,7 +472,7 @@ def test_local_watch_path_visibility_uses_project_relative_hidden_parts(tmp_path
 def test_local_watch_status_update_plans_success() -> None:
     update = plan_local_watch_event_index_status_update(
         project_prefix="configured-project-root",
-        result=RuntimeStorageEventProcessingResult.empty().with_processed(2).with_skipped(1),
+        result=RuntimeJobCounts(processed=2, skipped=1),
     )
 
     assert update.path == "configured-project-root"
@@ -468,10 +487,7 @@ def test_local_watch_status_update_plans_success() -> None:
 def test_local_watch_status_update_plans_failure_details() -> None:
     update = plan_local_watch_event_index_status_update(
         project_prefix="configured-project-root",
-        result=RuntimeStorageEventProcessingResult.empty()
-        .with_processed(1)
-        .with_failed(2)
-        .with_skipped(3),
+        result=RuntimeJobCounts(processed=1, failed=2, skipped=3),
     )
 
     assert update.path == "configured-project-root"

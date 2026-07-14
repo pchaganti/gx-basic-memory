@@ -136,7 +136,13 @@ class RuntimeAcceptedNoteWriteEntitySource(RuntimeAcceptedNoteEntitySource, Prot
 
 
 class RuntimeDeletedNoteEntitySource(RuntimeContentTypeSource, Protocol):
-    """Minimal deleted-note entity shape needed before row cleanup."""
+    """Minimal deleted-note entity shape needed before row cleanup.
+
+    The wide identity types are deliberate: downstream runtimes feed loosely
+    typed entity projections through this seam, so the delete live-update
+    identity is validated where the reference is built rather than trusted
+    from the declared shape.
+    """
 
     @property
     def external_id(self) -> object | None: ...
@@ -159,7 +165,7 @@ class RuntimeDeletedNoteEntityChecksumSource(Protocol):
     """Minimal deleted-note entity shape needed to guard file cleanup."""
 
     @property
-    def checksum(self) -> object | None: ...
+    def checksum(self) -> RuntimeFileChecksum | None: ...
 
 
 class RuntimeDeletedNoteFileDeleteEntitySource(
@@ -177,7 +183,7 @@ class RuntimeDeletedNoteFileChecksumSource(Protocol):
     """Minimal note_content shape needed to guard file cleanup."""
 
     @property
-    def file_checksum(self) -> object | None: ...
+    def file_checksum(self) -> RuntimeFileChecksum | None: ...
 
 
 class RuntimeNoteContentStateSource(Protocol):
@@ -212,7 +218,12 @@ class RuntimeNoteContentStateSource(Protocol):
 
 
 class RuntimePendingNoteMaterializationSource(Protocol):
-    """Minimal note_content row shape needed to queue materialization work."""
+    """Minimal note_content row shape needed to queue materialization work.
+
+    Input-typed on purpose: downstream runtimes replay these values from
+    persisted job payloads where a driver may deliver a string, so planning
+    coerces instead of trusting the declared shape.
+    """
 
     @property
     def db_version(self) -> RuntimeNoteContentVersionInput: ...
@@ -236,11 +247,16 @@ class RuntimeMaterializedNoteSource(Protocol):
     """Minimal note_content row shape needed to clean up a materialized file."""
 
     @property
-    def file_checksum(self) -> object | None: ...
+    def file_checksum(self) -> RuntimeFileChecksum | None: ...
 
 
 class RuntimeNoteContentDbVersionSource(Protocol):
-    """Minimal note_content row shape needed to advance accepted DB versions."""
+    """Minimal note_content row shape needed to advance accepted DB versions.
+
+    db_version stays input-typed on purpose: downstream runtimes replay these
+    values from persisted job payloads where a driver may deliver a string, so
+    the version helpers coerce instead of trusting the declared shape.
+    """
 
     @property
     def db_version(self) -> RuntimeNoteContentVersionInput: ...
@@ -428,10 +444,8 @@ def select_deleted_note_file_checksum(
 ) -> RuntimeFileChecksum | None:
     """Choose the best accepted file checksum to guard deleted-note cleanup."""
     if note_content is not None and note_content.file_checksum is not None:
-        return str(note_content.file_checksum)
-    if entity.checksum is not None:
-        return str(entity.checksum)
-    return None
+        return note_content.file_checksum
+    return entity.checksum
 
 
 def required_runtime_deleted_note_text(
@@ -542,11 +556,7 @@ def plan_previous_materialized_note_file_delete(
     current_note_content: RuntimeMaterializedNoteSource | None,
 ) -> RuntimePendingNoteFileDelete | None:
     """Return old-file cleanup work when a moved note has materialized file state."""
-    file_checksum = (
-        str(current_note_content.file_checksum)
-        if current_note_content is not None and current_note_content.file_checksum is not None
-        else None
-    )
+    file_checksum = current_note_content.file_checksum if current_note_content is not None else None
     return plan_previous_note_file_delete(
         project_id=project_id,
         entity_id=entity_id,

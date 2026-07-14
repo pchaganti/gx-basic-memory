@@ -14,29 +14,21 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory import db
 from basic_memory.indexing.models import IndexFileJobStatus
-from basic_memory.models import Entity
+from basic_memory.models import Entity, Relation
 
 type EntityId = int
 type AffectedEntityIds = set[EntityId]
 RESOLVE_RELATIONS_DEBOUNCE_SECONDS = 10
 
 
-class RelationResolutionPass(Protocol):
-    """Capability that performs one relation-resolution pass."""
+class RelationResolutionRuntime(Protocol):
+    """Capability that owns relation resolution for one project."""
 
     async def resolve_relations(self) -> AffectedEntityIds:
         """Resolve currently visible relations and return affected source entity IDs."""
 
-
-class UnresolvedRelationCounter(Protocol):
-    """Capability that counts currently unresolved relations."""
-
     async def count_unresolved_relations(self) -> int:
         """Return the current unresolved relation count."""
-
-
-class RelationResolutionRuntime(RelationResolutionPass, UnresolvedRelationCounter, Protocol):
-    """Capability that owns relation resolution for one project."""
 
 
 class UnresolvedRelation(Protocol):
@@ -71,16 +63,21 @@ class RelationResolutionRelationRepository(Protocol):
     ) -> Sequence[UnresolvedRelation]:
         """Return unresolved relations for one source entity."""
 
+    # Positional-only parameters: the concrete implementation is the generic
+    # model repository, whose parameters are named for entities. `/` lets this
+    # contract name the relation id honestly without renaming the shared
+    # repository method.
     async def update(
         self,
         session: AsyncSession,
-        entity_id: int,
-        entity_data: dict[str, object],
-    ) -> object | None:
-        """Apply resolved target fields to one relation."""
+        relation_id: int,
+        resolved_target_fields: dict[str, int | str],
+        /,
+    ) -> Relation | None:
+        """Apply resolved target fields (to_id, to_name) to one relation row."""
 
-    async def delete(self, session: AsyncSession, entity_id: int) -> bool:
-        """Delete one redundant unresolved relation."""
+    async def delete(self, session: AsyncSession, relation_id: int, /) -> bool:
+        """Delete one redundant unresolved relation row."""
 
 
 class RelationResolutionEntityRepository(Protocol):
@@ -236,7 +233,13 @@ class ResolveRelationsJobRequest:
 
 @dataclass(frozen=True, slots=True)
 class ProjectIndexRelationResolutionContext:
-    """Project-index completion facts needed to queue relation resolution."""
+    """Project-index completion facts needed to queue relation resolution.
+
+    The wide identity types are deliberate: downstream runtimes rebuild this
+    context from legacy workflow metadata, where project_id may arrive as a
+    string and either field may be missing. Planning coerces or skips instead
+    of pushing malformed identity into a queue request.
+    """
 
     project_id: int | str | None
     project_path: str | None
@@ -269,7 +272,13 @@ async def resolve_project_index_completion_relations(
     *,
     max_passes: int = 3,
 ) -> ResolveRelationsResult | None:
-    """Run the final relation-resolution pass for a completed project index."""
+    """Run the final relation-resolution pass for a completed project index.
+
+    The context names the project so queue-based runtimes can plan an enqueue
+    from the same completion facts; the inline path resolves directly against
+    the already project-scoped runtime. A context without complete project
+    identity plans no request, so the resolution pass is skipped.
+    """
     request = plan_project_index_completion_relation_resolution(context)
     if request is None:
         return None
@@ -308,39 +317,6 @@ class ResolveRelationsResult:
         return max(0, self.unresolved_before - self.remaining)
 
 
-async def resolve_relations_until_stable(
-    *,
-    resolver: RelationResolutionPass,
-    unresolved_counter: UnresolvedRelationCounter,
-    max_passes: int = 3,
-) -> ResolveRelationsResult:
-    """Resolve all relations visible to the supplied capabilities.
-
-    The loop deliberately runs one confirming pass after a productive pass. This
-    lets queue workers catch writes that committed while the first pass was still
-    running, while the pass cap keeps a noisy resolver from looping forever.
-    """
-    unresolved_before = await unresolved_counter.count_unresolved_relations()
-    affected_entities: AffectedEntityIds = set()
-    passes = 0
-
-    while passes < max_passes:
-        affected = await resolver.resolve_relations()
-        passes += 1
-        affected_entities |= affected
-
-        if not affected:
-            break
-
-    remaining = await unresolved_counter.count_unresolved_relations()
-    return ResolveRelationsResult(
-        unresolved_before=unresolved_before,
-        remaining=remaining,
-        passes=passes,
-        affected_entities=len(affected_entities),
-    )
-
-
 async def resolve_project_relations(
     runtime: RelationResolutionRuntime,
     *,
@@ -349,15 +325,31 @@ async def resolve_project_relations(
     """Resolve all resolvable forward references for one project runtime.
 
     One pass resolves every relation that is unresolved at the moment it reads
-    the table. Queued runtimes can coalesce concurrent writes onto an in-flight
-    resolve job, so run until one pass changes nothing or the pass cap is
-    reached. Relations left after a stable pass are genuine forward references
-    and remain unresolved until their target note exists.
+    the table, and the loop deliberately runs one confirming pass after a
+    productive pass. Queued runtimes can coalesce concurrent writes onto an
+    in-flight resolve job, so the confirming pass catches writes that committed
+    while the first pass was still running, while the pass cap keeps a noisy
+    resolver from looping forever. Relations left after a stable pass are
+    genuine forward references and remain unresolved until their target note
+    exists.
     """
-    result = await resolve_relations_until_stable(
-        resolver=runtime,
-        unresolved_counter=runtime,
-        max_passes=max_passes,
+    unresolved_before = await runtime.count_unresolved_relations()
+    affected_entities: AffectedEntityIds = set()
+    passes = 0
+
+    while passes < max_passes:
+        affected = await runtime.resolve_relations()
+        passes += 1
+        affected_entities |= affected
+
+        if not affected:
+            break
+
+    result = ResolveRelationsResult(
+        unresolved_before=unresolved_before,
+        remaining=await runtime.count_unresolved_relations(),
+        passes=passes,
+        affected_entities=len(affected_entities),
     )
     logger.info(
         "Resolved project relations",

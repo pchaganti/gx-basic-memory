@@ -8,6 +8,7 @@ from basic_memory.runtime.note_content import (
     RuntimeDeletedNoteResponse,
     RuntimePendingNoteFileDelete,
     plan_accepted_note_delete_change,
+    runtime_deleted_note_permalink,
 )
 from basic_memory.runtime.storage import RUNTIME_MARKDOWN_CONTENT_TYPE
 
@@ -27,13 +28,13 @@ class _DeletedFileEntity:
     title: object | None
     permalink: object | None
     file_path: str
-    checksum: object | None
+    checksum: str | None
     content_type: str = RUNTIME_MARKDOWN_CONTENT_TYPE
 
 
 @dataclass(frozen=True, slots=True)
 class _DeletedNoteContent:
-    file_checksum: object | None
+    file_checksum: str | None
 
 
 def test_runtime_deleted_note_response_builds_pending_file_delete_payload() -> None:
@@ -78,6 +79,13 @@ def test_runtime_deleted_note_response_uses_file_path_when_permalink_is_missing(
         "file_path": "notes/deleted.md",
         "file_delete_status": "pending",
     }
+
+
+def test_runtime_deleted_note_permalink_requires_a_usable_fallback_path() -> None:
+    # A markdown entity with neither a permalink nor a real file path has no
+    # stable identity to publish in the delete payload.
+    with pytest.raises(RuntimeError, match="missing permalink"):
+        runtime_deleted_note_permalink(None, file_path=" ")
 
 
 @pytest.mark.parametrize(

@@ -13,9 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory import db
 from basic_memory.indexing.note_content_reconciler import (
-    NoteContentRepositories,
+    NoteContentStoreFactory,
     apply_note_content_update_plan,
-    build_default_note_content_repositories,
+    note_content_repository_for_project,
     note_content_state_from_model,
 )
 from basic_memory.indexing.note_content_reconciliation import (
@@ -165,7 +165,7 @@ class NoteMaterializationContentSource(RuntimeNoteContentVersionSource, Protocol
     def markdown_content(self) -> str: ...
 
     @property
-    def file_checksum(self) -> object | None: ...
+    def file_checksum(self) -> RuntimeFileChecksum | None: ...
 
 
 class NoteMaterializationFileWriter(Protocol):
@@ -280,10 +280,8 @@ def plan_note_materialization_preflight(
         plan_prepared_note_write(
             request=request,
             file_path=entity.file_path,
-            markdown_content=str(note_content.markdown_content),
-            previous_file_checksum=(
-                str(note_content.file_checksum) if note_content.file_checksum is not None else None
-            ),
+            markdown_content=note_content.markdown_content,
+            previous_file_checksum=note_content.file_checksum,
             attempted_at=attempted_at,
         )
     )
@@ -418,9 +416,7 @@ class RepositoryNoteMaterializationPublisher:
     session_lock: NoteMaterializationSessionLock = field(
         default_factory=NoopNoteMaterializationSessionLock
     )
-    repositories: NoteContentRepositories = field(
-        default_factory=build_default_note_content_repositories
-    )
+    note_content_store: NoteContentStoreFactory = note_content_repository_for_project
 
     async def publish_written_file_state(
         self,
@@ -455,14 +451,14 @@ class RepositoryNoteMaterializationPublisher:
             # concurrently, so guard every write on this db_version: if a newer
             # accepted write advanced the row between our read and our write, this
             # (now older) materialization must not revert the newer file_version.
-            expected_db_version = int(note_content.db_version)
+            expected_db_version = note_content.db_version
 
             if publish_plan.action is NoteMaterializationPublishAction.stale_file_path:
                 return publish_plan.result
 
             if publish_plan.action is NoteMaterializationPublishAction.stale_db_version:
                 await apply_note_content_update_plan(
-                    self.repositories.note_content_repository(request.project_id),
+                    self.note_content_store(request.project_id),
                     session,
                     request.entity_id,
                     publish_plan.require_note_content_update(),
@@ -486,7 +482,7 @@ class RepositoryNoteMaterializationPublisher:
                 )
 
             applied = await apply_note_content_update_plan(
-                self.repositories.note_content_repository(request.project_id),
+                self.note_content_store(request.project_id),
                 session,
                 request.entity_id,
                 publish_plan.require_note_content_update(),
@@ -521,9 +517,7 @@ class RepositoryNoteMaterializationStatusPublisher:
     session_lock: NoteMaterializationSessionLock = field(
         default_factory=NoopNoteMaterializationSessionLock
     )
-    repositories: NoteContentRepositories = field(
-        default_factory=build_default_note_content_repositories
-    )
+    note_content_store: NoteContentStoreFactory = note_content_repository_for_project
 
     async def publish_note_materialization_status(
         self,
@@ -556,7 +550,7 @@ class RepositoryNoteMaterializationStatusPublisher:
                 return
 
             await apply_note_content_update_plan(
-                self.repositories.note_content_repository(request.project_id),
+                self.note_content_store(request.project_id),
                 session,
                 request.entity_id,
                 plan,

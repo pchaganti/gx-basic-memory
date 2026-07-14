@@ -157,7 +157,12 @@ class FileIndexResult:
         checksum: str,
         operation: FileIndexOperation,
     ) -> FileIndexResult:
-        """Validate entity fields loaded for a completed file-index result."""
+        """Validate entity fields loaded for a completed file-index result.
+
+        Identity fields arrive as raw ORM values; a blank or non-string value
+        is a broken index row, so the job fails here instead of publishing a
+        malformed result downstream.
+        """
         return cls(
             file_path=file_path,
             entity_id=entity_id,
@@ -435,11 +440,11 @@ def plan_index_file_note_live_update(
 
 
 def _required_index_file_note_live_update_text(
-    value: object,
+    value: str | None,
     *,
     field_name: str,
 ) -> str:
-    if not isinstance(value, str) or not value.strip():
+    if value is None or not value.strip():
         raise RuntimeError(f"Observed_object index_file result is missing {field_name}")
     return value.strip()
 
@@ -465,7 +470,12 @@ class CurrentMaterializedNoteEntity:
         checksum: object,
         file_path: str,
     ) -> CurrentMaterializedNoteEntity:
-        """Validate entity fields loaded for a current materialized note."""
+        """Validate entity fields loaded for a current materialized note.
+
+        The entity permalink is nullable in the ORM, but a current markdown note
+        must carry one for its live-update identity, so a missing permalink is a
+        broken index row rather than a plannable state.
+        """
         return cls(
             entity_id=entity_id,
             external_id=_required_current_materialized_note_text(
@@ -485,6 +495,17 @@ class CurrentMaterializedNoteEntity:
             ),
             checksum=str(checksum) if checksum is not None else None,
         )
+
+
+def _required_current_materialized_note_text(
+    value: object,
+    *,
+    field_name: str,
+    file_path: str,
+) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError(f"Current entity for {file_path} is missing {field_name}")
+    return value.strip()
 
 
 @dataclass(frozen=True, slots=True)
@@ -518,17 +539,6 @@ class IndexedFileLiveUpdatePlan:
     actor_name: str | None = None
     live_update_source: RuntimeNoteChangeSource | None = None
     operation: FileIndexOperation | None = None
-
-
-def _required_current_materialized_note_text(
-    value: object,
-    *,
-    field_name: str,
-    file_path: str,
-) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise RuntimeError(f"Current entity for {file_path} is missing {field_name}")
-    return value.strip()
 
 
 def plan_current_materialized_note_result(

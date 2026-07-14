@@ -11,6 +11,7 @@ from basic_memory.indexing.models import (
     apply_project_index_batch_job_results,
     project_index_file_outcome_from_job_result,
 )
+from basic_memory.indexing.progress import CheckpointModel
 from basic_memory.indexing.project_index_coordinator import ProjectIndexRequest
 from basic_memory.indexing.project_index_progress import (
     ProjectIndexCounters,
@@ -22,6 +23,7 @@ from basic_memory.indexing.project_index_progress import (
     project_index_recorded_batches_from_metadata,
     should_emit_project_index_progress_event,
 )
+from basic_memory.runtime.projects import ProjectRuntimeReference
 from basic_memory.runtime.workflows import WorkflowId
 
 
@@ -67,192 +69,70 @@ class ProjectIndexWorkflowFailureUpdate:
     failed_event_data: dict[str, object]
 
 
-type ProjectIndexWorkflowStartStatus = Literal["running", "complete"]
-
-
 @dataclass(frozen=True, slots=True)
-class ProjectIndexWorkflowStartPlan:
-    """Portable decision for starting one project-index workflow."""
+class ProjectIndexWorkflowStartRunning:
+    """Non-terminal start: child batches remain to fan out."""
 
-    status: ProjectIndexWorkflowStartStatus
     workflow_start: ProjectIndexWorkflowStart
-    completion_update: ProjectIndexWorkflowCompletionUpdate | None = None
-
-    def __post_init__(self) -> None:
-        if self.status == "running":
-            if self.completion_update is not None:
-                raise ValueError("running start plans cannot include a completion update")
-            return
-
-        if self.completion_update is None:
-            raise ValueError("complete start plans require a completion update")
-
-    @classmethod
-    def running(cls, workflow_start: ProjectIndexWorkflowStart) -> Self:
-        """Return a non-terminal start plan."""
-        return cls(status="running", workflow_start=workflow_start)
-
-    @classmethod
-    def complete(
-        cls,
-        *,
-        workflow_start: ProjectIndexWorkflowStart,
-        completion_update: ProjectIndexWorkflowCompletionUpdate,
-    ) -> Self:
-        """Return an immediately terminal start plan."""
-        return cls(
-            status="complete",
-            workflow_start=workflow_start,
-            completion_update=completion_update,
-        )
-
-    @property
-    def is_complete(self) -> bool:
-        """Return whether the workflow should complete immediately after starting."""
-        return self.status == "complete"
-
-    def require_completion_update(self) -> ProjectIndexWorkflowCompletionUpdate:
-        """Return the completion update or fail when this is a running plan."""
-        if self.completion_update is None:
-            raise RuntimeError(f"{self.status} plan does not include a completion update")
-        return self.completion_update
-
-
-type ProjectIndexWorkflowRecordStatus = Literal["progress", "complete", "already_recorded"]
 
 
 @dataclass(frozen=True, slots=True)
-class ProjectIndexWorkflowRecordPlan:
-    """Portable decision for applying one child result to aggregate workflow state."""
+class ProjectIndexWorkflowStartComplete:
+    """Terminal start: an empty project completes immediately after starting."""
 
-    status: ProjectIndexWorkflowRecordStatus
-    progress_update: ProjectIndexWorkflowProgressUpdate | None = None
-    completion_update: ProjectIndexWorkflowCompletionUpdate | None = None
-
-    def __post_init__(self) -> None:
-        if self.status == "already_recorded":
-            if self.progress_update is not None or self.completion_update is not None:
-                raise ValueError("already_recorded plans cannot include updates")
-            return
-
-        if self.progress_update is None:
-            raise ValueError(f"{self.status} plans require a progress update")
-
-        if self.status == "progress" and self.completion_update is not None:
-            raise ValueError("progress plans cannot include a completion update")
-        if self.status == "complete" and self.completion_update is None:
-            raise ValueError("complete plans require a completion update")
-
-    @classmethod
-    def progress(
-        cls,
-        progress_update: ProjectIndexWorkflowProgressUpdate,
-    ) -> Self:
-        """Return a running progress plan."""
-        return cls(status="progress", progress_update=progress_update)
-
-    @classmethod
-    def complete(
-        cls,
-        *,
-        progress_update: ProjectIndexWorkflowProgressUpdate,
-        completion_update: ProjectIndexWorkflowCompletionUpdate,
-    ) -> Self:
-        """Return a terminal success plan."""
-        return cls(
-            status="complete",
-            progress_update=progress_update,
-            completion_update=completion_update,
-        )
-
-    @classmethod
-    def already_recorded(cls) -> Self:
-        """Return an idempotent no-op plan."""
-        return cls(status="already_recorded")
-
-    @property
-    def is_complete(self) -> bool:
-        """Return whether this plan completes the workflow."""
-        return self.status == "complete"
-
-    @property
-    def should_emit_progress_event(self) -> bool:
-        """Return whether the runtime should append a progress event."""
-        return (
-            self.status == "progress"
-            and self.progress_update is not None
-            and self.progress_update.should_emit_event
-        )
-
-    def require_progress_update(self) -> ProjectIndexWorkflowProgressUpdate:
-        """Return the progress update or fail when this is an idempotent no-op."""
-        if self.progress_update is None:
-            raise RuntimeError(f"{self.status} plan does not include a progress update")
-        return self.progress_update
-
-    def require_completion_update(self) -> ProjectIndexWorkflowCompletionUpdate:
-        """Return the completion update or fail when the plan is not terminal."""
-        if self.completion_update is None:
-            raise RuntimeError(f"{self.status} plan does not include a completion update")
-        return self.completion_update
+    workflow_start: ProjectIndexWorkflowStart
+    completion_update: ProjectIndexWorkflowCompletionUpdate
 
 
-type ProjectIndexStaleWorkflowStatus = Literal["keep_running", "fail"]
+type ProjectIndexWorkflowStartPlan = (
+    ProjectIndexWorkflowStartRunning | ProjectIndexWorkflowStartComplete
+)
 
 
 @dataclass(frozen=True, slots=True)
-class ProjectIndexStaleWorkflowPlan:
-    """Portable decision for one stale project-index workflow check."""
+class ProjectIndexWorkflowRecordProgress:
+    """Running update: the child result advanced aggregate counters."""
 
-    status: ProjectIndexStaleWorkflowStatus
-    activity_update: ProjectIndexBatchJobActivityUpdate | None = None
-    failure_update: ProjectIndexWorkflowFailureUpdate | None = None
+    progress_update: ProjectIndexWorkflowProgressUpdate
 
-    def __post_init__(self) -> None:
-        if self.status == "keep_running":
-            if self.activity_update is None:
-                raise ValueError("keep_running plans require an activity update")
-            if self.failure_update is not None:
-                raise ValueError("keep_running plans cannot include a failure update")
-            return
 
-        if self.failure_update is None:
-            raise ValueError("fail plans require a failure update")
-        if self.activity_update is not None:
-            raise ValueError("fail plans cannot include an activity update")
+@dataclass(frozen=True, slots=True)
+class ProjectIndexWorkflowRecordComplete:
+    """Terminal update: the child result finished the last outstanding file."""
 
-    @classmethod
-    def keep_running(
-        cls,
-        activity_update: ProjectIndexBatchJobActivityUpdate,
-    ) -> Self:
-        """Return a non-terminal activity update plan."""
-        return cls(status="keep_running", activity_update=activity_update)
+    progress_update: ProjectIndexWorkflowProgressUpdate
+    completion_update: ProjectIndexWorkflowCompletionUpdate
 
-    @classmethod
-    def fail(
-        cls,
-        failure_update: ProjectIndexWorkflowFailureUpdate,
-    ) -> Self:
-        """Return a terminal stale-failure plan."""
-        return cls(status="fail", failure_update=failure_update)
 
-    @property
-    def should_fail(self) -> bool:
-        """Return whether this stale check should fail the workflow."""
-        return self.status == "fail"
+@dataclass(frozen=True, slots=True)
+class ProjectIndexWorkflowAlreadyRecorded:
+    """Idempotent no-op: this batch already updated aggregate counters."""
 
-    def require_activity_update(self) -> ProjectIndexBatchJobActivityUpdate:
-        """Return the activity update or fail when this is a terminal plan."""
-        if self.activity_update is None:
-            raise RuntimeError(f"{self.status} plan does not include an activity update")
-        return self.activity_update
 
-    def require_failure_update(self) -> ProjectIndexWorkflowFailureUpdate:
-        """Return the failure update or fail when this is a keep-running plan."""
-        if self.failure_update is None:
-            raise RuntimeError(f"{self.status} plan does not include a failure update")
-        return self.failure_update
+type ProjectIndexWorkflowRecordPlan = (
+    ProjectIndexWorkflowRecordProgress
+    | ProjectIndexWorkflowRecordComplete
+    | ProjectIndexWorkflowAlreadyRecorded
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectIndexStaleWorkflowKeepRunning:
+    """Non-terminal stale check: unfinished child jobs were observed."""
+
+    activity_update: ProjectIndexBatchJobActivityUpdate
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectIndexStaleWorkflowFail:
+    """Terminal stale check: no child activity remains, so the workflow fails."""
+
+    failure_update: ProjectIndexWorkflowFailureUpdate
+
+
+type ProjectIndexStaleWorkflowPlan = (
+    ProjectIndexStaleWorkflowKeepRunning | ProjectIndexStaleWorkflowFail
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -299,6 +179,108 @@ class ProjectIndexBatchJobActivityUpdate:
     metadata: dict[str, object]
 
 
+# --- Checkpoint metadata write models ---
+# The workflow metadata document is validated with Pydantic on read (see
+# project_index_progress). These models are the matching typed write side:
+# field names and order define the persisted JSON shape, so builders dump
+# them instead of mutating dict[str, object] by string key.
+
+
+class ProjectIndexDiscoveryMetadata(CheckpointModel):
+    """Fan-out discovery facts recorded when a project-index workflow starts."""
+
+    total_files: int
+    batch_count: int
+    batch_size: int
+    discovered_at: str
+
+
+class ProjectIndexWorkflowStartMetadata(CheckpointModel):
+    """Initial checkpoint metadata document for a project-index workflow."""
+
+    phase: Literal["indexing"] = "indexing"
+    progress: str
+    payload: dict[str, object]
+    discovery: ProjectIndexDiscoveryMetadata
+    counters: dict[str, int]
+    transport: dict[str, object]
+
+
+class ProjectIndexWorkflowProgressMetadata(CheckpointModel):
+    """Checkpoint metadata fields rewritten by one running progress update."""
+
+    phase: Literal["indexing"] = "indexing"
+    progress: str
+    counters: dict[str, int]
+    # None means "leave any previously recorded batches untouched"; the field
+    # is dropped from the dump so per-file workflows never write the key.
+    recorded_batches: list[int] | None = None
+
+
+class ProjectIndexWorkflowCompletionMetadata(CheckpointModel):
+    """Checkpoint metadata fields rewritten by terminal workflow success."""
+
+    phase: Literal["completed"] = "completed"
+    progress: str
+    counters: dict[str, int]
+    result: dict[str, int]
+
+
+class ProjectIndexStaleDiagnostics(CheckpointModel):
+    """Diagnostics recorded when project-index batch fan-out stalls."""
+
+    reason: Literal["stale_project_index_batches"] = "stale_project_index_batches"
+    missing_batches: list[int]
+    recorded_batches: list[int]
+    # Despite the historical key name, this is the "legacy rows lack a
+    # batch_count" flag from ProjectIndexMissingBatches and persists as JSON
+    # true/false.
+    legacy_missing_batch_count: bool
+    last_heartbeat_at: str
+    stale_before: str
+
+
+class ProjectIndexWorkflowFailureMetadata(CheckpointModel):
+    """Checkpoint metadata fields rewritten by terminal workflow failure."""
+
+    phase: Literal["failed"] = "failed"
+    progress: str
+    counters: dict[str, int]
+    diagnostics: ProjectIndexStaleDiagnostics
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectIndexWorkflowAttemptEvent:
+    """Attempt event payload for one project-index workflow start.
+
+    Queue transport identity is opaque to core: the owning runtime's transport
+    fields are spliced between the discovery counts and the project identity
+    to keep persisted event shapes stable.
+    """
+
+    progress: str
+    total_files: int
+    batch_count: int
+    batch_size: int
+    transport_event_data: Mapping[str, object]
+    project: ProjectRuntimeReference
+
+    def to_event_data(self) -> dict[str, object]:
+        """Serialize to the persisted attempt event shape."""
+        return {
+            "phase": "indexing",
+            "progress": self.progress,
+            "total_files": self.total_files,
+            "batch_count": self.batch_count,
+            "batch_size": self.batch_size,
+            **dict(self.transport_event_data),
+            "project_id": self.project.project_id,
+            "project_name": self.project.project_name,
+            "project_permalink": self.project.project_permalink,
+            "project_path": self.project.project_path,
+        }
+
+
 def build_project_index_batch_activity_update(
     *,
     metadata: Mapping[str, object],
@@ -330,41 +312,35 @@ def build_project_index_workflow_start(
 
     Queue transport identity is opaque to core: the runtime that owns the queue
     passes its durable ``transport`` metadata dict and any transport fields it
-    wants merged into the attempt event (inserted between the discovery counts
-    and the project identity to keep persisted event shapes stable).
+    wants merged into the attempt event (see ProjectIndexWorkflowAttemptEvent).
     """
     counters = initial_project_index_counters(total_files)
     progress = project_index_progress_text(counters)
-    payload = request.workflow_payload_metadata()
-    metadata: dict[str, object] = {
-        "phase": "indexing",
-        "progress": progress,
-        "payload": payload,
-        "discovery": {
-            "total_files": total_files,
-            "batch_count": batch_count,
-            "batch_size": batch_size,
-            "discovered_at": discovered_at,
-        },
-        "counters": counters.to_metadata(),
-        "transport": dict(transport_metadata),
-    }
+    start_metadata = ProjectIndexWorkflowStartMetadata(
+        progress=progress,
+        payload=request.workflow_payload_metadata(),
+        discovery=ProjectIndexDiscoveryMetadata(
+            total_files=total_files,
+            batch_count=batch_count,
+            batch_size=batch_size,
+            discovered_at=discovered_at,
+        ),
+        counters=counters.to_metadata(),
+        transport=dict(transport_metadata),
+    )
+    attempt_event = ProjectIndexWorkflowAttemptEvent(
+        progress=progress,
+        total_files=total_files,
+        batch_count=batch_count,
+        batch_size=batch_size,
+        transport_event_data=transport_event_data,
+        project=request.project,
+    )
     return ProjectIndexWorkflowStart(
         counters=counters,
         progress=progress,
-        metadata=metadata,
-        attempt_event_data={
-            "phase": "indexing",
-            "progress": progress,
-            "total_files": total_files,
-            "batch_count": batch_count,
-            "batch_size": batch_size,
-            **dict(transport_event_data),
-            "project_id": request.project.project_id,
-            "project_name": request.project.project_name,
-            "project_permalink": request.project.project_permalink,
-            "project_path": request.project.project_path,
-        },
+        metadata=start_metadata.model_dump(),
+        attempt_event_data=attempt_event.to_event_data(),
     )
 
 
@@ -389,7 +365,7 @@ def plan_project_index_workflow_start(
         transport_event_data=transport_event_data,
     )
     if total_files == 0:
-        return ProjectIndexWorkflowStartPlan.complete(
+        return ProjectIndexWorkflowStartComplete(
             workflow_start=workflow_start,
             completion_update=build_project_index_workflow_completion_update(
                 metadata=workflow_start.metadata,
@@ -397,7 +373,7 @@ def plan_project_index_workflow_start(
                 progress=workflow_start.progress,
             ),
         )
-    return ProjectIndexWorkflowStartPlan.running(workflow_start)
+    return ProjectIndexWorkflowStartRunning(workflow_start)
 
 
 def build_project_index_workflow_progress_update(
@@ -409,12 +385,15 @@ def build_project_index_workflow_progress_update(
     """Build updated persisted metadata for a running project-index workflow."""
     progress = project_index_progress_text(counters)
     counters_metadata = counters.to_metadata()
+    progress_metadata = ProjectIndexWorkflowProgressMetadata(
+        progress=progress,
+        counters=counters_metadata,
+        recorded_batches=(
+            list(recorded_batch_indexes) if recorded_batch_indexes is not None else None
+        ),
+    )
     updated_metadata = dict(metadata)
-    updated_metadata["phase"] = "indexing"
-    updated_metadata["progress"] = progress
-    updated_metadata["counters"] = counters_metadata
-    if recorded_batch_indexes is not None:
-        updated_metadata["recorded_batches"] = list(recorded_batch_indexes)
+    updated_metadata.update(progress_metadata.model_dump(exclude_none=True))
 
     return ProjectIndexWorkflowProgressUpdate(
         counters=counters,
@@ -438,11 +417,13 @@ def build_project_index_workflow_completion_update(
 ) -> ProjectIndexWorkflowCompletionUpdate:
     """Build terminal success metadata for a project-index workflow."""
     counters_metadata = counters.to_metadata()
+    completion_metadata = ProjectIndexWorkflowCompletionMetadata(
+        progress=progress,
+        counters=counters_metadata,
+        result=counters_metadata,
+    )
     completed_metadata = dict(metadata)
-    completed_metadata["phase"] = "completed"
-    completed_metadata["progress"] = progress
-    completed_metadata["counters"] = counters_metadata
-    completed_metadata["result"] = counters_metadata
+    completed_metadata.update(completion_metadata.model_dump())
 
     return ProjectIndexWorkflowCompletionUpdate(
         counters=counters,
@@ -488,7 +469,7 @@ def plan_project_index_file_result_record(
         counters=counters,
     )
     if counters.processed >= counters.total:
-        return ProjectIndexWorkflowRecordPlan.complete(
+        return ProjectIndexWorkflowRecordComplete(
             progress_update=progress_update,
             completion_update=build_project_index_workflow_completion_update(
                 metadata=progress_update.metadata,
@@ -496,7 +477,7 @@ def plan_project_index_file_result_record(
                 progress=progress_update.progress,
             ),
         )
-    return ProjectIndexWorkflowRecordPlan.progress(progress_update)
+    return ProjectIndexWorkflowRecordProgress(progress_update)
 
 
 def plan_project_index_batch_result_record(
@@ -520,7 +501,7 @@ def plan_project_index_batch_result_record(
         results=results,
     )
     if batch_update.already_recorded:
-        return ProjectIndexWorkflowRecordPlan.already_recorded()
+        return ProjectIndexWorkflowAlreadyRecorded()
 
     counters = batch_update.counters
     progress_update = build_project_index_workflow_progress_update(
@@ -529,7 +510,7 @@ def plan_project_index_batch_result_record(
         recorded_batch_indexes=batch_update.recorded_batch_indexes,
     )
     if batch_update.is_complete:
-        return ProjectIndexWorkflowRecordPlan.complete(
+        return ProjectIndexWorkflowRecordComplete(
             progress_update=progress_update,
             completion_update=build_project_index_workflow_completion_update(
                 metadata=progress_update.metadata,
@@ -537,7 +518,7 @@ def plan_project_index_batch_result_record(
                 progress=progress_update.progress,
             ),
         )
-    return ProjectIndexWorkflowRecordPlan.progress(progress_update)
+    return ProjectIndexWorkflowRecordProgress(progress_update)
 
 
 def plan_project_index_stale_workflow(
@@ -551,7 +532,7 @@ def plan_project_index_stale_workflow(
 ) -> ProjectIndexStaleWorkflowPlan:
     """Plan how a runtime should update one stale project-index workflow."""
     if active_batch_jobs.has_unfinished_jobs:
-        return ProjectIndexStaleWorkflowPlan.keep_running(
+        return ProjectIndexStaleWorkflowKeepRunning(
             build_project_index_batch_activity_update(
                 metadata=metadata,
                 activity=active_batch_jobs,
@@ -564,7 +545,7 @@ def plan_project_index_stale_workflow(
         workflow_id=workflow_id,
     )
     missing_batch_plan = project_index_missing_batches_from_metadata(metadata)
-    return ProjectIndexStaleWorkflowPlan.fail(
+    return ProjectIndexStaleWorkflowFail(
         build_project_index_workflow_stale_failure_update(
             metadata=metadata,
             counters=counters,
@@ -583,32 +564,30 @@ def build_project_index_workflow_stale_failure_update(
     counters: ProjectIndexCounters,
     missing_batch_indexes: Sequence[int],
     recorded_batch_indexes: Sequence[int],
-    legacy_missing_batch_count: int,
+    legacy_missing_batch_count: bool,
     last_heartbeat_at: str,
     stale_before: str,
 ) -> ProjectIndexWorkflowFailureUpdate:
     """Build terminal failure metadata for stale project-index batch fan-out."""
     missing_batches = list(missing_batch_indexes)
-    recorded_batches = list(recorded_batch_indexes)
     if legacy_missing_batch_count:
         error_message = "Project index stalled with legacy batch metadata"
     else:
         error_message = f"Project index stalled with {len(missing_batches)} unreported batch(es)"
     progress = f"Project index stalled after {counters.processed}/{counters.total} files"
-    diagnostics: dict[str, object] = {
-        "reason": "stale_project_index_batches",
-        "missing_batches": missing_batches,
-        "recorded_batches": recorded_batches,
-        "legacy_missing_batch_count": legacy_missing_batch_count,
-        "last_heartbeat_at": last_heartbeat_at,
-        "stale_before": stale_before,
-    }
-    counters_metadata = counters.to_metadata()
+    failure_metadata = ProjectIndexWorkflowFailureMetadata(
+        progress=progress,
+        counters=counters.to_metadata(),
+        diagnostics=ProjectIndexStaleDiagnostics(
+            missing_batches=missing_batches,
+            recorded_batches=list(recorded_batch_indexes),
+            legacy_missing_batch_count=legacy_missing_batch_count,
+            last_heartbeat_at=last_heartbeat_at,
+            stale_before=stale_before,
+        ),
+    )
     failed_metadata = dict(metadata)
-    failed_metadata["phase"] = "failed"
-    failed_metadata["progress"] = progress
-    failed_metadata["counters"] = counters_metadata
-    failed_metadata["diagnostics"] = diagnostics
+    failed_metadata.update(failure_metadata.model_dump())
 
     return ProjectIndexWorkflowFailureUpdate(
         counters=counters,
@@ -620,6 +599,6 @@ def build_project_index_workflow_stale_failure_update(
             "progress": progress,
             "payload": failed_metadata.get("payload") or {},
             "error": error_message,
-            "diagnostics": diagnostics,
+            "diagnostics": failed_metadata["diagnostics"],
         },
     )
