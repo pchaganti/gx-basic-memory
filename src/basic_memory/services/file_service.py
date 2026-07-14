@@ -20,6 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 from basic_memory.file_utils import FileError, FileMetadata, ParseError
 from basic_memory.markdown.markdown_processor import MarkdownProcessor
 from basic_memory.models import Entity as EntityModel
+from basic_memory.runtime.storage import RUNTIME_MARKDOWN_CONTENT_TYPE
 from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.services.exceptions import FileOperationError
 from basic_memory.utils import FilePath
@@ -139,6 +140,23 @@ class FileService:
         except Exception as e:
             logger.error("Failed to check file existence", path=str(path), error=str(e))
             raise FileOperationError(f"Failed to check file existence: {e}")
+
+    def paths_share_storage_target(self, left: FilePath, right: FilePath) -> bool:
+        """Return whether two project paths resolve to the same physical file.
+
+        Distinguishes a genuine rename from a case-only rename on a
+        case-insensitive filesystem (APFS/NTFS), where ``Notes/Foo.md`` and
+        ``notes/foo.md`` are the same inode. Returns False when either path is
+        absent (nothing shared to protect) or the check errors.
+        """
+        left_abs = self.base_path / left if isinstance(left, str) else left
+        right_abs = self.base_path / right if isinstance(right, str) else right
+        if not left_abs.exists() or not right_abs.exists():
+            return False
+        try:
+            return left_abs.samefile(right_abs)
+        except OSError:
+            return False
 
     async def ensure_directory(self, path: FilePath) -> None:
         """Ensure directory exists, creating if necessary.
@@ -613,4 +631,4 @@ class FileService:
         Returns:
             True if the file is a markdown file, False otherwise
         """
-        return self.content_type(path) == "text/markdown"
+        return self.content_type(path) == RUNTIME_MARKDOWN_CONTENT_TYPE

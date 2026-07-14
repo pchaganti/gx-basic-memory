@@ -27,7 +27,9 @@ from basic_memory.api.v2.routers.project_router import (
     synchronize_projects,
 )
 import logfire
+from basic_memory.cloud.note_content_materialization import drain_pending_materializations
 from basic_memory.config import init_api_logging
+from basic_memory.deps.services import drain_background_tasks
 from basic_memory.services.exceptions import EntityAlreadyExistsError
 from basic_memory.services.initialization import initialize_app
 from basic_memory.workspace_context import (
@@ -67,10 +69,10 @@ async def lifespan(app: FastAPI):  # pragma: no cover
         app.state.session_maker = session_maker
         logger.info("Database connections cached in app state")
 
-        # Create and start sync coordinator (lifecycle centralized in coordinator)
-        sync_coordinator = container.create_sync_coordinator()
-        await sync_coordinator.start()
-        app.state.sync_coordinator = sync_coordinator
+        # Create and start local watch coordinator (lifecycle centralized in coordinator)
+        watch_coordinator = container.create_watch_coordinator()
+        await watch_coordinator.start()
+        app.state.watch_coordinator = watch_coordinator
 
     # Proceed with startup
     yield
@@ -82,7 +84,13 @@ async def lifespan(app: FastAPI):  # pragma: no cover
         mode=container.mode.name.lower(),
     ):
         logger.info("Shutting down Basic Memory API")
-        await sync_coordinator.stop()
+        await watch_coordinator.stop()
+        # A local note write returns 202 before its markdown file is written;
+        # SIGTERM can land while that materialization (and the vector sync /
+        # relation resolution it schedules) is still queued. Drain both queues
+        # before the engine closes so an accepted write is never lost.
+        await drain_pending_materializations()
+        await drain_background_tasks()
         await container.shutdown_database()
 
 

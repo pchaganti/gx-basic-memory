@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from loguru import logger
 
 from basic_memory.markdown.schemas import (
     EntityFrontmatter,
@@ -104,9 +105,9 @@ async def test_update_entity_relations_uses_pk_reload(entity_service: EntityServ
     original_find_by_ids = entity_service.repository.find_by_ids
     find_by_ids_calls = []
 
-    async def spy_find_by_ids(ids):
+    async def spy_find_by_ids(session, ids):
         find_by_ids_calls.append(ids)
-        return await original_find_by_ids(ids)
+        return await original_find_by_ids(session, ids)
 
     monkeypatch.setattr(entity_service.repository, "find_by_ids", spy_find_by_ids)
 
@@ -186,9 +187,12 @@ async def test_upsert_with_relations_uses_lightweight_exact_resolution(
     )
     await entity_service.upsert_entity_from_markdown(Path(source.file_path), markdown, is_new=False)
 
-    assert resolve_calls == [
-        ("Lightweight Target", {"strict": True, "load_relations": False}),
-    ]
+    assert len(resolve_calls) == 1
+    link_text, kwargs = resolve_calls[0]
+    assert link_text == "Lightweight Target"
+    assert kwargs["strict"] is True
+    assert kwargs["load_relations"] is False
+    assert "session" in kwargs
 
 
 @pytest.mark.asyncio
@@ -307,6 +311,57 @@ async def test_upsert_deferred_relation_resolution_does_not_guess_duplicate_titl
     assert len(outgoing) == 1
     assert outgoing[0].to_id is None
     assert outgoing[0].to_name == "Duplicate Title"
+
+
+@pytest.mark.asyncio
+async def test_resolve_failure_is_logged_and_degrades_to_forward_reference(
+    entity_service: EntityService, monkeypatch
+):
+    """A raising relation lookup must be logged (not silently swallowed) and still
+    degrade to a forward reference while the surrounding write succeeds."""
+    source = await entity_service.create_entity(
+        EntitySchema(
+            title="Failing Resolve Source",
+            directory="notes",
+            note_type="note",
+            content="# Failing Resolve Source",
+        )
+    )
+
+    async def failing_resolve_link(link_text: str, **kwargs):
+        raise RuntimeError("lookup exploded")
+
+    monkeypatch.setattr(entity_service.link_resolver, "resolve_link", failing_resolve_link)
+
+    records: list[dict] = []
+    sink_id = logger.add(lambda message: records.append(message.record), level="WARNING")
+    try:
+        markdown = _make_markdown(
+            title="Failing Resolve Source",
+            relations=[MarkdownRelation(type="links_to", target="Missing Target")],
+        )
+        updated = await entity_service.upsert_entity_from_markdown(
+            Path(source.file_path),
+            markdown,
+            is_new=False,
+        )
+    finally:
+        logger.remove(sink_id)
+
+    # The write survived the failed lookup and stored a forward reference.
+    outgoing = updated.outgoing_relations
+    assert len(outgoing) == 1
+    assert outgoing[0].to_id is None
+    assert outgoing[0].to_name == "Missing Target"
+
+    warnings = [
+        record
+        for record in records
+        if "Relation target resolution failed for 'Missing Target'" in record["message"]
+    ]
+    assert len(warnings) == 1
+    assert warnings[0]["extra"]["error"] == "lookup exploded"
+    assert warnings[0]["extra"]["entity_id"] == source.id
 
 
 # --- Correctness: full round-trip ---
