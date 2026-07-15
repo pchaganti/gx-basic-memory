@@ -1,14 +1,28 @@
 import json
 import os
+import shlex
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
 
-HOOK_RUNTIME_AVAILABLE = shutil.which("bash") is not None and shutil.which("python3") is not None
+def _resolve_bash_executable(*, platform_name: str = os.name) -> str | None:
+    """Prefer Git Bash over Windows' WSL launcher for hook execution."""
+    if platform_name == "nt":
+        git_executable = shutil.which("git")
+        if git_executable:
+            git_bash = Path(git_executable).resolve().parent.parent / "bin" / "bash.exe"
+            if git_bash.is_file():
+                return str(git_bash)
+    return shutil.which("bash")
+
+
+BASH_EXECUTABLE = _resolve_bash_executable()
+HOOK_RUNTIME_AVAILABLE = BASH_EXECUTABLE is not None and shutil.which("python3") is not None
 pytestmark = pytest.mark.skipif(
     not HOOK_RUNTIME_AVAILABLE,
     reason="Claude Code hook tests require bash and python3",
@@ -30,17 +44,32 @@ class HookHarness:
             encoding="utf-8",
         )
 
-    def run_hook(self, hook_name: str, payload: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    def run_hook(
+        self,
+        hook_name: str,
+        payload: dict[str, str],
+        *,
+        basic_memory_command: str | None = None,
+        use_default_cli_discovery: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        assert BASH_EXECUTABLE is not None
         env = os.environ.copy()
         env.update(
             {
                 "BM_TEST_COMMAND_LOG": str(self.command_log),
                 "HOME": str(self.home),
                 "PATH": f"{self.bin_dir}{os.pathsep}{env['PATH']}",
+                "USERPROFILE": str(self.home),
             }
         )
+        if use_default_cli_discovery:
+            env.pop("BM_BIN", None)
+        else:
+            env["BM_BIN"] = basic_memory_command or shlex.join(
+                [sys.executable, str(self.bin_dir / "basic memory")]
+            )
         return subprocess.run(
-            ["bash", str(self.repo_root / "plugins/claude-code/hooks" / hook_name)],
+            [BASH_EXECUTABLE, str(self.repo_root / "plugins/claude-code/hooks" / hook_name)],
             input=json.dumps(payload),
             capture_output=True,
             check=False,
@@ -63,9 +92,7 @@ def hook_harness(tmp_path: Path) -> HookHarness:
     bin_dir.mkdir()
     command_log = tmp_path / "basic-memory-commands.jsonl"
 
-    fake_basic_memory = bin_dir / "basic-memory"
-    fake_basic_memory.write_text(
-        """#!/usr/bin/env python3
+    fake_script = """#!/usr/bin/env python3
 import json
 import os
 import sys
@@ -75,10 +102,11 @@ with open(os.environ["BM_TEST_COMMAND_LOG"], "a", encoding="utf-8") as command_l
 
 if sys.argv[1:3] == ["tool", "search-notes"]:
     print(json.dumps({"results": []}))
-""",
-        encoding="utf-8",
-    )
-    fake_basic_memory.chmod(0o755)
+"""
+    for command_name in ("basic memory", "basic-memory"):
+        fake_basic_memory = bin_dir / command_name
+        fake_basic_memory.write_text(fake_script, encoding="utf-8")
+        fake_basic_memory.chmod(0o755)
 
     return HookHarness(
         repo_root=repo_root,
@@ -86,6 +114,77 @@ if sys.argv[1:3] == ["tool", "search-notes"]:
         bin_dir=bin_dir,
         command_log=command_log,
     )
+
+
+def test_resolve_bash_executable_prefers_git_bash_on_windows(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    git_root = tmp_path / "Git"
+    git_executable = git_root / "cmd/git.exe"
+    git_bash = git_root / "bin/bash.exe"
+    git_executable.parent.mkdir(parents=True)
+    git_executable.touch()
+    git_bash.parent.mkdir(parents=True)
+    git_bash.touch()
+
+    def fake_which(command: str) -> str | None:
+        if command == "git":
+            return str(git_executable)
+        if command == "bash":
+            return "C:/Windows/System32/bash.exe"
+        return None
+
+    monkeypatch.setattr(shutil, "which", fake_which)
+
+    assert _resolve_bash_executable(platform_name="nt") == str(git_bash)
+
+
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Windows cannot execute the fixture's extensionless shebang script directly",
+)
+def test_session_start_preserves_raw_cli_path_with_spaces(hook_harness: HookHarness) -> None:
+    hook_harness.write_settings(
+        hook_harness.home,
+        "settings.json",
+        {"primaryProject": "global-project"},
+    )
+    cwd = hook_harness.home / "work/repo"
+    cwd.mkdir(parents=True)
+
+    result = hook_harness.run_hook(
+        "session-start.sh",
+        {"cwd": str(cwd)},
+        basic_memory_command=str(hook_harness.bin_dir / "basic memory"),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "**Project:** global-project" in result.stdout
+
+
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Windows cannot execute the fixture's extensionless shebang script directly",
+)
+def test_session_start_discovers_basic_memory_from_path(hook_harness: HookHarness) -> None:
+    hook_harness.write_settings(
+        hook_harness.home,
+        "settings.json",
+        {"primaryProject": "global-project"},
+    )
+    cwd = hook_harness.home / "work/repo"
+    cwd.mkdir(parents=True)
+
+    result = hook_harness.run_hook(
+        "session-start.sh",
+        {"cwd": str(cwd)},
+        use_default_cli_discovery=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "**Project:** global-project" in result.stdout
+    assert hook_harness.logged_commands()
 
 
 def test_session_start_uses_user_settings_without_project_config(

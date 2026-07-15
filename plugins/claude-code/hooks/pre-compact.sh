@@ -19,10 +19,13 @@ set -u
 
 input="$(cat 2>/dev/null || true)"
 
-# Resolve how to invoke the Basic Memory CLI — prefer a binary on PATH, fall back to
-# uvx / uv so checkpointing still works when BM was connected only as an ephemeral
-# `uvx basic-memory mcp` server (no persistent CLI). Silent no-op if none available.
-if command -v basic-memory >/dev/null 2>&1; then
+# Resolve how to invoke the Basic Memory CLI — prefer an explicit command when the
+# host configured one, then a binary on PATH. Fall back to uvx / uv so checkpointing
+# still works when BM was connected only as an ephemeral `uvx basic-memory mcp`
+# server (no persistent CLI). Silent no-op if none available.
+if [[ -n "${BM_BIN:-}" ]]; then
+    BM="$BM_BIN"
+elif command -v basic-memory >/dev/null 2>&1; then
     BM="basic-memory"
 elif command -v bm >/dev/null 2>&1; then
     BM="bm"
@@ -43,9 +46,19 @@ import subprocess
 import sys
 from datetime import datetime
 
-# May be a single binary ("basic-memory") or a multi-token launcher
-# ("uvx basic-memory"); split so it prepends cleanly onto the write command.
-bm_cmd = shlex.split(os.environ.get("BM_BIN") or "basic-memory")
+def command_argv(configured):
+    """Preserve one literal executable path, otherwise parse a shell-style command."""
+    # Trigger: Windows paths commonly contain spaces and backslashes.
+    # Why: POSIX shlex would split the spaces and consume backslashes from an
+    # unquoted native path such as C:\Program Files\Basic Memory\basic-memory.exe.
+    # Outcome: an existing executable path stays one argv element; multi-token
+    # launchers such as "uvx basic-memory" retain the existing command contract.
+    if os.path.isfile(configured):
+        return [configured]
+    return shlex.split(configured)
+
+
+bm_cmd = command_argv(os.environ.get("BM_BIN") or "basic-memory")
 
 # A project ref can be a workspace-qualified name (route via --project) or an
 # external_id UUID (route via --project-id) — names collide across workspaces, so
