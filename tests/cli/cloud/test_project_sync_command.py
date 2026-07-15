@@ -8,7 +8,7 @@ import typer
 from typer.testing import CliRunner
 
 from basic_memory.cli.app import app
-from basic_memory.cli.commands.cloud.rclone_commands import TransferPlan
+from basic_memory.cli.commands.cloud.rclone_commands import RcloneError, TransferPlan
 from basic_memory.config import ProjectEntry, ProjectMode
 from basic_memory.schemas.cloud import WorkspaceInfo
 
@@ -17,7 +17,7 @@ runner = CliRunner()
 
 @pytest.mark.parametrize(
     "command",
-    ["sync", "bisync", "check", "bisync-reset"],
+    ["sync", "bisync", "check", "bisync-reset", "prune"],
 )
 def test_cloud_mirror_command_help_marks_personal_workspaces_only(command):
     """Mirror-family help must say Personal-only and point Team users at push/pull (#851)."""
@@ -49,25 +49,31 @@ def test_cloud_sync_commands_skip_explicit_cloud_project_sync(monkeypatch, argv,
     config_manager.save_config(config)
 
     monkeypatch.setattr(project_sync_command, "_require_cloud_credentials", lambda _config: None)
+    target_workspace = _workspace("personal-tenant", "personal", "personal", is_default=True)
     monkeypatch.setattr(
-        project_sync_command, "_require_personal_workspace", lambda _name, _config, **_kwargs: None
+        project_sync_command,
+        "_require_personal_workspace",
+        lambda _name, _config, **_kwargs: target_workspace,
     )
     monkeypatch.setattr(
         project_sync_command,
         "get_mount_info",
-        lambda: _async_value(SimpleNamespace(bucket_name="tenant-bucket")),
+        lambda **_kwargs: _async_value(SimpleNamespace(bucket_name="tenant-bucket")),
     )
     monkeypatch.setattr(
         project_sync_command,
         "_get_cloud_project",
-        lambda _name: _async_value(
+        lambda _name, **_kwargs: _async_value(
             SimpleNamespace(name="research", external_id="external-project-id", path="research")
         ),
     )
     monkeypatch.setattr(
         project_sync_command,
         "_get_sync_project",
-        lambda _name, _config, _project_data: (SimpleNamespace(name="research"), "/tmp/research"),
+        lambda _name, _config, _project_data, **_kwargs: (
+            SimpleNamespace(name="research"),
+            "/tmp/research",
+        ),
     )
     monkeypatch.setattr(project_sync_command, "project_sync", lambda *args, **kwargs: True)
     monkeypatch.setattr(project_sync_command, "project_bisync", lambda *args, **kwargs: True)
@@ -198,6 +204,7 @@ def test_cloud_sync_blocks_organization_workspace(monkeypatch, config_manager):
 def test_cloud_sync_allows_personal_workspace(monkeypatch, config_manager):
     """Personal workspaces keep the one-way mirror sync available."""
     project_sync_command = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+    routing: dict = {}
 
     config = config_manager.load_config()
     config.cloud_api_key = "bmc_test"
@@ -212,24 +219,39 @@ def test_cloud_sync_allows_personal_workspace(monkeypatch, config_manager):
     monkeypatch.setattr(
         project_sync_command,
         "get_available_workspaces",
-        lambda: _async_value([_workspace("personal-tenant", "personal", "personal")]),
+        lambda: _async_value([_workspace("personal-tenant", "personal", "personal-alt")]),
     )
+
+    def _mount_info(**kwargs):
+        routing["mount_workspace_id"] = kwargs.get("workspace_id")
+        return _async_value(SimpleNamespace(bucket_name="tenant-bucket"))
+
     monkeypatch.setattr(
         project_sync_command,
         "get_mount_info",
-        lambda: _async_value(SimpleNamespace(bucket_name="tenant-bucket")),
+        _mount_info,
     )
+
+    def _cloud_project(_name, **kwargs):
+        routing["project_workspace_id"] = kwargs.get("workspace_id")
+        return _async_value(
+            SimpleNamespace(name="research", external_id="external-project-id", path="research")
+        )
+
     monkeypatch.setattr(
         project_sync_command,
         "_get_cloud_project",
-        lambda _name: _async_value(
-            SimpleNamespace(name="research", external_id="external-project-id", path="research")
-        ),
+        _cloud_project,
     )
+
+    def _sync_project(_name, _config, _project_data, **kwargs):
+        routing["remote_name"] = kwargs.get("remote_name")
+        return SimpleNamespace(name="research"), "/tmp/research"
+
     monkeypatch.setattr(
         project_sync_command,
         "_get_sync_project",
-        lambda _name, _config, _project_data: (SimpleNamespace(name="research"), "/tmp/research"),
+        _sync_project,
     )
     monkeypatch.setattr(project_sync_command, "project_sync", lambda *args, **kwargs: True)
 
@@ -237,6 +259,11 @@ def test_cloud_sync_allows_personal_workspace(monkeypatch, config_manager):
 
     assert result.exit_code == 0, result.output
     assert "research synced successfully" in result.output
+    assert routing == {
+        "mount_workspace_id": "personal-tenant",
+        "project_workspace_id": "personal-tenant",
+        "remote_name": "basic-memory-cloud-personal-alt",
+    }
 
 
 def test_require_personal_workspace_allows_personal_workspace(monkeypatch, config_manager):
@@ -638,6 +665,241 @@ def test_get_workspace_for_project_override_no_match_raises(monkeypatch, config_
         )
 
     assert "No accessible workspace matches 'acme'" in str(exc_info.value)
+
+
+# --- bm cloud prune (issue #1032) ---
+
+
+def _stub_prune_env(
+    monkeypatch,
+    module,
+    *,
+    matches,
+    prune_result=True,
+    recorder=None,
+    workspace=None,
+):
+    """Stub the prune dependency chain so only preview/confirm/delete logic runs."""
+    prune_filter = object()
+    target_workspace = workspace or _workspace(
+        "personal-tenant",
+        "personal",
+        "personal",
+        is_default=True,
+    )
+    monkeypatch.setattr(module, "_require_cloud_credentials", lambda _config: None)
+    monkeypatch.setattr(
+        module,
+        "_require_personal_workspace",
+        lambda _name, _config, **_kwargs: target_workspace,
+    )
+
+    def _mount_info(**kwargs):
+        if recorder is not None:
+            recorder["mount_workspace_id"] = kwargs.get("workspace_id")
+        return _async_value(SimpleNamespace(bucket_name="tenant-bucket"))
+
+    monkeypatch.setattr(
+        module,
+        "get_mount_info",
+        _mount_info,
+    )
+
+    def _cloud_project(_name, **kwargs):
+        if recorder is not None:
+            recorder["project_workspace_id"] = kwargs.get("workspace_id")
+        return _async_value(SimpleNamespace(name="research", path="research"))
+
+    monkeypatch.setattr(
+        module,
+        "_get_cloud_project",
+        _cloud_project,
+    )
+    monkeypatch.setattr(module, "get_bmignore_prune_filter_path", lambda: prune_filter)
+
+    def _fake_preview(*args, **kwargs):
+        if recorder is not None:
+            recorder["preview_kwargs"] = kwargs
+            recorder["prune_filter"] = prune_filter
+        return matches
+
+    monkeypatch.setattr(module, "project_prune_preview", _fake_preview)
+
+    def _fake_prune(*args, **kwargs):
+        if recorder is not None:
+            recorder["args"] = args
+            recorder["kwargs"] = kwargs
+        return prune_result
+
+    monkeypatch.setattr(module, "project_prune", _fake_prune)
+
+
+def test_cloud_prune_dry_run_previews_without_deleting(monkeypatch, config_manager):
+    """--dry-run lists the matching cloud files and never deletes."""
+    module = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+    recorder: dict = {}
+    _stub_prune_env(
+        monkeypatch, module, matches=["secret.env", "secrets/leak.md"], recorder=recorder
+    )
+
+    result = runner.invoke(app, ["cloud", "prune", "--name", "research", "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    output = " ".join(result.output.split())
+    assert "2 cloud file(s) match .bmignore" in output
+    assert "secret.env" in output
+    assert "secrets/leak.md" in output
+    assert "nothing deleted" in output.lower()
+    assert "args" not in recorder  # delete never ran
+
+
+def test_cloud_prune_confirmation_declined_deletes_nothing(monkeypatch, config_manager):
+    """Answering 'n' at the prompt cancels cleanly without deleting."""
+    module = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+    recorder: dict = {}
+    _stub_prune_env(monkeypatch, module, matches=["secret.env"], recorder=recorder)
+
+    result = runner.invoke(app, ["cloud", "prune", "--name", "research"], input="n\n")
+
+    assert result.exit_code == 0, result.output
+    assert "nothing deleted" in result.output.lower()
+    assert "args" not in recorder
+
+
+def test_cloud_prune_confirmation_accepted_deletes(monkeypatch, config_manager):
+    """Answering 'y' at the prompt runs the deletion."""
+    module = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+    recorder: dict = {}
+    _stub_prune_env(monkeypatch, module, matches=["secret.env"], recorder=recorder)
+
+    result = runner.invoke(app, ["cloud", "prune", "--name", "research"], input="y\n")
+
+    assert result.exit_code == 0, result.output
+    assert "Pruned ignored files from research" in result.output
+    assert recorder["args"][1] == "tenant-bucket"
+    assert recorder["preview_kwargs"]["filter_path"] is recorder["prune_filter"]
+    assert recorder["args"][2] == ["secret.env"]
+
+
+def test_cloud_prune_routes_to_non_default_personal_workspace(monkeypatch, config_manager):
+    """Prune must not fall back to a same-named project in the default workspace."""
+    module = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+    recorder: dict = {}
+    workspace = _workspace("personal-alt-tenant", "personal", "personal-alt")
+    _stub_prune_env(
+        monkeypatch,
+        module,
+        matches=["secret.env"],
+        recorder=recorder,
+        workspace=workspace,
+    )
+
+    result = runner.invoke(app, ["cloud", "prune", "--name", "research", "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert recorder["mount_workspace_id"] == "personal-alt-tenant"
+    assert recorder["project_workspace_id"] == "personal-alt-tenant"
+    assert recorder["preview_kwargs"]["filter_path"] is recorder["prune_filter"]
+    assert recorder["args"][0].remote_name == "basic-memory-cloud-personal-alt"
+
+
+def test_cloud_prune_yes_skips_confirmation(monkeypatch, config_manager):
+    """--yes deletes without prompting (no stdin supplied)."""
+    module = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+    recorder: dict = {}
+    _stub_prune_env(monkeypatch, module, matches=["secret.env"], recorder=recorder)
+
+    result = runner.invoke(app, ["cloud", "prune", "--name", "research", "--yes"])
+
+    assert result.exit_code == 0, result.output
+    assert "Pruned ignored files from research" in result.output
+    assert "args" in recorder
+
+
+def test_cloud_prune_nothing_to_delete(monkeypatch, config_manager):
+    """An empty preview exits successfully without prompting or deleting."""
+    module = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+    recorder: dict = {}
+    _stub_prune_env(monkeypatch, module, matches=[], recorder=recorder)
+
+    result = runner.invoke(app, ["cloud", "prune", "--name", "research"])
+
+    assert result.exit_code == 0, result.output
+    assert "No cloud files in research match .bmignore" in result.output
+    assert "args" not in recorder
+
+
+def test_cloud_prune_reports_delete_failure(monkeypatch, config_manager):
+    module = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+    _stub_prune_env(monkeypatch, module, matches=["secret.env"], prune_result=False)
+
+    result = runner.invoke(app, ["cloud", "prune", "--name", "research", "--yes"])
+
+    assert result.exit_code == 1, result.output
+    assert "research prune failed" in result.output
+
+
+def test_cloud_prune_reports_rclone_error(monkeypatch, config_manager):
+    """A failed remote listing surfaces as a prune error, not 'nothing to prune'."""
+    module = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+    _stub_prune_env(monkeypatch, module, matches=[])
+
+    def _fail_preview(*_args, **_kwargs):
+        raise RcloneError("Failed to list ignored cloud files for research: AccessDenied")
+
+    monkeypatch.setattr(module, "project_prune_preview", _fail_preview)
+
+    result = runner.invoke(app, ["cloud", "prune", "--name", "research"])
+
+    assert result.exit_code == 1, result.output
+    assert "Prune error" in result.output
+    assert "AccessDenied" in result.output
+
+
+def test_cloud_prune_project_not_found(monkeypatch, config_manager):
+    module = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+    _stub_prune_env(monkeypatch, module, matches=["secret.env"])
+    monkeypatch.setattr(module, "_get_cloud_project", lambda _name, **_kwargs: _async_value(None))
+
+    result = runner.invoke(app, ["cloud", "prune", "--name", "research"])
+
+    assert result.exit_code == 1, result.output
+    assert "Project 'research' not found" in result.output
+
+
+def test_cloud_prune_blocks_organization_workspace(monkeypatch, config_manager):
+    """Prune deletes from the shared bucket, so Team workspaces are gated out."""
+    module = importlib.import_module("basic_memory.cli.commands.cloud.project_sync")
+
+    config = config_manager.load_config()
+    config.cloud_api_key = "bmc_test"
+    config.projects["research"] = ProjectEntry(
+        path="/tmp/research",
+        mode=ProjectMode.CLOUD,
+        workspace_id="team-tenant",
+        local_sync_path="/tmp/research",
+    )
+    config_manager.save_config(config)
+
+    monkeypatch.setattr(
+        module,
+        "get_available_workspaces",
+        lambda: _async_value([_workspace("team-tenant", "organization", "team")]),
+    )
+    monkeypatch.setattr(
+        module,
+        "get_mount_info",
+        lambda: pytest.fail("workspace guard should run before mount lookup"),
+    )
+
+    result = runner.invoke(app, ["cloud", "prune", "--name", "research"])
+
+    assert result.exit_code == 1, result.output
+    output = " ".join(result.output.split())
+    assert "The prune operation" in output
+    assert "only supported on Personal workspaces" in output
+    assert "bm cloud push --name research" in output
+    assert "bm cloud pull --name research" in output
 
 
 def _stub_setup_env(monkeypatch, core, *, remote_exists=False, recorder=None):

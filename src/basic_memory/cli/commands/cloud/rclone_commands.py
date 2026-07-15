@@ -12,6 +12,7 @@ Replaces tenant-wide sync with project-scoped workflows.
 
 import re
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
@@ -125,7 +126,11 @@ class SyncProject:
     remote_name: str = "basic-memory-cloud"
 
 
-def get_bmignore_filter_path() -> Path:
+def get_bmignore_filter_path(
+    *,
+    force: bool = False,
+    fail_on_read_error: bool = False,
+) -> Path:
     """Get path to rclone filter file.
 
     Uses ~/.basic-memory/.bmignore converted to rclone format.
@@ -139,7 +144,27 @@ def get_bmignore_filter_path() -> Path:
         convert_bmignore_to_rclone_filters,
     )
 
-    return convert_bmignore_to_rclone_filters()
+    return convert_bmignore_to_rclone_filters(
+        force=force,
+        fail_on_read_error=fail_on_read_error,
+    )
+
+
+def get_bmignore_prune_filter_path() -> Path:
+    """Get path to the inverted rclone filter used by prune.
+
+    Selects exactly the paths .bmignore ignores (#1032); regenerated from
+    ~/.basic-memory/.bmignore on every call.
+
+    Returns:
+        Path to inverted rclone filter file
+    """
+    # Import here to avoid circular dependency
+    from basic_memory.cli.commands.cloud.bisync_commands import (
+        convert_bmignore_to_rclone_prune_filters,
+    )
+
+    return convert_bmignore_to_rclone_prune_filters()
 
 
 def get_project_bisync_state(project_name: str) -> Path:
@@ -290,7 +315,9 @@ def project_sync(
 ) -> bool:
     """One-way sync: local → cloud.
 
-    Makes cloud identical to local using rclone sync.
+    Makes cloud identical to local using rclone sync. Cloud files matching the
+    .bmignore filter are deleted too (--delete-excluded), so a file added to
+    .bmignore after it synced does not linger on the remote (#1032).
 
     Args:
         project: Project to sync
@@ -311,7 +338,12 @@ def project_sync(
 
     local_path = Path(project.local_sync_path).expanduser()
     remote_path = get_project_remote(project, bucket_name)
-    filter_path = filter_path or get_bmignore_filter_path()
+    # --delete-excluded makes this filter destructive. Rebuild it from the
+    # current .bmignore even when filesystem mtimes make the cache look newer.
+    filter_path = filter_path or get_bmignore_filter_path(
+        force=True,
+        fail_on_read_error=True,
+    )
 
     cmd = _build_transfer_cmd(
         "sync",
@@ -320,6 +352,16 @@ def project_sync(
         filter_path=filter_path,
         dry_run=dry_run,
         verbose=verbose,
+        # Trigger: a file synced to cloud, then its pattern was added to .bmignore.
+        # Why: the filter hides ignored paths on both sides of the transfer, so
+        # without this flag the remote copy is stranded — invisible to rclone's
+        # deletion pass yet still stored and indexed on the tenant (#1032). That
+        # breaks this mirror's "make cloud identical to local" contract, since
+        # the filtered local set no longer contains the file.
+        # Outcome: rclone deletes destination files excluded by the filter.
+        # Scoped to this one-way personal mirror only — never bisync/push/pull,
+        # which must not delete based on a single machine's local ignore file.
+        extra_flags=("--delete-excluded",),
     )
 
     result = run(cmd, text=True)
@@ -577,6 +619,111 @@ def project_transfer(
         is_installed=is_installed,
         filter_path=filter_path,
     )
+
+
+# --- Prune (issue #1032) ---
+#
+# The sync/bisync filter hides .bmignore paths on both sides of a transfer, so
+# a file uploaded before its pattern was added to .bmignore is stranded on the
+# cloud tenant. Prune targets exactly that set: it uses the *inverted* filter
+# (each ignore pattern becomes an include rule, everything else is excluded) so
+# rclone lsf finds the ignored files. Deletion receives that exact preview list
+# through stdin, so files uploaded or newly ignored during confirmation cannot
+# be deleted without appearing in the user's approved preview.
+
+
+def project_prune_preview(
+    project: SyncProject,
+    bucket_name: str,
+    *,
+    run: RunFunc = subprocess.run,
+    is_installed: IsInstalledFunc = is_rclone_installed,
+    filter_path: Path | None = None,
+) -> list[str]:
+    """List remote files that match the local .bmignore patterns.
+
+    Uses ``rclone lsf`` with the inverted (include) filter so the preview and
+    ``project_prune``'s deletion pass select exactly the same set. Purely
+    remote: no local_sync_path required.
+
+    Returns:
+        Project-relative paths of remote files that .bmignore now ignores.
+
+    Raises:
+        RcloneError: If rclone is not installed or the listing fails.
+    """
+    check_rclone_installed(is_installed=is_installed)
+
+    remote_path = get_project_remote(project, bucket_name)
+    filter_path = filter_path or get_bmignore_prune_filter_path()
+
+    cmd = [
+        "rclone",
+        "lsf",
+        remote_path,
+        *TIGRIS_CONSISTENCY_HEADERS,
+        "--recursive",
+        "--files-only",
+        "--filter-from",
+        str(filter_path),
+    ]
+
+    result = run(cmd, capture_output=True, text=True)
+
+    # Unlike rclone check, lsf exits non-zero only on real failures (auth,
+    # missing remote, network) — never because files matched. Fail fast so the
+    # caller cannot mistake a broken listing for "nothing to prune".
+    if result.returncode != 0:
+        detail = result.stderr.strip() or f"rclone lsf exited with code {result.returncode}"
+        raise RcloneError(f"Failed to list ignored cloud files for {project.name}: {detail}")
+
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def project_prune(
+    project: SyncProject,
+    bucket_name: str,
+    matches: Sequence[str],
+    *,
+    verbose: bool = False,
+    run: RunFunc = subprocess.run,
+    is_installed: IsInstalledFunc = is_rclone_installed,
+) -> bool:
+    """Delete exactly the remote files returned by the confirmed preview.
+
+    Complements the one-way mirror's --delete-excluded pass (#1032): targeted
+    cleanup for files uploaded before their pattern was added to .bmignore,
+    without requiring a full mirror run or a configured local_sync_path.
+    Callers preview with ``project_prune_preview`` and pass the confirmed result
+    here. ``--files-from-raw -`` keeps the delete set fixed even if the remote or
+    .bmignore changes while the confirmation prompt is open.
+
+    Returns:
+        True if the deletion succeeded, False otherwise.
+
+    Raises:
+        RcloneError: If rclone is not installed.
+    """
+    check_rclone_installed(is_installed=is_installed)
+    if not matches:
+        return True
+
+    remote_path = get_project_remote(project, bucket_name)
+
+    cmd = [
+        "rclone",
+        "delete",
+        remote_path,
+        *TIGRIS_CONSISTENCY_HEADERS,
+        "--files-from-raw",
+        "-",
+    ]
+
+    if verbose:
+        cmd.append("--verbose")
+
+    result = run(cmd, input="".join(f"{path}\n" for path in matches), text=True)
+    return result.returncode == 0
 
 
 def project_bisync(
