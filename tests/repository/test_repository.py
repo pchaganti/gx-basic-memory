@@ -1,6 +1,8 @@
 """Test repository implementation."""
 
 from datetime import datetime, UTC
+from unittest.mock import AsyncMock
+
 import pytest
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
@@ -131,6 +133,29 @@ async def test_find_by_ids(repository, session_maker):
         # Test with all non-existent IDs
         not_found = await repository.find_by_ids(session, ["fake1", "fake2"])
         assert len(not_found) == 0
+
+
+@pytest.mark.asyncio
+async def test_find_by_ids_chunks_large_requests(repository, session_maker, monkeypatch):
+    """Regression test for #1045: bulk id hydration must issue bounded queries."""
+    instances = [ModelTest(id=f"test_{i}", name=f"Test {i}") for i in range(5)]
+    async with db.scoped_session(session_maker) as session:
+        await repository.add_all_no_return(session, instances)
+
+        # Use a tiny deterministic chunk size so this test proves the query is
+        # split even on SQLite builds whose real parameter cap exceeds 1,100.
+        monkeypatch.setattr(
+            "basic_memory.repository.repository.SELECT_BY_IDS_CHUNK_SIZE",
+            2,
+        )
+        execute = AsyncMock(wraps=session.execute)
+        monkeypatch.setattr(session, "execute", execute)
+
+        ids_to_find = [instance.id for instance in instances]
+        found = await repository.find_by_ids(session, ids_to_find)
+
+        assert execute.await_count == 3
+        assert sorted(e.id for e in found) == sorted(ids_to_find)
 
 
 @pytest.mark.asyncio
