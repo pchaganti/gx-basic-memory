@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import re
+import signal
 import socket
 import subprocess
 import threading
@@ -549,17 +550,23 @@ class _BmMcpActor:
         self._ready = threading.Event()
         self._init_error: BaseException | None = None
         self._stop_future: asyncio.Future | None = None
+        self._main_task: asyncio.Task[None] | None = None
+        self._shutdown_requested = threading.Event()
         self._tools_cache: list[dict[str, Any]] = []
         self._running = False
 
     def start(self, timeout: float = 25.0) -> None:
         if self._thread and self._thread.is_alive():
             return
+        self._shutdown_requested.clear()
         self._running = True
         self._thread = threading.Thread(target=self._run, daemon=True, name="bm-mcp-actor")
         self._thread.start()
         if not self._ready.wait(timeout=timeout):
-            self._running = False
+            # Trigger: startup timed out before _main created its stop future.
+            # Why: joining alone cannot exit the stdio context or reap its child.
+            # Outcome: cancel the actor task and wait for its async contexts to close.
+            self.shutdown(timeout=5.0)
             raise TimeoutError(f"basic-memory MCP server didn't initialize within {timeout}s")
         if self._init_error is not None:
             self._running = False
@@ -570,7 +577,16 @@ class _BmMcpActor:
         asyncio.set_event_loop(loop)
         self._loop = loop
         try:
-            loop.run_until_complete(self._main())
+            self._main_task = loop.create_task(self._main())
+            if self._shutdown_requested.is_set():
+                self._main_task.cancel()
+            loop.run_until_complete(self._main_task)
+        except asyncio.CancelledError:
+            # Cancellation is the intentional pre-ready shutdown path. Wake a
+            # concurrent start() without logging an expected cleanup as a crash.
+            if not self._ready.is_set() and self._init_error is None:
+                self._init_error = RuntimeError("basic-memory MCP actor stopped during startup")
+            self._ready.set()
         except BaseException as e:
             if self._init_error is None:
                 self._init_error = e
@@ -578,6 +594,7 @@ class _BmMcpActor:
             logger.exception("basic-memory MCP actor terminated with error")
         finally:
             self._running = False
+            self._main_task = None
             try:
                 loop.close()
             except Exception:
@@ -640,16 +657,27 @@ class _BmMcpActor:
     def list_tools(self) -> list[dict[str, Any]]:
         return list(self._tools_cache)
 
+    def is_alive(self) -> bool:
+        """True while the actor loop thread is up and accepting calls."""
+        return self._running and self._thread is not None and self._thread.is_alive()
+
     def shutdown(self, timeout: float = 5.0) -> None:
         self._running = False
-        if self._loop is not None and self._stop_future is not None:
+        self._shutdown_requested.set()
+        if self._loop is not None:
             try:
-                self._loop.call_soon_threadsafe(
-                    lambda: (
-                        (self._stop_future and not self._stop_future.done())
-                        and self._stop_future.set_result(None)
-                    )
-                )
+
+                def request_stop() -> None:
+                    if not self._ready.is_set():
+                        if self._main_task is not None and not self._main_task.done():
+                            self._main_task.cancel()
+                        return
+                    if self._stop_future is not None and not self._stop_future.done():
+                        self._stop_future.set_result(None)
+                    elif self._main_task is not None and not self._main_task.done():
+                        self._main_task.cancel()
+
+                self._loop.call_soon_threadsafe(request_stop)
             except Exception:
                 # Loop may already be closed; safe to ignore.
                 pass
@@ -817,7 +845,7 @@ class BasicMemoryProvider(MemoryProvider):
 
     # ---- Lifecycle ----
     def initialize(self, session_id: str, **kwargs: Any) -> None:
-        self._session_id = session_id or ""
+        requested_session_id = session_id or ""
         self._hermes_home = kwargs.get("hermes_home") or os.path.expanduser("~/.hermes")
         cfg = _load_config(self._hermes_home)
         self._mode = cfg.get("mode") or "local"
@@ -864,19 +892,64 @@ class BasicMemoryProvider(MemoryProvider):
             self._log_missing_project()
             return
 
+        # Trigger: initialize() called while a previous actor is still running
+        # (Hermes re-initializes providers per session; _ensure_slash_ready's
+        # lazy init can also precede a later session initialize).
+        # Why: every _BmMcpActor owns one `bm mcp` child process. Allocating a
+        # fresh actor without stopping the old one orphans that child — issue
+        # #1017 saw 18 idle `bm mcp` processes (~2.3 GB) accumulate this way.
+        # Outcome: a healthy actor is reused — its argv is always `bm mcp` and
+        # project routing happens per call, so the config re-read above never
+        # invalidates the connection. A dead actor is shut down first (joining
+        # its thread reaps the child) and then replaced below.
+        if self._actor is not None and self._actor.is_alive():
+            self._mark_session_ready(requested_session_id)
+            logger.info(
+                "basic-memory provider ready (reusing running MCP actor): mode=%s project=%s",
+                self._mode,
+                self._project,
+            )
+            return
+        if self._actor is not None:
+            try:
+                self._actor.shutdown(timeout=5.0)
+            except Exception as e:
+                logger.debug("stale actor shutdown during initialize: %s", e)
+            self._actor = None
+
         try:
             argv = self._server_argv()
         except Exception as e:
             logger.error("basic-memory: cannot determine server argv: %s", e)
             return
 
+        # Expose the actor to cleanup BEFORE start() blocks (up to 25s):
+        # _atexit_cleanup and the SIGTERM handler only reach actors through
+        # provider.shutdown() → self._actor, so a local-only actor would leak
+        # its freshly spawned `bm mcp` child if a signal lands mid-start.
+        # Callers can't observe the half-started actor: every tool/capture
+        # path gates on _initialized, which stays False until start() returns.
         actor = _BmMcpActor(argv)
+        self._actor = actor
         try:
             actor.start(timeout=25.0)
         except Exception as e:
+            try:
+                actor.shutdown(timeout=5.0)
+            except Exception as shutdown_error:
+                logger.debug("actor shutdown after failed start: %s", shutdown_error)
+            if self._actor is actor:
+                self._actor = None
             logger.error("basic-memory: MCP server failed to start: %s", e)
             return
-        self._actor = actor
+        if self._actor is not actor:
+            # Signal/atexit cleanup detached the actor while start() was
+            # waiting. Do not resurrect a provider whose process cleanup ran.
+            try:
+                actor.shutdown(timeout=5.0)
+            except Exception as e:
+                logger.debug("actor shutdown after interrupted start: %s", e)
+            return
 
         tools = actor.list_tools()
         names = {t["name"] for t in tools}
@@ -888,14 +961,29 @@ class BasicMemoryProvider(MemoryProvider):
                 sorted(names),
             )
 
-        self._session_started_at = datetime.now(timezone.utc)
-        self._initialized = True
+        self._mark_session_ready(requested_session_id)
         logger.info(
             "basic-memory provider ready: mode=%s project=%s tools=%d",
             self._mode,
             self._project,
             len(tools),
         )
+
+    def _mark_session_ready(self, session_id: str) -> None:
+        """Publish a successful session boundary while retaining the MCP actor."""
+        if session_id != self._session_id:
+            # Trigger: Hermes starts a distinct session on a reused provider.
+            # Why: these fields identify one transcript and its opening turn;
+            # retaining them appends the new session to the previous note.
+            # Outcome: only session-scoped capture state resets. Reconnecting a
+            # dead actor for the same session preserves the in-progress note.
+            self._session_id = session_id
+            self._session_note_id = None
+            self._first_user_msg = None
+            self._session_started_at = datetime.now(timezone.utc)
+        elif self._session_started_at is None:
+            self._session_started_at = datetime.now(timezone.utc)
+        self._initialized = True
 
     def _ensure_local_project(self) -> None:
         bm = _bm_binary_path()
@@ -1802,7 +1890,7 @@ def _register_via_plugin_manager(
 
 
 # ---------------------------------------------------------------------------
-# atexit safety net (mirrors plugins/memory/openviking pattern)
+# atexit + SIGTERM safety nets (mirrors plugins/memory/openviking pattern)
 # ---------------------------------------------------------------------------
 
 _active_providers: list[BasicMemoryProvider] = []
@@ -1817,6 +1905,60 @@ def _atexit_cleanup() -> None:
 
 
 atexit.register(_atexit_cleanup)
+
+
+_sigterm_installed = False
+
+
+def _install_sigterm_cleanup() -> None:
+    """
+    Run _atexit_cleanup on SIGTERM as well as at interpreter exit.
+
+    atexit alone doesn't cover SIGTERM: Python's default action terminates the
+    process without unwinding, so gateway restarts (systemd stop, docker stop,
+    supervisor reload) orphan every `bm mcp` child (issue #1017).
+
+    Constraint: this plugin is a library embedded in a host process (Hermes),
+    so it must not stomp the host's signal handling:
+      - existing Python handler → chain: run our cleanup, then the host's
+        handler, preserving its semantics.
+      - SIG_DFL → install: run cleanup, restore SIG_DFL, and re-deliver the
+        signal so the process still dies by SIGTERM exactly as before.
+      - SIG_IGN, or None (a C-level handler unreachable from Python, so
+        chaining is impossible) → leave untouched.
+    signal.signal only works from the main thread and SIGTERM only exists on
+    platforms that define it, so this no-ops cleanly everywhere else.
+    """
+    global _sigterm_installed
+    if _sigterm_installed:
+        return
+    sigterm = getattr(signal, "SIGTERM", None)
+    if sigterm is None:  # pragma: no cover - every supported platform defines SIGTERM
+        return
+    if threading.current_thread() is not threading.main_thread():
+        return
+    previous = signal.getsignal(sigterm)
+    if previous is signal.SIG_IGN or previous is None:
+        return
+
+    def _handler(signum: int, frame: Any) -> None:
+        _atexit_cleanup()
+        if callable(previous):
+            previous(signum, frame)
+            return
+        # previous is SIG_DFL: restore it and re-deliver so the process
+        # terminates by SIGTERM exactly as it would have without us.
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
+
+    try:
+        signal.signal(sigterm, _handler)
+    except (ValueError, OSError):  # pragma: no cover - main-thread race at shutdown
+        return
+    _sigterm_installed = True
+
+
+_install_sigterm_cleanup()
 
 
 # ---------------------------------------------------------------------------
