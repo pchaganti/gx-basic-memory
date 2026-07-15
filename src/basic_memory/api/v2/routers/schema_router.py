@@ -30,6 +30,7 @@ from basic_memory.schemas.schema import (
     FieldResultResponse,
     FieldFrequencyResponse,
     DriftFieldResponse,
+    TypeValidationSummary,
 )
 from basic_memory.schema.resolver import resolve_schema
 from basic_memory.schema.validator import validate_note
@@ -140,7 +141,9 @@ async def validate_schema(
 ):
     """Validate notes against their resolved schemas.
 
-    Validates a specific note (by identifier) or all notes of a given type.
+    Validates a specific note (by identifier), all notes of a given type, or —
+    when neither is provided — all notes of every type that has a schema
+    defined, with a per-type breakdown in type_summaries.
     Returns warnings/errors based on the schema's validation mode.
 
     Schema definitions are read directly from their files to ensure the
@@ -191,41 +194,57 @@ async def validate_schema(
         )
 
     # --- Batch validation by note type ---
-    entities = await _find_by_note_type(session, entity_repository, note_type) if note_type else []
+    if note_type:
+        entities = await _find_by_note_type(session, entity_repository, note_type)
+        results = await _validate_note_entities(session, entity_repository, file_service, entities)
+        return ValidationReport(
+            note_type=note_type,
+            total_notes=len(results),
+            total_entities=len(entities),
+            valid_count=sum(1 for r in results if r.passed),
+            warning_count=sum(len(r.warnings) for r in results),
+            error_count=sum(len(r.errors) for r in results),
+            results=results,
+        )
 
-    for entity in entities:
-        frontmatter = _entity_frontmatter(entity)
-        schema_ref = frontmatter.get("schema")
+    # --- All-types validation ---
+    # Trigger: neither identifier nor note_type was provided
+    # Why: schema_validate() with no arguments should check every note type that
+    #   has a schema defined instead of returning an empty report (#1013)
+    # Outcome: aggregated report with a per-type breakdown in type_summaries
+    covered_types = await _schema_covered_note_types(session, entity_repository)
 
-        async def search_fn(query: str) -> list[dict]:
-            entities = await _find_schema_entities(
-                session,
-                entity_repository,
-                query,
-                allow_reference_match=isinstance(schema_ref, str) and query == schema_ref,
+    type_summaries: list[TypeValidationSummary] = []
+    total_entities = 0
+    for target_type, stored_note_types in covered_types.items():
+        entities = []
+        for stored_type in stored_note_types:
+            entities.extend(await _find_by_note_type(session, entity_repository, stored_type))
+        type_results = await _validate_note_entities(
+            session, entity_repository, file_service, entities
+        )
+        type_summaries.append(
+            TypeValidationSummary(
+                note_type=target_type,
+                total_notes=len(type_results),
+                total_entities=len(entities),
+                valid_count=sum(1 for r in type_results if r.passed),
+                warning_count=sum(len(r.warnings) for r in type_results),
+                error_count=sum(len(r.errors) for r in type_results),
             )
-            return [await _schema_frontmatter_from_file(file_service, e) for e in entities]
+        )
+        results.extend(type_results)
+        total_entities += len(entities)
 
-        schema_def = await resolve_schema(frontmatter, search_fn)
-        if schema_def:
-            result = validate_note(
-                entity.title or entity.permalink or entity.file_path,
-                schema_def,
-                _entity_observations(entity),
-                _entity_relations(entity),
-                frontmatter=frontmatter,
-            )
-            results.append(_to_note_validation_response(result))
-
-    valid = sum(1 for r in results if r.passed)
     return ValidationReport(
-        note_type=note_type,
+        note_type=None,
         total_notes=len(results),
-        total_entities=len(entities),
-        valid_count=valid,
+        total_entities=total_entities,
+        valid_count=sum(1 for r in results if r.passed),
         warning_count=sum(len(r.warnings) for r in results),
         error_count=sum(len(r.errors) for r in results),
         results=results,
+        type_summaries=type_summaries,
     )
 
 
@@ -335,6 +354,100 @@ async def diff_schema_endpoint(
 
 
 # --- Helpers ---
+
+
+async def _validate_note_entities(
+    session: AsyncSession,
+    entity_repository: EntityRepositoryV2ExternalDep,
+    file_service: FileServiceV2ExternalDep,
+    entities: list[Entity],
+) -> list[NoteValidationResponse]:
+    """Validate a batch of note entities against their resolved schemas.
+
+    Entities whose frontmatter resolves to no schema are skipped, which is why
+    a report's total_notes can be lower than its total_entities.
+    """
+    results: list[NoteValidationResponse] = []
+
+    for entity in entities:
+        frontmatter = _entity_frontmatter(entity)
+        schema_ref = frontmatter.get("schema")
+
+        async def search_fn(query: str) -> list[dict]:
+            found = await _find_schema_entities(
+                session,
+                entity_repository,
+                query,
+                allow_reference_match=isinstance(schema_ref, str) and query == schema_ref,
+            )
+            return [await _schema_frontmatter_from_file(file_service, e) for e in found]
+
+        schema_def = await resolve_schema(frontmatter, search_fn)
+        if schema_def:
+            result = validate_note(
+                entity.title or entity.permalink or entity.file_path,
+                schema_def,
+                _entity_observations(entity),
+                _entity_relations(entity),
+                frontmatter=frontmatter,
+            )
+            results.append(_to_note_validation_response(result))
+
+    return results
+
+
+async def _schema_covered_note_types(
+    session: AsyncSession,
+    entity_repository: EntityRepositoryV2ExternalDep,
+) -> dict[str, list[str]]:
+    """Map each schema-covered target type to the stored note_type values it covers.
+
+    Coverage comes from both standalone schema notes and notes that carry inline
+    schemas or explicit schema references. Stored note types are snake_case while
+    schema authors may write "Person" or "person", so both sides are compared
+    through generate_permalink normalization — the same matching rule
+    _find_schema_entities uses for implicit type lookup. Standalone targets with no
+    matching notes map to an empty list so they still appear in the report.
+    """
+    schema_query = entity_repository.select().where(Entity.note_type == "schema")
+    schema_result = await entity_repository.execute_query(session, schema_query)
+
+    # normalized target -> (display label, stored note types); first label wins
+    targets: dict[str, tuple[str, set[str]]] = {}
+    for schema_entity in schema_result.scalars().all():
+        target = (schema_entity.entity_metadata or {}).get("entity")
+        if isinstance(target, str) and target:
+            targets.setdefault(generate_permalink(target), (target, set()))
+
+    # Column-only select: skip eager-load options, which apply only to full entities.
+    # Reading metadata here also discovers inline schemas and explicit references;
+    # those notes are covered even when their type differs from a schema's entity.
+    note_query = entity_repository.select(Entity.note_type, Entity.entity_metadata).where(
+        Entity.note_type != "schema"
+    )
+    note_result = await entity_repository.execute_query(
+        session, note_query, use_query_options=False
+    )
+    for stored_type, metadata in note_result.all():
+        if not stored_type:
+            continue
+
+        normalized_type = generate_permalink(stored_type)
+        if normalized_type in targets:
+            targets[normalized_type][1].add(stored_type)
+
+        schema_value = (metadata or {}).get("schema")
+        has_direct_schema = isinstance(schema_value, dict) or (
+            isinstance(schema_value, str) and bool(schema_value)
+        )
+        if has_direct_schema:
+            _, stored_types = targets.setdefault(normalized_type, (stored_type, set()))
+            stored_types.add(stored_type)
+
+    return {
+        display_label: sorted(stored_types)
+        for _, (display_label, stored_types) in sorted(targets.items())
+    }
 
 
 async def _find_by_note_type(
