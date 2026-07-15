@@ -863,6 +863,14 @@ def edit_note(
         "--expected-replacements",
         help="Expected replacement count for find_replace operation",
     ),
+    replace_subsections: bool = typer.Option(
+        True,
+        "--replace-subsections/--no-replace-subsections",
+        help=(
+            "For replace_section, replace nested subsections too; use "
+            "--no-replace-subsections to preserve them"
+        ),
+    ),
     project: Annotated[
         Optional[str],
         typer.Option(
@@ -888,6 +896,7 @@ def edit_note(
     bm tool edit-note my-note --operation append --content "new content"
     bm tool edit-note my-note --operation find_replace --find-text "old" --content "new"
     bm tool edit-note my-note --operation replace_section --section "## Notes" --content "updated"
+    bm tool edit-note my-note --operation replace_section --section "## Notes" --content "updated" --no-replace-subsections
     """
     # Deferred: loading the MCP tool stack at module import slows CLI startup (#886).
     from basic_memory.mcp.tools import edit_note as mcp_edit_note
@@ -906,6 +915,7 @@ def edit_note(
                     section=section,
                     find_text=find_text,
                     expected_replacements=expected_replacements,
+                    replace_subsections=replace_subsections,
                     output_format="json",
                 )
             )
