@@ -6,6 +6,8 @@ import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
+
+import logfire
 from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError as SAOperationalError
@@ -1064,8 +1066,19 @@ class SQLiteSearchRepository(SearchRepositoryBase):
             relaxed = self._relaxed_fts_text(search_text) if allow_relaxed and not rows else None
             if relaxed and params.get("text"):
                 params["text"] = relaxed
-                result = await active_session.execute(text(sql), params)
-                rows = result.fetchall()
+                logger.debug(
+                    "Strict SQLite FTS returned 0 results; retrying relaxed FTS query "
+                    f"strict='{search_text}' relaxed='{relaxed}'"
+                )
+                with logfire.span(
+                    "search.relaxed_fts_retry",
+                    backend="sqlite",
+                    token_count=len(relaxed_query_words(search_text) or ()),
+                    limit=limit,
+                    offset=offset,
+                ):
+                    result = await active_session.execute(text(sql), params)
+                    rows = result.fetchall()
             return rows
 
         try:
@@ -1128,6 +1141,7 @@ class SQLiteSearchRepository(SearchRepositoryBase):
         metadata_filters: Optional[dict] = None,
         retrieval_mode: SearchRetrievalMode = SearchRetrievalMode.FTS,
         min_similarity: Optional[float] = None,
+        allow_relaxed: bool = False,
     ) -> int:
         """Count indexed content matching the SQLite FTS query."""
         if retrieval_mode != SearchRetrievalMode.FTS:
@@ -1161,7 +1175,20 @@ class SQLiteSearchRepository(SearchRepositoryBase):
         try:
             async with db.scoped_session(self.session_maker) as session:
                 result = await session.execute(text(sql), params)
-                return int(result.scalar_one())
+                total = int(result.scalar_one())
+                relaxed = (
+                    self._relaxed_fts_text(search_text) if allow_relaxed and total == 0 else None
+                )
+                if relaxed and params.get("text"):
+                    params["text"] = relaxed
+                    with logfire.span(
+                        "search.count.relaxed_fts_retry",
+                        backend="sqlite",
+                        token_count=len(relaxed_query_words(search_text) or ()),
+                    ):
+                        result = await session.execute(text(sql), params)
+                        total = int(result.scalar_one())
+                return total
         except Exception as e:
             if self._is_fts5_syntax_error(e):  # pragma: no cover
                 logger.warning(f"FTS5 syntax error for search term: {search_text}, error: {e}")
