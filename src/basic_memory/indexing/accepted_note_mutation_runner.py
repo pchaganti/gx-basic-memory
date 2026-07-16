@@ -16,6 +16,7 @@ from basic_memory.indexing.accepted_note_write_runner import (
     AcceptedNoteCreatePreparer,
     AcceptedNoteEditPreparer,
     AcceptedNoteMovePreparer,
+    AcceptedNoteSelfRelationResolver,
     AcceptedPreparedNoteWrite,
     AcceptedNoteReplacePreparer,
     AcceptedNoteWriteRepositories,
@@ -26,6 +27,7 @@ from basic_memory.indexing.accepted_note_write_runner import (
     prepare_accepted_note_edit,
     prepare_accepted_note_move,
     prepare_accepted_note_replace,
+    replace_accepted_note_graph,
 )
 from basic_memory.models import Entity, NoteContent, Project
 from basic_memory.repository import NoteContentVersionConflict
@@ -240,6 +242,7 @@ class AcceptedNoteMutationPreparer(
     AcceptedNoteReplacePreparer,
     AcceptedNoteEditPreparer,
     AcceptedNoteMovePreparer,
+    AcceptedNoteSelfRelationResolver,
     Protocol,
 ):
     """Combined Basic Memory prepare capability for accepted note mutations."""
@@ -494,6 +497,16 @@ async def _run_accepted_note_create(
         updated_at=now,
         repositories=dependencies.write_repositories,
     )
+    # Persist observations/relations in the same transaction as the entity and
+    # note_content. Skipping this left the graph tables empty until a later
+    # index_file pass reparsed the materialized file (issue #1076).
+    await replace_accepted_note_graph(
+        session,
+        entity=entity,
+        prepared=prepared,
+        self_relation_resolver=preparer,
+        repositories=dependencies.write_repositories,
+    )
     return plan_accepted_note_write_change(
         status_code=201,
         entity=entity,
@@ -634,6 +647,16 @@ async def _run_accepted_note_update(
         accepted_file_path=entity.file_path,
         repositories=dependencies.write_repositories,
     )
+    # Replace the graph atomically: a PUT create-or-replace owns the note's full
+    # observation/relation set, so stale rows from a prior write are dropped and
+    # the accepted markdown's rows land in the same transaction (issue #1076).
+    await replace_accepted_note_graph(
+        session,
+        entity=entity,
+        prepared=prepared,
+        self_relation_resolver=preparer,
+        repositories=dependencies.write_repositories,
+    )
     return plan_accepted_note_write_change(
         status_code=201 if created else 200,
         entity=entity,
@@ -692,6 +715,16 @@ async def _run_accepted_note_edit(
         updated_at=now,
         current_note_content=current_note_content,
         accepted_file_path=entity.file_path,
+        repositories=dependencies.write_repositories,
+    )
+    # An edit reparses the whole note, so its graph is authoritative: replace the
+    # observation/relation set so rows an edit removed are dropped and rows it
+    # added appear immediately, not after a later reindex (issue #1076).
+    await replace_accepted_note_graph(
+        session,
+        entity=entity,
+        prepared=prepared,
+        self_relation_resolver=preparer,
         repositories=dependencies.write_repositories,
     )
     return plan_accepted_note_write_change(

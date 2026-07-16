@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +17,11 @@ from basic_memory.indexing.accepted_note_search import (
     build_accepted_note_search_row,
 )
 from basic_memory.models import Entity, NoteContent
-from basic_memory.repository import AcceptedNoteContentWrite
+from basic_memory.repository import (
+    AcceptedNoteContentWrite,
+    AcceptedObservationWrite,
+    AcceptedRelationWrite,
+)
 from basic_memory.repository.entity_repository import (
     AcceptedPendingEntityWrite,
     EntityMetadata,
@@ -79,6 +83,12 @@ class AcceptedPreparedMarkdownWriteSource(AcceptedPreparedEntityWriteSource, Pro
 
     @property
     def search_content(self) -> str: ...
+
+    @property
+    def observations(self) -> Sequence[AcceptedObservationWrite]: ...
+
+    @property
+    def relations(self) -> Sequence[AcceptedRelationWrite]: ...
 
 
 class AcceptedPreparedEntityTarget(Protocol):
@@ -142,6 +152,17 @@ class AcceptedNoteEditPreparer(Protocol):
         replace_subsections: bool = ...,
         session: AsyncSession | None = ...,
     ) -> AcceptedPreparedMarkdownWriteSource: ...
+
+
+class AcceptedNoteSelfRelationResolver(Protocol):
+    """Capability for resolving ambiguity-safe self-links during acceptance."""
+
+    async def resolve_deferred_self_relation(
+        self,
+        target: str,
+        entity: Entity,
+        session: AsyncSession | None = ...,
+    ) -> Entity | None: ...
 
 
 class AcceptedPreparedMoveSource(Protocol):
@@ -261,6 +282,28 @@ class AcceptedNoteSearchRowRepository(Protocol):
     ) -> None: ...
 
 
+class AcceptedNoteObservationRepository(Protocol):
+    """Repository capability for replacing one accepted note's observations."""
+
+    async def replace_accepted_observations(
+        self,
+        session: AsyncSession,
+        entity_id: RuntimeEntityId,
+        observations: Sequence[AcceptedObservationWrite],
+    ) -> None: ...
+
+
+class AcceptedNoteRelationRepository(Protocol):
+    """Repository capability for replacing one accepted note's outgoing relations."""
+
+    async def replace_accepted_outgoing_relations(
+        self,
+        session: AsyncSession,
+        entity_id: RuntimeEntityId,
+        relations: Sequence[AcceptedRelationWrite],
+    ) -> None: ...
+
+
 class AcceptedNoteWriteRepositories(Protocol):
     """Repository capability set needed by accepted-note DB-first writes."""
 
@@ -278,6 +321,16 @@ class AcceptedNoteWriteRepositories(Protocol):
         self,
         project_id: ProjectId,
     ) -> AcceptedNoteSearchRowRepository: ...
+
+    def observation_repository(
+        self,
+        project_id: ProjectId,
+    ) -> AcceptedNoteObservationRepository: ...
+
+    def relation_repository(
+        self,
+        project_id: ProjectId,
+    ) -> AcceptedNoteRelationRepository: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -656,6 +709,64 @@ async def persist_accepted_note_write(
     return AcceptedPersistedNoteWrite(
         note_content=note_content,
         previous_file_delete=content_write.previous_file_delete,
+    )
+
+
+async def replace_accepted_note_graph(
+    session: AsyncSession,
+    *,
+    entity: Entity,
+    prepared: AcceptedPreparedMarkdownWriteSource,
+    self_relation_resolver: AcceptedNoteSelfRelationResolver,
+    repositories: AcceptedNoteWriteRepositories,
+) -> None:
+    """Persist the accepted note's observations and relations in one transaction.
+
+    The accepted markdown was already parsed during prepare, so the graph rows
+    are committed alongside note_content and search instead of waiting for a
+    later ``index_file`` pass to reparse the materialized file. Without this the
+    observation/relation tables stay empty after a successful DB-first write, so
+    schema inference and relation traversal are nondeterministic until an
+    unrelated storage notification happens to fire (issue #1076).
+    """
+    observation_repository = repositories.observation_repository(entity.project_id)
+    await observation_repository.replace_accepted_observations(
+        session,
+        entity.id,
+        prepared.observations,
+    )
+
+    # General deferred resolution skips target_id == from_id to avoid binding an
+    # ambiguous title to the wrong note. Reuse the indexing path's narrow,
+    # ambiguity-safe self resolver here so filepath/permalink self-links do not
+    # remain unresolved forever after a DB-first write.
+    relations: list[AcceptedRelationWrite] = []
+    for relation in prepared.relations:
+        if relation.target_id is not None:
+            relations.append(relation)
+            continue
+        target_entity = await self_relation_resolver.resolve_deferred_self_relation(
+            relation.target_name,
+            entity,
+            session=session,
+        )
+        if target_entity is None:
+            relations.append(relation)
+            continue
+        relations.append(
+            AcceptedRelationWrite(
+                relation_type=relation.relation_type,
+                target_name=target_entity.title,
+                context=relation.context,
+                target_id=target_entity.id,
+            )
+        )
+
+    relation_repository = repositories.relation_repository(entity.project_id)
+    await relation_repository.replace_accepted_outgoing_relations(
+        session,
+        entity.id,
+        relations,
     )
 
 

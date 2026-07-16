@@ -30,7 +30,12 @@ from basic_memory.markdown.utils import entity_model_from_markdown, schema_to_ma
 from basic_memory.models import Entity as EntityModel
 from basic_memory.models import Observation, Relation
 from basic_memory.models.knowledge import Entity
-from basic_memory.repository import ObservationRepository, RelationRepository
+from basic_memory.repository import (
+    AcceptedObservationWrite,
+    AcceptedRelationWrite,
+    ObservationRepository,
+    RelationRepository,
+)
 from basic_memory.repository.project_repository import ProjectRepository
 from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.runtime.note_move import normalize_note_move_destination_path
@@ -114,6 +119,40 @@ class PreparedEntityWrite:
     search_content: str
     entity_fields: PreparedEntityFields
     entity_markdown: EntityMarkdown
+
+    @property
+    def observations(self) -> list[AcceptedObservationWrite]:
+        """Accepted-write observations, mapped from the already-parsed markdown.
+
+        Lets the DB-first accepted-write path persist the graph without a second
+        parse; the field-for-field mapping mirrors the ORM rows
+        ``update_entity_and_observations`` builds for the file-indexing path.
+        """
+        return [
+            AcceptedObservationWrite(
+                content=obs.content,
+                category=obs.category,
+                context=obs.context,
+                tags=obs.tags,
+            )
+            for obs in self.entity_markdown.observations
+        ]
+
+    @property
+    def relations(self) -> list[AcceptedRelationWrite]:
+        """Accepted-write relations, mapped from the already-parsed markdown.
+
+        Targets stay unresolved here. The accepted runner resolves only safe
+        self-links; the forward-reference job links all other targets later.
+        """
+        return [
+            AcceptedRelationWrite(
+                relation_type=rel.type,
+                target_name=rel.target,
+                context=rel.context,
+            )
+            for rel in self.entity_markdown.relations
+        ]
 
 
 @dataclass(frozen=True, slots=True)
@@ -1359,7 +1398,7 @@ class EntityService(BaseService[EntityModel]):
                         target_entity = resolved
 
                     if target_entity is None and not resolve_targets:
-                        target_entity = await self._resolve_deferred_self_relation(
+                        target_entity = await self.resolve_deferred_self_relation(
                             rel.target, entity, session=active_session
                         )
 
@@ -1392,7 +1431,7 @@ class EntityService(BaseService[EntityModel]):
             reloaded = await self.repository.find_by_ids(active_session, [entity_id])
             return reloaded[0]
 
-    async def _resolve_deferred_self_relation(
+    async def resolve_deferred_self_relation(
         self, target: str, entity: EntityModel, session: AsyncSession | None = None
     ) -> EntityModel | None:
         """Resolve only self-relations that are safe to identify in deferred mode."""

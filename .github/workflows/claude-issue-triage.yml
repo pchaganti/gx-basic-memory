@@ -70,5 +70,4 @@ jobs:
             - Status: needs-reproduction, needs-clarification, duplicate
 
             Read the issue carefully and provide helpful triage with appropriate labels.
-
           claude_args: '--allowed-tools "Bash(gh issue:*),Bash(gh search:*),Read"'
