@@ -29,12 +29,32 @@ verification, decision capture, and resumable checkpoints.
 | `.codex-plugin/plugin.json` | Codex plugin manifest |
 | `.mcp.json` | Basic Memory MCP server configuration |
 | `hooks/hooks.json` | SessionStart and PreCompact hook registration |
-| `hooks/session-start.sh` | Launches the SessionStart uv script |
-| `hooks/session-start.py` | Injects a compact memory brief at thread start |
-| `hooks/pre-compact.sh` | Launches the PreCompact uv script |
-| `hooks/pre-compact.py` | Writes an automatic Codex checkpoint before compaction |
+| `hooks/session_start.py` | uv script: runs `basic-memory hook session-start --harness codex` |
+| `hooks/pre_compact.py` | uv script: runs `basic-memory hook pre-compact --harness codex` |
 | `skills/` | Codex-native Basic Memory workflows |
 | `schemas/` | Seed schemas for Codex sessions, decisions, and tasks |
+
+The hook scripts carry no logic: the brief, the checkpoint, and opt-in event
+capture all live in the released `basic-memory` package behind `bm hook`. Each
+is a self-contained PEP 723 script whose inline metadata pins the released
+dependency floor uv resolves.
+
+## Requirements
+
+- **[uv](https://docs.astral.sh/uv/)** — required: the hooks are PEP 723
+  scripts executed via `uv run --script`. Install per platform:
+  - macOS: `brew install uv` (or the curl installer below)
+  - Linux/macOS: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+  - Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+- [Basic Memory](https://github.com/basicmachines-co/basic-memory). `uv tool
+  install basic-memory` is recommended (a `basic-memory` binary on PATH keeps the
+  hook version consistent with your MCP server).
+
+Disclosure: uv resolves `basic-memory>=<floor>` from each script's inline
+metadata, fetching from PyPI on first run (pinned minimum version, bumped by
+release tooling); later runs use uv's cache. `BM_BIN` (a binary path or a
+quoted launcher string) overrides the uv-managed environment for development.
+Every failure path exits 0 — the hooks never disrupt a session.
 
 ## Install
 
@@ -67,10 +87,15 @@ Run the setup skill, or create `.codex/basic-memory.json` in a repo:
     "captureFolder": "codex-sessions",
     "rememberFolder": "codex-remember",
     "recallTimeframe": "7d",
+    "captureEvents": false,
     "placementConventions": "Put decisions in decisions/ and work checkpoints in codex-sessions/."
   }
 }
 ```
+
+`captureEvents` is opt-in and off by default: only the JSON boolean `true`
+enables recording of redacted lifecycle-event envelopes to a local inbox under
+your Basic Memory home (`basic-memory hook status` / `basic-memory hook flush`).
 
 Codex plugin hooks must be reviewed and trusted before they run. Open `/hooks` in
 Codex after enabling the plugin and trust the Basic Memory hook definitions.

@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## Unreleased
+
+### Features
+
+- **#997**: Added the `bm hook` harness front door (SPEC-55). Lifecycle verbs
+  (`session-start`, `pre-compact`) move the plugin hook logic into the package
+  behind per-harness stdin adapters, with the session brief fenced as reference
+  data. Opt-in envelope capture (`captureEvents: true`, fail-closed) records
+  redacted lifecycle events into a local inbox WAL, projected deterministically
+  by `bm hook flush`; `bm hook status` shows the surface. `bm hook install` /
+  `bm hook remove` wire the hooks into user-level harness config for standalone
+  users with ownership-tagged, surgical merging. The Claude Code and Codex
+  plugin hooks are now zero-logic PEP 723 uv scripts (`uv run --script`) that
+  invoke `basic-memory hook` in-process; their dependency floor is bumped by
+  release tooling, and `BM_BIN` overrides the uv-managed environment for
+  development.
+
 ## v0.22.1 (2026-06-12)
 
 Follow-up patch to v0.22.0. Fixes project and default-project resolution on

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -23,11 +24,11 @@ REQUIRED_SKILLS = (
 )
 REQUIRED_SCHEMAS = ("codex-session.md", "decision.md", "task.md")
 REQUIRED_HOOK_EVENTS = ("SessionStart", "PreCompact")
+# Zero-logic shims: the only hook code the plugin ships. The Python bodies
+# moved into the basic-memory package behind `bm hook` (SPEC-55).
 REQUIRED_HOOK_SCRIPTS = (
-    "hooks/session-start.sh",
-    "hooks/session-start.py",
-    "hooks/pre-compact.sh",
-    "hooks/pre-compact.py",
+    "hooks/session_start.py",
+    "hooks/pre_compact.py",
 )
 REQUIRED_SKILL_AGENT_FILES = ("agents/openai.yaml", "assets/icon.svg")
 REQUIRED_INTERFACE_ASSETS = {
@@ -99,6 +100,11 @@ def validate_plugin(plugin_dir: Path) -> None:
         require_path(script, "hook script")
         if not os.access(script, os.X_OK):
             raise SystemExit(f"Hook script is not executable: {script}")
+        text = script.read_text(encoding="utf-8")
+        if "# /// script" not in text or not re.search(
+            r'^# dependencies = \["basic-memory>=[^"]+"\]$', text, re.MULTILINE
+        ):
+            raise SystemExit(f"Hook script missing PEP 723 basic-memory floor: {script}")
 
     # --- Skills ---
     skills_root = plugin_dir / "skills"

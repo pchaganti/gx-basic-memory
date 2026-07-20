@@ -45,12 +45,36 @@ Plugin skills are namespaced under the plugin name:
 
 ## Requirements
 
-- [Basic Memory](https://github.com/basicmachines-co/basic-memory) `>= 0.19.0`
-  connected as an MCP server. `uv tool install basic-memory` is recommended (it puts
-  a `basic-memory` binary on PATH, which the hooks call directly). A `uvx
-  basic-memory mcp`-only setup also works — the hooks fall back to `uvx`/`uv` when no
-  binary is on PATH.
+- **[uv](https://docs.astral.sh/uv/)** — required: the hooks are PEP 723
+  scripts executed via `uv run --script`. Install per platform:
+  - macOS: `brew install uv` (or the curl installer below)
+  - Linux/macOS: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+  - Windows: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+- [Basic Memory](https://github.com/basicmachines-co/basic-memory) connected as an
+  MCP server. The hooks resolve their own `basic-memory` through uv, so no
+  PATH install is required for them.
 - Claude Code.
+
+### What the hooks execute
+
+The hook scripts are zero-logic PEP 723 uv scripts: `uv run --quiet --script`
+resolves `basic-memory>=<floor>` (pinned in each script's inline metadata) and
+the script invokes `basic-memory hook <event>` in-process with the hook JSON
+on stdin. All behavior lives in the released Python package — versioned,
+typed, and tested. Setting `BM_BIN` (a binary path or a quoted launcher
+string) overrides the uv-managed environment, e.g. for development against a
+local checkout. Two disclosures:
+
+- **Network fetch on first run.** uv downloads `basic-memory` from PyPI at a
+  pinned minimum version (bumped by release tooling); later runs use uv's
+  cache.
+- **Event capture is opt-in and off by default.** Setting `captureEvents: true`
+  (the JSON boolean — strings never enable it) records redacted lifecycle-event
+  envelopes to a local inbox under your Basic Memory home. Inspect with
+  `basic-memory hook status`, project with `basic-memory hook flush`.
+
+Every failure path exits 0 — the hooks stay invisible rather than disrupt a
+session.
 
 ## Installation
 
@@ -101,6 +125,7 @@ settings (or select it via `/config`).
 | `recallTimeframe` | `3d` | Recency window for the session brief |
 | `recallPrompt` | _(built-in)_ | The instruction appended to the brief |
 | `preCompactCapture` | `extractive` | How checkpoints are produced |
+| `captureEvents` | `false` | Opt-in: record redacted lifecycle-event envelopes to the local inbox (see `basic-memory hook status` / `flush`). Only the JSON boolean `true` enables it. |
 
 See [DESIGN.md](./DESIGN.md) for the complete configuration schema, the
 Claude-Code-project ↔ Basic-Memory-project mapping, and team-workspace behavior.

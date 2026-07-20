@@ -1,300 +1,94 @@
+"""Manifest-level tests for the plugin uv hook scripts (Claude Code and Codex).
+
+The scripts are the entire plugin hook surface: self-contained PEP 723
+launchers that uv resolves at a released dependency floor, invoking
+``bm hook <event> --harness <name>`` in-process. Script behavior (BM_BIN
+override, argument plumbing, fail-open) is pinned by the co-located tests
+next to each script under plugins/*/hooks/; this suite pins the wiring —
+hooks.json commands, executable bits, and the release-floor cross-check
+against the package version.
+"""
+
 import json
 import os
-import shlex
-import shutil
-import subprocess
-import sys
-from dataclasses import dataclass
+import re
 from pathlib import Path
 
 import pytest
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
-def _resolve_bash_executable(*, platform_name: str = os.name) -> str | None:
-    """Prefer Git Bash over Windows' WSL launcher for hook execution."""
-    if platform_name == "nt":
-        git_executable = shutil.which("git")
-        if git_executable:
-            git_bash = Path(git_executable).resolve().parent.parent / "bin" / "bash.exe"
-            if git_bash.is_file():
-                return str(git_bash)
-    return shutil.which("bash")
-
-
-BASH_EXECUTABLE = _resolve_bash_executable()
-HOOK_RUNTIME_AVAILABLE = BASH_EXECUTABLE is not None and shutil.which("python3") is not None
-pytestmark = pytest.mark.skipif(
-    not HOOK_RUNTIME_AVAILABLE,
-    reason="Claude Code hook tests require bash and python3",
+# The floor the scripts declare must be the released version — read it from
+# the package so `scripts/update_versions.py` keeps this suite green.
+_version_match = re.search(
+    r'^__version__ = "(.+)"$',
+    (REPO_ROOT / "src/basic_memory/__init__.py").read_text(encoding="utf-8"),
+    re.MULTILINE,
 )
+assert _version_match is not None, "no __version__ in src/basic_memory/__init__.py"
+CURRENT_VERSION = _version_match.group(1)
+
+# (plugin hooks dir, plugin-root template variable the harness substitutes)
+PLUGINS = [
+    pytest.param("plugins/claude-code/hooks", "${CLAUDE_PLUGIN_ROOT}", id="claude-code"),
+    pytest.param("plugins/codex/hooks", "${PLUGIN_ROOT}", id="codex"),
+]
+EVENTS = [
+    pytest.param("SessionStart", "session_start.py", id="session-start"),
+    pytest.param("PreCompact", "pre_compact.py", id="pre-compact"),
+]
 
 
-@dataclass(frozen=True, slots=True)
-class HookHarness:
-    repo_root: Path
-    home: Path
-    bin_dir: Path
-    command_log: Path
-
-    def write_settings(self, directory: Path, name: str, basic_memory: dict[str, object]) -> None:
-        settings_dir = directory / ".claude"
-        settings_dir.mkdir(parents=True, exist_ok=True)
-        (settings_dir / name).write_text(
-            json.dumps({"basicMemory": basic_memory}),
-            encoding="utf-8",
-        )
-
-    def run_hook(
-        self,
-        hook_name: str,
-        payload: dict[str, str],
-        *,
-        basic_memory_command: str | None = None,
-        use_default_cli_discovery: bool = False,
-    ) -> subprocess.CompletedProcess[str]:
-        assert BASH_EXECUTABLE is not None
-        env = os.environ.copy()
-        env.update(
-            {
-                "BM_TEST_COMMAND_LOG": str(self.command_log),
-                "HOME": str(self.home),
-                "PATH": f"{self.bin_dir}{os.pathsep}{env['PATH']}",
-                "USERPROFILE": str(self.home),
-            }
-        )
-        if use_default_cli_discovery:
-            env.pop("BM_BIN", None)
-        else:
-            env["BM_BIN"] = basic_memory_command or shlex.join(
-                [sys.executable, str(self.bin_dir / "basic memory")]
-            )
-        return subprocess.run(
-            [BASH_EXECUTABLE, str(self.repo_root / "plugins/claude-code/hooks" / hook_name)],
-            input=json.dumps(payload),
-            capture_output=True,
-            check=False,
-            env=env,
-            text=True,
-        )
-
-    def logged_commands(self) -> list[list[str]]:
-        if not self.command_log.exists():
-            return []
-        return [json.loads(line) for line in self.command_log.read_text().splitlines()]
+def _hook_commands(hooks_dir: Path, event: str) -> list[str]:
+    manifest = json.loads((hooks_dir / "hooks.json").read_text(encoding="utf-8"))
+    groups = manifest["hooks"][event]
+    return [hook["command"] for group in groups for hook in group["hooks"]]
 
 
-@pytest.fixture
-def hook_harness(tmp_path: Path) -> HookHarness:
-    repo_root = Path(__file__).resolve().parents[1]
-    home = tmp_path / "home"
-    bin_dir = tmp_path / "bin"
-    home.mkdir()
-    bin_dir.mkdir()
-    command_log = tmp_path / "basic-memory-commands.jsonl"
-
-    fake_script = """#!/usr/bin/env python3
-import json
-import os
-import sys
-
-with open(os.environ["BM_TEST_COMMAND_LOG"], "a", encoding="utf-8") as command_log:
-    command_log.write(json.dumps(sys.argv[1:]) + "\\n")
-
-if sys.argv[1:3] == ["tool", "search-notes"]:
-    print(json.dumps({"results": []}))
-"""
-    for command_name in ("basic memory", "basic-memory"):
-        fake_basic_memory = bin_dir / command_name
-        fake_basic_memory.write_text(fake_script, encoding="utf-8")
-        fake_basic_memory.chmod(0o755)
-
-    return HookHarness(
-        repo_root=repo_root,
-        home=home,
-        bin_dir=bin_dir,
-        command_log=command_log,
-    )
-
-
-def test_resolve_bash_executable_prefers_git_bash_on_windows(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+@pytest.mark.parametrize(("hooks_dir", "root_var"), PLUGINS)
+@pytest.mark.parametrize(("event", "script_name"), EVENTS)
+def test_hooks_json_wires_uv_run_script(
+    hooks_dir: str, root_var: str, event: str, script_name: str
 ) -> None:
-    git_root = tmp_path / "Git"
-    git_executable = git_root / "cmd/git.exe"
-    git_bash = git_root / "bin/bash.exe"
-    git_executable.parent.mkdir(parents=True)
-    git_executable.touch()
-    git_bash.parent.mkdir(parents=True)
-    git_bash.touch()
+    # The command is multi-word and the path is quoted: it runs through the
+    # harness shell on both POSIX and Windows, and plugin roots can contain
+    # spaces. --script forces script mode so a project venv at the session
+    # cwd can never shadow the pinned dependency floor.
+    commands = _hook_commands(REPO_ROOT / hooks_dir, event)
 
-    def fake_which(command: str) -> str | None:
-        if command == "git":
-            return str(git_executable)
-        if command == "bash":
-            return "C:/Windows/System32/bash.exe"
-        return None
-
-    monkeypatch.setattr(shutil, "which", fake_which)
-
-    assert _resolve_bash_executable(platform_name="nt") == str(git_bash)
+    assert commands == [f'uv run --quiet --script "{root_var}/hooks/{script_name}"']
 
 
-@pytest.mark.skipif(
-    os.name == "nt",
-    reason="Windows cannot execute the fixture's extensionless shebang script directly",
-)
-def test_session_start_preserves_raw_cli_path_with_spaces(hook_harness: HookHarness) -> None:
-    hook_harness.write_settings(
-        hook_harness.home,
-        "settings.json",
-        {"primaryProject": "global-project"},
-    )
-    cwd = hook_harness.home / "work/repo"
-    cwd.mkdir(parents=True)
-
-    result = hook_harness.run_hook(
-        "session-start.sh",
-        {"cwd": str(cwd)},
-        basic_memory_command=str(hook_harness.bin_dir / "basic memory"),
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert "**Project:** global-project" in result.stdout
-
-
-@pytest.mark.skipif(
-    os.name == "nt",
-    reason="Windows cannot execute the fixture's extensionless shebang script directly",
-)
-def test_session_start_discovers_basic_memory_from_path(hook_harness: HookHarness) -> None:
-    hook_harness.write_settings(
-        hook_harness.home,
-        "settings.json",
-        {"primaryProject": "global-project"},
-    )
-    cwd = hook_harness.home / "work/repo"
-    cwd.mkdir(parents=True)
-
-    result = hook_harness.run_hook(
-        "session-start.sh",
-        {"cwd": str(cwd)},
-        use_default_cli_discovery=True,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert "**Project:** global-project" in result.stdout
-    assert hook_harness.logged_commands()
-
-
-def test_session_start_uses_user_settings_without_project_config(
-    hook_harness: HookHarness,
+@pytest.mark.parametrize(("hooks_dir", "root_var"), PLUGINS)
+@pytest.mark.parametrize(("event", "script_name"), EVENTS)
+def test_hook_scripts_exist_and_are_executable(
+    hooks_dir: str, root_var: str, event: str, script_name: str
 ) -> None:
-    hook_harness.write_settings(
-        hook_harness.home,
-        "settings.json",
-        {"primaryProject": "global-project", "captureFolder": "global-sessions"},
-    )
-    # Claude Code does not treat this as a user-level settings source. A stale
-    # file must not silently reroute hooks away from the visible global config.
-    hook_harness.write_settings(
-        hook_harness.home,
-        "settings.local.json",
-        {"primaryProject": "stale-project"},
-    )
-    cwd = hook_harness.home / "work/repo/src"
-    cwd.mkdir(parents=True)
+    script = REPO_ROOT / hooks_dir / script_name
 
-    result = hook_harness.run_hook("session-start.sh", {"cwd": str(cwd)})
-
-    assert result.returncode == 0, result.stderr
-    assert "**Project:** global-project" in result.stdout
-    assert "`global-sessions/`" in result.stdout
-    assert "stale-project" not in result.stdout
+    assert script.exists()
+    # hooks.json invokes them via `uv run`, but the shebang supports direct
+    # runs; the exec bit keeps both paths working from a fresh clone.
+    assert os.access(script, os.X_OK)
+    first_line = script.read_text(encoding="utf-8").splitlines()[0]
+    assert first_line == "#!/usr/bin/env -S uv run --quiet --script"
 
 
-def test_session_start_merges_nearest_ancestor_project_settings_over_user_settings(
-    hook_harness: HookHarness,
+@pytest.mark.parametrize(("hooks_dir", "root_var"), PLUGINS)
+@pytest.mark.parametrize(("event", "script_name"), EVENTS)
+def test_script_floor_matches_released_version(
+    hooks_dir: str, root_var: str, event: str, script_name: str
 ) -> None:
-    hook_harness.write_settings(
-        hook_harness.home,
-        "settings.json",
-        {"primaryProject": "global-project", "captureFolder": "global-sessions"},
-    )
-    project_root = hook_harness.home / "work/repo"
-    hook_harness.write_settings(
-        project_root,
-        "settings.json",
-        {"primaryProject": "project-override"},
-    )
-    hook_harness.write_settings(
-        project_root,
-        "settings.local.json",
-        {"captureFolder": "local-sessions"},
-    )
-    cwd = project_root / "packages/client/src"
-    cwd.mkdir(parents=True)
+    # Release drift between the PEP 723 floor and the package version fails
+    # here (and in each script's co-located test) before a release lands.
+    text = (REPO_ROOT / hooks_dir / script_name).read_text(encoding="utf-8")
+    floors = re.findall(r'^# dependencies = \["basic-memory>=([^"]+)"\]$', text, re.MULTILINE)
 
-    result = hook_harness.run_hook("session-start.sh", {"cwd": str(cwd)})
-
-    assert result.returncode == 0, result.stderr
-    assert "**Project:** project-override" in result.stdout
-    assert "`local-sessions/`" in result.stdout
-    search_commands = [
-        command
-        for command in hook_harness.logged_commands()
-        if command[:2] == ["tool", "search-notes"]
-    ]
-    assert len(search_commands) == 3
-    assert all(
-        command[command.index("--project") + 1] == "project-override" for command in search_commands
-    )
+    assert floors == [CURRENT_VERSION]
 
 
-def test_pre_compact_uses_merged_project_and_capture_folder(
-    hook_harness: HookHarness,
-    tmp_path: Path,
-) -> None:
-    hook_harness.write_settings(
-        hook_harness.home,
-        "settings.json",
-        {"primaryProject": "global-project", "captureFolder": "global-sessions"},
-    )
-    project_root = hook_harness.home / "work/repo"
-    hook_harness.write_settings(
-        project_root,
-        "settings.json",
-        {"primaryProject": "project-override"},
-    )
-    hook_harness.write_settings(
-        project_root,
-        "settings.local.json",
-        {"captureFolder": "local-sessions"},
-    )
-    cwd = project_root / "src"
-    cwd.mkdir(parents=True)
-    transcript = tmp_path / "transcript.jsonl"
-    transcript.write_text(
-        json.dumps({"message": {"role": "user", "content": "Ship the settings fallback"}}) + "\n",
-        encoding="utf-8",
-    )
-
-    result = hook_harness.run_hook(
-        "pre-compact.sh",
-        {
-            "cwd": str(cwd),
-            "session_id": "session-123",
-            "transcript_path": str(transcript),
-        },
-    )
-
-    assert result.returncode == 0, result.stderr
-    write_commands = [
-        command
-        for command in hook_harness.logged_commands()
-        if command[:2] == ["tool", "write-note"]
-    ]
-    assert len(write_commands) == 1
-    write_command = write_commands[0]
-    assert write_command[write_command.index("--project") + 1] == "project-override"
-    assert write_command[write_command.index("--folder") + 1] == "local-sessions"
+def test_no_shell_shims_remain() -> None:
+    # The bash shims were replaced by the uv scripts; a stray .sh reappearing
+    # would mean a manifest or installer regressed to the old launcher.
+    for hooks_dir in ("plugins/claude-code/hooks", "plugins/codex/hooks"):
+        assert not list((REPO_ROOT / hooks_dir).glob("*.sh"))
