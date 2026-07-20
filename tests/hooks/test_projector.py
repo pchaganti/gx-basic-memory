@@ -10,7 +10,7 @@ from basic_memory.hooks.envelope import (
     SESSION_STARTED,
     create_envelope,
 )
-from basic_memory.hooks.projector import flush, split_project_ref
+from basic_memory.hooks.projector import _artifact_username, flush, split_project_ref
 
 WRITE_OK = {"title": "x", "action": "created"}
 
@@ -45,12 +45,32 @@ def test_split_project_ref_routes_uuids_via_project_id() -> None:
     assert split_project_ref("my-team/notes") == ("my-team/notes", None)
 
 
+def test_artifact_username_falls_back_to_environment() -> None:
+    with (
+        patch("basic_memory.hooks.projector.getuser", side_effect=OSError),
+        patch.dict("os.environ", {"USER": "ci-user"}, clear=True),
+    ):
+        assert _artifact_username() == "ci-user"
+
+
+def test_artifact_username_is_stable_when_unavailable() -> None:
+    with (
+        patch("basic_memory.hooks.projector.getuser", side_effect=KeyError),
+        patch.dict("os.environ", {}, clear=True),
+    ):
+        assert _artifact_username() == "unknown"
+
+
 async def test_flush_projects_session_and_ledger(bm_home: Path) -> None:
     _capture(event=SESSION_STARTED, ts="2026-07-15T10:00:00+00:00")
     _capture(event=COMPACTION_IMMINENT, ts="2026-07-15T10:05:00+00:00")
     mock_write = AsyncMock(return_value=WRITE_OK)
 
-    with patch("basic_memory.mcp.tools.write_note", mock_write):
+    with (
+        patch("basic_memory.mcp.tools.write_note", mock_write),
+        patch("basic_memory.hooks.projector.getuser", return_value="alice"),
+        patch("basic_memory.hooks.projector.gethostname", return_value="devbox"),
+    ):
         result = await flush()
 
     assert result.swept == 2
@@ -73,6 +93,8 @@ async def test_flush_projects_session_and_ledger(bm_home: Path) -> None:
     session_metadata = session_call.kwargs["metadata"]
     assert session_metadata["created_by"] == "bm-hook/claude-code"
     assert session_metadata["caused_by_event"]
+    assert session_metadata["username"] == "alice"
+    assert session_metadata["hostname"] == "devbox"
     assert session_metadata["status"] == "open"
     content = session_call.kwargs["content"]
     assert "- [source] claude-code/s-1" in content
@@ -83,6 +105,8 @@ async def test_flush_projects_session_and_ledger(bm_home: Path) -> None:
     ledger_content = ledger_call.kwargs["content"]
     assert ledger_call.kwargs["note_type"] == "tool_ledger"
     assert ledger_call.kwargs["metadata"]["created_by"] == "bm-hook/claude-code"
+    assert ledger_call.kwargs["metadata"]["username"] == "alice"
+    assert ledger_call.kwargs["metadata"]["hostname"] == "devbox"
     assert "- [event] session_started at" in ledger_content
     assert "- [source] claude-code/s-1" in ledger_content
 

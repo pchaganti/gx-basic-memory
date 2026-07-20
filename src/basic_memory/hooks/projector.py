@@ -18,9 +18,12 @@ Writes go through the same internal write path the CLI's ``write-note`` uses
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass, field
+from getpass import getuser
 from pathlib import Path
+from socket import gethostname
 
 from loguru import logger
 
@@ -131,6 +134,17 @@ def _capture_folder(envelopes: list[Envelope]) -> str:
     return DEFAULT_CAPTURE_FOLDER
 
 
+def _artifact_username() -> str:
+    try:
+        return getuser()
+    except (OSError, KeyError):
+        # Trigger: the runtime has no passwd entry for its uid. Python 3.12 may
+        # raise KeyError here; Python 3.13+ normalizes the failure to OSError.
+        # Why: optional provenance must never prevent queued notes from flushing.
+        # Outcome: use the host-provided identity, or a stable unknown value.
+        return os.environ.get("USER") or os.environ.get("USERNAME") or "unknown"
+
+
 def _artifact_metadata(first: Envelope) -> dict[str, str]:
     """Provenance frontmatter every projected artifact carries.
 
@@ -145,6 +159,8 @@ def _artifact_metadata(first: Envelope) -> dict[str, str]:
     metadata = {
         "created_by": f"{CREATED_BY_PREFIX}/{first.source}",
         "caused_by_event": first.id,
+        "username": _artifact_username(),
+        "hostname": gethostname(),
     }
     metadata.update(to_frontmatter_fields(first))
     return metadata
