@@ -13,7 +13,7 @@ Design principles:
 from dataclasses import dataclass
 
 from basic_memory.config import BasicMemoryConfig, ConfigManager
-from basic_memory.runtime import RuntimeMode, resolve_runtime_mode
+from basic_memory.runtime.mode import RuntimeMode, resolve_runtime_mode
 
 
 @dataclass
@@ -35,7 +35,6 @@ class CliContainer:
         """
         config = ConfigManager().config
         mode = resolve_runtime_mode(
-            cloud_mode_enabled=config.cloud_mode_enabled,
             is_test_env=config.is_test_env,
         )
         return cls(config=config, mode=mode)

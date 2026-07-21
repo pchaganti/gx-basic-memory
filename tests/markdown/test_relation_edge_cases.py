@@ -58,18 +58,21 @@ def test_context_handling():
     tokens = md.parse("- type [[Target]] (unclosed")
     token = next(t for t in tokens if t.type == "inline")
     rel = parse_relation(token)
+    assert rel is not None
     assert rel["context"] is None
 
     # Multiple parens
     tokens = md.parse("- type [[Target]] (with (nested) parens)")
     token = next(t for t in tokens if t.type == "inline")
     rel = parse_relation(token)
+    assert rel is not None
     assert rel["context"] == "with (nested) parens"
 
     # Empty context
     tokens = md.parse("- type [[Target]] ()")
     token = next(t for t in tokens if t.type == "inline")
     rel = parse_relation(token)
+    assert rel is not None
     assert rel["context"] is None
 
 
@@ -103,18 +106,21 @@ def test_unicode_targets():
     tokens = md.parse("- type [[测试]]")
     token = next(t for t in tokens if t.type == "inline")
     rel = parse_relation(token)
+    assert rel is not None
     assert rel["target"] == "测试"
 
     # Unicode in type
     tokens = md.parse("- 使用 [[Target]]")
     token = next(t for t in tokens if t.type == "inline")
     rel = parse_relation(token)
+    assert rel is not None
     assert rel["type"] == "使用"
 
     # Unicode in context
     tokens = md.parse("- type [[Target]] (测试)")
     token = next(t for t in tokens if t.type == "inline")
     rel = parse_relation(token)
+    assert rel is not None
     assert rel["context"] == "测试"
 
     # Model validation with Unicode
@@ -122,3 +128,51 @@ def test_unicode_targets():
     assert relation.type == "type"
     assert relation.target == "Target"
     assert relation.context == "测试"
+
+
+def test_quoted_multi_word_relation_type_parses_as_explicit_relation():
+    """Quoted relation labels allow explicit multi-word relation types."""
+    md = MarkdownIt().use(relation_plugin)
+
+    tokens = md.parse('- "some type" [[Target]] (context)')
+    token = next(t for t in tokens if t.type == "inline")
+
+    assert token.meta["relations"] == [
+        {"type": "some type", "target": "Target", "context": "context"}
+    ]
+    assert parse_relation(token) == {"type": "some type", "target": "Target", "context": "context"}
+
+
+def test_single_quoted_multi_word_relation_type_parses_as_explicit_relation():
+    """Single-quoted relation labels also allow explicit multi-word relation types."""
+    md = MarkdownIt().use(relation_plugin)
+
+    tokens = md.parse("- 'some type' [[Target]] (context)")
+    token = next(t for t in tokens if t.type == "inline")
+
+    assert token.meta["relations"] == [
+        {"type": "some type", "target": "Target", "context": "context"}
+    ]
+    assert parse_relation(token) == {"type": "some type", "target": "Target", "context": "context"}
+
+
+def test_unquoted_multi_word_prefix_is_inline_link_not_relation_type():
+    """Unquoted prose before a wikilink is an inline link, not a relation type."""
+    md = MarkdownIt().use(relation_plugin)
+
+    tokens = md.parse("- some other thing [[Target]]")
+    token = next(t for t in tokens if t.type == "inline")
+
+    assert token.meta["relations"] == [{"type": "links_to", "target": "Target", "context": None}]
+    assert parse_relation(token) is None
+
+
+def test_bare_list_wikilink_is_inline_link_not_default_explicit_relation():
+    """A list item containing only a wikilink is still a generic inline link."""
+    md = MarkdownIt().use(relation_plugin)
+
+    tokens = md.parse("- [[Target]]")
+    token = next(t for t in tokens if t.type == "inline")
+
+    assert token.meta["relations"] == [{"type": "links_to", "target": "Target", "context": None}]
+    assert parse_relation(token) is None

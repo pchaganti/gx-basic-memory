@@ -1,11 +1,14 @@
 """Knowledge graph models."""
 
+import hashlib
 import uuid
 from datetime import datetime
 from basic_memory.utils import ensure_timezone_aware
 from typing import Optional
 
 from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
     Integer,
     String,
     Text,
@@ -17,9 +20,10 @@ from sqlalchemy import (
     Float,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from basic_memory.models.base import Base
+from basic_memory.runtime.storage import RUNTIME_MARKDOWN_CONTENT_TYPE
 from basic_memory.utils import generate_permalink
 
 
@@ -37,7 +41,7 @@ class Entity(Base):
     __tablename__ = "entity"
     __table_args__ = (
         # Regular indexes
-        Index("ix_entity_type", "entity_type"),
+        Index("ix_note_type", "note_type"),
         Index("ix_entity_title", "title"),
         Index("ix_entity_external_id", "external_id", unique=True),
         Index("ix_entity_created_at", "created_at"),  # For timeline queries
@@ -60,11 +64,11 @@ class Entity(Base):
     )
 
     # Core identity
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)  # pyright: ignore [reportIncompatibleVariableOverride]
     # External UUID for API references - stable identifier that won't change
     external_id: Mapped[str] = mapped_column(String, unique=True, default=lambda: str(uuid.uuid4()))
     title: Mapped[str] = mapped_column(String)
-    entity_type: Mapped[str] = mapped_column(String)
+    note_type: Mapped[str] = mapped_column(String)
     entity_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     content_type: Mapped[str] = mapped_column(String)
 
@@ -91,8 +95,12 @@ class Entity(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now().astimezone(),
-        onupdate=lambda: datetime.now().astimezone(),
     )
+
+    # Who created this entity (cloud user_profile_id UUID, null for local/CLI usage)
+    created_by: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
+    # Who last modified this entity (cloud user_profile_id UUID, null for local/CLI usage)
+    last_updated_by: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
 
     # Relationships
     project = relationship("Project", back_populates="entities")
@@ -111,6 +119,18 @@ class Entity(Base):
         foreign_keys="[Relation.to_id]",
         cascade="all, delete-orphan",
     )
+    note_content = relationship(
+        "NoteContent",
+        back_populates="entity",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+    @validates("created_at", "updated_at")
+    def _normalize_semantic_timestamp(self, attribute_name: str, value: datetime) -> datetime:
+        """Keep SQLite's timezone-naive storage faithful to the represented instant."""
+        del attribute_name
+        return ensure_timezone_aware(value).astimezone()
 
     @property
     def relations(self):
@@ -120,7 +140,7 @@ class Entity(Base):
     @property
     def is_markdown(self):
         """Check if the entity is a markdown file."""
-        return self.content_type == "text/markdown"
+        return self.content_type == RUNTIME_MARKDOWN_CONTENT_TYPE
 
     def __getattribute__(self, name):
         """Override attribute access to ensure datetime fields are timezone-aware."""
@@ -133,7 +153,75 @@ class Entity(Base):
         return value
 
     def __repr__(self) -> str:
-        return f"Entity(id={self.id}, external_id='{self.external_id}', name='{self.title}', type='{self.entity_type}', checksum='{self.checksum}')"
+        return f"Entity(id={self.id}, external_id='{self.external_id}', name='{self.title}', type='{self.note_type}', checksum='{self.checksum}')"
+
+
+class NoteContent(Base):
+    """Materialized markdown content and sync state for a note entity."""
+
+    __tablename__ = "note_content"
+    __table_args__ = (
+        CheckConstraint(
+            "file_write_status IN ("
+            "'pending', "
+            "'writing', "
+            "'synced', "
+            "'failed', "
+            "'external_change_detected'"
+            ")",
+            name="ck_note_content_file_write_status",
+        ),
+        Index("ix_note_content_project_id", "project_id"),
+        Index("ix_note_content_file_path", "file_path"),
+        Index("ix_note_content_external_id", "external_id", unique=True),
+    )
+
+    # Core identity mirrored from entity for hot note reads
+    entity_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("entity.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    project_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("project.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    external_id: Mapped[str] = mapped_column(String, nullable=False)
+    file_path: Mapped[str] = mapped_column(String, nullable=False)
+
+    # Materialized content version tracked in the tenant database
+    markdown_content: Mapped[str] = mapped_column(Text, nullable=False)
+    db_version: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    db_checksum: Mapped[str] = mapped_column(String, nullable=False)
+
+    # File materialization state tracked against the latest write attempts
+    file_version: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    file_checksum: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    file_write_status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    last_source: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now().astimezone(),
+        onupdate=lambda: datetime.now().astimezone(),
+    )
+    file_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    last_materialization_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_materialization_attempt_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    entity = relationship("Entity", back_populates="note_content")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"NoteContent(entity_id={self.entity_id}, external_id='{self.external_id}', "
+            f"file_path='{self.file_path}', file_write_status='{self.file_write_status}')"
+        )
 
 
 class Observation(Base):
@@ -148,7 +236,7 @@ class Observation(Base):
         Index("ix_observation_category", "category"),  # Add category index
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)  # pyright: ignore [reportIncompatibleVariableOverride]
     project_id: Mapped[int] = mapped_column(Integer, ForeignKey("project.id"), index=True)
     entity_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
     content: Mapped[str] = mapped_column(Text)
@@ -171,8 +259,18 @@ class Observation(Base):
         Content is truncated to 200 chars to stay under PostgreSQL's
         btree index limit of 2704 bytes.
         """
-        # Truncate content to avoid exceeding PostgreSQL's btree index limit
-        content_for_permalink = self.content[:200] if len(self.content) > 200 else self.content
+        if len(self.content) > 200:
+            # Trigger: content exceeds the 200-char budget imposed by PostgreSQL's
+            # 2704-byte btree index row limit, so the permalink can only carry a prefix.
+            # Why: two distinct observations with the same category and an identical
+            # 200-char prefix would collide on the same synthetic permalink, and the
+            # search index (permalink-keyed upsert) silently drops the second one.
+            # Outcome: a short stable digest of the FULL content disambiguates
+            # truncated permalinks while staying well under the index limit.
+            digest = hashlib.sha256(self.content.encode("utf-8")).hexdigest()[:12]
+            content_for_permalink = f"{self.content[:200]}-{digest}"
+        else:
+            content_for_permalink = self.content
         return generate_permalink(
             f"{self.entity.permalink}/observations/{self.category}/{content_for_permalink}"
         )
@@ -195,7 +293,7 @@ class Relation(Base):
         Index("ix_relation_to_id", "to_id"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)  # pyright: ignore [reportIncompatibleVariableOverride]
     project_id: Mapped[int] = mapped_column(Integer, ForeignKey("project.id"), index=True)
     from_id: Mapped[int] = mapped_column(Integer, ForeignKey("entity.id", ondelete="CASCADE"))
     to_id: Mapped[Optional[int]] = mapped_column(

@@ -7,13 +7,19 @@ from typing import Any
 
 from httpx import AsyncClient
 
-from basic_memory.mcp.tools.utils import call_get, call_post, call_put, call_patch, call_delete
+import logfire
+
+# call_* helpers live in basic_memory.mcp.tools.utils; importing that at module
+# level executes the whole tools package (fastmcp + mcp SDK) during CLI startup,
+# so each method defers the import to call time instead (#886).
 from basic_memory.schemas.response import (
     EntityResponse,
     DeleteEntitiesResponse,
     DirectoryMoveResult,
     DirectoryDeleteResult,
 )
+from basic_memory.schemas.v2.graph import GraphNode, OrphanEntitiesResponse
+from basic_memory.schemas.v2.entity import EntityResolveResponse
 
 
 class KnowledgeClient:
@@ -43,9 +49,7 @@ class KnowledgeClient:
 
     # --- Entity CRUD Operations ---
 
-    async def create_entity(
-        self, entity_data: dict[str, Any], *, fast: bool | None = None
-    ) -> EntityResponse:
+    async def create_entity(self, entity_data: dict[str, Any]) -> EntityResponse:
         """Create a new entity.
 
         Args:
@@ -57,21 +61,27 @@ class KnowledgeClient:
         Raises:
             ToolError: If the request fails
         """
-        params = {"fast": fast} if fast is not None else None
-        response = await call_post(
-            self.http_client,
-            f"{self._base_path}/entities",
-            json=entity_data,
-            params=params,
-        )
+        from basic_memory.mcp.tools.utils import call_post
+
+        with logfire.span(
+            "mcp.client.knowledge.create_entity",
+            client_name="knowledge",
+            operation="create_entity",
+        ):
+            response = await call_post(
+                self.http_client,
+                f"{self._base_path}/entities",
+                json=entity_data,
+                client_name="knowledge",
+                operation="create_entity",
+                path_template="/v2/projects/{project_id}/knowledge/entities",
+            )
         return EntityResponse.model_validate(response.json())
 
     async def update_entity(
         self,
         entity_id: str,
         entity_data: dict[str, Any],
-        *,
-        fast: bool | None = None,
     ) -> EntityResponse:
         """Update an existing entity (full replacement).
 
@@ -85,13 +95,21 @@ class KnowledgeClient:
         Raises:
             ToolError: If the request fails
         """
-        params = {"fast": fast} if fast is not None else None
-        response = await call_put(
-            self.http_client,
-            f"{self._base_path}/entities/{entity_id}",
-            json=entity_data,
-            params=params,
-        )
+        from basic_memory.mcp.tools.utils import call_put
+
+        with logfire.span(
+            "mcp.client.knowledge.update_entity",
+            client_name="knowledge",
+            operation="update_entity",
+        ):
+            response = await call_put(
+                self.http_client,
+                f"{self._base_path}/entities/{entity_id}",
+                json=entity_data,
+                client_name="knowledge",
+                operation="update_entity",
+                path_template="/v2/projects/{project_id}/knowledge/entities/{entity_id}",
+            )
         return EntityResponse.model_validate(response.json())
 
     async def get_entity(self, entity_id: str) -> EntityResponse:
@@ -106,18 +124,26 @@ class KnowledgeClient:
         Raises:
             ToolError: If the entity is not found or request fails
         """
-        response = await call_get(
-            self.http_client,
-            f"{self._base_path}/entities/{entity_id}",
-        )
+        from basic_memory.mcp.tools.utils import call_get
+
+        with logfire.span(
+            "mcp.client.knowledge.get_entity",
+            client_name="knowledge",
+            operation="get_entity",
+        ):
+            response = await call_get(
+                self.http_client,
+                f"{self._base_path}/entities/{entity_id}",
+                client_name="knowledge",
+                operation="get_entity",
+                path_template="/v2/projects/{project_id}/knowledge/entities/{entity_id}",
+            )
         return EntityResponse.model_validate(response.json())
 
     async def patch_entity(
         self,
         entity_id: str,
         patch_data: dict[str, Any],
-        *,
-        fast: bool | None = None,
     ) -> EntityResponse:
         """Partially update an entity.
 
@@ -131,13 +157,21 @@ class KnowledgeClient:
         Raises:
             ToolError: If the request fails
         """
-        params = {"fast": fast} if fast is not None else None
-        response = await call_patch(
-            self.http_client,
-            f"{self._base_path}/entities/{entity_id}",
-            json=patch_data,
-            params=params,
-        )
+        from basic_memory.mcp.tools.utils import call_patch
+
+        with logfire.span(
+            "mcp.client.knowledge.patch_entity",
+            client_name="knowledge",
+            operation="patch_entity",
+        ):
+            response = await call_patch(
+                self.http_client,
+                f"{self._base_path}/entities/{entity_id}",
+                json=patch_data,
+                client_name="knowledge",
+                operation="patch_entity",
+                path_template="/v2/projects/{project_id}/knowledge/entities/{entity_id}",
+            )
         return EntityResponse.model_validate(response.json())
 
     async def delete_entity(self, entity_id: str) -> DeleteEntitiesResponse:
@@ -152,10 +186,20 @@ class KnowledgeClient:
         Raises:
             ToolError: If the entity is not found or request fails
         """
-        response = await call_delete(
-            self.http_client,
-            f"{self._base_path}/entities/{entity_id}",
-        )
+        from basic_memory.mcp.tools.utils import call_delete
+
+        with logfire.span(
+            "mcp.client.knowledge.delete_entity",
+            client_name="knowledge",
+            operation="delete_entity",
+        ):
+            response = await call_delete(
+                self.http_client,
+                f"{self._base_path}/entities/{entity_id}",
+                client_name="knowledge",
+                operation="delete_entity",
+                path_template="/v2/projects/{project_id}/knowledge/entities/{entity_id}",
+            )
         return DeleteEntitiesResponse.model_validate(response.json())
 
     async def move_entity(self, entity_id: str, destination_path: str) -> EntityResponse:
@@ -171,11 +215,21 @@ class KnowledgeClient:
         Raises:
             ToolError: If the request fails
         """
-        response = await call_put(
-            self.http_client,
-            f"{self._base_path}/entities/{entity_id}/move",
-            json={"destination_path": destination_path},
-        )
+        from basic_memory.mcp.tools.utils import call_put
+
+        with logfire.span(
+            "mcp.client.knowledge.move_entity",
+            client_name="knowledge",
+            operation="move_entity",
+        ):
+            response = await call_put(
+                self.http_client,
+                f"{self._base_path}/entities/{entity_id}/move",
+                json={"destination_path": destination_path},
+                client_name="knowledge",
+                operation="move_entity",
+                path_template="/v2/projects/{project_id}/knowledge/entities/{entity_id}/move",
+            )
         return EntityResponse.model_validate(response.json())
 
     async def move_directory(
@@ -193,14 +247,24 @@ class KnowledgeClient:
         Raises:
             ToolError: If the request fails
         """
-        response = await call_post(
-            self.http_client,
-            f"{self._base_path}/move-directory",
-            json={
-                "source_directory": source_directory,
-                "destination_directory": destination_directory,
-            },
-        )
+        from basic_memory.mcp.tools.utils import call_post
+
+        with logfire.span(
+            "mcp.client.knowledge.move_directory",
+            client_name="knowledge",
+            operation="move_directory",
+        ):
+            response = await call_post(
+                self.http_client,
+                f"{self._base_path}/move-directory",
+                json={
+                    "source_directory": source_directory,
+                    "destination_directory": destination_directory,
+                },
+                client_name="knowledge",
+                operation="move_directory",
+                path_template="/v2/projects/{project_id}/knowledge/move-directory",
+            )
         return DirectoryMoveResult.model_validate(response.json())
 
     async def delete_directory(self, directory: str) -> DirectoryDeleteResult:
@@ -215,31 +279,123 @@ class KnowledgeClient:
         Raises:
             ToolError: If the request fails
         """
-        response = await call_post(
-            self.http_client,
-            f"{self._base_path}/delete-directory",
-            json={"directory": directory},
-        )
+        from basic_memory.mcp.tools.utils import call_post
+
+        with logfire.span(
+            "mcp.client.knowledge.delete_directory",
+            client_name="knowledge",
+            operation="delete_directory",
+        ):
+            response = await call_post(
+                self.http_client,
+                f"{self._base_path}/delete-directory",
+                json={"directory": directory},
+                client_name="knowledge",
+                operation="delete_directory",
+                path_template="/v2/projects/{project_id}/knowledge/delete-directory",
+            )
         return DirectoryDeleteResult.model_validate(response.json())
+
+    # --- Single-file indexing ---
+
+    async def index_file(self, file_path: str) -> EntityResponse:
+        """Index a markdown file that exists on disk but is not indexed yet.
+
+        Args:
+            file_path: Markdown file path relative to the project root
+
+        Returns:
+            EntityResponse for the indexed entity
+
+        Raises:
+            ToolError: If the file does not exist on disk or indexing fails
+        """
+        from basic_memory.mcp.tools.utils import call_post
+
+        with logfire.span(
+            "mcp.client.knowledge.index_file",
+            client_name="knowledge",
+            operation="index_file",
+        ):
+            response = await call_post(
+                self.http_client,
+                f"{self._base_path}/index-file",
+                json={"file_path": file_path},
+                client_name="knowledge",
+                operation="index_file",
+                path_template="/v2/projects/{project_id}/knowledge/index-file",
+            )
+        return EntityResponse.model_validate(response.json())
+
+    # --- Orphan detection ---
+
+    async def get_orphans(self) -> list[GraphNode]:
+        """Get entities that have no incoming or outgoing relations."""
+        from basic_memory.mcp.tools.utils import call_get
+
+        with logfire.span(
+            "mcp.client.knowledge.get_orphans",
+            client_name="knowledge",
+            operation="get_orphans",
+        ):
+            response = await call_get(
+                self.http_client,
+                f"{self._base_path}/orphans",
+                client_name="knowledge",
+                operation="get_orphans",
+                path_template="/v2/projects/{project_id}/knowledge/orphans",
+            )
+        return OrphanEntitiesResponse.model_validate(response.json()).entities
 
     # --- Resolution ---
 
-    async def resolve_entity(self, identifier: str) -> str:
-        """Resolve a string identifier to an entity external_id.
+    async def _resolve_entity_data(
+        self,
+        identifier: str,
+        *,
+        strict: bool = False,
+    ) -> dict[str, Any]:
+        """Request the complete entity-resolution payload."""
+        from basic_memory.mcp.tools.utils import call_post
+
+        with logfire.span(
+            "mcp.client.knowledge.resolve_entity",
+            client_name="knowledge",
+            operation="resolve_entity",
+        ):
+            response = await call_post(
+                self.http_client,
+                f"{self._base_path}/resolve",
+                json={"identifier": identifier, "strict": strict},
+                client_name="knowledge",
+                operation="resolve_entity",
+                path_template="/v2/projects/{project_id}/knowledge/resolve",
+            )
+        data: dict[str, Any] = response.json()
+        return data
+
+    async def resolve_entity_response(
+        self,
+        identifier: str,
+        *,
+        strict: bool = False,
+    ) -> EntityResolveResponse:
+        """Resolve an identifier while preserving owning-project metadata.
 
         Args:
             identifier: The identifier to resolve (permalink, title, or path)
+            strict: If True, require exact matching (no fuzzy fallback)
 
         Returns:
-            The resolved entity external_id (UUID)
+            The complete validated resolution response
 
         Raises:
             ToolError: If the identifier cannot be resolved
         """
-        response = await call_post(
-            self.http_client,
-            f"{self._base_path}/resolve",
-            json={"identifier": identifier},
-        )
-        data = response.json()
+        data = await self._resolve_entity_data(identifier, strict=strict)
+        return EntityResolveResponse.model_validate(data)
+
+    async def resolve_entity(self, identifier: str, *, strict: bool = False) -> str:
+        """Resolve a string identifier to an entity external_id."""
+        data = await self._resolve_entity_data(identifier, strict=strict)
         return data["external_id"]

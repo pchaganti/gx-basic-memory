@@ -4,6 +4,8 @@ Integration tests for edit_note MCP tool.
 Tests the complete edit note workflow: MCP client -> MCP server -> FastAPI -> database
 """
 
+from pathlib import Path
+
 import pytest
 from fastmcp import Client
 
@@ -323,17 +325,18 @@ Current endpoints include user management."""
 
 @pytest.mark.asyncio
 async def test_edit_note_error_handling_note_not_found(mcp_server, app, test_project):
-    """Test error handling when trying to edit a non-existent note."""
+    """Test error handling when using find_replace on a non-existent note."""
 
     async with Client(mcp_server) as client:
-        # Try to edit a note that doesn't exist
+        # find_replace on a non-existent note should still error
         edit_result = await client.call_tool(
             "edit_note",
             {
                 "project": test_project.name,
                 "identifier": "Non-existent Note",
-                "operation": "append",
-                "content": "Some content to add",
+                "operation": "find_replace",
+                "content": "replacement",
+                "find_text": "old text",
             },
         )
 
@@ -343,6 +346,78 @@ async def test_edit_note_error_handling_note_not_found(mcp_server, app, test_pro
         assert "Edit Failed" in error_text
         assert "Non-existent Note" in error_text
         assert "search_notes(" in error_text
+
+
+@pytest.mark.asyncio
+async def test_edit_note_append_creates_nonexistent_note(mcp_server, app, test_project):
+    """append to a non-existent note should auto-create it and make it readable."""
+
+    async with Client(mcp_server) as client:
+        # Append to a note that doesn't exist yet
+        edit_result = await client.call_tool(
+            "edit_note",
+            {
+                "project": test_project.name,
+                "identifier": "conversations/daily-log",
+                "operation": "append",
+                "content": "# Daily Log\n\nFirst entry for today.",
+            },
+        )
+
+        # Should return a "Created note" summary
+        assert len(edit_result.content) == 1
+        edit_text = edit_result.content[0].text
+        assert "Created note (append)" in edit_text
+        assert "fileCreated: true" in edit_text
+
+        # The note should now be readable
+        read_result = await client.call_tool(
+            "read_note",
+            {
+                "project": test_project.name,
+                "identifier": "conversations/daily-log",
+            },
+        )
+
+        content = read_result.content[0].text
+        assert "Daily Log" in content
+        assert "First entry for today." in content
+
+
+@pytest.mark.asyncio
+async def test_edit_note_prepend_creates_nonexistent_note(mcp_server, app, test_project):
+    """prepend to a non-existent note should auto-create it and make it readable."""
+
+    async with Client(mcp_server) as client:
+        # Prepend to a note that doesn't exist yet
+        edit_result = await client.call_tool(
+            "edit_note",
+            {
+                "project": test_project.name,
+                "identifier": "notes/quick-thought",
+                "operation": "prepend",
+                "content": "# Quick Thought\n\nSomething important.",
+            },
+        )
+
+        # Should return a "Created note" summary
+        assert len(edit_result.content) == 1
+        edit_text = edit_result.content[0].text
+        assert "Created note (prepend)" in edit_text
+        assert "fileCreated: true" in edit_text
+
+        # The note should now be readable
+        read_result = await client.call_tool(
+            "read_note",
+            {
+                "project": test_project.name,
+                "identifier": "notes/quick-thought",
+            },
+        )
+
+        content = read_result.content[0].text
+        assert "Quick Thought" in content
+        assert "Something important." in content
 
 
 @pytest.mark.asyncio
@@ -637,3 +712,117 @@ async def test_edit_note_using_different_identifiers(mcp_server, app, test_proje
         assert "Edited by title." in content
         assert "Edited by permalink." in content
         assert "Edited by folder/title." in content
+
+
+@pytest.mark.asyncio
+async def test_edit_note_append_autocreate_does_not_fuzzy_match(mcp_server, app, test_project):
+    """Reproduces #649: edit_note append must auto-create, not fuzzy-match to an existing note.
+
+    Creates two notes, then attempts to append to a nonexistent identifier.
+    The tool should create a new note, and neither existing note should be modified.
+    """
+
+    async with Client(mcp_server) as client:
+        # Create two notes that could be fuzzy-matched
+        await client.call_tool(
+            "write_note",
+            {
+                "project": test_project.name,
+                "title": "Routing Test A",
+                "directory": "test",
+                "content": "# Routing Test A\n\nContent A.",
+            },
+        )
+        await client.call_tool(
+            "write_note",
+            {
+                "project": test_project.name,
+                "title": "Routing Test B",
+                "directory": "test",
+                "content": "# Routing Test B\n\nContent B.",
+            },
+        )
+
+        # Attempt to edit a nonexistent note — should error, not silently edit A or B
+        edit_result = await client.call_tool(
+            "edit_note",
+            {
+                "project": test_project.name,
+                "identifier": "Routing Test NONEXISTENT",
+                "operation": "append",
+                "content": "\n\nThis should NOT appear in any note.",
+            },
+        )
+
+        edit_text = edit_result.content[0].text
+        # append to nonexistent creates a new note — verify it did NOT edit A or B
+        assert "Created note (append)" in edit_text
+        assert "fileCreated: true" in edit_text
+
+        # Verify neither A nor B was modified
+        read_a = await client.call_tool(
+            "read_note",
+            {"project": test_project.name, "identifier": "Routing Test A"},
+        )
+        content_a = read_a.content[0].text
+        assert "Content A" in content_a
+        assert "This should NOT appear" not in content_a
+
+        read_b = await client.call_tool(
+            "read_note",
+            {"project": test_project.name, "identifier": "Routing Test B"},
+        )
+        content_b = read_b.content[0].text
+        assert "Content B" in content_b
+        assert "This should NOT appear" not in content_b
+
+        # Now test find_replace on nonexistent — should error
+        edit_result2 = await client.call_tool(
+            "edit_note",
+            {
+                "project": test_project.name,
+                "identifier": "Routing Test NONEXISTENT AGAIN",
+                "operation": "find_replace",
+                "content": "replaced",
+                "find_text": "Content",
+            },
+        )
+
+        error_text = edit_result2.content[0].text
+        assert "Edit Failed" in error_text
+
+
+@pytest.mark.asyncio
+async def test_edit_note_recovers_file_on_disk_not_indexed(mcp_server, app, test_project):
+    """edit_note should index and edit a markdown file written directly to disk (#581).
+
+    Common flow: a file is written straight to the project directory and edit_note is
+    called before the watcher indexes it. The tool must recover by indexing the single
+    file and retrying resolution instead of failing with "Entity not found".
+    """
+    note_path = Path(test_project.path) / "direct" / "disk-note.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text("# Disk Note\n\nstatus: draft\n", encoding="utf-8")
+
+    async with Client(mcp_server) as client:
+        edit_result = await client.call_tool(
+            "edit_note",
+            {
+                "project": test_project.name,
+                "identifier": "direct/disk-note",
+                "operation": "find_replace",
+                "content": "status: final",
+                "find_text": "status: draft",
+            },
+        )
+
+        edit_text = edit_result.content[0].text
+        assert "Edited note (find_replace)" in edit_text
+
+        read_result = await client.call_tool(
+            "read_note",
+            {"project": test_project.name, "identifier": "direct/disk-note"},
+        )
+        content = read_result.content[0].text
+        assert "status: final" in content
+        assert "status: draft" not in content

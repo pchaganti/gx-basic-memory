@@ -4,6 +4,7 @@ import random
 import string
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -55,7 +56,7 @@ async def test_compute_checksum_error():
     """Test checksum error handling."""
     with pytest.raises(FileError):
         # Try to hash an object that can't be encoded
-        await compute_checksum(object())  # pyright: ignore [reportArgumentType]
+        await compute_checksum(cast(Any, object()))
 
 
 @pytest.mark.asyncio
@@ -108,6 +109,23 @@ title: Test
 
     # Invalid format
     assert not has_frontmatter("--title: test--")
+
+
+def test_has_frontmatter_requires_line_anchored_fences():
+    """Inline `---` must not be mistaken for frontmatter fences (issue #972)."""
+    # Exact one-line repro from the issue: `\n` are literal backslash-n, not newlines,
+    # so the whole string is a single line that merely starts with `---`.
+    one_line = r"---\nstatus: active\n---\nDiscussed Q3 roadmap with Anthony."
+    assert not has_frontmatter(one_line)
+
+    # An inline `---` later in the first line is not an opening fence either.
+    assert not has_frontmatter("--- not really frontmatter --- still content")
+
+    # Opening fence with no closing fence on its own line is not frontmatter.
+    assert not has_frontmatter("---\ntitle: Test\nbody without closing fence")
+
+    # A fence with trailing whitespace is still a valid fence.
+    assert has_frontmatter("---  \ntitle: Test\n---  \ncontent")
 
 
 def test_parse_frontmatter():
@@ -186,6 +204,33 @@ title: Test""")
     assert "Invalid frontmatter format" in str(exc.value)
 
 
+def test_frontmatter_helpers_ignore_inline_fences():
+    """Single-line content starting with `---` is passed through unchanged (issue #972).
+
+    Previously the loose substring/split logic merged a garbage `\\nstatus` YAML key
+    into the note and silently stripped the inline `---...---` segment from the body.
+    """
+    one_line = r"---\nstatus: active\n---\nDiscussed Q3 roadmap with Anthony."
+
+    # Not detected as frontmatter...
+    assert not has_frontmatter(one_line)
+    # ...so parsing raises rather than inventing a `\nstatus` key...
+    with pytest.raises(ParseError):
+        parse_frontmatter(one_line)
+    # ...and the body survives intact through the merge path's removal step.
+    assert remove_frontmatter(one_line) == one_line
+
+    # An inline `---` later in the first line is also left untouched.
+    inline = "intro --- not frontmatter --- outro"
+    assert remove_frontmatter(inline) == inline
+
+    # Valid line-anchored frontmatter with trailing whitespace on the fences parses
+    # and is removed identically to clean fences.
+    padded = "---  \ntitle: Test\n---  \ncontent"
+    assert parse_frontmatter(padded) == {"title": "Test"}
+    assert remove_frontmatter(padded) == "content"
+
+
 def test_sanitize_for_filename_removes_invalid_characters():
     # Test all invalid characters listed in the regex
     invalid_chars = '<>:"|?*'
@@ -196,6 +241,19 @@ def test_sanitize_for_filename_removes_invalid_characters():
         sanitized_text = sanitize_for_filename(text)
 
         assert char not in sanitized_text
+
+
+def test_sanitize_for_filename_strips_trailing_periods():
+    """Trailing periods cause double-dot filenames like 'hi-everyone..md'.
+
+    This was a production bug where title "Hi everyone." produced file path
+    "hi-everyone..md" which failed path traversal validation.
+    """
+    assert sanitize_for_filename("Hi everyone.") == "Hi everyone"
+    assert sanitize_for_filename("test...") == "test"
+    assert sanitize_for_filename(".hidden") == "hidden"
+    assert sanitize_for_filename("...dots...") == "dots"
+    assert sanitize_for_filename("normal title") == "normal title"
 
 
 @pytest.mark.parametrize(

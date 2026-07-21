@@ -45,11 +45,27 @@ class EntityResolveResponse(BaseModel):
 
     external_id: str = Field(..., description="External UUID (primary API identifier)")
     entity_id: int = Field(..., description="Numeric entity ID (internal identifier)")
+    project_external_id: str = Field(..., description="External UUID of the owning project")
     permalink: Optional[str] = Field(None, description="Entity permalink")
     file_path: str = Field(..., description="Relative file path")
     title: str = Field(..., description="Entity title")
     resolution_method: Literal["external_id", "permalink", "title", "path", "search"] = Field(
         ..., description="How the identifier was resolved"
+    )
+
+
+class IndexFileRequest(BaseModel):
+    """Request to index a single markdown file that exists on disk.
+
+    Used as a recovery path when an identifier fails resolution but maps to a
+    file written directly to disk that the watcher has not indexed yet (#581).
+    """
+
+    file_path: str = Field(
+        ...,
+        description="Markdown file path to index (relative to project root)",
+        min_length=1,
+        max_length=500,
     )
 
 
@@ -118,7 +134,7 @@ class EntityResponseV2(BaseModel):
 
     # Core entity fields
     title: str = Field(..., description="Entity title")
-    entity_type: str = Field(..., description="Entity type")
+    note_type: str = Field(..., description="Note type (from frontmatter 'type' field)")
     content_type: str = Field(default="text/markdown", description="Content MIME type")
 
     # Secondary identifiers (for compatibility and convenience)
@@ -138,6 +154,26 @@ class EntityResponseV2(BaseModel):
     # Timestamps
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+
+    # User tracking (cloud only, null for local/CLI usage)
+    created_by: Optional[str] = Field(None, description="User profile ID of creator")
+    last_updated_by: Optional[str] = Field(None, description="User profile ID of last editor")
+
+    # Accepted note_content state. These are present for markdown note routes that
+    # use the accepted-note runtime and null for legacy indexed entity responses.
+    db_version: Optional[int] = Field(None, description="Accepted note_content DB version")
+    db_checksum: Optional[str] = Field(None, description="Accepted note_content checksum")
+    file_version: Optional[int] = Field(None, description="Materialized file version")
+    file_checksum: Optional[str] = Field(None, description="Materialized file checksum")
+    file_write_status: Optional[str] = Field(None, description="Materialized file write status")
+    last_source: Optional[str] = Field(None, description="Last accepted note_content source")
+    file_updated_at: Optional[datetime] = Field(
+        None, description="Timestamp of the last materialized file update"
+    )
+    last_materialization_error: Optional[str] = Field(
+        None, description="Most recent note materialization error"
+    )
+    sync_error: Optional[str] = Field(None, description="Current note sync error")
 
     # V2-specific metadata
     api_version: Literal["v2"] = Field(

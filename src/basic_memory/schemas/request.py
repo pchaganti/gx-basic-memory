@@ -65,18 +65,37 @@ class EditEntityRequest(BaseModel):
     Supports various operation types for different editing scenarios.
     """
 
-    operation: Literal["append", "prepend", "find_replace", "replace_section"]
+    operation: Literal[
+        "append",
+        "prepend",
+        "find_replace",
+        "replace_section",
+        "insert_before_section",
+        "insert_after_section",
+    ]
     content: str
     section: Optional[str] = None
     find_text: Optional[str] = None
     expected_replacements: int = 1
+    # replace_section boundary control (issue #1012): True replaces the whole
+    # level-aware section including subsections; False stops at the first heading
+    # of any level, preserving them.
+    replace_subsections: bool = True
 
     @field_validator("section")
     @classmethod
     def validate_section_for_replace_section(cls, v, info):
         """Ensure section is provided for replace_section operation."""
-        if info.data.get("operation") == "replace_section" and not v:
-            raise ValueError("section parameter is required for replace_section operation")
+        if (
+            info.data.get("operation")
+            in (
+                "replace_section",
+                "insert_before_section",
+                "insert_after_section",
+            )
+            and not v
+        ):
+            raise ValueError("section parameter is required for section-based operations")
         return v
 
     @field_validator("find_text")

@@ -4,6 +4,17 @@ import fnmatch
 from pathlib import Path
 from typing import Set
 
+from basic_memory.config import resolve_data_dir
+
+
+# Marker shared by the API ignored-path rejection detail and MCP-side error handling.
+# The index-file endpoint embeds it in its 400 detail and edit_note's disk recovery
+# matches on it, so "exists but ignored" stays distinguishable from generic rejections
+# without duplicating message text across layers.
+IGNORED_PATH_REJECTION_DETAIL = (
+    "matches Basic Memory ignore rules (.bmignore or project .gitignore)"
+)
+
 
 # Common directories and patterns to ignore by default
 # These are used as fallback if .bmignore doesn't exist
@@ -61,9 +72,11 @@ def get_bmignore_path() -> Path:
     """Get path to .bmignore file.
 
     Returns:
-        Path to ~/.basic-memory/.bmignore
+        Path to <basic-memory data dir>/.bmignore, honoring
+        ``BASIC_MEMORY_CONFIG_DIR`` so isolated instances each keep their
+        own ignore file.
     """
-    return Path.home() / ".basic-memory" / ".bmignore"
+    return resolve_data_dir() / ".bmignore"
 
 
 def create_default_bmignore() -> None:
@@ -78,7 +91,7 @@ def create_default_bmignore() -> None:
 
     bmignore_path.parent.mkdir(parents=True, exist_ok=True)
     bmignore_path.write_text("""# Basic Memory Ignore Patterns
-# This file is used by both 'bm cloud upload', 'bm cloud bisync', and file sync
+# This file is used by 'bm cloud upload', 'bm cloud bisync', and file indexing
 # Patterns use standard gitignore-style syntax
 
 # Hidden files (files starting with dot)
@@ -176,7 +189,8 @@ def load_gitignore_patterns(base_path: Path, use_gitignore: bool = True) -> Set[
     """Load gitignore patterns from .gitignore file and .bmignore.
 
     Combines patterns from:
-    1. ~/.basic-memory/.bmignore (user's global ignore patterns)
+    1. <basic-memory data dir>/.bmignore (user's global ignore patterns, honors
+       BASIC_MEMORY_CONFIG_DIR)
     2. {base_path}/.gitignore (project-specific patterns, if use_gitignore=True)
 
     Args:

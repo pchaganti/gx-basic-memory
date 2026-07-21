@@ -4,28 +4,34 @@ This test verifies issue #452 - Imported conversations not indexed correctly.
 """
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from basic_memory import db
 from basic_memory.config import ProjectConfig
+from basic_memory.index.local_project import LocalProjectIndexRunner
 from basic_memory.importers.claude_conversations_importer import ClaudeConversationsImporter
 from basic_memory.markdown import EntityParser
 from basic_memory.markdown.markdown_processor import MarkdownProcessor
+from basic_memory.models import Project
 from basic_memory.repository import EntityRepository
+from basic_memory.repository import ProjectRepository
 from basic_memory.services import EntityService
 from basic_memory.services.file_service import FileService
 from basic_memory.services.search_service import SearchService
 from basic_memory.schemas.search import SearchQuery
-from basic_memory.sync.sync_service import SyncService
 
 
 @pytest.mark.asyncio
 async def test_imported_conversations_have_correct_permalink_and_title(
     project_config: ProjectConfig,
-    sync_service: SyncService,
     entity_service: EntityService,
     entity_repository: EntityRepository,
+    project_repository: ProjectRepository,
     search_service: SearchService,
+    session_maker: async_sessionmaker[AsyncSession],
+    test_project: Project,
 ):
-    """Test that imported conversations have correct permalink and title after sync.
+    """Test that imported conversations have correct permalink and title after indexing.
 
     Issue #452: Imported conversations show permalink: null in search results
     and title shows as filename instead of frontmatter title.
@@ -38,7 +44,9 @@ async def test_imported_conversations_have_correct_permalink_and_title(
     file_service = FileService(base_path, processor)
 
     # Create importer
-    importer = ClaudeConversationsImporter(base_path, processor, file_service)
+    importer = ClaudeConversationsImporter(
+        base_path, processor, file_service, project_name=project_config.name
+    )
 
     # Sample conversation data
     conversations = [
@@ -80,15 +88,20 @@ async def test_imported_conversations_have_correct_permalink_and_title(
     content = conv_path.read_text()
     assert "---" in content, "File should have frontmatter markers"
     assert "title: My Test Conversation Title" in content, "File should have title in frontmatter"
-    assert "permalink: conversations/20250115-My_Test_Conversation_Title" in content, (
-        "File should have permalink in frontmatter"
-    )
+    assert (
+        f"permalink: {project_config.name}/conversations/20250115-my-test-conversation-title"
+        in content
+    ), "File should have permalink in frontmatter"
 
-    # Run sync to index the imported file
-    await sync_service.sync(base_path, project_config.name)
+    runner = LocalProjectIndexRunner(
+        project_repository=project_repository,
+        session_maker=session_maker,
+    )
+    await runner.index_project(test_project.id, force_full=True)
 
     # Verify entity in database
-    entities = await entity_repository.find_all()
+    async with db.scoped_session(session_maker) as session:
+        entities = await entity_repository.find_all(session)
     assert len(entities) == 1, f"Expected 1 entity, got {len(entities)}"
 
     entity = entities[0]
@@ -97,9 +110,10 @@ async def test_imported_conversations_have_correct_permalink_and_title(
     assert entity.title == "My Test Conversation Title", (
         f"Title should be from frontmatter, got: {entity.title}"
     )
-    assert entity.permalink == "conversations/20250115-My_Test_Conversation_Title", (
-        f"Permalink should be from frontmatter, got: {entity.permalink}"
-    )
+    assert (
+        entity.permalink
+        == f"{project_config.name}/conversations/20250115-my-test-conversation-title"
+    ), f"Permalink should be from frontmatter, got: {entity.permalink}"
 
     # Verify search index also has correct data
     results = await search_service.search(SearchQuery(text="Test Conversation"))
@@ -111,6 +125,7 @@ async def test_imported_conversations_have_correct_permalink_and_title(
     assert search_result.title == "My Test Conversation Title", (
         f"Search title should be from frontmatter, got: {search_result.title}"
     )
-    assert search_result.permalink == "conversations/20250115-My_Test_Conversation_Title", (
-        f"Search permalink should not be null, got: {search_result.permalink}"
-    )
+    assert (
+        search_result.permalink
+        == f"{project_config.name}/conversations/20250115-my-test-conversation-title"
+    ), f"Search permalink should not be null, got: {search_result.permalink}"

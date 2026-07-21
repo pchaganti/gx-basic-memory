@@ -11,7 +11,6 @@ Key Concepts:
 4. Everything is stored in both SQLite and markdown files
 """
 
-import os
 import mimetypes
 import re
 from datetime import datetime, timedelta
@@ -19,7 +18,6 @@ from pathlib import Path
 from typing import List, Optional, Annotated, Dict
 
 from annotated_types import MinLen, MaxLen
-from dateparser import parse
 
 from pydantic import BaseModel, BeforeValidator, Field, model_validator, computed_field
 
@@ -92,6 +90,10 @@ def parse_timeframe(timeframe: str) -> datetime:
         parse_timeframe('1d') -> 2025-06-04 14:50:00-07:00 (24 hours ago with local timezone)
         parse_timeframe('1 week ago') -> 2025-05-29 14:50:00-07:00 (1 week ago with local timezone)
     """
+    # Deferred: dateparser costs ~0.13s to import; schemas load on every CLI
+    # start, but timeframe parsing only happens per request (#886).
+    from dateparser import parse
+
     if timeframe.lower() == "today":
         # For "today", return 1 day ago to ensure we capture recent activity across timezones
         # This handles the case where client and server are in different timezones
@@ -140,10 +142,12 @@ def validate_timeframe(timeframe: str) -> str:
     if parsed > now:
         raise ValueError("Timeframe cannot be in the future")  # pragma: no cover
 
-    # Could format the duration back to our standard format
-    days = (now - parsed).days
+    # Round to nearest day to handle DST transitions where an hour shift
+    # can cause e.g. "7d" to compute as 6 days + 23 hours
+    total_seconds = (now - parsed).total_seconds()
+    days = round(total_seconds / 86400)
 
-    # Could enforce reasonable limits
+    # Enforce reasonable limits
     if days > 365:
         raise ValueError("Timeframe should be <= 1 year")
 
@@ -156,8 +160,8 @@ Permalink = Annotated[str, MinLen(1)]
 """Unique identifier in format '{path}/{normalized_name}'."""
 
 
-EntityType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
-"""Classification of entity (e.g., 'person', 'project', 'concept'). """
+NoteType = Annotated[str, BeforeValidator(to_snake_case), MinLen(1), MaxLen(200)]
+"""Classification of note (e.g., 'note', 'person', 'spec', 'schema'). """
 
 ALLOWED_CONTENT_TYPES = {
     "text/markdown",
@@ -176,8 +180,13 @@ ContentType = Annotated[
 ]
 
 
-RelationType = Annotated[str, MinLen(1), MaxLen(200)]
-"""Type of relationship between entities. Always use active voice present tense."""
+RelationType = Annotated[str, MinLen(1)]
+"""Type of relationship between entities. Always use active voice present tense.
+
+The database stores relation_type as an unrestricted string, and response models
+need to tolerate existing long-form values written by LLMs. Keeping an API-only
+200-character cap here causes reads to fail for valid stored data.
+"""
 
 ObservationStr = Annotated[
     str,
@@ -228,7 +237,7 @@ class Entity(BaseModel):
     title: str
     content: Optional[str] = None
     directory: str
-    entity_type: EntityType = "note"
+    note_type: NoteType = "note"
     entity_metadata: Optional[Dict] = Field(default=None, description="Optional metadata")
     content_type: ContentType = Field(
         description="MIME type of the content (e.g. text/markdown, image/jpeg)",
@@ -271,13 +280,10 @@ class Entity(BaseModel):
         """Get the file path for this entity based on its permalink."""
         safe_title = self.safe_title
         if self.content_type == "text/markdown":
-            return (
-                os.path.join(self.directory, f"{safe_title}.md")
-                if self.directory
-                else f"{safe_title}.md"
-            )
+            filename = f"{safe_title}.md"
         else:
-            return os.path.join(self.directory, safe_title) if self.directory else safe_title
+            filename = safe_title
+        return f"{self.directory}/{filename}" if self.directory else filename
 
     @property
     def permalink(self) -> Optional[Permalink]:

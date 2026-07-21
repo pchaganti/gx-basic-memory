@@ -4,12 +4,15 @@ from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
-import sqlalchemy
 from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.exc import IntegrityError
 
 from basic_memory import db
 from basic_memory.models import Entity, Observation, Project
-from basic_memory.repository.observation_repository import ObservationRepository
+from basic_memory.repository.observation_repository import (
+    AcceptedObservationWrite,
+    ObservationRepository,
+)
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -19,7 +22,7 @@ async def repo(observation_repository):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def sample_observation(repo, sample_entity: Entity):
+async def sample_observation(repo, sample_entity: Entity, session_maker):
     """Create a sample observation for testing"""
     observation_data = {
         "project_id": sample_entity.project_id,
@@ -27,12 +30,13 @@ async def sample_observation(repo, sample_entity: Entity):
         "content": "Test observation",
         "context": "test-context",
     }
-    return await repo.create(observation_data)
+    async with db.scoped_session(session_maker) as session:
+        return await repo.create(session, observation_data)
 
 
 @pytest.mark.asyncio
 async def test_create_observation(
-    observation_repository: ObservationRepository, sample_entity: Entity
+    observation_repository: ObservationRepository, sample_entity: Entity, session_maker
 ):
     """Test creating a new observation"""
     observation_data = {
@@ -41,7 +45,8 @@ async def test_create_observation(
         "content": "Test content",
         "context": "test-context",
     }
-    observation = await observation_repository.create(observation_data)
+    async with db.scoped_session(session_maker) as session:
+        observation = await observation_repository.create(session, observation_data)
 
     assert observation.entity_id == sample_entity.id
     assert observation.content == "Test content"
@@ -50,7 +55,7 @@ async def test_create_observation(
 
 @pytest.mark.asyncio
 async def test_create_observation_entity_does_not_exist(
-    observation_repository: ObservationRepository, sample_entity: Entity
+    observation_repository: ObservationRepository, sample_entity: Entity, session_maker
 ):
     """Test creating a new observation"""
     observation_data = {
@@ -59,8 +64,9 @@ async def test_create_observation_entity_does_not_exist(
         "content": "Test content",
         "context": "test-context",
     }
-    with pytest.raises(sqlalchemy.exc.IntegrityError):
-        await observation_repository.create(observation_data)
+    with pytest.raises(IntegrityError):
+        async with db.scoped_session(session_maker) as session:
+            await observation_repository.create(session, observation_data)
 
 
 @pytest.mark.asyncio
@@ -68,9 +74,11 @@ async def test_find_by_entity(
     observation_repository: ObservationRepository,
     sample_observation: Observation,
     sample_entity: Entity,
+    session_maker,
 ):
     """Test finding observations by entity"""
-    observations = await observation_repository.find_by_entity(sample_entity.id)
+    async with db.scoped_session(session_maker) as session:
+        observations = await observation_repository.find_by_entity(session, sample_entity.id)
     assert len(observations) == 1
     assert observations[0].id == sample_observation.id
     assert observations[0].content == sample_observation.content
@@ -78,10 +86,11 @@ async def test_find_by_entity(
 
 @pytest.mark.asyncio
 async def test_find_by_context(
-    observation_repository: ObservationRepository, sample_observation: Observation
+    observation_repository: ObservationRepository, sample_observation: Observation, session_maker
 ):
     """Test finding observations by context"""
-    observations = await observation_repository.find_by_context("test-context")
+    async with db.scoped_session(session_maker) as session:
+        observations = await observation_repository.find_by_context(session, "test-context")
     assert len(observations) == 1
     assert observations[0].id == sample_observation.id
     assert observations[0].content == sample_observation.content
@@ -95,7 +104,7 @@ async def test_delete_observations(session_maker: async_sessionmaker, repo, test
         entity = Entity(
             project_id=test_project.id,
             title="test_entity",
-            entity_type="test",
+            note_type="test",
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
@@ -119,12 +128,13 @@ async def test_delete_observations(session_maker: async_sessionmaker, repo, test
         session.add_all([obs1, obs2])
 
     # Test deletion by entity_id
-    deleted = await repo.delete_by_fields(entity_id=entity.id)
-    assert deleted is True
+    async with db.scoped_session(session_maker) as session:
+        deleted = await repo.delete_by_fields(session, entity_id=entity.id)
+        assert deleted is True
 
-    # Verify observations were deleted
-    remaining = await repo.find_by_entity(entity.id)
-    assert len(remaining) == 0
+        # Verify observations were deleted
+        remaining = await repo.find_by_entity(session, entity.id)
+        assert len(remaining) == 0
 
 
 @pytest.mark.asyncio
@@ -137,7 +147,7 @@ async def test_delete_observation_by_id(
         entity = Entity(
             project_id=test_project.id,
             title="test_entity",
-            entity_type="test",
+            note_type="test",
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
@@ -156,12 +166,13 @@ async def test_delete_observation_by_id(
         session.add(obs)
 
     # Test deletion by ID
-    deleted = await repo.delete(obs.id)
-    assert deleted is True
+    async with db.scoped_session(session_maker) as session:
+        deleted = await repo.delete(session, obs.id)
+        assert deleted is True
 
-    # Verify observation was deleted
-    remaining = await repo.find_by_id(obs.id)
-    assert remaining is None
+        # Verify observation was deleted
+        remaining = await repo.find_by_id(session, obs.id)
+        assert remaining is None
 
 
 @pytest.mark.asyncio
@@ -174,7 +185,7 @@ async def test_delete_observation_by_content(
         entity = Entity(
             project_id=test_project.id,
             title="test_entity",
-            entity_type="test",
+            note_type="test",
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
@@ -198,13 +209,14 @@ async def test_delete_observation_by_content(
         session.add_all([obs1, obs2])
 
     # Test deletion by content
-    deleted = await repo.delete_by_fields(content="Delete this observation")
-    assert deleted is True
+    async with db.scoped_session(session_maker) as session:
+        deleted = await repo.delete_by_fields(session, content="Delete this observation")
+        assert deleted is True
 
-    # Verify only matching observation was deleted
-    remaining = await repo.find_by_entity(entity.id)
-    assert len(remaining) == 1
-    assert remaining[0].content == "Keep this observation"
+        # Verify only matching observation was deleted
+        remaining = await repo.find_by_entity(session, entity.id)
+        assert len(remaining) == 1
+        assert remaining[0].content == "Keep this observation"
 
 
 @pytest.mark.asyncio
@@ -215,7 +227,7 @@ async def test_find_by_category(session_maker: async_sessionmaker, repo, test_pr
         entity = Entity(
             project_id=test_project.id,
             title="test_entity",
-            entity_type="test",
+            note_type="test",
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
@@ -250,20 +262,24 @@ async def test_find_by_category(session_maker: async_sessionmaker, repo, test_pr
         await session.commit()
 
     # Find tech observations
-    tech_obs = await repo.find_by_category("tech")
-    assert len(tech_obs) == 2
-    assert all(obs.category == "tech" for obs in tech_obs)
-    assert set(obs.content for obs in tech_obs) == {"Tech observation", "Another tech observation"}
+    async with db.scoped_session(session_maker) as session:
+        tech_obs = await repo.find_by_category(session, "tech")
+        assert len(tech_obs) == 2
+        assert all(obs.category == "tech" for obs in tech_obs)
+        assert set(obs.content for obs in tech_obs) == {
+            "Tech observation",
+            "Another tech observation",
+        }
 
-    # Find design observations
-    design_obs = await repo.find_by_category("design")
-    assert len(design_obs) == 1
-    assert design_obs[0].category == "design"
-    assert design_obs[0].content == "Design observation"
+        # Find design observations
+        design_obs = await repo.find_by_category(session, "design")
+        assert len(design_obs) == 1
+        assert design_obs[0].category == "design"
+        assert design_obs[0].content == "Design observation"
 
-    # Search for non-existent category
-    missing_obs = await repo.find_by_category("missing")
-    assert len(missing_obs) == 0
+        # Search for non-existent category
+        missing_obs = await repo.find_by_category(session, "missing")
+        assert len(missing_obs) == 0
 
 
 @pytest.mark.asyncio
@@ -276,7 +292,7 @@ async def test_observation_categories(
         entity = Entity(
             project_id=test_project.id,
             title="test_entity",
-            entity_type="test",
+            note_type="test",
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
@@ -317,22 +333,24 @@ async def test_observation_categories(
         await session.commit()
 
     # Get distinct categories
-    categories = await repo.observation_categories()
+    async with db.scoped_session(session_maker) as session:
+        categories = await repo.observation_categories(session)
 
     # Should have unique categories in a deterministic order
     assert set(categories) == {"tech", "design", "feature"}
 
 
 @pytest.mark.asyncio
-async def test_find_by_category_with_empty_db(repo):
+async def test_find_by_category_with_empty_db(repo, session_maker):
     """Test category operations with an empty database."""
     # Find by category should return empty list
-    obs = await repo.find_by_category("tech")
-    assert len(obs) == 0
+    async with db.scoped_session(session_maker) as session:
+        obs = await repo.find_by_category(session, "tech")
+        assert len(obs) == 0
 
-    # Get categories should return empty list
-    categories = await repo.observation_categories()
-    assert len(categories) == 0
+        # Get categories should return empty list
+        categories = await repo.observation_categories(session)
+        assert len(categories) == 0
 
 
 @pytest.mark.asyncio
@@ -344,7 +362,7 @@ async def test_find_by_category_case_sensitivity(
         entity = Entity(
             project_id=test_project.id,
             title="test_entity",
-            entity_type="test",
+            note_type="test",
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
@@ -367,11 +385,12 @@ async def test_find_by_category_case_sensitivity(
     # Search should work regardless of case
     # Note: If we want case-insensitive search, we'll need to update the query
     # For now, this test documents the current behavior
-    exact_match = await repo.find_by_category("tech")
-    assert len(exact_match) == 1
+    async with db.scoped_session(session_maker) as session:
+        exact_match = await repo.find_by_category(session, "tech")
+        assert len(exact_match) == 1
 
-    upper_case = await repo.find_by_category("TECH")
-    assert len(upper_case) == 0  # Currently case-sensitive
+        upper_case = await repo.find_by_category(session, "TECH")
+        assert len(upper_case) == 0  # Currently case-sensitive
 
 
 @pytest.mark.asyncio
@@ -389,7 +408,7 @@ async def test_observation_permalink_truncates_long_content(
         entity = Entity(
             project_id=test_project.id,
             title="test_entity",
-            entity_type="test",
+            note_type="test",
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
@@ -440,7 +459,7 @@ async def test_observation_permalink_short_content_unchanged(
         entity = Entity(
             project_id=test_project.id,
             title="test_entity",
-            entity_type="test",
+            note_type="test",
             permalink="test/test-entity",
             file_path="test/test_entity.md",
             content_type="text/markdown",
@@ -466,3 +485,179 @@ async def test_observation_permalink_short_content_unchanged(
         # Short content should be fully included (after permalink normalization)
         # The generate_permalink function normalizes the content
         assert "short-observation-content" in permalink.lower()
+
+
+@pytest.mark.asyncio
+async def test_observation_permalink_disambiguates_truncated_content(
+    session_maker: async_sessionmaker, repo, test_project: Project
+):
+    """Regression test for issue #909: shared 200-char prefixes must not collide.
+
+    Truncating content to 200 chars (PostgreSQL btree limit) made two distinct
+    observations with the same category and an identical 200-char prefix produce
+    the same synthetic permalink, silently dropping the second from the search
+    index. A digest of the full content now disambiguates them.
+    """
+    async with db.scoped_session(session_maker) as session:
+        entity = Entity(
+            project_id=test_project.id,
+            title="test_entity",
+            note_type="test",
+            permalink="test/test-entity",
+            file_path="test/test_entity.md",
+            content_type="text/markdown",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        session.add(entity)
+        await session.flush()
+
+        shared_prefix = "x" * 210  # identical beyond the 200-char truncation point
+        obs_alpha = Observation(
+            project_id=test_project.id,
+            entity_id=entity.id,
+            content=f"{shared_prefix} ALPHA_UNIQUE_MARKER",
+            category="note",
+        )
+        obs_beta = Observation(
+            project_id=test_project.id,
+            entity_id=entity.id,
+            content=f"{shared_prefix} BETA_UNIQUE_MARKER",
+            category="note",
+        )
+        session.add_all([obs_alpha, obs_beta])
+        await session.flush()
+
+        # Distinct content must yield distinct permalinks despite the shared prefix
+        assert obs_alpha.permalink != obs_beta.permalink
+
+        # The digest suffix must keep permalinks under the PostgreSQL btree budget
+        assert len(obs_alpha.permalink) < 300
+        assert len(obs_beta.permalink) < 300
+
+        # Truly identical long content must still produce the same permalink so
+        # exact duplicates continue to dedupe in the search index
+        obs_beta_dup = Observation(
+            project_id=test_project.id,
+            entity_id=entity.id,
+            content=f"{shared_prefix} BETA_UNIQUE_MARKER",
+            category="note",
+        )
+        session.add(obs_beta_dup)
+        await session.flush()
+        assert obs_beta_dup.permalink == obs_beta.permalink
+
+
+@pytest.mark.asyncio
+async def test_replace_accepted_observations_inserts_full_set(
+    observation_repository: ObservationRepository,
+    sample_entity: Entity,
+    session_maker,
+):
+    """Accepted-write graph persistence inserts the full parsed observation set."""
+    writes = [
+        AcceptedObservationWrite(
+            content="Pour over gives clarity",
+            category="method",
+            context="brewing",
+            tags=["coffee"],
+        ),
+        AcceptedObservationWrite(
+            content="Water at 205F",
+            category="technique",
+            context=None,
+            tags=None,
+        ),
+    ]
+    async with db.scoped_session(session_maker) as session:
+        await observation_repository.replace_accepted_observations(
+            session, sample_entity.id, writes
+        )
+
+    async with db.scoped_session(session_maker) as session:
+        observations = await observation_repository.find_by_entity(session, sample_entity.id)
+
+    by_content = {obs.content: obs for obs in observations}
+    assert set(by_content) == {"Pour over gives clarity", "Water at 205F"}
+    assert by_content["Pour over gives clarity"].category == "method"
+    assert by_content["Pour over gives clarity"].context == "brewing"
+    assert by_content["Pour over gives clarity"].tags == ["coffee"]
+    assert by_content["Water at 205F"].context is None
+
+
+@pytest.mark.asyncio
+async def test_replace_accepted_observations_uses_model_default_for_missing_category(
+    observation_repository: ObservationRepository,
+    sample_entity: Entity,
+    session_maker,
+):
+    """Category-less markdown keeps the existing ``note`` persistence default."""
+    async with db.scoped_session(session_maker) as session:
+        await observation_repository.replace_accepted_observations(
+            session,
+            sample_entity.id,
+            [
+                AcceptedObservationWrite(
+                    content="Remember this #todo",
+                    category=None,
+                    context=None,
+                    tags=["todo"],
+                )
+            ],
+        )
+
+    async with db.scoped_session(session_maker) as session:
+        observations = await observation_repository.find_by_entity(session, sample_entity.id)
+
+    assert len(observations) == 1
+    assert observations[0].category == "note"
+
+
+@pytest.mark.asyncio
+async def test_replace_accepted_observations_replaces_existing_set(
+    observation_repository: ObservationRepository,
+    sample_entity: Entity,
+    session_maker,
+):
+    """A second accepted write replaces the prior observation set, not merges it."""
+    async with db.scoped_session(session_maker) as session:
+        await observation_repository.replace_accepted_observations(
+            session,
+            sample_entity.id,
+            [AcceptedObservationWrite(content="old", category="note", context=None, tags=None)],
+        )
+
+    async with db.scoped_session(session_maker) as session:
+        await observation_repository.replace_accepted_observations(
+            session,
+            sample_entity.id,
+            [AcceptedObservationWrite(content="new", category="note", context=None, tags=None)],
+        )
+
+    async with db.scoped_session(session_maker) as session:
+        observations = await observation_repository.find_by_entity(session, sample_entity.id)
+
+    assert [obs.content for obs in observations] == ["new"]
+
+
+@pytest.mark.asyncio
+async def test_replace_accepted_observations_clears_when_empty(
+    observation_repository: ObservationRepository,
+    sample_entity: Entity,
+    session_maker,
+):
+    """An empty accepted observation set clears any prior rows for the entity."""
+    async with db.scoped_session(session_maker) as session:
+        await observation_repository.replace_accepted_observations(
+            session,
+            sample_entity.id,
+            [AcceptedObservationWrite(content="stale", category="note", context=None, tags=None)],
+        )
+
+    async with db.scoped_session(session_maker) as session:
+        await observation_repository.replace_accepted_observations(session, sample_entity.id, [])
+
+    async with db.scoped_session(session_maker) as session:
+        observations = await observation_repository.find_by_entity(session, sample_entity.id)
+
+    assert observations == []

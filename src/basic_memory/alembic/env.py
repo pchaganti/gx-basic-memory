@@ -2,28 +2,34 @@
 
 import asyncio
 import os
+import sys
+from contextlib import suppress
 from logging.config import fileConfig
 
-# Allow nested event loops (needed for pytest-asyncio and other async contexts)
-# Note: nest_asyncio doesn't work with uvloop or Python 3.14+, so we handle those cases separately
-import sys
-
-if sys.version_info < (3, 14):
-    try:
-        import nest_asyncio
-
-        nest_asyncio.apply()
-    except (ImportError, ValueError):
-        # nest_asyncio not available or can't patch this loop type (e.g., uvloop)
-        pass
-# For Python 3.14+, we rely on the thread-based fallback in run_migrations_online()
-
+from loguru import logger
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from alembic import context
 
 from basic_memory.config import ConfigManager
+from basic_memory.migration_loop import running_on_uvloop
+
+# Allow nested event loops (needed for pytest-asyncio and other async contexts).
+# nest_asyncio cannot patch a uvloop loop or Python 3.14+; in those cases we skip
+# it and rely on the thread-based fallback in run_migrations_online() instead
+# (see basic_memory.migration_loop for why uvloop must be detected up front).
+if sys.version_info < (3, 14) and not running_on_uvloop():
+    try:
+        import nest_asyncio
+
+        nest_asyncio.apply()
+    except (ImportError, ValueError) as exc:
+        # Trigger: nest_asyncio is absent (ImportError) or refuses to patch the
+        # running loop (ValueError).
+        # Outcome: log at DEBUG (observable, not noisy) and fall through to the
+        # thread-based migration fallback.
+        logger.debug(f"nest_asyncio not applied ({exc!r}); using thread-based migration fallback")
 
 # Trigger: only set test env when actually running under pytest
 # Why: alembic/env.py is imported during normal operations (MCP server startup, migrations)
@@ -66,7 +72,7 @@ target_metadata = Base.metadata
 
 
 # Add this function to tell Alembic what to include/exclude
-def include_object(object, name, type_, reflected, compare_to):
+def include_object(obj, name, type_, reflected, compare_to):
     # Ignore SQLite FTS tables
     if type_ == "table" and name.startswith("search_index"):
         return False
@@ -115,7 +121,76 @@ async def run_async_migrations(connectable):
     """Run migrations asynchronously with AsyncEngine."""
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
+    # Trigger: startup migrations on the asyncpg backend dispose the engine
+    # while the event loop may be tearing down around them.
+    # Why: that race surfaces "IndexError: pop from an empty deque" from
+    # base_events._run_once (#831/#877); shielding lets dispose finish atomically
+    # and suppressing CancelledError keeps a cancelled teardown from re-raising it.
+    # Outcome: the migration engine always disposes cleanly. (uvloop is the
+    # structural fix for the race; this hardens the teardown path.)
+    with suppress(asyncio.CancelledError):
+        await asyncio.shield(connectable.dispose())
+
+
+def _run_async_migrations_with_asyncio_run(connectable) -> None:
+    """Run async migrations with asyncio.run while closing failed coroutines.
+
+    Trigger: asyncio.run() may reject execution when another event loop is already active.
+    Why: Python raises before awaiting the coroutine, which otherwise leaks a
+    RuntimeWarning about an un-awaited coroutine.
+    Outcome: close the pending coroutine before bubbling the RuntimeError to the
+    fallback path.
+    """
+    migration_coro = run_async_migrations(connectable)
+    try:
+        asyncio.run(migration_coro)
+    except RuntimeError:
+        migration_coro.close()
+        raise
+
+
+def _run_async_migrations_in_thread(connectable) -> None:
+    """Run async migrations in a dedicated thread with its own event loop."""
+    import concurrent.futures
+
+    def run_in_thread():
+        """Run async migrations in a new event loop in a separate thread."""
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        try:
+            new_loop.run_until_complete(run_async_migrations(connectable))
+        finally:
+            new_loop.close()
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(run_in_thread)
+        future.result()  # Wait for completion and re-raise any exceptions
+
+
+def _loop_is_running() -> bool:
+    """Check if an event loop is currently running."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # Trigger: no running loop (get_running_loop raises RuntimeError)
+        # Outcome: return False to indicate no loop is running
+        return False
+    return True
+
+
+def _run_async_engine_migrations(connectable) -> None:
+    """Run async migrations, adapting to whether an event loop is already running."""
+
+    # Trigger: caller may be inside a running event loop (e.g. pytest-asyncio, uvicorn).
+    # Why: asyncio.run() raises RuntimeError when nested inside a running loop, so we
+    # detect the condition up front via _loop_is_running() instead of catching the error.
+    # Outcome: running-loop context -> thread fallback; no loop -> asyncio.run() directly.
+    if _loop_is_running():
+        # Can't nest asyncio.run() inside a running loop -> offload to a thread.
+        _run_async_migrations_in_thread(connectable)
+    else:
+        # No running loop: asyncio.run() is safe; let any unexpected errors propagate.
+        _run_async_migrations_with_asyncio_run(connectable)
 
 
 def run_migrations_online() -> None:
@@ -148,30 +223,10 @@ def run_migrations_online() -> None:
 
     # Handle async engines (PostgreSQL with asyncpg)
     if isinstance(connectable, AsyncEngine):
-        # Try to run async migrations
-        # nest_asyncio allows asyncio.run() from within event loops, but doesn't work with uvloop
-        try:
-            asyncio.run(run_async_migrations(connectable))
-        except RuntimeError as e:
-            if "cannot be called from a running event loop" in str(e):
-                # We're in a running event loop (likely uvloop) - need to use a different approach
-                # Create a new thread to run the async migrations
-                import concurrent.futures
-
-                def run_in_thread():
-                    """Run async migrations in a new event loop in a separate thread."""
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    try:
-                        new_loop.run_until_complete(run_async_migrations(connectable))
-                    finally:
-                        new_loop.close()
-
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(run_in_thread)
-                    future.result()  # Wait for completion and re-raise any exceptions
-            else:
-                raise
+        # Trigger: async engines need Alembic work to cross the sync/async boundary.
+        # Why: most callers can use asyncio.run(), but running-loop contexts need a thread fallback.
+        # Outcome: migrations complete without leaking un-awaited coroutines.
+        _run_async_engine_migrations(connectable)
     else:
         # Handle sync engines (SQLite) or sync connections
         if hasattr(connectable, "connect"):

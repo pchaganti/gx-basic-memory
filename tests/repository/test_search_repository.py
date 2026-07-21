@@ -26,7 +26,7 @@ async def search_entity(session_maker, test_project: Project):
         entity = Entity(
             project_id=test_project.id,
             title="Search Test Entity",
-            entity_type="test",
+            note_type="test",
             permalink="test/search-test-entity",
             file_path="test/search_test_entity.md",
             content_type="text/markdown",
@@ -39,7 +39,7 @@ async def search_entity(session_maker, test_project: Project):
 
 
 @pytest_asyncio.fixture
-async def second_project(project_repository):
+async def second_project(project_repository, session_maker):
     """Create a second project for testing project isolation."""
     project_data = {
         "name": "Second Test Project",
@@ -48,7 +48,8 @@ async def second_project(project_repository):
         "is_active": True,
         "is_default": None,
     }
-    return await project_repository.create(project_data)
+    async with db.scoped_session(session_maker) as session:
+        return await project_repository.create(session, project_data)
 
 
 @pytest_asyncio.fixture
@@ -68,7 +69,7 @@ async def second_entity(session_maker, second_project: Project):
         entity = Entity(
             project_id=second_project.id,
             title="Second Project Entity",
-            entity_type="test",
+            note_type="test",
             permalink="test/second-project-entity",
             file_path="test/second_project_entity.md",
             content_type="text/markdown",
@@ -108,6 +109,78 @@ async def test_init_search_index(search_repository, app_config):
 
 
 @pytest.mark.asyncio
+async def test_init_search_index_degrades_when_extension_loading_unavailable(
+    search_repository, monkeypatch
+):
+    """Regression for #711: when sqlite-vec cannot be loaded (e.g. python.org Python
+    3.12 ships sqlite3 without enable_load_extension), init must NOT crash. It should
+    log a warning, mark the repository as semantic-disabled, and let the rest of the
+    process come up so Claude Desktop's MCP handshake completes."""
+    if is_postgres_backend(search_repository):
+        pytest.skip("python.org enable_load_extension issue is SQLite-specific")
+
+    from basic_memory.repository.semantic_errors import SemanticDependenciesMissingError
+
+    # Force the codepath even if semantic_search wasn't enabled by default.
+    search_repository._semantic_enabled = True
+
+    async def _raise_missing():
+        raise SemanticDependenciesMissingError("simulated: enable_load_extension missing")
+
+    monkeypatch.setattr(search_repository, "_ensure_vector_tables", _raise_missing)
+
+    # Must not raise — startup needs to complete even when the semantic stack is dead.
+    await search_repository.init_search_index()
+
+    assert search_repository._semantic_enabled is False, (
+        "Repository should mark itself semantic-disabled after a missing-deps error "
+        "so downstream calls short-circuit cleanly instead of re-attempting load."
+    )
+
+
+@pytest.mark.asyncio
+async def test_ensure_sqlite_vec_loaded_raises_typed_error_without_extension_support(
+    search_repository, monkeypatch
+):
+    """Regression for #711: AttributeError from a sqlite3.Connection that lacks
+    enable_load_extension must surface as SemanticDependenciesMissingError so the
+    init-time handler can degrade. Otherwise the AttributeError bubbles through and
+    crashes startup before Claude Desktop completes its handshake."""
+    if is_postgres_backend(search_repository):
+        pytest.skip("enable_load_extension is SQLite-specific")
+
+    from basic_memory.repository.semantic_errors import SemanticDependenciesMissingError
+    from sqlalchemy.exc import OperationalError as SAOperationalError
+
+    # Stub session that always reports vec missing on probe, then yields a connection
+    # whose driver_connection has no enable_load_extension attribute (mirroring the
+    # python.org sqlite3 build).
+    class _StubDriverConnection:
+        # Deliberately omit enable_load_extension to mimic the python.org build.
+        pass
+
+    class _StubRawConnection:
+        driver_connection = _StubDriverConnection()
+
+    class _StubAsyncConnection:
+        async def get_raw_connection(self):
+            return _StubRawConnection()
+
+    class _StubSession:
+        async def execute(self, _stmt):
+            # First (and any) probe call reports vec missing.
+            raise SAOperationalError("SELECT vec_version()", {}, Exception("no vec"))
+
+        async def connection(self):
+            return _StubAsyncConnection()
+
+    with pytest.raises(SemanticDependenciesMissingError) as exc_info:
+        await search_repository._ensure_sqlite_vec_loaded(_StubSession())
+
+    assert "enable_load_extension" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
 async def test_init_search_index_preserves_data(search_repository, search_entity):
     """Regression test: calling init_search_index() twice should preserve indexed data.
 
@@ -128,7 +201,7 @@ async def test_init_search_index_preserves_data(search_repository, search_entity
         permalink=search_entity.permalink,
         file_path=search_entity.file_path,
         entity_id=search_entity.id,
-        metadata={"entity_type": search_entity.entity_type},
+        metadata={"note_type": search_entity.note_type},
         created_at=search_entity.created_at,
         updated_at=search_entity.updated_at,
         project_id=search_repository.project_id,
@@ -162,7 +235,7 @@ async def test_index_item(search_repository, search_entity):
         permalink=search_entity.permalink,
         file_path=search_entity.file_path,
         entity_id=search_entity.id,
-        metadata={"entity_type": search_entity.entity_type},
+        metadata={"note_type": search_entity.note_type},
         created_at=search_entity.created_at,
         updated_at=search_entity.updated_at,
         project_id=search_repository.project_id,
@@ -178,6 +251,35 @@ async def test_index_item(search_repository, search_entity):
     assert len(results) == 1
     assert results[0].title == search_entity.title
     assert results[0].project_id == search_repository.project_id
+
+
+@pytest.mark.asyncio
+async def test_sqlite_text_search_matches_full_content_snippet(search_repository, search_entity):
+    """SQLite finds terms beyond the Postgres-sized content_stems prefix (#1065)."""
+    if is_postgres_backend(search_repository):
+        pytest.skip("The full content_snippet FTS column is SQLite-specific")
+
+    marker = "latecontentmarker"
+    search_row = SearchIndexRow(
+        id=search_entity.id,
+        type=SearchItemType.ENTITY.value,
+        title=search_entity.title,
+        content_stems="prefix content only",
+        content_snippet=f"{'x' * 7000} {marker}",
+        permalink=search_entity.permalink,
+        file_path=search_entity.file_path,
+        entity_id=search_entity.id,
+        metadata={"note_type": search_entity.note_type},
+        created_at=search_entity.created_at,
+        updated_at=search_entity.updated_at,
+        project_id=search_repository.project_id,
+    )
+    await search_repository.index_item(search_row)
+
+    results = await search_repository.search(search_text=marker)
+
+    assert [result.id for result in results] == [search_entity.id]
+    assert await search_repository.count(search_text=marker) == 1
 
 
 @pytest.mark.asyncio
@@ -197,7 +299,7 @@ async def test_index_item_upsert_on_duplicate_permalink(search_repository, searc
         permalink=search_entity.permalink,
         file_path=search_entity.file_path,
         entity_id=search_entity.id,
-        metadata={"entity_type": search_entity.entity_type},
+        metadata={"note_type": search_entity.note_type},
         created_at=search_entity.created_at,
         updated_at=search_entity.updated_at,
         project_id=search_repository.project_id,
@@ -220,7 +322,7 @@ async def test_index_item_upsert_on_duplicate_permalink(search_repository, searc
         permalink=search_entity.permalink,  # Same permalink!
         file_path=search_entity.file_path,
         entity_id=search_entity.id,
-        metadata={"entity_type": search_entity.entity_type},
+        metadata={"note_type": search_entity.note_type},
         created_at=search_entity.created_at,
         updated_at=search_entity.updated_at,
         project_id=search_repository.project_id,
@@ -254,7 +356,7 @@ async def test_bulk_index_items_upsert_on_duplicate_permalink(search_repository,
         permalink=search_entity.permalink,
         file_path=search_entity.file_path,
         entity_id=search_entity.id,
-        metadata={"entity_type": search_entity.entity_type},
+        metadata={"note_type": search_entity.note_type},
         created_at=search_entity.created_at,
         updated_at=search_entity.updated_at,
         project_id=search_repository.project_id,
@@ -276,7 +378,7 @@ async def test_bulk_index_items_upsert_on_duplicate_permalink(search_repository,
         permalink=search_entity.permalink,  # Same permalink!
         file_path=search_entity.file_path,
         entity_id=search_entity.id,
-        metadata={"entity_type": search_entity.entity_type},
+        metadata={"note_type": search_entity.note_type},
         created_at=search_entity.created_at,
         updated_at=search_entity.updated_at,
         project_id=search_repository.project_id,
@@ -305,7 +407,7 @@ async def test_project_isolation(
         permalink=search_entity.permalink,
         file_path=search_entity.file_path,
         entity_id=search_entity.id,
-        metadata={"entity_type": search_entity.entity_type},
+        metadata={"note_type": search_entity.note_type},
         created_at=search_entity.created_at,
         updated_at=search_entity.updated_at,
         project_id=search_repository.project_id,
@@ -320,7 +422,7 @@ async def test_project_isolation(
         permalink=second_entity.permalink,
         file_path=second_entity.file_path,
         entity_id=second_entity.id,
-        metadata={"entity_type": second_entity.entity_type},
+        metadata={"note_type": second_entity.note_type},
         created_at=second_entity.created_at,
         updated_at=second_entity.updated_at,
         project_id=second_project_repository.project_id,
@@ -364,7 +466,7 @@ async def test_delete_by_permalink(search_repository, search_entity):
         permalink=search_entity.permalink,
         file_path=search_entity.file_path,
         entity_id=search_entity.id,
-        metadata={"entity_type": search_entity.entity_type},
+        metadata={"note_type": search_entity.note_type},
         created_at=search_entity.created_at,
         updated_at=search_entity.updated_at,
         project_id=search_repository.project_id,
@@ -397,7 +499,7 @@ async def test_delete_by_entity_id(search_repository, search_entity):
         permalink=search_entity.permalink,
         file_path=search_entity.file_path,
         entity_id=search_entity.id,
-        metadata={"entity_type": search_entity.entity_type},
+        metadata={"note_type": search_entity.note_type},
         created_at=search_entity.created_at,
         updated_at=search_entity.updated_at,
         project_id=search_repository.project_id,
@@ -725,7 +827,7 @@ class TestSearchTermPreparation:
             permalink=search_entity.permalink,
             file_path=search_entity.file_path,
             entity_id=search_entity.id,
-            metadata={"entity_type": search_entity.entity_type},
+            metadata={"note_type": search_entity.note_type},
             created_at=search_entity.created_at,
             updated_at=search_entity.updated_at,
             project_id=search_repository.project_id,
@@ -759,7 +861,7 @@ class TestSearchTermPreparation:
             permalink=search_entity.permalink,
             file_path=search_entity.file_path,
             entity_id=search_entity.id,
-            metadata={"entity_type": search_entity.entity_type},
+            metadata={"note_type": search_entity.note_type},
             created_at=search_entity.created_at,
             updated_at=search_entity.updated_at,
             project_id=search_repository.project_id,
@@ -847,7 +949,7 @@ async def _index_entity_with_metadata(search_repository, session_maker, title, e
         entity = Entity(
             project_id=search_repository.project_id,
             title=title,
-            entity_type="note",
+            note_type="note",
             permalink=permalink,
             file_path=file_path,
             content_type="text/markdown",
@@ -867,7 +969,7 @@ async def _index_entity_with_metadata(search_repository, session_maker, title, e
         permalink=entity.permalink,
         file_path=entity.file_path,
         entity_id=entity.id,
-        metadata={"entity_type": entity.entity_type},
+        metadata={"note_type": entity.note_type},
         created_at=entity.created_at,
         updated_at=entity.updated_at,
         project_id=search_repository.project_id,
@@ -941,3 +1043,251 @@ async def test_search_metadata_filters_numeric_comparisons(search_repository, se
         metadata_filters={"schema.confidence": {"$between": [0.3, 0.6]}}
     )
     assert {result.id for result in results} == {entity_low.id}
+
+
+# --- SQL injection safety tests ---
+# These tests verify that user-supplied filter values are parameterized and cannot
+# alter query structure. Each test passes a malicious payload and asserts the query
+# completes safely (returning empty results) rather than causing a SQL error or
+# data exfiltration.
+
+
+@pytest.mark.asyncio
+async def test_note_types_sql_injection_returns_empty(search_repository):
+    """note_types with SQL injection payload must not alter query structure."""
+    malicious_payloads = [
+        "note' OR '1'='1",
+        "note'; DROP TABLE search_index;--",
+        'note" OR 1=1--',
+        "note') UNION SELECT * FROM entity--",
+    ]
+    for payload in malicious_payloads:
+        results = await search_repository.search(note_types=[payload])
+        # Injection should be treated as a literal string value, not executed as SQL
+        assert results == [], f"Injection payload should not match: {payload}"
+
+
+@pytest.mark.asyncio
+async def test_search_item_types_parameterized(search_repository):
+    """search_item_types enum values are parameterized, not interpolated."""
+    # Normal enum usage still works
+    results = await search_repository.search(search_item_types=[SearchItemType.ENTITY])
+    # Should not raise — parameterized query handles enum values safely
+    assert isinstance(results, list)
+
+
+async def _index_observation(
+    search_repository,
+    *,
+    row_id: int,
+    entity_id: int,
+    category: str,
+    content: str,
+) -> None:
+    """Index a single observation row with an explicit category for filter tests."""
+    now = datetime.now(timezone.utc)
+    search_row = SearchIndexRow(
+        id=row_id,
+        type=SearchItemType.OBSERVATION.value,
+        content_stems=content,
+        content_snippet=content,
+        permalink=f"test/obs/{category}/{row_id}",
+        file_path="test/obs.md",
+        entity_id=entity_id,
+        category=category,
+        metadata={"note_type": "note"},
+        created_at=now,
+        updated_at=now,
+        project_id=search_repository.project_id,
+    )
+    await search_repository.index_item(search_row)
+
+
+@pytest.mark.asyncio
+async def test_search_categories_exact_match(search_repository, search_entity):
+    """categories must match the observation category exactly, not by text.
+
+    Regression for #430: searching observations for "requirement" used to also
+    return a [decision] observation that merely mentions the word. The categories
+    filter scopes results to the exact indexed category.
+    """
+    await _index_observation(
+        search_repository,
+        row_id=70001,
+        entity_id=search_entity.id,
+        category="requirement",
+        content="The auth requirement must be enforced on every call",
+    )
+    # A decision observation whose text mentions "requirement" but whose category
+    # is NOT requirement — it must be excluded by an exact-category filter.
+    await _index_observation(
+        search_repository,
+        row_id=70002,
+        entity_id=search_entity.id,
+        category="decision",
+        content="We deferred the auth requirement to next sprint",
+    )
+
+    # Without the category filter, a text search for "requirement" matches both.
+    text_results = await search_repository.search(
+        search_text="requirement",
+        search_item_types=[SearchItemType.OBSERVATION],
+    )
+    assert {r.id for r in text_results} == {70001, 70002}
+
+    # With categories=["requirement"], only the requirement observation survives.
+    filtered = await search_repository.search(
+        search_text="requirement",
+        search_item_types=[SearchItemType.OBSERVATION],
+        categories=["requirement"],
+    )
+    assert {r.id for r in filtered} == {70001}
+    assert filtered[0].category == "requirement"
+
+    # categories also works as a standalone filter (no text query).
+    filtered_only = await search_repository.search(categories=["requirement"])
+    assert {r.id for r in filtered_only} == {70001}
+
+    # count mirrors the filtered search.
+    assert await search_repository.count(categories=["requirement"]) == 1
+
+    # Multiple categories union: both observations come back.
+    multi = await search_repository.search(categories=["requirement", "decision"])
+    assert {r.id for r in multi} == {70001, 70002}
+
+
+@pytest.mark.asyncio
+async def test_question_punctuation_does_not_phrase_quote(search_repository):
+    """Sentence punctuation must not force exact-phrase matching (#hybrid-fts).
+
+    'When did Melanie paint a sunrise?' previously became the FTS5 phrase
+    '"When did Melanie paint a sunrise?"*' — zero rows for any corpus — which
+    silently disabled the FTS half of hybrid search for question queries.
+    """
+    prepared = search_repository._prepare_single_term("When did Melanie paint a sunrise?")
+    assert '"' not in prepared
+    # Prefix syntax differs by backend: FTS5 uses '*', tsquery uses ':*'.
+    if is_postgres_backend(search_repository):
+        assert "sunrise:*" in prepared
+    else:
+        assert "sunrise*" in prepared
+
+
+@pytest.mark.asyncio
+async def test_relaxed_query_drops_stopwords(search_repository):
+    """Relaxation keys on content-bearing terms in each backend's syntax."""
+    if is_postgres_backend(search_repository):
+        relaxed = search_repository._relaxed_tsquery_text("When did Melanie paint a sunrise?")
+        assert relaxed == "melanie:* | paint:* | sunrise:*"
+    else:
+        relaxed = search_repository._relaxed_fts_text("When did Melanie paint a sunrise?")
+        assert relaxed == "melanie* OR paint* OR sunrise*"
+
+
+@pytest.mark.asyncio
+async def test_relaxed_query_preserves_punctuated_ascii_token_pieces(search_repository):
+    """Hyphenated and slashed ASCII terms should relax using their regex token pieces."""
+    if is_postgres_backend(search_repository):
+        relaxed = search_repository._relaxed_tsquery_text("client-side state management")
+        assert relaxed == "client:* | side:* | state:* | management:*"
+        slashed = search_repository._relaxed_tsquery_text("foo/bar baz qux")
+        assert slashed == "foo:* | bar:* | baz:* | qux:*"
+    else:
+        relaxed = search_repository._relaxed_fts_text("client-side state management")
+        assert relaxed == "client* OR side* OR state* OR management*"
+        slashed = search_repository._relaxed_fts_text("foo/bar baz qux")
+        assert slashed == "foo* OR bar* OR baz* OR qux*"
+
+
+@pytest.mark.asyncio
+async def test_relaxed_query_supports_whitespace_separated_cjk_terms(search_repository):
+    """CJK terms separated by spaces should relax even when ASCII tokenization finds none."""
+    if is_postgres_backend(search_repository):
+        relaxed = search_repository._relaxed_tsquery_text("季度 报告")
+        assert relaxed == "季度:* | 报告:*"
+    else:
+        relaxed = search_repository._relaxed_fts_text("季度 报告")
+        assert relaxed == "季度* OR 报告*"
+
+
+@pytest.mark.asyncio
+async def test_relaxed_query_respects_user_intent(search_repository):
+    # Eligibility matches the service-level relaxation (both backends): quoted,
+    # boolean, short (<3 tokens), and numeric-identifier queries are not relaxed.
+    relaxer = (
+        search_repository._relaxed_tsquery_text
+        if is_postgres_backend(search_repository)
+        else search_repository._relaxed_fts_text
+    )
+    assert relaxer("alpha AND beta") is None
+    assert relaxer('"exact phrase"') is None
+    assert relaxer("single") is None  # < 3 tokens
+    assert relaxer("New Feature") is None  # < 3 tokens (link title)
+    assert relaxer("root note 1") is None  # numeric identifier token
+    assert relaxer("SPEC 16 design") is None  # numeric token
+    assert relaxer(None) is None
+
+
+@pytest.mark.asyncio
+async def test_multiword_query_relaxes_to_or_when_strict_misses(search_repository, search_entity):
+    """A question sharing only SOME words with a doc still surfaces it."""
+    from basic_memory.repository.search_index_row import SearchIndexRow
+    from basic_memory.schemas.search import SearchItemType
+
+    row = SearchIndexRow(
+        project_id=search_repository.project_id,
+        id=search_entity.id,
+        type=SearchItemType.ENTITY.value,
+        title="Trip plans",
+        content_snippet="Melanie painted a sunrise over the lake last year.",
+        content_stems="melanie painted a sunrise over the lake last year",
+        permalink=search_entity.permalink,
+        file_path=search_entity.file_path,
+        entity_id=search_entity.id,
+        metadata={"note_type": search_entity.note_type},
+        created_at=search_entity.created_at,
+        updated_at=search_entity.updated_at,
+    )
+    await search_repository.index_item(row)
+
+    # "hiking" is absent from the doc, so strict all-terms-AND misses on both
+    # backends (Postgres's stopword stripping can't rescue it either).
+    strict = await search_repository.search(search_text="Did Melanie go hiking at sunrise?")
+    assert strict == []
+
+    # The hybrid FTS branch opts in; OR-relaxation surfaces the partial match.
+    results = await search_repository.search(
+        search_text="Did Melanie go hiking at sunrise?", allow_relaxed=True
+    )
+    assert any(r.entity_id == search_entity.id for r in results)
+
+
+@pytest.mark.asyncio
+async def test_cjk_compound_query_relaxes_with_backend_prefix_terms(
+    search_repository, search_entity
+):
+    """Whitespace-separated CJK terms should match indexed CJK compounds when relaxed."""
+    row = SearchIndexRow(
+        project_id=search_repository.project_id,
+        id=search_entity.id,
+        type=SearchItemType.ENTITY.value,
+        title="季度报告总结",
+        content_snippet="季度报告总结已经完成。",
+        content_stems="季度报告总结已经完成",
+        permalink=search_entity.permalink,
+        file_path=search_entity.file_path,
+        entity_id=search_entity.id,
+        metadata={"note_type": search_entity.note_type},
+        created_at=search_entity.created_at,
+        updated_at=search_entity.updated_at,
+    )
+    await search_repository.index_item(row)
+
+    strict = await search_repository.search(search_text="季度 报告")
+    assert strict == []
+
+    results = await search_repository.search(search_text="季度 报告", allow_relaxed=True)
+    assert any(r.entity_id == search_entity.id for r in results)
+
+    total = await search_repository.count(search_text="季度 报告", allow_relaxed=True)
+    assert total == 1

@@ -17,10 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
 
 from basic_memory import db
 from basic_memory.config import BasicMemoryConfig, ConfigManager
-from basic_memory.runtime import RuntimeMode, resolve_runtime_mode
+from basic_memory.runtime.mode import RuntimeMode, resolve_runtime_mode
 
 if TYPE_CHECKING:  # pragma: no cover
-    from basic_memory.sync import SyncCoordinator
+    from basic_memory.index.watch_coordinator import WatchCoordinator
 
 
 @dataclass
@@ -47,7 +47,6 @@ class ApiContainer:
         """
         config = ConfigManager().config
         mode = resolve_runtime_mode(
-            cloud_mode_enabled=config.cloud_mode_enabled,
             is_test_env=config.is_test_env,
         )
         return cls(config=config, mode=mode)
@@ -55,40 +54,43 @@ class ApiContainer:
     # --- Runtime Mode Properties ---
 
     @property
-    def should_sync_files(self) -> bool:
-        """Whether file sync should be started.
+    def should_watch_files(self) -> bool:
+        """Whether local file watching should be started.
 
-        Sync is enabled when:
-        - sync_changes is True in config
-        - Not in test mode (tests manage their own sync)
+        Watching is enabled when:
+        - index_changes is True in config
+        - Not in test mode (tests manage their own watcher lifecycle)
+        - Not in cloud mode (cloud handles storage events differently)
         """
-        return self.config.sync_changes and not self.mode.is_test
+        return self.config.index_changes and not self.mode.is_test and not self.mode.is_cloud
 
     @property
-    def sync_skip_reason(self) -> str | None:  # pragma: no cover
-        """Reason why sync is skipped, or None if sync should run.
+    def watch_skip_reason(self) -> str | None:  # pragma: no cover
+        """Reason why local watching is skipped, or None if it should run.
 
-        Useful for logging why sync was disabled.
+        Useful for logging why local watching was disabled.
         """
         if self.mode.is_test:
             return "Test environment detected"
-        if not self.config.sync_changes:
-            return "Sync changes disabled"
+        if self.mode.is_cloud:
+            return "Cloud mode enabled"
+        if not self.config.index_changes:
+            return "Local file watching disabled"
         return None
 
-    def create_sync_coordinator(self) -> "SyncCoordinator":  # pragma: no cover
-        """Create a SyncCoordinator with this container's settings.
+    def create_watch_coordinator(self) -> "WatchCoordinator":  # pragma: no cover
+        """Create a WatchCoordinator with this container's settings.
 
         Returns:
-            SyncCoordinator configured for this runtime environment
+            WatchCoordinator configured for this runtime environment
         """
         # Deferred import to avoid circular dependency
-        from basic_memory.sync import SyncCoordinator
+        from basic_memory.index.watch_coordinator import WatchCoordinator
 
-        return SyncCoordinator(
+        return WatchCoordinator(
             config=self.config,
-            should_sync=self.should_sync_files,
-            skip_reason=self.sync_skip_reason,
+            should_watch=self.should_watch_files,
+            skip_reason=self.watch_skip_reason,
         )
 
     # --- Database Factory ---
@@ -125,6 +127,21 @@ def get_container() -> ApiContainer:
     if _container is None:
         raise RuntimeError("API container not initialized. Call set_container() first.")
     return _container
+
+
+def resolve_container() -> ApiContainer:
+    """Return the lifespan-installed container, or a fresh one off-lifespan.
+
+    The CLI/MCP local ASGI flow serves requests without running the API
+    lifespan, so no container is installed there. Creating a fresh container
+    keeps the ConfigManager read inside the composition root. The fresh
+    container is deliberately not cached in the module global: ConfigManager
+    already caches config with mtime invalidation, and a cached container here
+    would go stale when the CLI or tests rewrite the config file.
+    """
+    if _container is not None:
+        return _container
+    return ApiContainer.create()
 
 
 def set_container(container: ApiContainer) -> None:

@@ -8,6 +8,11 @@ import pytest
 from sqlalchemy import text
 
 
+def _first_value(row):
+    assert row is not None
+    return row[0]
+
+
 @pytest.mark.asyncio
 async def test_wal_mode_enabled(engine_factory, db_backend):
     """Test that WAL mode is enabled on filesystem database connections."""
@@ -19,7 +24,7 @@ async def test_wal_mode_enabled(engine_factory, db_backend):
     # Execute a query to verify WAL mode is enabled
     async with engine.connect() as conn:
         result = await conn.execute(text("PRAGMA journal_mode"))
-        journal_mode = result.fetchone()[0]
+        journal_mode = _first_value(result.fetchone())
 
         # WAL mode should be enabled for filesystem databases
         assert journal_mode.upper() == "WAL"
@@ -35,7 +40,7 @@ async def test_busy_timeout_configured(engine_factory, db_backend):
 
     async with engine.connect() as conn:
         result = await conn.execute(text("PRAGMA busy_timeout"))
-        busy_timeout = result.fetchone()[0]
+        busy_timeout = _first_value(result.fetchone())
 
         # Busy timeout should be 10 seconds (10000 milliseconds)
         assert busy_timeout == 10000
@@ -43,7 +48,8 @@ async def test_busy_timeout_configured(engine_factory, db_backend):
 
 @pytest.mark.asyncio
 async def test_synchronous_mode_configured(engine_factory, db_backend):
-    """Test that synchronous mode is set to NORMAL for performance."""
+    """Synchronous defaults to NORMAL — safe with WAL, and OFF showed no
+    measurable throughput gain in benchmarks. See config.sqlite_synchronous."""
     if db_backend == "postgres":
         pytest.skip("SQLite-specific test - PRAGMA commands not supported in Postgres")
 
@@ -51,10 +57,33 @@ async def test_synchronous_mode_configured(engine_factory, db_backend):
 
     async with engine.connect() as conn:
         result = await conn.execute(text("PRAGMA synchronous"))
-        synchronous = result.fetchone()[0]
+        synchronous = _first_value(result.fetchone())
 
-        # Synchronous should be NORMAL (1)
+        # NORMAL (1) is the default.
         assert synchronous == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value,expected", [("OFF", 0), ("NORMAL", 1), ("FULL", 2)])
+async def test_sqlite_synchronous_follows_config(tmp_path, value, expected):
+    """_create_sqlite_engine applies the configured PRAGMA synchronous level."""
+    from basic_memory import db
+    from basic_memory.config import BasicMemoryConfig
+
+    config = BasicMemoryConfig(
+        projects={"main": {"path": str(tmp_path)}},
+        default_project="main",
+        sqlite_synchronous=value,
+    )
+    engine = db._create_sqlite_engine(
+        f"sqlite+aiosqlite:///{tmp_path / 'sync.db'}", db.DatabaseType.FILESYSTEM, config
+    )
+    try:
+        async with engine.connect() as conn:
+            got = _first_value((await conn.execute(text("PRAGMA synchronous"))).fetchone())
+        assert got == expected
+    finally:
+        await engine.dispose()
 
 
 @pytest.mark.asyncio
@@ -67,7 +96,7 @@ async def test_cache_size_configured(engine_factory, db_backend):
 
     async with engine.connect() as conn:
         result = await conn.execute(text("PRAGMA cache_size"))
-        cache_size = result.fetchone()[0]
+        cache_size = _first_value(result.fetchone())
 
         # Cache size should be -64000 (64MB)
         assert cache_size == -64000
@@ -83,7 +112,7 @@ async def test_temp_store_configured(engine_factory, db_backend):
 
     async with engine.connect() as conn:
         result = await conn.execute(text("PRAGMA temp_store"))
-        temp_store = result.fetchone()[0]
+        temp_store = _first_value(result.fetchone())
 
         # temp_store should be MEMORY (2)
         assert temp_store == 2
@@ -114,7 +143,7 @@ async def test_windows_locking_mode_when_on_windows(tmp_path, monkeypatch, confi
     ):
         async with engine.connect() as conn:
             result = await conn.execute(text("PRAGMA locking_mode"))
-            locking_mode = result.fetchone()[0]
+            locking_mode = _first_value(result.fetchone())
 
             # Locking mode should be NORMAL on Windows
             assert locking_mode.upper() == "NORMAL"

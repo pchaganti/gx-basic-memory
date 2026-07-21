@@ -1,13 +1,21 @@
 from textwrap import dedent
-from typing import Optional
+from typing import Annotated, Optional, Literal
 
 from loguru import logger
 from fastmcp import Context
 from mcp.server.fastmcp.exceptions import ToolError
+from pydantic import AliasChoices, Field
 
-from basic_memory.mcp.project_context import get_active_project
+from basic_memory.config import ConfigManager
+from basic_memory.mcp.project_context import (
+    detect_project_from_memory_url_prefix,
+    get_project_client,
+    resolve_project_and_path,
+)
 from basic_memory.mcp.server import mcp
-from basic_memory.mcp.async_client import get_client
+from basic_memory.schemas.project_info import ProjectItem
+from basic_memory.utils import generate_permalink, normalize_project_reference
+from basic_memory.workspace_context import current_workspace_permalink_context
 
 
 def _format_delete_error_response(project: str, error_message: str, identifier: str) -> str:
@@ -147,13 +155,54 @@ delete_note("{project}", "correct-identifier-from-search")
 If the note should be deleted but the operation keeps failing, send a message to support@basicmemory.com."""
 
 
-@mcp.tool(description="Delete a note or directory by title, permalink, or path")
+def _directory_path_for_delete(
+    target_identifier: str,
+    active_project: ProjectItem,
+    *,
+    include_project_prefix: bool,
+) -> str:
+    """Return the project-relative directory path expected by the delete API."""
+    directory = normalize_project_reference(target_identifier).strip("/")
+    project_permalink = active_project.permalink
+
+    route_prefixes: list[str] = []
+    workspace_context = current_workspace_permalink_context()
+    if workspace_context and workspace_context.should_prefix_permalinks:
+        route_prefixes.append(
+            f"{generate_permalink(workspace_context.workspace_slug)}/{project_permalink}"
+        )
+    if include_project_prefix:
+        route_prefixes.append(project_permalink)
+
+    for route_prefix in route_prefixes:
+        if directory.startswith(f"{route_prefix}/"):
+            return directory.removeprefix(f"{route_prefix}/")
+
+    return directory
+
+
+@mcp.tool(
+    title="Delete Note",
+    description="Delete a note or directory by title, permalink, or path",
+    tags={"notes"},
+    annotations={
+        "title": "Delete Note",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "openWorldHint": False,
+    },
+)
 async def delete_note(
     identifier: str,
-    is_directory: bool = False,
+    is_directory: Annotated[
+        bool,
+        Field(default=False, validation_alias=AliasChoices("is_directory", "is_dir")),
+    ] = False,
     project: Optional[str] = None,
+    project_id: Optional[str] = None,
+    output_format: Literal["text", "json"] = "text",
     context: Context | None = None,
-) -> bool | str:
+) -> bool | str | dict:
     """Delete a note or directory from the knowledge base.
 
     Permanently removes a note or directory from the specified project. For single notes,
@@ -174,6 +223,11 @@ async def delete_note(
                      (without file extensions). Defaults to False.
         project: Project name to delete from. Optional - server will resolve using hierarchy.
                 If unknown, use list_memory_projects() to discover available projects.
+        project_id: Project external_id (UUID). Prefer this over `project` when known —
+                it routes to the exact project regardless of name collisions across cloud
+                workspaces. Takes precedence over `project`. Get from list_memory_projects().
+        output_format: "text" preserves existing behavior (bool/string). "json"
+            returns machine-readable deletion metadata.
         context: Optional FastMCP context for performance caching.
 
     Returns:
@@ -216,23 +270,86 @@ async def delete_note(
         with suggestions for finding the correct identifier, including search
         commands and alternative formats to try.
     """
-    async with get_client() as client:
-        logger.debug(
-            f"Deleting {'directory' if is_directory else 'note'}: {identifier} in project: {project}"
+    # Detect project from memory URL prefix before routing
+    # Trigger: identifier starts with memory:// and no explicit project/project_id was provided
+    # Why: only gate on memory:// to avoid misrouting plain paths like "research/note"
+    #      where "research" is a directory, not a project name
+    # Outcome: project is set from the URL prefix, routing goes to the correct project
+    if project is None and project_id is None and identifier.strip().startswith("memory://"):
+        detected = await detect_project_from_memory_url_prefix(
+            identifier,
+            ConfigManager().config,
+            context=context,
         )
+        if detected:
+            project = detected
 
-        active_project = await get_active_project(client, project, context)
+    async with get_project_client(project, context=context, project_id=project_id) as (
+        client,
+        active_project,
+    ):
+        logger.debug(
+            f"Deleting {'directory' if is_directory else 'note'}: {identifier} in project: {active_project.name}"
+        )
 
         # Import here to avoid circular import
         from basic_memory.mcp.clients import KnowledgeClient
 
         # Use typed KnowledgeClient for API calls
         knowledge_client = KnowledgeClient(client, active_project.external_id)
+        _, target_identifier, is_memory_url = await resolve_project_and_path(
+            client,
+            identifier,
+            active_project.name,
+            context,
+            strict_project_routing=True,
+            allow_missing_project_fallback=True,
+        )
 
         # Handle directory deletes
         if is_directory:
             try:
-                result = await knowledge_client.delete_directory(identifier)
+                # Trigger: directory input was routed from a memory:// URL.
+                # Why: resolve_project_and_path returns canonical permalinks, while
+                #   delete_directory filters by project-relative file_path prefixes.
+                # Outcome: strip only the route prefix before calling the delete API.
+                directory_identifier = (
+                    _directory_path_for_delete(
+                        target_identifier,
+                        active_project,
+                        include_project_prefix=ConfigManager().config.permalinks_include_project,
+                    )
+                    if is_memory_url
+                    else target_identifier
+                )
+                result = await knowledge_client.delete_directory(directory_identifier)
+                if output_format == "json":
+                    response = {
+                        "deleted": result.total_files > 0 and result.failed_deletes == 0,
+                        "is_directory": True,
+                        "identifier": identifier,
+                        "total_files": result.total_files,
+                        "successful_deletes": result.successful_deletes,
+                        "failed_deletes": result.failed_deletes,
+                        "deleted_files": result.deleted_files,
+                        "errors": [error.model_dump() for error in result.errors],
+                    }
+                    if result.total_files == 0:
+                        response["error"] = "Directory not found or empty: no files matched"
+                    elif result.failed_deletes > 0:
+                        response["error"] = (
+                            "Directory delete incomplete: "
+                            f"{result.failed_deletes} of {result.total_files} file(s) failed"
+                        )
+                    return response
+
+                if result.total_files == 0:
+                    return f"""# Directory Delete Failed - No Files Found
+
+No files found for directory `{identifier}`.
+Total files: 0.
+
+<!-- Project: {active_project.name} -->"""
 
                 # Build success message for directory delete
                 result_lines = [
@@ -271,6 +388,16 @@ async def delete_note(
 
             except Exception as e:  # pragma: no cover
                 logger.error(f"Directory delete failed for '{identifier}': {e}")
+                if output_format == "json":
+                    return {
+                        "deleted": False,
+                        "is_directory": True,
+                        "identifier": identifier,
+                        "total_files": 0,
+                        "successful_deletes": 0,
+                        "failed_deletes": 0,
+                        "error": str(e),
+                    }
                 return f"""# Directory Delete Failed
 
 Error deleting directory '{identifier}': {str(e)}
@@ -290,18 +417,41 @@ delete_note("path/to/file.md")
 ```"""
 
         # Handle single note deletes
+        note_title = None
+        note_permalink = None
+        note_file_path = None
         try:
             # Resolve identifier to entity ID
-            entity_id = await knowledge_client.resolve_entity(identifier)
+            entity_id = await knowledge_client.resolve_entity(target_identifier, strict=True)
+            if output_format == "json":
+                entity = await knowledge_client.get_entity(entity_id)
+                note_title = entity.title
+                note_permalink = entity.permalink
+                note_file_path = entity.file_path
         except ToolError as e:
             # If entity not found, return False (note doesn't exist)
             if "Entity not found" in str(e) or "not found" in str(e).lower():
                 logger.warning(f"Note not found for deletion: {identifier}")
+                if output_format == "json":
+                    return {
+                        "deleted": False,
+                        "title": None,
+                        "permalink": None,
+                        "file_path": None,
+                    }
                 return False
             # For other resolution errors, return formatted error message
             logger.error(  # pragma: no cover
                 f"Delete failed for '{identifier}': {e}, project: {active_project.name}"
             )
+            if output_format == "json":
+                return {
+                    "deleted": False,
+                    "title": None,
+                    "permalink": None,
+                    "file_path": None,
+                    "error": str(e),
+                }
             return _format_delete_error_response(  # pragma: no cover
                 active_project.name, str(e), identifier
             )
@@ -314,14 +464,36 @@ delete_note("path/to/file.md")
                 logger.info(
                     f"Successfully deleted note: {identifier} in project: {active_project.name}"
                 )
+                if output_format == "json":
+                    return {
+                        "deleted": True,
+                        "title": note_title,
+                        "permalink": note_permalink,
+                        "file_path": note_file_path,
+                    }
                 return True
             else:
                 logger.warning(  # pragma: no cover
                     f"Delete operation completed but note was not deleted: {identifier}"
                 )
+                if output_format == "json":
+                    return {
+                        "deleted": False,
+                        "title": note_title,
+                        "permalink": note_permalink,
+                        "file_path": note_file_path,
+                    }
                 return False  # pragma: no cover
 
         except Exception as e:  # pragma: no cover
             logger.error(f"Delete failed for '{identifier}': {e}, project: {active_project.name}")
+            if output_format == "json":
+                return {
+                    "deleted": False,
+                    "title": note_title,
+                    "permalink": note_permalink,
+                    "file_path": note_file_path,
+                    "error": str(e),
+                }
             # Return formatted error message for better user experience
             return _format_delete_error_response(active_project.name, str(e), identifier)

@@ -4,7 +4,7 @@ Uses markdown-it with plugins to parse structured data from markdown content.
 """
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Optional
 
@@ -88,6 +88,22 @@ def normalize_frontmatter_value(value: Any) -> Any:
     return value
 
 
+def _coerce_to_string(value: Any) -> str:
+    """Coerce a frontmatter value to a string.
+
+    YAML can parse scalar-looking fields as lists when the author uses block
+    sequence syntax.  For fields like ``title`` and ``type`` that *must* be
+    strings, this helper converts lists to a comma-separated string and any
+    other non-string type via ``str()``.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        # Join list items, converting each to string first
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
 def normalize_frontmatter_metadata(metadata: dict) -> dict:
     """Normalize all values in frontmatter metadata dict.
 
@@ -101,6 +117,33 @@ def normalize_frontmatter_metadata(metadata: dict) -> dict:
         A new dictionary with all values normalized
     """
     return {key: normalize_frontmatter_value(value) for key, value in metadata.items()}
+
+
+def _parse_frontmatter_timestamp(
+    metadata: dict[str, Any],
+    field_name: str,
+    *,
+    fallback: datetime,
+) -> datetime:
+    """Parse one canonical semantic timestamp after YAML value normalization."""
+    value = metadata.get(field_name)
+    if value is None:
+        return fallback
+    if not isinstance(value, str):
+        raise ValueError(f"Invalid ISO 8601 value for frontmatter field '{field_name}': {value!r}")
+
+    try:
+        timestamp = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid ISO 8601 value for frontmatter field '{field_name}': {value!r}"
+        ) from exc
+
+    # ISO date-only and naive datetime values describe local wall-clock time.
+    # Explicit offsets are already unambiguous and must remain unchanged.
+    if timestamp.utcoffset() is None:
+        return timestamp.astimezone()
+    return timestamp
 
 
 @dataclass
@@ -233,9 +276,19 @@ class EntityParser:
 
         content = strip_bom(content)
 
-        # Parse frontmatter with proper error handling for malformed YAML
+        # PostgreSQL rejects null bytes (0x00) in text columns.
+        # Some markdown files (e.g. Claude agent definitions) contain embedded nulls.
+        content = content.replace("\x00", "")
+
+        # Parse frontmatter with proper error handling for malformed YAML.
+        # We use frontmatter.parse() instead of frontmatter.loads() because
+        # loads() does Post(content, handler, **metadata), which crashes when
+        # the YAML contains reserved keys like 'content' or 'handler'.
+        # See basic-memory-cloud#375.
         try:
-            post = frontmatter.loads(content)
+            fm_metadata, fm_content = frontmatter.parse(content)
+            post = frontmatter.Post(fm_content)
+            post.metadata.update(fm_metadata)
         except yaml.YAMLError as e:
             logger.warning(
                 f"Failed to parse YAML frontmatter in {file_path}: {e}. "
@@ -248,15 +301,22 @@ class EntityParser:
         # Normalize frontmatter values
         metadata = normalize_frontmatter_metadata(post.metadata)
 
-        # Ensure required fields have defaults
+        # Ensure required string fields are always strings.
+        # YAML can parse these as lists when authors use block sequence syntax
+        # (e.g. "title:\n  - My Title"), causing 'list' has no attribute 'strip'
+        # downstream.  See basic-memory-cloud#376.
         title = metadata.get("title")
+        if title is not None:
+            title = _coerce_to_string(title)
         if not title or title == "None":
             metadata["title"] = file_path.stem
         else:
             metadata["title"] = title
 
-        entity_type = metadata.get("type")
-        metadata["type"] = entity_type if entity_type is not None else "note"
+        note_type = metadata.get("type")
+        if note_type is not None:
+            note_type = _coerce_to_string(note_type)
+        metadata["type"] = note_type if note_type is not None else "note"
 
         tags = parse_tags(metadata.get("tags", []))  # pyright: ignore
         if tags:
@@ -266,10 +326,25 @@ class EntityParser:
         entity_frontmatter = EntityFrontmatter(metadata=metadata)
         entity_content = parse(post.content)
 
-        # Use provided timestamps or current time as fallback
+        # Canonical frontmatter timestamps describe note semantics. File times are
+        # only compatibility fallbacks for notes that do not declare them.
         now = datetime.now().astimezone()
-        created = datetime.fromtimestamp(ctime).astimezone() if ctime else now
-        modified = datetime.fromtimestamp(mtime).astimezone() if mtime else now
+        created_fallback = (
+            datetime.fromtimestamp(ctime, tz=UTC).astimezone() if ctime is not None else now
+        )
+        modified_fallback = (
+            datetime.fromtimestamp(mtime, tz=UTC).astimezone() if mtime is not None else now
+        )
+        created = _parse_frontmatter_timestamp(
+            metadata,
+            "created",
+            fallback=created_fallback,
+        )
+        modified = _parse_frontmatter_timestamp(
+            metadata,
+            "modified",
+            fallback=modified_fallback,
+        )
 
         return EntityMarkdown(
             frontmatter=entity_frontmatter,

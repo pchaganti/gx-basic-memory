@@ -1,21 +1,26 @@
 """MCP server command with streamable HTTP transport."""
 
 import os
+import threading
+from typing import Any, Optional
+
 import typer
-from typing import Optional
+from loguru import logger
 
 from basic_memory.cli.app import app
+from basic_memory.cli.auto_update import AutoUpdateStatus, run_auto_update
 from basic_memory.config import ConfigManager, init_mcp_logging
 
-# Import mcp instance (has lifespan that handles initialization and file sync)
-from basic_memory.mcp.server import mcp as mcp_server  # pragma: no cover
 
-# Import mcp tools to register them
-import basic_memory.mcp.tools  # noqa: F401  # pragma: no cover
+class _DeferredMcpServer:
+    def run(self, *args: Any, **kwargs: Any) -> None:  # pragma: no cover
+        from basic_memory.mcp.server import mcp as live_mcp_server
 
-# Import prompts to register them
-import basic_memory.mcp.prompts  # noqa: F401  # pragma: no cover
-from loguru import logger
+        live_mcp_server.run(*args, **kwargs)
+
+
+# Keep module-level attribute for tests/monkeypatching while deferring heavy import.
+mcp_server = _DeferredMcpServer()
 
 
 @app.command()
@@ -33,19 +38,34 @@ def mcp(
     This command starts an MCP server using one of three transport options:
 
     - stdio: Standard I/O (good for local usage)
-    - streamable-http: Recommended for web deployments (default)
+    - streamable-http: Recommended for web deployments
     - sse: Server-Sent Events (for compatibility with existing clients)
 
-    Initialization, file sync, and cleanup are handled by the MCP server's lifespan.
+    Initialization, file indexing, and cleanup are handled by the MCP server's lifespan.
 
     Note: This command is available regardless of cloud mode setting.
     Users who have cloud mode enabled can still use local MCP for Claude Code
     and Claude Desktop while using cloud MCP for web and mobile access.
     """
-    # Force local routing for local MCP server
-    # Why: The local MCP server should always talk to the local API, not the cloud proxy.
-    # Even when cloud_mode_enabled is True, stdio MCP runs locally and needs local API access.
-    os.environ["BASIC_MEMORY_FORCE_LOCAL"] = "true"
+    # --- Routing setup ---
+    # Trigger: MCP server command invocation.
+    # Why: HTTP/SSE transports serve as local API endpoints and must never
+    #      route through cloud. Stdio is a client-facing protocol that
+    #      should honor per-project routing (local or cloud).
+    # Outcome: HTTP/SSE get explicit local override; stdio passes through
+    #          whatever env vars are already set (honoring external overrides)
+    #          and defaults to per-project routing resolution.
+    if transport in ("streamable-http", "sse"):
+        os.environ["BASIC_MEMORY_FORCE_LOCAL"] = "true"
+        os.environ.pop("BASIC_MEMORY_FORCE_CLOUD", None)
+        os.environ["BASIC_MEMORY_EXPLICIT_ROUTING"] = "true"
+    # stdio: no env var manipulation — per-project routing applies by default,
+    # and externally-set env vars (e.g. BASIC_MEMORY_FORCE_CLOUD) are honored.
+
+    # Import mcp tools/prompts to register them with the server
+    import basic_memory.mcp.tools  # noqa: F401  # pragma: no cover
+    import basic_memory.mcp.prompts  # noqa: F401  # pragma: no cover
+    import basic_memory.mcp.resources  # noqa: F401  # pragma: no cover
 
     # Initialize logging for MCP (file only, stdout breaks protocol)
     init_mcp_logging()
@@ -62,8 +82,36 @@ def mcp(
         os.environ["BASIC_MEMORY_MCP_PROJECT"] = project_name
         logger.info(f"MCP server constrained to project: {project_name}")
 
+    def _run_background_auto_update() -> None:
+        result = run_auto_update(force=False, check_only=False, silent=True)
+        if result.restart_recommended:
+            logger.info(
+                "A newer Basic Memory version was installed and will apply on next restart."
+            )
+        elif result.status == AutoUpdateStatus.FAILED and result.error:
+            logger.warning(f"MCP background auto-update failed: {result.error}")
+
+    # Trigger: stdio transport corresponds to local user installs.
+    # Why: server transports (HTTP/SSE) run in managed environments where
+    # package-manager self-upgrades are inappropriate.
+    # Outcome: background auto-update runs only for local stdio MCP sessions.
+    if transport == "stdio":
+        threading.Thread(target=_run_background_auto_update, daemon=True).start()
+
+    # Trigger: MCP server startup on the Postgres backend, before the transport
+    # creates its event loop.
+    # Why: the watcher/lifespan path runs startup migrations + engine.dispose() on
+    # asyncpg, which races stdlib asyncio teardown and crashes the container loop
+    # (#831/#877). uvloop's C scheduler structurally avoids that race and must own
+    # the loop policy before the loop is created. No-op for SQLite.
+    # Outcome: `basic-memory mcp` on Postgres runs on uvloop. (The CLI callback also
+    # installs it; this keeps the server startup seam explicit and self-contained.)
+    from basic_memory.db import maybe_install_uvloop
+
+    maybe_install_uvloop(ConfigManager().config)
+
     # Run the MCP server (blocks)
-    # Lifespan handles: initialization, migrations, file sync, cleanup
+    # Lifespan handles: initialization, migrations, file indexing, cleanup
     logger.info(f"Starting MCP server with {transport.upper()} transport")
 
     if transport == "stdio":

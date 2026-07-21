@@ -7,8 +7,12 @@ from typing import Any
 
 from httpx import AsyncClient
 
-from basic_memory.mcp.tools.utils import call_get, call_post, call_delete
+# call_* helpers live in basic_memory.mcp.tools.utils; importing that at module
+# level executes the whole tools package (fastmcp + mcp SDK) during CLI startup,
+# so each method defers the import to call time instead (#886).
+from basic_memory.schemas import ProjectIndexStatusResponse, ProjectInfoResponse
 from basic_memory.schemas.project_info import ProjectList, ProjectStatusResponse
+from basic_memory.schemas.v2 import ProjectResolveResponse
 
 
 class ProjectClient:
@@ -45,6 +49,8 @@ class ProjectClient:
         Raises:
             ToolError: If the request fails
         """
+        from basic_memory.mcp.tools.utils import call_get
+
         response = await call_get(
             self.http_client,
             "/v2/projects/",
@@ -63,6 +69,8 @@ class ProjectClient:
         Raises:
             ToolError: If the request fails
         """
+        from basic_memory.mcp.tools.utils import call_post
+
         response = await call_post(
             self.http_client,
             "/v2/projects/",
@@ -70,11 +78,14 @@ class ProjectClient:
         )
         return ProjectStatusResponse.model_validate(response.json())
 
-    async def delete_project(self, project_external_id: str) -> ProjectStatusResponse:
+    async def delete_project(
+        self, project_external_id: str, delete_notes: bool = False
+    ) -> ProjectStatusResponse:
         """Delete a project by its external ID.
 
         Args:
             project_external_id: Project external ID (UUID)
+            delete_notes: If True, also delete project files from disk
 
         Returns:
             ProjectStatusResponse with deletion result
@@ -82,8 +93,151 @@ class ProjectClient:
         Raises:
             ToolError: If the request fails
         """
+        from basic_memory.mcp.tools.utils import call_delete
+
+        url = f"/v2/projects/{project_external_id}"
+        if delete_notes:
+            url += "?delete_notes=true"
         response = await call_delete(
             self.http_client,
-            f"/v2/projects/{project_external_id}",
+            url,
         )
         return ProjectStatusResponse.model_validate(response.json())
+
+    async def resolve_project(self, identifier: str) -> ProjectResolveResponse:
+        """Resolve a project name/permalink to its full project record.
+
+        Args:
+            identifier: Project name or permalink
+
+        Returns:
+            ProjectResolveResponse with project metadata
+
+        Raises:
+            ToolError: If the request fails
+        """
+        from basic_memory.mcp.tools.utils import call_post
+
+        response = await call_post(
+            self.http_client,
+            "/v2/projects/resolve",
+            json={"identifier": identifier},
+        )
+        return ProjectResolveResponse.model_validate(response.json())
+
+    async def set_default(self, project_external_id: str) -> ProjectStatusResponse:
+        """Set a project as the default.
+
+        Args:
+            project_external_id: Project external ID (UUID)
+
+        Returns:
+            ProjectStatusResponse with result
+
+        Raises:
+            ToolError: If the request fails
+        """
+        from basic_memory.mcp.tools.utils import call_put
+
+        response = await call_put(
+            self.http_client,
+            f"/v2/projects/{project_external_id}/default",
+        )
+        return ProjectStatusResponse.model_validate(response.json())
+
+    async def update_project(
+        self, project_external_id: str, data: dict[str, Any]
+    ) -> ProjectStatusResponse:
+        """Update a project's configuration (e.g. path).
+
+        Args:
+            project_external_id: Project external ID (UUID)
+            data: Fields to update
+
+        Returns:
+            ProjectStatusResponse with update result
+
+        Raises:
+            ToolError: If the request fails
+        """
+        from basic_memory.mcp.tools.utils import call_patch
+
+        response = await call_patch(
+            self.http_client,
+            f"/v2/projects/{project_external_id}",
+            json=data,
+        )
+        return ProjectStatusResponse.model_validate(response.json())
+
+    async def index(
+        self,
+        project_external_id: str,
+        force_full: bool = False,
+        run_in_background: bool = True,
+    ) -> dict[str, Any]:
+        """Trigger a project indexing operation.
+
+        Args:
+            project_external_id: Project external ID (UUID)
+            force_full: If True, request a full project index run
+            run_in_background: If True, return immediately; if False, wait for completion
+
+        Returns:
+            Raw response dict — background mode returns {"message": ...},
+            foreground mode returns a project-index run summary.
+
+        Raises:
+            ToolError: If the request fails
+        """
+        from basic_memory.mcp.tools.utils import call_post
+
+        url = f"/v2/projects/{project_external_id}/index"
+        params = []
+        if force_full:
+            params.append("force_full=true")
+        if not run_in_background:
+            params.append("run_in_background=false")
+        if params:
+            url += "?" + "&".join(params)
+        response = await call_post(self.http_client, url)
+        return response.json()
+
+    async def get_status(self, project_external_id: str) -> ProjectIndexStatusResponse:
+        """Get the current project-index observation for a project.
+
+        Args:
+            project_external_id: Project external ID (UUID)
+
+        Returns:
+            ProjectIndexStatusResponse describing observed indexable files
+
+        Raises:
+            ToolError: If the request fails
+        """
+        from basic_memory.mcp.tools.utils import call_post
+
+        response = await call_post(
+            self.http_client,
+            f"/v2/projects/{project_external_id}/status",
+        )
+        return ProjectIndexStatusResponse.model_validate(response.json())
+
+    async def get_info(self, project_external_id: str) -> ProjectInfoResponse:
+        """Get detailed project information and statistics.
+
+        Args:
+            project_external_id: Project external ID (UUID)
+
+        Returns:
+            ProjectInfoResponse with project details
+
+        Raises:
+            ToolError: If the request fails
+        """
+        from basic_memory.mcp.tools.utils import call_get
+
+        response = await call_get(
+            self.http_client,
+            f"/v2/projects/{project_external_id}/info",
+        )
+        return ProjectInfoResponse.model_validate(response.json())

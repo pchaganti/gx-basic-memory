@@ -1,15 +1,24 @@
 """Tests for MCP tool utilities."""
 
+from typing import Any, cast
+
+import httpx
 import pytest
-from httpx import HTTPStatusError
+from httpx import HTTPStatusError, Request
 from mcp.server.fastmcp.exceptions import ToolError
 
 from basic_memory.mcp.tools.utils import (
+    call_delete,
     call_get,
+    call_patch,
     call_post,
     call_put,
-    call_delete,
     get_error_message,
+)
+from basic_memory.workspace_context import (
+    WORKSPACE_SLUG_HEADER,
+    WORKSPACE_TYPE_HEADER,
+    workspace_permalink_context,
 )
 
 
@@ -22,11 +31,14 @@ def mock_response(monkeypatch):
             self.status_code = status_code
             self.is_success = status_code < 400
             self.json = lambda: {}
+            self.headers = {"content-type": "application/json"}
 
         def raise_for_status(self):
             if self.status_code >= 400:
                 raise HTTPStatusError(
-                    message=f"HTTP Error {self.status_code}", request=None, response=self
+                    message=f"HTTP Error {self.status_code}",
+                    request=Request("GET", "http://test.com"),
+                    response=cast(Any, self),
                 )
 
     return MockResponse
@@ -57,13 +69,17 @@ class _Client:
         return self._responses["delete"]
 
 
+def _client(client: _Client) -> Any:
+    return cast(Any, client)
+
+
 @pytest.mark.asyncio
 async def test_call_get_success(mock_response):
     """Test successful GET request."""
     client = _Client()
     client.set_response("get", mock_response())
 
-    response = await call_get(client, "http://test.com")
+    response = await call_get(_client(client), "http://test.com")
     assert response.status_code == 200
 
 
@@ -74,7 +90,7 @@ async def test_call_get_error(mock_response):
     client.set_response("get", mock_response(404))
 
     with pytest.raises(ToolError) as exc:
-        await call_get(client, "http://test.com")
+        await call_get(_client(client), "http://test.com")
     assert "Resource not found" in str(exc.value)
 
 
@@ -86,7 +102,7 @@ async def test_call_post_success(mock_response):
     response.json = lambda: {"test": "data"}
     client.set_response("post", response)
 
-    response = await call_post(client, "http://test.com", json={"test": "data"})
+    response = await call_post(_client(client), "http://test.com", json={"test": "data"})
     assert response.status_code == 200
 
 
@@ -100,7 +116,7 @@ async def test_call_post_error(mock_response):
     client.set_response("post", response)
 
     with pytest.raises(ToolError) as exc:
-        await call_post(client, "http://test.com", json={"test": "data"})
+        await call_post(_client(client), "http://test.com", json={"test": "data"})
     assert "Internal server error" in str(exc.value)
 
 
@@ -110,7 +126,7 @@ async def test_call_put_success(mock_response):
     client = _Client()
     client.set_response("put", mock_response())
 
-    response = await call_put(client, "http://test.com", json={"test": "data"})
+    response = await call_put(_client(client), "http://test.com", json={"test": "data"})
     assert response.status_code == 200
 
 
@@ -121,7 +137,7 @@ async def test_call_put_error(mock_response):
     client.set_response("put", mock_response(400))
 
     with pytest.raises(ToolError) as exc:
-        await call_put(client, "http://test.com", json={"test": "data"})
+        await call_put(_client(client), "http://test.com", json={"test": "data"})
     assert "Invalid request" in str(exc.value)
 
 
@@ -131,7 +147,7 @@ async def test_call_delete_success(mock_response):
     client = _Client()
     client.set_response("delete", mock_response())
 
-    response = await call_delete(client, "http://test.com")
+    response = await call_delete(_client(client), "http://test.com")
     assert response.status_code == 200
 
 
@@ -142,7 +158,7 @@ async def test_call_delete_error(mock_response):
     client.set_response("delete", mock_response(403))
 
     with pytest.raises(ToolError) as exc:
-        await call_delete(client, "http://test.com")
+        await call_delete(_client(client), "http://test.com")
     assert "Access denied" in str(exc.value)
 
 
@@ -153,12 +169,97 @@ async def test_call_get_with_params(mock_response):
     client.set_response("get", mock_response())
 
     params = {"key": "value", "test": "data"}
-    await call_get(client, "http://test.com", params=params)
+    await call_get(_client(client), "http://test.com", params=params)
 
     assert len(client.calls) == 1
     method, _args, kwargs = client.calls[0]
     assert method == "get"
     assert kwargs["params"] == params
+
+
+@pytest.mark.asyncio
+async def test_call_post_adds_workspace_permalink_headers_at_request_time(mock_response):
+    client = _Client()
+    client.set_response("post", mock_response())
+
+    with workspace_permalink_context("team-paul", "organization"):
+        await call_post(
+            _client(client),
+            "http://test.com",
+            headers={"X-Existing": "value"},
+        )
+
+    assert len(client.calls) == 1
+    _, _args, kwargs = client.calls[0]
+    request_headers = kwargs["headers"]
+    assert request_headers["X-Existing"] == "value"
+    assert request_headers[WORKSPACE_SLUG_HEADER] == "team-paul"
+    assert request_headers[WORKSPACE_TYPE_HEADER] == "organization"
+
+
+_ALL_CALL_HELPERS = [
+    (call_get, "GET"),
+    (call_post, "POST"),
+    (call_put, "PUT"),
+    (call_patch, "PATCH"),
+    (call_delete, "DELETE"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("call_fn,method", _ALL_CALL_HELPERS)
+async def test_transport_timeout_wrapped_in_tool_error(call_fn, method):
+    """httpx timeouts stringify to '' — they must surface as actionable ToolErrors (#1034)."""
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("", request=request)
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        with pytest.raises(ToolError) as exc:
+            await call_fn(client, "/v2/projects/project-uuid")
+
+    message = str(exc.value)
+    assert message  # never blank, even though str(ReadTimeout("")) is empty
+    assert "Request timed out" in message
+    assert "ReadTimeout" in message
+    assert f"{method} 'project-uuid'" in message
+    assert "may still be completing server-side" in message
+    assert "bm project list" in message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("call_fn,method", _ALL_CALL_HELPERS)
+async def test_transport_connect_error_wrapped_in_tool_error(call_fn, method):
+    """Non-timeout transport failures are wrapped with the exception type and detail."""
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        with pytest.raises(ToolError) as exc:
+            # httpx.URL object (not str) also exercises the URL-object path extraction
+            await call_fn(client, httpx.URL("http://test/v2/projects/project-uuid"))
+
+    message = str(exc.value)
+    assert "Connection failed" in message
+    assert "ConnectError: connection refused" in message
+    assert f"{method} request to 'project-uuid'" in message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("call_fn,method", _ALL_CALL_HELPERS)
+async def test_non_transport_error_reraised_unwrapped(call_fn, method):
+    """Errors that are neither HTTP-status nor transport failures pass through untouched."""
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        raise RuntimeError("unexpected failure")
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        with pytest.raises(RuntimeError, match="unexpected failure"):
+            await call_fn(client, "/v2/projects/project-uuid")
 
 
 @pytest.mark.asyncio
@@ -199,7 +300,7 @@ async def test_call_post_with_json(mock_response):
     client.set_response("post", response)
 
     json_data = {"key": "value", "nested": {"test": "data"}}
-    await call_post(client, "http://test.com", json=json_data)
+    await call_post(_client(client), "http://test.com", json=json_data)
 
     assert len(client.calls) == 1
     method, _args, kwargs = client.calls[0]

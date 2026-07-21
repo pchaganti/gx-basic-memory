@@ -5,6 +5,9 @@ from typing import List, Optional, Literal
 
 from pydantic import BaseModel
 
+DEFAULT_DIRECTORY_PAGE_SIZE = 10
+MAX_DIRECTORY_PAGE_SIZE = 200
+
 
 class DirectoryNode(BaseModel):
     """Directory node in file system."""
@@ -18,13 +21,23 @@ class DirectoryNode(BaseModel):
     permalink: Optional[str] = None
     external_id: Optional[str] = None  # UUID (primary API identifier for v2)
     entity_id: Optional[int] = None  # Internal numeric ID
-    entity_type: Optional[str] = None
+    note_type: Optional[str] = None
     content_type: Optional[str] = None
     updated_at: Optional[datetime] = None
 
     @property
     def has_children(self) -> bool:
         return bool(self.children)
+
+
+class DirectoryListResponse(BaseModel):
+    """One bounded page of directory-listing results."""
+
+    nodes: List[DirectoryNode]
+    page: int
+    page_size: int
+    total: int
+    has_more: bool
 
 
 # Support for recursive model

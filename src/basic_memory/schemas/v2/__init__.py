@@ -7,13 +7,19 @@ from basic_memory.schemas.v2.entity import (
     MoveEntityRequestV2,
     MoveDirectoryRequestV2,
     DeleteDirectoryRequestV2,
+    IndexFileRequest,
     ProjectResolveRequest,
     ProjectResolveResponse,
 )
-from basic_memory.schemas.v2.resource import (
-    CreateResourceRequest,
-    UpdateResourceRequest,
-    ResourceResponse,
+from basic_memory.schemas.v2.graph import (
+    GraphEdge,
+    GraphNode,
+    GraphResponse,
+    OrphanEntitiesResponse,
+)
+from basic_memory.schemas.v2.project_index import (
+    ProjectIndexResponse,
+    ProjectIndexStartedResponse,
 )
 
 __all__ = [
@@ -23,9 +29,13 @@ __all__ = [
     "MoveEntityRequestV2",
     "MoveDirectoryRequestV2",
     "DeleteDirectoryRequestV2",
+    "IndexFileRequest",
     "ProjectResolveRequest",
     "ProjectResolveResponse",
-    "CreateResourceRequest",
-    "UpdateResourceRequest",
-    "ResourceResponse",
+    "GraphEdge",
+    "GraphNode",
+    "GraphResponse",
+    "OrphanEntitiesResponse",
+    "ProjectIndexResponse",
+    "ProjectIndexStartedResponse",
 ]

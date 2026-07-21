@@ -1,9 +1,11 @@
 """Tests for file operations service."""
 
+import os
 from pathlib import Path
 
 import pytest
 
+from basic_memory import file_utils
 from basic_memory.services.exceptions import FileOperationError
 from basic_memory.services.file_service import FileService
 
@@ -168,6 +170,34 @@ async def test_write_unicode_content(tmp_path: Path, file_service: FileService):
 
 
 @pytest.mark.asyncio
+async def test_update_frontmatter_checksum_matches_windows_crlf_persisted_bytes(
+    tmp_path: Path, file_service: FileService, monkeypatch
+):
+    """Windows-style CRLF writes should hash the stored file, not the pre-write string."""
+    test_path = tmp_path / "note.md"
+    test_path.write_text("# Note\nBody\n", encoding="utf-8")
+
+    async def fake_write_file_atomic(path: Path, content: str) -> None:
+        # Trigger: simulate Windows text-mode persistence, where logical LF strings
+        #          land on disk as CRLF bytes.
+        # Why: the regression happened when the stored bytes diverged from the LF string
+        #      used to build the checksum.
+        # Outcome: this test proves FileService returns the checksum for the stored file.
+        persisted = content.replace("\n", "\r\n").encode("utf-8")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(persisted)
+
+    monkeypatch.setattr(file_utils, "write_file_atomic", fake_write_file_atomic)
+
+    result = await file_service.update_frontmatter_with_result(
+        test_path,
+        {"title": "Note", "type": "note"},
+    )
+
+    assert result.checksum == await file_service.compute_checksum(test_path)
+
+
+@pytest.mark.asyncio
 async def test_read_file_content(tmp_path: Path, file_service: FileService):
     """Test read_file_content returns just the content without checksum."""
     test_path = tmp_path / "test.md"
@@ -254,3 +284,37 @@ async def test_read_file_bytes_text_file(tmp_path: Path, file_service: FileServi
 
     content = await file_service.read_file_bytes(test_path)
     assert content == text_content.encode("utf-8")
+
+
+def test_paths_share_storage_target_same_inode(tmp_path: Path):
+    """Two names for the same inode share a storage target.
+
+    A case-only rename on a case-insensitive filesystem is the real-world trigger;
+    a hard link reproduces the same-inode aliasing portably (case variants collide
+    on the case-insensitive filesystems where the hazard actually occurs).
+    """
+    service = FileService(tmp_path)
+    (tmp_path / "notes").mkdir()
+    real = tmp_path / "notes" / "foo.md"
+    real.write_text("x")
+    os.link(real, tmp_path / "notes" / "alias.md")  # distinct name, same inode
+
+    assert service.paths_share_storage_target("notes/foo.md", "notes/alias.md") is True
+
+
+def test_paths_share_storage_target_distinct_files(tmp_path: Path):
+    """Distinct files are not the same storage target."""
+    service = FileService(tmp_path)
+    (tmp_path / "notes").mkdir()
+    (tmp_path / "notes" / "a.md").write_text("a")
+    (tmp_path / "notes" / "b.md").write_text("b")
+
+    assert service.paths_share_storage_target("notes/a.md", "notes/b.md") is False
+
+
+def test_paths_share_storage_target_missing_path(tmp_path: Path):
+    """A missing path shares nothing to protect."""
+    service = FileService(tmp_path)
+    (tmp_path / "present.md").write_text("x")
+
+    assert service.paths_share_storage_target("present.md", "absent.md") is False

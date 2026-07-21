@@ -1,25 +1,34 @@
 """Import command for ChatGPT conversations."""
 
+# PEP 563 lazy annotations keep heavy importer types out of module import (#886).
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import Annotated, Tuple
+from typing import TYPE_CHECKING, Annotated, Tuple
 
 import typer
 from basic_memory.cli.app import import_app
 from basic_memory.cli.commands.command_utils import run_with_cleanup
 from basic_memory.config import ConfigManager, get_project_config
-from basic_memory.importers import ChatGPTImporter
-from basic_memory.markdown import EntityParser, MarkdownProcessor
-from basic_memory.services.file_service import FileService
 from loguru import logger
 from rich.console import Console
 from rich.panel import Panel
+
+if TYPE_CHECKING:
+    from basic_memory.markdown import MarkdownProcessor
+    from basic_memory.services.file_service import FileService
 
 console = Console()
 
 
 async def get_importer_dependencies() -> Tuple[MarkdownProcessor, FileService]:
     """Get MarkdownProcessor and FileService instances for importers."""
+    # Deferred: the markdown/file-service stack pulls SQLAlchemy and must load
+    # only when an import actually runs, not on every CLI start (#886).
+    from basic_memory.markdown import EntityParser, MarkdownProcessor
+    from basic_memory.services.file_service import FileService
+
     config = get_project_config()
     app_config = ConfigManager().config
     entity_parser = EntityParser(config.home)
@@ -44,7 +53,7 @@ def import_chatgpt(
     2. Convert them to linear markdown conversations
     3. Save as clean, readable markdown files
 
-    After importing, run 'basic-memory sync' to index the new files.
+    After importing, run 'bm reindex --search' to index the new files.
     """
 
     try:
@@ -60,7 +69,12 @@ def import_chatgpt(
         console.print(f"\nImporting chats from {conversations_json}...writing to {base_path}")
 
         # Create importer and run import
-        importer = ChatGPTImporter(config.home, markdown_processor, file_service)
+        # Deferred: importer stack loads at import-command run time only (#886).
+        from basic_memory.importers import ChatGPTImporter
+
+        importer = ChatGPTImporter(
+            config.home, markdown_processor, file_service, project_name=config.name
+        )
         with conversations_json.open("r", encoding="utf-8") as file:
             json_data = json.load(file)
             result = run_with_cleanup(importer.import_data(json_data, folder))
@@ -79,7 +93,7 @@ def import_chatgpt(
             )
         )
 
-        console.print("\nRun 'basic-memory sync' to index the new files.")
+        console.print("\nRun 'bm reindex --search' to index the new files.")
 
     except Exception as e:
         logger.error("Import failed")

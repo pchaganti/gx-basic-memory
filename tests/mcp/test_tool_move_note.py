@@ -36,10 +36,81 @@ async def test_detect_cross_project_move_attempt_is_defensive_on_api_error(monke
 
 
 @pytest.mark.asyncio
+async def test_detect_cross_project_only_flags_known_project_name(monkeypatch):
+    """Detection flags only a leading segment that matches a KNOWN project name.
+
+    The ambiguous "<seg>/projects/<seg>/..." structural heuristic (#904) was removed
+    because it could not distinguish the cloud workspace layout from a legitimate nested
+    folder like 'notes/projects/2025/note.md'. Cross-project detection now fires only when
+    the first path segment matches another known project name (Detection 1); any 'projects'
+    segment anywhere in the path is just a normal nested folder.
+    """
+    import importlib
+
+    clients_mod = importlib.import_module("basic_memory.mcp.clients")
+
+    class _Project:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    class _ProjectList:
+        projects = [_Project("test-project"), _Project("other-project")]
+
+    class MockProjectClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def list_projects(self, *args, **kwargs):
+            return _ProjectList()
+
+    monkeypatch.setattr(clients_mod, "ProjectClient", MockProjectClient)
+
+    move_note_module = importlib.import_module("basic_memory.mcp.tools.move_note")
+
+    # Leading segment is a known OTHER project name -> rejected (Detection 1).
+    rejected = await move_note_module._detect_cross_project_move_attempt(
+        client=None,
+        identifier="source/note",
+        destination_path="other-project/note.md",
+        current_project="test-project",
+    )
+    assert rejected is not None
+    assert "Cross-Project Move Not Supported" in rejected
+
+    # Workspace-shaped path whose leading segment is NOT a known project -> allowed.
+    # (Previously rejected by the removed 'projects'-segment heuristic.)
+    workspace_shaped = await move_note_module._detect_cross_project_move_attempt(
+        client=None,
+        identifier="source/note",
+        destination_path="other-workspace/projects/x/note.md",
+        current_project="test-project",
+    )
+    assert workspace_shaped is None
+
+    # Interior 'projects' segment -> allowed (no false positive).
+    allowed = await move_note_module._detect_cross_project_move_attempt(
+        client=None,
+        identifier="source/note",
+        destination_path="team/2026/projects/alpha/note.md",
+        current_project="test-project",
+    )
+    assert allowed is None
+
+    # Top-level 'projects/...' (index 0) -> allowed.
+    top_level = await move_note_module._detect_cross_project_move_attempt(
+        client=None,
+        identifier="source/note",
+        destination_path="projects/2025/note.md",
+        current_project="test-project",
+    )
+    assert top_level is None
+
+
+@pytest.mark.asyncio
 async def test_move_note_success(app, client, test_project):
     """Test successfully moving a note to a new location."""
     # Create initial note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="Test Note",
         directory="source",
@@ -47,7 +118,7 @@ async def test_move_note_success(app, client, test_project):
     )
 
     # Move note
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/test-note",
         destination_path="target/MovedNote.md",
@@ -58,23 +129,23 @@ async def test_move_note_success(app, client, test_project):
 
     # Verify original location no longer exists
     try:
-        await read_note.fn(test_project.name, "source/test-note")
+        await read_note(test_project.name, "source/test-note")
         assert False, "Original note should not exist after move"
     except Exception:
         pass  # Expected - note should not exist at original location
 
     # Verify note exists at new location with same content
-    content = await read_note.fn("target/moved-note", project=test_project.name)
+    content = await read_note("target/moved-note", project=test_project.name)
     assert "# Test Note" in content
     assert "Original content here" in content
-    assert "permalink: target/moved-note" in content
+    assert f"permalink: {test_project.name}/target/moved-note" in content
 
 
 @pytest.mark.asyncio
 async def test_move_note_with_folder_creation(client, test_project):
     """Test moving note creates necessary folders."""
     # Create initial note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="Deep Note",
         directory="",
@@ -82,7 +153,7 @@ async def test_move_note_with_folder_creation(client, test_project):
     )
 
     # Move to deeply nested path
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="deep-note",
         destination_path="deeply/nested/folder/DeepNote.md",
@@ -92,7 +163,7 @@ async def test_move_note_with_folder_creation(client, test_project):
     assert "✅ Note moved successfully" in result
 
     # Verify note exists at new location
-    content = await read_note.fn("deeply/nested/folder/deep-note", project=test_project.name)
+    content = await read_note("deeply/nested/folder/deep-note", project=test_project.name)
     assert "# Deep Note" in content
     assert "Content in root folder" in content
 
@@ -101,7 +172,7 @@ async def test_move_note_with_folder_creation(client, test_project):
 async def test_move_note_with_observations_and_relations(app, client, test_project):
     """Test moving note preserves observations and relations."""
     # Create note with complex semantic content
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="Complex Entity",
         directory="source",
@@ -120,7 +191,7 @@ Some additional content.
     )
 
     # Move note
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/complex-entity",
         destination_path="target/MovedComplex.md",
@@ -130,7 +201,7 @@ Some additional content.
     assert "✅ Note moved successfully" in result
 
     # Verify moved note preserves all content
-    content = await read_note.fn("target/moved-complex", project=test_project.name)
+    content = await read_note("target/moved-complex", project=test_project.name)
     assert "Important observation #tag1" in content
     assert "Key feature #feature" in content
     assert "[[SomeOtherEntity]]" in content
@@ -142,7 +213,7 @@ Some additional content.
 async def test_move_note_by_title(client, test_project):
     """Test moving note using title as identifier."""
     # Create note with unique title
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="UniqueTestTitle",
         directory="source",
@@ -150,7 +221,7 @@ async def test_move_note_by_title(client, test_project):
     )
 
     # Move using title as identifier
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="UniqueTestTitle",
         destination_path="target/MovedByTitle.md",
@@ -160,7 +231,7 @@ async def test_move_note_by_title(client, test_project):
     assert "✅ Note moved successfully" in result
 
     # Verify note exists at new location
-    content = await read_note.fn("target/moved-by-title", project=test_project.name)
+    content = await read_note("target/moved-by-title", project=test_project.name)
     assert "# UniqueTestTitle" in content
     assert "Test content" in content
 
@@ -169,7 +240,7 @@ async def test_move_note_by_title(client, test_project):
 async def test_move_note_by_file_path(client, test_project):
     """Test moving note using file path as identifier."""
     # Create initial note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="PathTest",
         directory="source",
@@ -177,7 +248,7 @@ async def test_move_note_by_file_path(client, test_project):
     )
 
     # Move using file path as identifier
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/PathTest.md",
         destination_path="target/MovedByPath.md",
@@ -187,7 +258,7 @@ async def test_move_note_by_file_path(client, test_project):
     assert "✅ Note moved successfully" in result
 
     # Verify note exists at new location
-    content = await read_note.fn("target/moved-by-path", project=test_project.name)
+    content = await read_note("target/moved-by-path", project=test_project.name)
     assert "# PathTest" in content
     assert "Content for path test" in content
 
@@ -195,7 +266,7 @@ async def test_move_note_by_file_path(client, test_project):
 @pytest.mark.asyncio
 async def test_move_note_nonexistent_note(client, test_project):
     """Test moving a note that doesn't exist."""
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="nonexistent/note",
         destination_path="target/SomeFile.md",
@@ -212,7 +283,7 @@ async def test_move_note_nonexistent_note(client, test_project):
 async def test_move_note_invalid_destination_path(client, test_project):
     """Test moving note with invalid destination path."""
     # Create initial note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="TestNote",
         directory="source",
@@ -220,7 +291,7 @@ async def test_move_note_invalid_destination_path(client, test_project):
     )
 
     # Test absolute path (should be rejected by validation)
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/test-note",
         destination_path="/absolute/path.md",
@@ -236,7 +307,7 @@ async def test_move_note_invalid_destination_path(client, test_project):
 async def test_move_note_missing_file_extension(client, test_project):
     """Test moving note without file extension in destination path."""
     # Create initial note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="ExtensionTest",
         directory="source",
@@ -244,7 +315,7 @@ async def test_move_note_missing_file_extension(client, test_project):
     )
 
     # Test path without extension
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/extension-test",
         destination_path="target/renamed-note",
@@ -258,7 +329,7 @@ async def test_move_note_missing_file_extension(client, test_project):
     assert "renamed-note.md" in result  # Should suggest adding .md
 
     # Test path with empty extension (edge case)
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/extension-test",
         destination_path="target/renamed-note.",
@@ -269,7 +340,7 @@ async def test_move_note_missing_file_extension(client, test_project):
     assert "must include a file extension" in result
 
     # Test that note still exists at original location
-    content = await read_note.fn("source/extension-test", project=test_project.name)
+    content = await read_note("source/extension-test", project=test_project.name)
     assert "# Extension Test" in content
     assert "Testing extension validation" in content
 
@@ -278,7 +349,7 @@ async def test_move_note_missing_file_extension(client, test_project):
 async def test_move_note_file_extension_mismatch(client, test_project):
     """Test that moving note with different extension is blocked."""
     # Create initial note with .md extension
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="MarkdownNote",
         directory="source",
@@ -286,7 +357,7 @@ async def test_move_note_file_extension_mismatch(client, test_project):
     )
 
     # Try to move with .txt extension
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/markdown-note",
         destination_path="target/renamed-note.txt",
@@ -301,7 +372,7 @@ async def test_move_note_file_extension_mismatch(client, test_project):
     assert "renamed-note.md" in result  # Should suggest correct extension
 
     # Test that note still exists at original location with original extension
-    content = await read_note.fn("source/markdown-note", project=test_project.name)
+    content = await read_note("source/markdown-note", project=test_project.name)
     assert "# Markdown Note" in content
     assert "This is a markdown file" in content
 
@@ -310,7 +381,7 @@ async def test_move_note_file_extension_mismatch(client, test_project):
 async def test_move_note_preserves_file_extension(client, test_project):
     """Test that moving note with matching extension succeeds."""
     # Create initial note with .md extension
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="PreserveExtension",
         directory="source",
@@ -318,7 +389,7 @@ async def test_move_note_preserves_file_extension(client, test_project):
     )
 
     # Move with same .md extension
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/preserve-extension",
         destination_path="target/preserved-note.md",
@@ -329,13 +400,13 @@ async def test_move_note_preserves_file_extension(client, test_project):
     assert "✅ Note moved successfully" in result
 
     # Verify note exists at new location with same extension
-    content = await read_note.fn("target/preserved-note", project=test_project.name)
+    content = await read_note("target/preserved-note", project=test_project.name)
     assert "# Preserve Extension" in content
     assert "Testing that extension is preserved" in content
 
     # Verify old location no longer exists
     try:
-        await read_note.fn("source/preserve-extension")
+        await read_note("source/preserve-extension")
         assert False, "Original note should not exist after move"
     except Exception:
         pass  # Expected
@@ -345,7 +416,7 @@ async def test_move_note_preserves_file_extension(client, test_project):
 async def test_move_note_destination_exists(client, test_project):
     """Test moving note to existing destination."""
     # Create source note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="SourceNote",
         directory="source",
@@ -353,7 +424,7 @@ async def test_move_note_destination_exists(client, test_project):
     )
 
     # Create destination note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="DestinationNote",
         directory="target",
@@ -361,7 +432,7 @@ async def test_move_note_destination_exists(client, test_project):
     )
 
     # Try to move source to existing destination
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/source-note",
         destination_path="target/DestinationNote.md",
@@ -377,7 +448,7 @@ async def test_move_note_destination_exists(client, test_project):
 async def test_move_note_same_location(client, test_project):
     """Test moving note to the same location."""
     # Create initial note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="SameLocationTest",
         directory="test",
@@ -385,7 +456,7 @@ async def test_move_note_same_location(client, test_project):
     )
 
     # Try to move to same location
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="test/same-location-test",
         destination_path="test/SameLocationTest.md",
@@ -401,7 +472,7 @@ async def test_move_note_same_location(client, test_project):
 async def test_move_note_rename_only(client, test_project):
     """Test moving note within same folder (rename operation)."""
     # Create initial note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="OriginalName",
         directory="test",
@@ -409,7 +480,7 @@ async def test_move_note_rename_only(client, test_project):
     )
 
     # Rename within same folder
-    await move_note.fn(
+    await move_note(
         project=test_project.name,
         identifier="test/original-name",
         destination_path="test/NewName.md",
@@ -417,23 +488,23 @@ async def test_move_note_rename_only(client, test_project):
 
     # Verify original is gone
     try:
-        await read_note.fn("test/original-name", project=test_project.name)
+        await read_note("test/original-name", project=test_project.name)
         assert False, "Original note should not exist after rename"
     except Exception:
         pass  # Expected
 
     # Verify new name exists with same content
-    content = await read_note.fn("test/new-name", project=test_project.name)
+    content = await read_note("test/new-name", project=test_project.name)
     assert "# OriginalName" in content  # Title in content remains same
     assert "Content to rename" in content
-    assert "permalink: test/new-name" in content
+    assert f"permalink: {test_project.name}/test/new-name" in content
 
 
 @pytest.mark.asyncio
 async def test_move_note_complex_filename(client, test_project):
     """Test moving note with spaces in filename."""
     # Create note with spaces in name
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="Meeting Notes 2025",
         directory="meetings",
@@ -441,7 +512,7 @@ async def test_move_note_complex_filename(client, test_project):
     )
 
     # Move to new location
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="meetings/meeting-notes-2025",
         destination_path="archive/2025/meetings/Meeting Notes 2025.md",
@@ -451,9 +522,7 @@ async def test_move_note_complex_filename(client, test_project):
     assert "✅ Note moved successfully" in result
 
     # Verify note exists at new location with correct content
-    content = await read_note.fn(
-        "archive/2025/meetings/meeting-notes-2025", project=test_project.name
-    )
+    content = await read_note("archive/2025/meetings/meeting-notes-2025", project=test_project.name)
     assert "# Meeting Notes 2025" in content
     assert "Meeting content with dates" in content
 
@@ -462,7 +531,7 @@ async def test_move_note_complex_filename(client, test_project):
 async def test_move_note_with_tags(app, client, test_project):
     """Test moving note with tags preserves tags."""
     # Create note with tags
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="Tagged Note",
         directory="source",
@@ -471,7 +540,7 @@ async def test_move_note_with_tags(app, client, test_project):
     )
 
     # Move note
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/tagged-note",
         destination_path="target/MovedTaggedNote.md",
@@ -481,7 +550,7 @@ async def test_move_note_with_tags(app, client, test_project):
     assert "✅ Note moved successfully" in result
 
     # Verify tags are preserved in correct YAML format
-    content = await read_note.fn("target/moved-tagged-note", project=test_project.name)
+    content = await read_note("target/moved-tagged-note", project=test_project.name)
     assert "- important" in content
     assert "- work" in content
     assert "- project" in content
@@ -491,7 +560,7 @@ async def test_move_note_with_tags(app, client, test_project):
 async def test_move_note_empty_string_destination(client, test_project):
     """Test moving note with empty destination path."""
     # Create initial note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="TestNote",
         directory="source",
@@ -499,7 +568,7 @@ async def test_move_note_empty_string_destination(client, test_project):
     )
 
     # Test empty destination path
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/test-note",
         destination_path="",
@@ -515,7 +584,7 @@ async def test_move_note_empty_string_destination(client, test_project):
 async def test_move_note_parent_directory_path(client, test_project):
     """Test moving note with parent directory in destination path."""
     # Create initial note
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="TestNote",
         directory="source",
@@ -523,7 +592,7 @@ async def test_move_note_parent_directory_path(client, test_project):
     )
 
     # Test parent directory path
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/test-note",
         destination_path="../parent/file.md",
@@ -539,7 +608,7 @@ async def test_move_note_parent_directory_path(client, test_project):
 async def test_move_note_identifier_variations(client, test_project):
     """Test that various identifier formats work for moving."""
     # Create a note to test different identifier formats
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="Test Document",
         directory="docs",
@@ -547,7 +616,7 @@ async def test_move_note_identifier_variations(client, test_project):
     )
 
     # Test with permalink identifier
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="docs/test-document",
         destination_path="moved/TestDocument.md",
@@ -557,7 +626,7 @@ async def test_move_note_identifier_variations(client, test_project):
     assert "✅ Note moved successfully" in result
 
     # Verify it moved correctly
-    content = await read_note.fn("moved/test-document", project=test_project.name)
+    content = await read_note("moved/test-document", project=test_project.name)
     assert "# Test Document" in content
     assert "Content for testing identifiers" in content
 
@@ -566,7 +635,7 @@ async def test_move_note_identifier_variations(client, test_project):
 async def test_move_note_preserves_frontmatter(app, client, test_project):
     """Test that moving preserves custom frontmatter."""
     # Create note with custom frontmatter by first creating it normally
-    await write_note.fn(
+    await write_note(
         project=test_project.name,
         title="Custom Frontmatter Note",
         directory="source",
@@ -574,7 +643,7 @@ async def test_move_note_preserves_frontmatter(app, client, test_project):
     )
 
     # Move the note
-    result = await move_note.fn(
+    result = await move_note(
         project=test_project.name,
         identifier="source/custom-frontmatter-note",
         destination_path="target/MovedCustomNote.md",
@@ -584,12 +653,37 @@ async def test_move_note_preserves_frontmatter(app, client, test_project):
     assert "✅ Note moved successfully" in result
 
     # Verify the moved note has proper frontmatter structure
-    content = await read_note.fn("target/moved-custom-note", project=test_project.name)
+    content = await read_note("target/moved-custom-note", project=test_project.name)
     assert "title: Custom Frontmatter Note" in content
     assert "type: note" in content
-    assert "permalink: target/moved-custom-note" in content
+    assert f"permalink: {test_project.name}/target/moved-custom-note" in content
     assert "# Custom Frontmatter Note" in content
     assert "Content with custom metadata" in content
+
+
+@pytest.mark.asyncio
+async def test_move_note_rejects_fuzzy_match(client, test_project):
+    """move_note must reject nonexistent identifiers, not fuzzy-match to a similar note."""
+    await write_note(
+        project=test_project.name,
+        title="Move Target Note",
+        directory="source",
+        content="# Move Target Note\nShould not be moved.",
+    )
+
+    # Attempt to move a nonexistent note — should error, not silently move the existing note
+    result = await move_note(
+        project=test_project.name,
+        identifier="Move Target NONEXISTENT",
+        destination_path="target/Moved.md",
+    )
+
+    assert isinstance(result, str)
+    assert "# Move Failed" in result
+
+    # Verify the existing note was NOT moved
+    content = await read_note("Move Target Note", project=test_project.name)
+    assert "Should not be moved" in content
 
 
 class TestMoveNoteErrorFormatting:
@@ -638,7 +732,7 @@ class TestMoveNoteSecurityValidation:
     async def test_move_note_blocks_path_traversal_unix(self, client, test_project):
         """Test that Unix-style path traversal attacks are blocked."""
         # Create initial note
-        await write_note.fn(
+        await write_note(
             project=test_project.name,
             title="Test Note",
             directory="source",
@@ -656,7 +750,7 @@ class TestMoveNoteSecurityValidation:
         ]
 
         for attack_path in attack_paths:
-            result = await move_note.fn(
+            result = await move_note(
                 project=test_project.name,
                 identifier="source/test-note",
                 destination_path=attack_path,
@@ -672,7 +766,7 @@ class TestMoveNoteSecurityValidation:
     async def test_move_note_blocks_path_traversal_windows(self, client, test_project):
         """Test that Windows-style path traversal attacks are blocked."""
         # Create initial note
-        await write_note.fn(
+        await write_note(
             project=test_project.name,
             title="Test Note",
             directory="source",
@@ -690,7 +784,7 @@ class TestMoveNoteSecurityValidation:
         ]
 
         for attack_path in attack_paths:
-            result = await move_note.fn(
+            result = await move_note(
                 project=test_project.name,
                 identifier="source/test-note",
                 destination_path=attack_path,
@@ -705,7 +799,7 @@ class TestMoveNoteSecurityValidation:
     async def test_move_note_blocks_absolute_paths(self, client, test_project):
         """Test that absolute paths are blocked."""
         # Create initial note
-        await write_note.fn(
+        await write_note(
             project=test_project.name,
             title="Test Note",
             directory="source",
@@ -725,7 +819,7 @@ class TestMoveNoteSecurityValidation:
         ]
 
         for attack_path in attack_paths:
-            result = await move_note.fn(
+            result = await move_note(
                 project=test_project.name,
                 identifier="source/test-note",
                 destination_path=attack_path,
@@ -740,7 +834,7 @@ class TestMoveNoteSecurityValidation:
     async def test_move_note_blocks_home_directory_access(self, client, test_project):
         """Test that home directory access patterns are blocked."""
         # Create initial note
-        await write_note.fn(
+        await write_note(
             project=test_project.name,
             title="Test Note",
             directory="source",
@@ -758,7 +852,7 @@ class TestMoveNoteSecurityValidation:
         ]
 
         for attack_path in attack_paths:
-            result = await move_note.fn(
+            result = await move_note(
                 project=test_project.name,
                 identifier="source/test-note",
                 destination_path=attack_path,
@@ -773,7 +867,7 @@ class TestMoveNoteSecurityValidation:
     async def test_move_note_blocks_mixed_attack_patterns(self, client, test_project):
         """Test that mixed legitimate/attack patterns are blocked."""
         # Create initial note
-        await write_note.fn(
+        await write_note(
             project=test_project.name,
             title="Test Note",
             directory="source",
@@ -790,7 +884,7 @@ class TestMoveNoteSecurityValidation:
         ]
 
         for attack_path in attack_paths:
-            result = await move_note.fn(
+            result = await move_note(
                 project=test_project.name,
                 identifier="source/test-note",
                 destination_path=attack_path,
@@ -804,7 +898,7 @@ class TestMoveNoteSecurityValidation:
     async def test_move_note_allows_safe_paths(self, client, test_project):
         """Test that legitimate paths are still allowed."""
         # Create initial note
-        await write_note.fn(
+        await write_note(
             project=test_project.name,
             title="Test Note",
             directory="source",
@@ -822,7 +916,7 @@ class TestMoveNoteSecurityValidation:
         ]
 
         for safe_path in safe_paths:
-            result = await move_note.fn(
+            result = await move_note(
                 project=test_project.name,
                 identifier="source/test-note",
                 destination_path=safe_path,
@@ -841,7 +935,7 @@ class TestMoveNoteSecurityValidation:
     async def test_move_note_security_logging(self, client, test_project, caplog):
         """Test that security violations are properly logged."""
         # Create initial note
-        await write_note.fn(
+        await write_note(
             project=test_project.name,
             title="Test Note",
             directory="source",
@@ -849,7 +943,7 @@ class TestMoveNoteSecurityValidation:
         )
 
         # Attempt path traversal attack
-        result = await move_note.fn(
+        result = await move_note(
             project=test_project.name,
             identifier="source/test-note",
             destination_path="../../../etc/passwd",
@@ -865,7 +959,7 @@ class TestMoveNoteSecurityValidation:
     async def test_move_note_empty_path_security(self, client, test_project):
         """Test that empty destination path is handled securely."""
         # Create initial note
-        await write_note.fn(
+        await write_note(
             project=test_project.name,
             title="Test Note",
             directory="source",
@@ -873,7 +967,7 @@ class TestMoveNoteSecurityValidation:
         )
 
         # Test empty destination path (should be allowed as it resolves to project root)
-        result = await move_note.fn(
+        result = await move_note(
             project=test_project.name,
             identifier="source/test-note",
             destination_path="",
@@ -887,7 +981,7 @@ class TestMoveNoteSecurityValidation:
     async def test_move_note_current_directory_references_security(self, client, test_project):
         """Test that current directory references are handled securely."""
         # Create initial note
-        await write_note.fn(
+        await write_note(
             project=test_project.name,
             title="Test Note",
             directory="source",
@@ -902,7 +996,7 @@ class TestMoveNoteSecurityValidation:
         ]
 
         for safe_path in safe_paths:
-            result = await move_note.fn(
+            result = await move_note(
                 project=test_project.name,
                 identifier="source/test-note",
                 destination_path=safe_path,
@@ -911,3 +1005,298 @@ class TestMoveNoteSecurityValidation:
             assert isinstance(result, str)
             # Should NOT contain security error message
             assert "Security Validation Error" not in result
+
+
+class TestMoveNoteDestinationFolder:
+    """Test the destination_folder parameter for move_note."""
+
+    @pytest.mark.asyncio
+    async def test_move_note_with_destination_folder(self, client, test_project):
+        """Test moving a note using destination_folder preserves the original filename."""
+        await write_note(
+            project=test_project.name,
+            title="Folder Move Test",
+            directory="source",
+            content="# Folder Move Test\nContent for folder move.",
+        )
+
+        result = await move_note(
+            project=test_project.name,
+            identifier="source/folder-move-test",
+            destination_folder="archive",
+        )
+
+        assert isinstance(result, str)
+        assert "✅ Note moved successfully" in result
+
+        # Verify note exists at archive/Folder Move Test.md (original filename preserved)
+        content = await read_note("archive/folder-move-test", project=test_project.name)
+        assert "# Folder Move Test" in content
+        assert "Content for folder move" in content
+
+    @pytest.mark.asyncio
+    async def test_move_note_with_nested_destination_folder(self, client, test_project):
+        """Test moving a note into a nested folder structure."""
+        await write_note(
+            project=test_project.name,
+            title="Nested Folder Test",
+            directory="source",
+            content="# Nested Folder Test\nNested folder content.",
+        )
+
+        result = await move_note(
+            project=test_project.name,
+            identifier="source/nested-folder-test",
+            destination_folder="archive/2025/q1",
+        )
+
+        assert isinstance(result, str)
+        assert "✅ Note moved successfully" in result
+
+        content = await read_note("archive/2025/q1/nested-folder-test", project=test_project.name)
+        assert "# Nested Folder Test" in content
+
+    @pytest.mark.asyncio
+    async def test_move_note_destination_folder_strips_slashes(self, client, test_project):
+        """Test that leading/trailing slashes are stripped from destination_folder."""
+        await write_note(
+            project=test_project.name,
+            title="Slash Strip Test",
+            directory="source",
+            content="# Slash Strip Test\nSlash stripping content.",
+        )
+
+        result = await move_note(
+            project=test_project.name,
+            identifier="source/slash-strip-test",
+            destination_folder="/archive/notes/",
+        )
+
+        assert isinstance(result, str)
+        assert "✅ Note moved successfully" in result
+
+        content = await read_note("archive/notes/slash-strip-test", project=test_project.name)
+        assert "# Slash Strip Test" in content
+
+    @pytest.mark.asyncio
+    async def test_move_note_both_params_error(self, client, test_project):
+        """Test that providing both destination_path and destination_folder is an error."""
+        result = await move_note(
+            project=test_project.name,
+            identifier="some-note",
+            destination_path="target/note.md",
+            destination_folder="target",
+        )
+
+        assert isinstance(result, str)
+        assert "# Move Failed - Invalid Parameters" in result
+        assert "Cannot specify both" in result
+
+    @pytest.mark.asyncio
+    async def test_move_note_both_params_error_json(self, client, test_project):
+        """Test JSON output when both destination_path and destination_folder are provided."""
+        result = await move_note(
+            project=test_project.name,
+            identifier="some-note",
+            destination_path="target/note.md",
+            destination_folder="target",
+            output_format="json",
+        )
+
+        assert isinstance(result, dict)
+        assert result["moved"] is False
+        assert result["error"] == "MUTUALLY_EXCLUSIVE_PARAMS"
+
+    @pytest.mark.asyncio
+    async def test_move_note_neither_param_error(self, client, test_project):
+        """Test that providing neither destination_path nor destination_folder is an error."""
+        result = await move_note(
+            project=test_project.name,
+            identifier="some-note",
+        )
+
+        assert isinstance(result, str)
+        assert "# Move Failed - Missing Destination" in result
+        assert "Either destination_path or destination_folder must be provided" in result
+
+    @pytest.mark.asyncio
+    async def test_move_note_neither_param_error_json(self, client, test_project):
+        """Test JSON output when neither param is provided."""
+        result = await move_note(
+            project=test_project.name,
+            identifier="some-note",
+            output_format="json",
+        )
+
+        assert isinstance(result, dict)
+        assert result["moved"] is False
+        assert result["error"] == "MISSING_DESTINATION"
+
+    @pytest.mark.asyncio
+    async def test_move_note_destination_folder_with_is_directory_error(self, client, test_project):
+        """Test that destination_folder is rejected for directory moves."""
+        result = await move_note(
+            project=test_project.name,
+            identifier="some-dir",
+            destination_folder="archive",
+            is_directory=True,
+        )
+
+        assert isinstance(result, str)
+        assert "# Move Failed - Invalid Parameters" in result
+        assert "only supported for single-file moves" in result
+
+    @pytest.mark.asyncio
+    async def test_move_note_destination_folder_with_is_directory_error_json(
+        self, client, test_project
+    ):
+        """Test JSON output when destination_folder is used with is_directory."""
+        result = await move_note(
+            project=test_project.name,
+            identifier="some-dir",
+            destination_folder="archive",
+            is_directory=True,
+            output_format="json",
+        )
+
+        assert isinstance(result, dict)
+        assert result["moved"] is False
+        assert result["error"] == "DESTINATION_FOLDER_NOT_FOR_DIRECTORIES"
+
+    @pytest.mark.asyncio
+    async def test_move_note_destination_folder_nonexistent_note(self, client, test_project):
+        """Test destination_folder with a note that doesn't exist."""
+        result = await move_note(
+            project=test_project.name,
+            identifier="nonexistent/note",
+            destination_folder="archive",
+        )
+
+        assert isinstance(result, str)
+        assert "# Move Failed" in result
+
+    @pytest.mark.asyncio
+    async def test_move_note_destination_folder_json_output(self, client, test_project):
+        """Test JSON output for successful destination_folder move."""
+        await write_note(
+            project=test_project.name,
+            title="JSON Folder Test",
+            directory="source",
+            content="# JSON Folder Test\nJSON folder content.",
+        )
+
+        result = await move_note(
+            project=test_project.name,
+            identifier="source/json-folder-test",
+            destination_folder="archive",
+            output_format="json",
+        )
+
+        assert isinstance(result, dict)
+        assert result["moved"] is True
+        assert result["source"] == "source/json-folder-test"
+        assert "archive" in result["destination"]
+        assert result["file_path"] is not None
+
+    @pytest.mark.asyncio
+    async def test_move_note_destination_folder_path_traversal(self, client, test_project):
+        """Test that path traversal via destination_folder is blocked."""
+        await write_note(
+            project=test_project.name,
+            title="Traversal Test",
+            directory="source",
+            content="# Traversal Test\nSecurity test content.",
+        )
+
+        attack_folders = [
+            "../../../etc",
+            "../../.ssh",
+            "notes/../../../root",
+        ]
+
+        for attack_folder in attack_folders:
+            result = await move_note(
+                project=test_project.name,
+                identifier="source/traversal-test",
+                destination_folder=attack_folder,
+            )
+
+            assert isinstance(result, str)
+            assert "Security Validation Error" in result
+
+
+class TestMoveNoteOutcomeValidation:
+    """Test the outcome-vs-intent backstop (#881 Gap 2).
+
+    The move service stores the path verbatim relative to the project root, so a
+    divergence between the requested destination and the resulting file_path cannot
+    occur through the real stack. We inject a divergent result to exercise the backstop
+    that prevents a falsely-reported "✅ moved successfully".
+    """
+
+    @pytest.mark.asyncio
+    async def test_move_note_outcome_mismatch_reports_failure(
+        self, app, client, test_project, monkeypatch
+    ):
+        """A move whose file_path diverges from the request must NOT report success."""
+        await write_note(
+            project=test_project.name,
+            title="Outcome Mismatch Note",
+            directory="source",
+            content="# Outcome Mismatch Note\nContent.",
+        )
+
+        from basic_memory.mcp.clients import KnowledgeClient
+
+        real_move_entity = KnowledgeClient.move_entity
+
+        async def diverging_move_entity(self, entity_id, destination_path):
+            # Perform the real move, then return a result that landed elsewhere.
+            result = await real_move_entity(self, entity_id, destination_path)
+            return result.model_copy(update={"file_path": "somewhere/else/diverged.md"})
+
+        monkeypatch.setattr(KnowledgeClient, "move_entity", diverging_move_entity)
+
+        result = await move_note(
+            project=test_project.name,
+            identifier="source/outcome-mismatch-note",
+            destination_path="target/outcome-mismatch-note.md",
+        )
+
+        assert isinstance(result, str)
+        assert "✅ Note moved successfully" not in result
+        assert "Unexpected Result Location" in result
+        assert "target/outcome-mismatch-note.md" in result
+        assert "somewhere/else/diverged.md" in result
+
+    @pytest.mark.asyncio
+    async def test_move_note_outcome_mismatch_json(self, app, client, test_project, monkeypatch):
+        """JSON output for an outcome mismatch reports moved=False with the diagnostic."""
+        await write_note(
+            project=test_project.name,
+            title="Outcome Mismatch JSON",
+            directory="source",
+            content="# Outcome Mismatch JSON\nContent.",
+        )
+
+        from basic_memory.mcp.clients import KnowledgeClient
+
+        real_move_entity = KnowledgeClient.move_entity
+
+        async def diverging_move_entity(self, entity_id, destination_path):
+            result = await real_move_entity(self, entity_id, destination_path)
+            return result.model_copy(update={"file_path": "somewhere/else/diverged.md"})
+
+        monkeypatch.setattr(KnowledgeClient, "move_entity", diverging_move_entity)
+
+        result = await move_note(
+            project=test_project.name,
+            identifier="source/outcome-mismatch-json",
+            destination_path="target/outcome-mismatch-json.md",
+            output_format="json",
+        )
+
+        assert isinstance(result, dict)
+        assert result["moved"] is False
+        assert result["error"] == "MOVE_OUTCOME_MISMATCH"
+        assert result["file_path"] == "somewhere/else/diverged.md"

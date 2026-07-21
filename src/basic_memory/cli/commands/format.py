@@ -12,13 +12,14 @@ from basic_memory.cli.app import app
 from basic_memory.cli.commands.command_utils import run_with_cleanup
 from basic_memory.config import ConfigManager, get_project_config
 from basic_memory.file_utils import format_file
+from basic_memory.runtime.storage import runtime_file_path_is_markdown_note
 
 console = Console()
 
 
 def is_markdown_extension(path: Path) -> bool:
     """Check if file has a markdown extension."""
-    return path.suffix.lower() in (".md", ".markdown")
+    return runtime_file_path_is_markdown_note(path.as_posix())
 
 
 async def format_single_file(file_path: Path, app_config) -> tuple[Path, bool, Optional[str]]:
@@ -183,10 +184,10 @@ def format(
     By default, formats all .md, .json, and .canvas files in the current project.
 
     Examples:
-        basic-memory format                    # Format all files in current project
-        basic-memory format --project research # Format files in specific project
-        basic-memory format notes/meeting.md   # Format a specific file
-        basic-memory format notes/             # Format all files in directory
+        bm format                    # Format all files in current project
+        bm format --project research # Format files in specific project
+        bm format notes/meeting.md   # Format a specific file
+        bm format notes/             # Format all files in directory
     """
     try:
         run_with_cleanup(run_format(path, project))

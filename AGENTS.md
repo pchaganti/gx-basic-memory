@@ -22,17 +22,25 @@ See the [README.md](README.md) file for a project overview.
 - Run unit tests (Postgres): `just test-unit-postgres`
 - Run integration tests (SQLite): `just test-int-sqlite`
 - Run integration tests (Postgres): `just test-int-postgres`
-- Run impacted tests: `just testmon` (pytest-testmon)
+- Run impacted tests: `just fast-test` or `just testmon` (pytest-testmon; only tests affected by changed code)
 - Run MCP smoke test: `just test-smoke`
-- Fast local loop: `just fast-check`
+- Fast static check: `just fast-check` (fix, format, typecheck)
+- Fast test loop: `just fast-test` (pytest-testmon impacted tests)
 - Local consistency check: `just doctor`
+- Run all consolidated agent package checks: `just package-check`
+- Run Claude Code plugin checks: `just package-check-claude-code`
+- Run shared skills checks: `just package-check-skills`
+- Run Hermes plugin checks: `just package-check-hermes`
+- Run OpenClaw plugin checks: `just package-check-openclaw`
+- Run host-native agent harness checks: `just agent-harness-check`
 - Generate HTML coverage: `just coverage`
 - Single test: `pytest tests/path/to/test_file.py::test_function_name`
 - Run benchmarks: `pytest test-int/test_sync_performance_benchmark.py -v -m "benchmark and not slow"`
 - Lint: `just lint` or `ruff check . --fix`
-- Type check: `just typecheck` or `uv run pyright`
+- Type check: `just typecheck` or `uv run ty check src tests test-int`
+- Type check (pyright): `just typecheck-pyright` or `uv run pyright`
 - Format: `just format` or `uv run ruff format .`
-- Run all code checks: `just check` (runs lint, format, typecheck, test)
+- Run all static code checks: `just check` (runs lint, format, typecheck)
 - Create db migration: `just migration "Your migration message"`
 - Run development MCP Inspector: `just run-inspector`
 
@@ -47,11 +55,37 @@ See the [README.md](README.md) file for a project overview.
 ### Code/Test/Verify Loop (fast path)
 
 1) **Code:** make changes.
-2) **Test:** `just fast-check` (lint/format/typecheck + impacted tests + MCP smoke).
-3) **Verify:** `just doctor` (end-to-end file ↔ DB loop in a temp project).
-4) **Full gate (when needed):** `just test` or `just check` for SQLite + Postgres.
+2) **Check:** `just fast-check` (fix, format, typecheck; no tests).
+3) **Test:** `just fast-test` for pytest-testmon impacted tests, or a targeted `uv run pytest ...` command.
+4) **Verify:** `just doctor` (end-to-end file ↔ DB loop in a temp project).
+5) **Package verify:** `just package-check` when changes touch `plugins/`, `skills/`, `integrations/`, package metadata, or release wiring.
+6) **Full gate (when needed):** `just test` for SQLite + Postgres.
+
+Run `just test-smoke` when you specifically need the MCP smoke flow.
 
 If testmon is “cold,” the first run may be long. Subsequent runs get much faster.
+
+### Consolidated Agent Package Checks
+
+The monorepo ships several host-native packages alongside the Python core. Use the root justfile as the canonical entry point:
+
+- `just package-check` — validates every copied package and generated bundle path.
+- `just package-check-claude-code` — validates the root and plugin-local Claude marketplace manifests, the SessionStart/PreCompact hooks, the bundled output style, and the seed schemas, then runs `claude plugin validate . --strict`.
+- `just package-check-skills` — validates every top-level `skills/memory-*/SKILL.md` frontmatter block.
+- `just package-check-hermes` — validates `integrations/hermes/plugin.yaml`, the Hermes provider entrypoint, bundled skill, and runs the hermetic unit suite.
+- `just package-check-openclaw` — runs the OpenClaw package install, copies top-level skills into the generated bundle, typechecks, lints, builds `dist/`, runs Bun tests, and performs `npm pack --dry-run`.
+- `just agent-harness-check` — checks the host-specific harnesses without the shared markdown-only skills target.
+
+Package-local justfiles live in `plugins/claude-code/`, `skills/`, `integrations/hermes/`, and `integrations/openclaw/`. Prefer the root targets for PR verification so command names stay stable as package internals evolve.
+
+### PR CI Gate
+
+Before opening or updating a PR, run the checks that mirror the common required CI failures:
+
+- Run `just typecheck` in addition to targeted `ruff` and `pytest` commands when tests were added or changed.
+- Sign commits with `git commit -s` so DCO passes. If a PR branch already has unsigned commits, rewrite the branch with signed-off commits before asking for review.
+- Use a semantic PR title accepted by `.github/workflows/pr-title.yml`: `type(scope): summary`.
+- Use one of the allowed scopes: `core`, `cli`, `api`, `mcp`, `sync`, `ui`, `ci`, `deps`, `installer`, `plugins`, `skills`, `integrations`.
 
 ### Test Structure
 
@@ -76,13 +110,42 @@ If testmon is “cold,” the first run may be long. Subsequent runs get much fa
 - Follow the repository pattern for data access
 - Tools communicate to api routers via the httpx ASGI client (in process)
 
+### Programming Style
+
+See [docs/ENGINEERING_STYLE.md](docs/ENGINEERING_STYLE.md) for the fuller house style and
+[docs/DOMAIN_MODEL.md](docs/DOMAIN_MODEL.md) for product language, ownership, identity, and
+source-of-truth rules. The short version for agents:
+
+For nontrivial Python writing, refactoring, or review, read and follow
+[`.agents/skills/pythonic-code/SKILL.md`](.agents/skills/pythonic-code/SKILL.md) in full. Use
+the skill's Write, Refactor, or Review mode that matches the task. GitHub coding and review
+agents must apply this skill before changing or evaluating Python code.
+
+- Prefer type-safe, explicit designs over object-heavy indirection. Use Python 3.12 `type`
+  aliases, full annotations, and narrow `Protocol`s when a caller only needs a capability.
+- Prefer functions and typed values before classes, and concrete classes before abstract base
+  classes. Treat private-helper sprawl as a prompt to simplify the data flow.
+- Use dataclasses for internal value objects and operation results; use Pydantic v2 at API,
+  CLI, MCP, and persistence boundaries where validation and serialization matter.
+- Keep async boundaries obvious. Resource-owning code should use context managers, propagate
+  cancellation, and avoid hidden background work unless the lifecycle is explicit.
+- Fail fast. Do not add silent fallback logic, broad exception swallowing, speculative
+  `getattr`, or casts that hide an unclear model shape.
+- Keep control flow simple and local. Push branching decisions up, keep leaf helpers focused,
+  and name values after the domain concept they carry.
+- Use evidence-first testing. Add or update meaningful regression tests for bugs and risky
+  behavior, prefer real code paths over mocks, and run the narrowest command that proves the
+  change before widening verification.
+- Comments should explain why a branch, invariant, or constraint exists. Avoid comments that
+  merely narrate obvious code.
+
 ### Code Change Guidelines
 
 - **Full file read before edits**: Before editing any file, read it in full first to ensure complete context; partial reads lead to corrupted edits
 - **Minimize diffs**: Prefer the smallest change that satisfies the request. Avoid unrelated refactors or style rewrites unless necessary for correctness
-- **No speculative getattr**: Never use `getattr(obj, "attr", default)` when unsure about attribute names. Check the class definition or source code first
-- **Fail fast**: Write code with fail-fast logic by default. Do not swallow exceptions with errors or warnings
-- **No fallback logic**: Do not add fallback logic unless explicitly told to and agreed with the user
+- **House style is canonical**: Follow the Programming Style section above for type-safe,
+  fail-fast code; do not hide unclear models with speculative attributes, broad exception
+  handling, casts, or unapproved fallback logic
 - **No guessing**: Do not say "The issue is..." before you actually know what the issue is. Investigate first.
 
 ### Literate Programming Style
@@ -135,7 +198,9 @@ counter += 1  # track retries for backoff calculation
 
 ### Codebase Architecture
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture documentation.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for code layers and dependency direction. See
+[docs/DOMAIN_MODEL.md](docs/DOMAIN_MODEL.md) for the meaning and invariants of the concepts those
+layers implement.
 
 **Directory Structure:**
 - `/alembic` - Alembic db migrations
@@ -146,10 +211,17 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture docum
 - `/markdown` - Markdown parsing and processing
 - `/mcp` - MCP server + `container.py` composition root + `clients/` typed API clients
 - `/models` - SQLAlchemy ORM models
+- `/picoschema` - Picoschema parsing, resolution, validation, inference, and drift
 - `/repository` - Data access layer
 - `/schemas` - Pydantic models for validation
 - `/services` - Business logic layer
-- `/sync` - File synchronization services + `coordinator.py` for lifecycle management
+- `/index` - Local runtime indexing adapters, watch service + `watch_coordinator.py` for lifecycle management
+- `/indexing` - Portable indexing runners and planners shared by local and hosted runtimes
+- `/runtime` - RuntimeMode resolution + runtime Protocol contracts
+- `/plugins/claude-code` - Claude Code plugin marketplace package, hooks, skills, and agent harness
+- `/skills` - Canonical framework-agnostic Basic Memory `SKILL.md` source
+- `/integrations/hermes` - Hermes memory-provider plugin
+- `/integrations/openclaw` - OpenClaw npm/TypeScript plugin
 
 **Composition Roots:**
 Each entrypoint (API, MCP, CLI) has a composition root that:
@@ -189,27 +261,46 @@ Flow: MCP Tool → Typed Client → HTTP API → Router → Service → Reposito
 
 ### Async Client Pattern (Important!)
 
-**All MCP tools and CLI commands use the context manager pattern for HTTP clients:**
+**MCP tools use `get_project_client()` for per-project routing:**
+
+```python
+from basic_memory.mcp.project_context import get_project_client
+
+@mcp.tool()
+async def my_tool(project: str | None = None, context: Context | None = None):
+    async with get_project_client(project, context) as (client, active_project):
+        # client is routed based on project's mode (local ASGI or cloud HTTP)
+        response = await call_get(client, "/path")
+        return response
+```
+
+**CLI commands and non-project-scoped code use `get_client()` directly:**
 
 ```python
 from basic_memory.mcp.async_client import get_client
 
-async def my_mcp_tool():
+async def my_cli_command():
     async with get_client() as client:
-        # Use client for API calls
         response = await call_get(client, "/path")
         return response
+
+# Per-project routing (when project name is known):
+async with get_client(project_name="research") as client:
+    ...
 ```
 
 **Do NOT use:**
 - ❌ `from basic_memory.mcp.async_client import client` (deprecated module-level client)
 - ❌ Manual auth header management
 - ❌ `inject_auth_header()` (deleted)
+- ❌ Separate `get_client()` + `get_active_project()` in MCP tools (use `get_project_client()` instead)
 
 **Key principles:**
 - Auth happens at client creation, not per-request
 - Proper resource management via context managers
-- Supports three modes: Local (ASGI), CLI cloud (HTTP + auth), Cloud app (factory injection)
+- Per-project routing: each project can be LOCAL or CLOUD independently
+- Cloud projects use API key (`cloud_api_key` in config) as Bearer token
+- Routing priority: factory injection > force-local > per-project cloud > global cloud > local ASGI
 - Factory pattern enables dependency injection for cloud consolidation
 
 **For cloud app integration:**
@@ -222,13 +313,49 @@ async_client.set_client_factory(your_custom_factory)
 
 See SPEC-16 for full context manager refactor details.
 
+### Release Process
+
+Releases are driven by `just release` / `just beta` — never by a bare `git tag`. The recipes bump version metadata, run pre-flight checks, land the bump on `main` through a release PR, tag, and push the tag. GitHub Actions then publishes to PyPI and updates the Homebrew formula.
+
+**Main requires PRs.** The `main` ruleset rejects direct pushes ("Changes must be made through a pull request") and the repo disallows merge commits, so the recipes push a `release/vX.Y.Z` branch, open a PR titled `chore(core): release vX.Y.Z`, rebase-merge it with `gh pr merge --rebase`, then tag the rebased bump commit on `main` (located by its commit subject, since rebasing rewrites the SHA) and push the tag. The CHANGELOG entry for the version must already be on `main` — land it via a normal PR before running the recipe (it pre-flight-checks for a `## vX.Y.Z` heading).
+
+**Stable release:**
+
+```
+just release v0.21.3
+```
+
+The recipe runs `just lint` + `just typecheck`, then updates every release manifest through `scripts/update_versions.py`: `src/basic_memory/__init__.py`, `server.json`, the root Claude marketplace, the Claude Code plugin manifest and local marketplace, the Hermes `plugin.yaml`, and the OpenClaw `package.json`. It commits as `chore: update version to X.Y.Z for vX.Y.Z release` on a `release/vX.Y.Z` branch, lands it on `main` via a rebase-merged PR, then tags the rebased commit and pushes the tag. After the tag lands, the `Release` workflow builds the Python package, publishes to PyPI, creates the GitHub release with auto-generated notes, publishes the OpenClaw npm package, and updates the Homebrew formula. The recipe finishes by printing the post-release tasks the workflow doesn't cover.
+
+**Beta release:** `just beta v0.21.3b1` — same flow with a beta-suffixed tag. PyPI consumers install with `pip install basic-memory --pre`.
+
+**Release dry run:** `just release-dry-run v0.21.4` previews the consolidated version update without writing files.
+
+**Development builds:** every commit to `main` publishes a `0.21.3.dev26+468a22f`-style version to PyPI automatically via `.github/workflows/dev-release.yml`. No human action.
+
+**Do not tag releases by hand.** A bare `git tag vX.Y.Z` skips the in-code version bump. Package metadata is still correct (uv-dynamic-versioning derives it from the git tag) but `basic-memory --version` reports the previous release, which is what happened with v0.21.2 → v0.21.3.
+
+**Post-release tasks** the recipe surfaces but doesn't run:
+- `docs.basicmemory.com` — add a What's New page under `content/2.whats-new/` and bump the version badge in `content/index.md` (the changelog page auto-fetches GitHub releases; see that repo's CLAUDE.md version-bump checklist)
+- `basicmemory.com` — the marketing site (Astro + React, repo
+  `basicmachines-co/basicmemory.com`, formerly `basicmachines.co`) carries **no
+  hardcoded version number** in its UI, so there is nothing to bump. For a
+  significant release, optionally add a dated announcement post under
+  `src/content/blog/` (model it on an existing `basic-memory-vX-Y-Z-release.md`).
+  Skip entirely for routine patch releases.
+- MCP Registry — `mcp-publisher publish` from the repo root
+
+See `.claude/commands/release/release.md` (and `beta.md`, `release-check.md`, `changelog.md` alongside it) for the full release + post-release runbook, including the slash commands.
+
 ## BASIC MEMORY PRODUCT USAGE
 
 ### Knowledge Structure
 
-- Entity: Any concept, document, or idea represented as a markdown file
+- Project: The knowledge and isolation boundary for entities, graph state, and search
+- Note: A user-facing Markdown document and the canonical representation of its knowledge
+- Entity: The project-scoped indexed representation of a file or resource
 - Observation: A categorized fact about an entity (`- [category] content`)
-- Relation: A directional link between entities (`- relation_type [[Target]]`)
+- Relation: A directed semantic link owned by its source entity (`- relation_type [[Target]]`)
 - Frontmatter: YAML metadata at the top of markdown files
 - Knowledge representation follows precise markdown format:
     - Observations with [category] prefixes
@@ -246,21 +373,38 @@ See SPEC-16 for full context manager refactor details.
 - Tool access: `basic-memory tool` (provides CLI access to MCP tools)
     - Continue: `basic-memory tool continue-conversation --topic="search"`
 
+**Config Management:**
+- List all settings (effective values, env overrides marked): `basic-memory config list`
+- Get one setting: `basic-memory config get cli_output_style`
+- Set a setting (validated through the config model): `basic-memory config set cli_output_style plain`
+- Revert a setting to its default: `basic-memory config unset cli_output_style`
+
 **Project Management:**
 - List projects: `basic-memory project list`
 - Add project: `basic-memory project add "name" ~/path`
 - Project info: `basic-memory project info`
+- Set cloud mode: `basic-memory project set-cloud "name"`
+- Set local mode: `basic-memory project set-local "name"`
 - One-way sync (local -> cloud): `basic-memory project sync`
 - Bidirectional sync: `basic-memory project bisync`
 - Integrity check: `basic-memory project check`
 
 **Cloud Commands (requires subscription):**
-- Authenticate: `basic-memory cloud login`
-- Logout: `basic-memory cloud logout`
+- Authenticate (global): `basic-memory cloud login`
+- Logout (global): `basic-memory cloud logout`
 - Check cloud status: `basic-memory cloud status`
 - Setup cloud sync: `basic-memory cloud setup`
+- Save API key: `basic-memory cloud set-key bmc_...`
+- Create API key: `basic-memory cloud create-key "name"`
 - Manage snapshots: `basic-memory cloud snapshot [create|list|delete|show|browse]`
 - Restore from snapshot: `basic-memory cloud restore <path> --snapshot <id>`
+
+**Cloud Sync Commands (Personal and Team workspaces):**
+- Fetch cloud changes (cloud -> local): `basic-memory cloud pull --name "name"` (Team-safe; additive, never deletes local)
+- Upload local changes (local -> cloud): `basic-memory cloud push --name "name"` (Team-safe; additive, never deletes cloud)
+- Resolve conflicts on push/pull: `--on-conflict [fail|keep-local|keep-cloud|keep-both]` (default `fail` lists conflicts and aborts, git-style)
+- One-way mirror (local -> cloud): `basic-memory cloud sync --name "name"` (Personal workspaces only; deletes cloud files missing locally)
+- Two-way mirror (local <-> cloud): `basic-memory cloud bisync --name "name"` (Personal workspaces only)
 
 ### MCP Capabilities
 
@@ -287,9 +431,6 @@ See SPEC-16 for full context manager refactor details.
     - `list_memory_projects()` - List all available projects with their status
     - `create_memory_project(project_name, project_path, set_default)` - Create new Basic Memory projects
     - `delete_project(project_name)` - Delete a project from configuration
-
-  **Visualization:**
-    - `canvas(nodes, edges, title, directory)` - Generate Obsidian canvas files for knowledge graph visualization
 
   **ChatGPT-Compatible Tools:**
     - `search(query)` - Search across knowledge base (OpenAI actions compatible)
@@ -329,9 +470,22 @@ Basic Memory now supports cloud synchronization and storage (requires active sub
 - Background relation resolution (non-blocking startup)
 - API performance optimizations (SPEC-11)
 
-**CLI Routing Flags:**
+**Per-Project Cloud Routing:**
 
-When cloud mode is enabled, CLI commands route to the cloud API by default. Use `--local` and `--cloud` flags to override:
+Individual projects can be routed through the cloud while others stay local, using an API key:
+
+```bash
+# Save API key and set project to cloud mode
+basic-memory cloud set-key bmc_abc123...
+basic-memory project set-cloud research    # route through cloud
+basic-memory project set-local research    # revert to local
+```
+
+MCP tools use `get_project_client()` which automatically routes based on the project's mode. Cloud projects use the `cloud_api_key` from config as Bearer token.
+
+**CLI Routing Flags (Global Cloud Mode):**
+
+When global cloud mode is enabled, CLI commands route to the cloud API by default. Use `--local` and `--cloud` flags to override:
 
 ```bash
 # Force local routing (ignore cloud mode)
@@ -348,6 +502,7 @@ Key behaviors:
 - This allows simultaneous use of local Claude Desktop and cloud-based clients
 - Some commands (like `project default`, `project sync-config`, `project move`) require `--local` in cloud mode since they modify local configuration
 - Environment variable `BASIC_MEMORY_FORCE_LOCAL=true` forces local routing globally
+- Per-project cloud routing via API key works independently of global cloud mode
 
 ## AI-Human Collaborative Development
 
@@ -404,5 +559,9 @@ With GitHub integration, the development workflow includes:
 3. **Branch management** - Claude can create feature branches for implementations
 4. **Documentation maintenance** - Claude can keep documentation updated as the code evolves
 5. **Code Commits**: ALWAYS sign off commits with `git commit -s`
+6. **Pull Request Titles**: PR titles must follow the semantic format enforced by `.github/workflows/pr-title.yml`: `type(scope): summary`
+   - Allowed types: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`
+   - Allowed scopes: `core`, `cli`, `api`, `mcp`, `sync`, `ui`, `ci`, `deps`, `installer`, `plugins`, `skills`, `integrations`
+   - Example: `fix(cli): propagate cloud workspace routing`
 
 This level of integration represents a new paradigm in AI-human collaboration, where the AI assistant becomes a full-fledged team member rather than just a tool for generating code snippets.

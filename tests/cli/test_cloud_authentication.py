@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -26,6 +27,10 @@ class _StubAuth:
 
     async def login(self) -> bool:
         return self._login_ok
+
+
+def _auth(auth: _StubAuth) -> Any:
+    return cast(Any, auth)
 
 
 def _make_http_client_factory(handler):
@@ -61,7 +66,7 @@ class TestAPIClientErrorHandling:
             await make_api_request(
                 "GET",
                 "https://test.com/api/endpoint",
-                auth=auth,
+                auth=_auth(auth),
                 http_client_factory=_make_http_client_factory(handler),
             )
 
@@ -88,13 +93,38 @@ class TestAPIClientErrorHandling:
             await make_api_request(
                 "GET",
                 "https://test.com/api/endpoint",
-                auth=auth,
+                auth=_auth(auth),
                 http_client_factory=_make_http_client_factory(handler),
             )
 
         err = exc_info.value
         assert err.status_code == 403
         assert err.subscribe_url == "https://basicmemory.com/subscribe"
+
+    @pytest.mark.asyncio
+    async def test_subscription_required_error_defaults_to_pricing(self):
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                403,
+                json={
+                    "detail": {
+                        "error": "subscription_required",
+                        "message": "Active subscription required",
+                    }
+                },
+                request=request,
+            )
+
+        auth = _StubAuth()
+        with pytest.raises(SubscriptionRequiredError) as exc_info:
+            await make_api_request(
+                "GET",
+                "https://test.com/api/endpoint",
+                auth=_auth(auth),
+                http_client_factory=_make_http_client_factory(handler),
+            )
+
+        assert exc_info.value.subscribe_url == "https://basicmemory.com/pricing"
 
     @pytest.mark.asyncio
     async def test_parse_generic_403_error(self):
@@ -110,7 +140,7 @@ class TestAPIClientErrorHandling:
             await make_api_request(
                 "GET",
                 "https://test.com/api/endpoint",
-                auth=auth,
+                auth=_auth(auth),
                 http_client_factory=_make_http_client_factory(handler),
             )
 
@@ -174,37 +204,47 @@ class TestLoginCommand:
             fake_make_api_request,
         )
 
-        instances: list[object] = []
+        result = runner.invoke(app, ["cloud", "login"])
+        assert result.exit_code == 0
+        assert "Cloud authentication successful" in result.stdout
+        assert "Cloud host ready: https://cloud.example.com" in result.stdout
 
-        class _StubConfig:
-            cloud_mode = False
+    def test_login_health_check_error_shows_clean_message(self, monkeypatch):
+        """Regression for #863: a non-subscription error from the post-login
+        /proxy/health check must produce a clean message, not a raw traceback.
 
-        class _StubConfigManager:
-            def __init__(self):
-                self._config = _StubConfig()
-                self.config = self._config
-                self.saved_config = None
-                instances.append(self)
-
-            def load_config(self):
-                return self._config
-
-            def save_config(self, config):
-                self.saved_config = config
+        OAuth has already succeeded at this point; the tenant instance may still
+        be provisioning (5xx) or return some other non-subscription_required error.
+        """
+        runner = CliRunner()
 
         monkeypatch.setattr(
-            "basic_memory.cli.commands.cloud.core_commands.ConfigManager",
-            _StubConfigManager,
+            "basic_memory.cli.commands.cloud.core_commands.CLIAuth",
+            lambda **_kwargs: _StubAuth(login_ok=True),
+        )
+        monkeypatch.setattr(
+            "basic_memory.cli.commands.cloud.core_commands.get_cloud_config",
+            lambda: ("client_id", "domain", "https://cloud.example.com"),
+        )
+
+        async def fake_make_api_request(*_args, **_kwargs):
+            # e.g. tenant instance not ready yet -> proxy returns 503
+            raise CloudAPIError("API request failed: 503 Service Unavailable", status_code=503)
+
+        monkeypatch.setattr(
+            "basic_memory.cli.commands.cloud.core_commands.make_api_request",
+            fake_make_api_request,
         )
 
         result = runner.invoke(app, ["cloud", "login"])
-        assert result.exit_code == 0
-        assert "Cloud mode enabled" in result.stdout
-
-        assert len(instances) == 1
-        mgr = instances[0]
-        assert mgr.saved_config is not None
-        assert mgr.saved_config.cloud_mode is True
+        # Clean exit, no traceback leaking the exception class.
+        assert result.exit_code == 1
+        assert result.exception is None or isinstance(result.exception, SystemExit)
+        # Collapse Rich's line-wrapping before matching multi-word phrases.
+        output = " ".join(result.stdout.split())
+        assert "couldn't verify cloud access" in output
+        assert "bm cloud status" in output
+        assert "Traceback" not in output
 
     def test_login_authentication_failure(self, monkeypatch):
         runner = CliRunner()
@@ -221,3 +261,68 @@ class TestLoginCommand:
         result = runner.invoke(app, ["cloud", "login"])
         assert result.exit_code == 1
         assert "Login failed" in result.stdout
+
+
+class TestLogoutCommand:
+    """Tests for `bm cloud logout`."""
+
+    @staticmethod
+    def _patch(monkeypatch, default_workspace):
+        class FakeConfig:
+            cloud_client_id = "cid"
+            cloud_domain = "https://auth.example.com"
+
+            def __init__(self):
+                self.default_workspace = default_workspace
+
+        saved: list[FakeConfig] = []
+        config_instance = FakeConfig()
+        logout_called = {"value": False}
+
+        class FakeConfigManager:
+            config = config_instance
+
+            def save_config(self, cfg):
+                saved.append(cfg)
+
+        class FakeAuth:
+            def __init__(self, **_kwargs):
+                pass
+
+            def logout(self):
+                logout_called["value"] = True
+
+        monkeypatch.setattr(
+            "basic_memory.cli.commands.cloud.core_commands.ConfigManager", FakeConfigManager
+        )
+        monkeypatch.setattr("basic_memory.cli.commands.cloud.core_commands.CLIAuth", FakeAuth)
+        return config_instance, saved, logout_called
+
+    def test_logout_clears_default_workspace(self, monkeypatch):
+        """Regression for #755: logout must invalidate the cached workspace."""
+        config_instance, saved, logout_called = self._patch(
+            monkeypatch, default_workspace="tenant-org-123"
+        )
+        runner = CliRunner()
+
+        result = runner.invoke(app, ["cloud", "logout"])
+
+        assert result.exit_code == 0
+        assert logout_called["value"] is True
+        assert config_instance.default_workspace is None
+        # Save was called once because a non-None value needed clearing.
+        assert len(saved) == 1
+        assert saved[0].default_workspace is None
+
+    def test_logout_skips_save_when_no_default_workspace(self, monkeypatch):
+        """If nothing was cached, logout shouldn't rewrite the config file."""
+        config_instance, saved, logout_called = self._patch(monkeypatch, default_workspace=None)
+        runner = CliRunner()
+
+        result = runner.invoke(app, ["cloud", "logout"])
+
+        assert result.exit_code == 0
+        assert logout_called["value"] is True
+        assert config_instance.default_workspace is None
+        # No save: avoid touching the file when there's nothing to clear.
+        assert saved == []
