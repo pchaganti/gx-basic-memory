@@ -66,6 +66,19 @@ class PreparedEntityVectorSync:
     queue_start: float | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class EntityVectorShardPlan:
+    """Shard selection for one entity's pending embedding work."""
+
+    scheduled_chunk_keys: set[str]
+    pending_jobs_total: int
+    shard_index: int
+    shard_count: int
+    remaining_jobs_after_shard: int
+    oversized_entity: bool
+    entity_complete: bool
+
+
 @dataclass
 class PendingEmbeddingJob:
     """Pending embedding write entry with entity ownership metadata."""
@@ -99,19 +112,6 @@ class EntitySyncRuntime:
 
 
 @dataclass(frozen=True)
-class EntityVectorShardPlan:
-    """Shard selection for one entity's pending embedding work."""
-
-    scheduled_chunk_keys: set[str]
-    pending_jobs_total: int
-    shard_index: int
-    shard_count: int
-    remaining_jobs_after_shard: int
-    oversized_entity: bool
-    entity_complete: bool
-
-
-@dataclass(frozen=True)
 class VectorChunkState:
     """Existing vector chunk state fetched for one prepare window."""
 
@@ -129,6 +129,9 @@ def plan_entity_vector_shard(
     shard_size: int = OVERSIZED_ENTITY_VECTOR_SHARD_SIZE,
 ) -> EntityVectorShardPlan:
     """Select the bounded shard to process for one entity sync invocation."""
+    if shard_size <= 0:
+        raise ValueError("shard_size must be greater than zero")
+
     pending_jobs_total = len(pending_records)
     if pending_jobs_total == 0:
         return EntityVectorShardPlan(
@@ -148,10 +151,7 @@ def plan_entity_vector_shard(
         scheduled_chunk_keys={record["chunk_key"] for record in scheduled_records},
         pending_jobs_total=pending_jobs_total,
         shard_index=1,
-        shard_count=max(
-            1,
-            math.ceil(pending_jobs_total / shard_size),
-        ),
+        shard_count=max(1, math.ceil(pending_jobs_total / shard_size)),
         remaining_jobs_after_shard=remaining_jobs_after_shard,
         oversized_entity=pending_jobs_total > shard_size,
         entity_complete=remaining_jobs_after_shard == 0,

@@ -14,6 +14,7 @@ from sqlalchemy import Executable, Result, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory import db
+from basic_memory.repository import semantic_vector_sync
 from basic_memory.repository.embedding_provider import (
     EmbeddingProvider,
     embedding_provider_identity,
@@ -31,7 +32,6 @@ from basic_memory.repository.semantic_errors import (
     SemanticDependenciesMissingError,
     SemanticSearchDisabledError,
 )
-from basic_memory.repository import semantic_vector_sync
 from basic_memory.repository.semantic_vector_sync import (
     EntitySyncRuntime as _EntitySyncRuntime,
     EntityVectorShardPlan as _EntityVectorShardPlan,

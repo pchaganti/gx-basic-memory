@@ -239,7 +239,10 @@ async def test_vector_sync_handles_final_flush_errors_and_orphan_runtime(
 
 
 def test_vector_shard_planning_and_logging_edges(monkeypatch) -> None:
-    empty_plan = semantic_vector_sync.plan_entity_vector_shard([])
+    empty_plan = semantic_vector_sync.plan_entity_vector_shard(
+        [],
+        shard_size=semantic_vector_sync.OVERSIZED_ENTITY_VECTOR_SHARD_SIZE,
+    )
     assert empty_plan.entity_complete is True
     assert empty_plan.scheduled_chunk_keys == set()
 
@@ -262,7 +265,10 @@ def test_vector_shard_planning_and_logging_edges(monkeypatch) -> None:
         }
         for index in range(semantic_vector_sync.OVERSIZED_ENTITY_VECTOR_SHARD_SIZE + 1)
     ]
-    oversized_plan = semantic_vector_sync.plan_entity_vector_shard(oversized_records)
+    oversized_plan = semantic_vector_sync.plan_entity_vector_shard(
+        oversized_records,
+        shard_size=semantic_vector_sync.OVERSIZED_ENTITY_VECTOR_SHARD_SIZE,
+    )
     semantic_vector_sync.log_vector_shard_plan(
         repository,
         entity_id=1,
@@ -275,6 +281,9 @@ def test_vector_shard_planning_and_logging_edges(monkeypatch) -> None:
     monkeypatch.setattr(search_repository_base_module, "OVERSIZED_ENTITY_VECTOR_SHARD_SIZE", 2)
     compatibility_plan = repository._plan_entity_vector_shard(oversized_records[:3])
     assert compatibility_plan.scheduled_chunk_keys == {"chunk-000", "chunk-001"}
+
+    with pytest.raises(ValueError, match="shard_size must be greater than zero"):
+        semantic_vector_sync.plan_entity_vector_shard(oversized_records[:1], shard_size=0)
 
 
 @pytest.mark.asyncio
@@ -406,11 +415,6 @@ async def test_prefetched_prepare_handles_empty_chunks_and_stale_rows(monkeypatc
         repository,
         "_timestamp_now_expr",
         Mock(return_value="CURRENT_TIMESTAMP"),
-    )
-    monkeypatch.setattr(
-        repository,
-        "_plan_entity_vector_shard",
-        semantic_vector_sync.plan_entity_vector_shard,
     )
     monkeypatch.setattr(repository, "_log_vector_shard_plan", Mock())
     delete_stale_chunks = AsyncMock()
