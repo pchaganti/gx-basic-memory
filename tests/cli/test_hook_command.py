@@ -89,6 +89,10 @@ def _transcript(tmp_path: Path) -> Path:
     return path
 
 
+def _init_git_repo(project: Path) -> None:
+    subprocess.run(["git", "init"], cwd=project, check=True, capture_output=True)
+
+
 def _inbox_envelopes(bm_home: Path) -> list[dict]:
     inbox_dir = bm_home / "inbox"
     return [
@@ -461,6 +465,28 @@ def test_capture_events_true_boolean_writes_envelope(bm_home: Path, claude_proje
     assert envelope["payload"]["capture_folder"] == "sessions"
 
 
+def test_codex_capture_events_defaults_on(bm_home: Path, tmp_path: Path) -> None:
+    project = tmp_path / "codex-proj"
+    (project / ".codex").mkdir(parents=True)
+    (project / ".codex" / "basic-memory.json").write_text(
+        json.dumps({"basicMemory": {"primaryProject": "demo"}}), encoding="utf-8"
+    )
+    with patch(
+        "basic_memory.mcp.tools.search_notes", new_callable=AsyncMock, return_value=SEARCH_EMPTY
+    ):
+        result = runner.invoke(
+            cli_app,
+            ["hook", "session-start", "--harness", "codex", "--project-dir", str(project)],
+            input=_payload(project, source="startup"),
+        )
+
+    assert result.exit_code == 0
+    envelopes = _inbox_envelopes(bm_home)
+    assert len(envelopes) == 1
+    assert envelopes[0]["source"] == "codex"
+    assert envelopes[0]["payload"]["capture_folder"] == "codex"
+
+
 @pytest.mark.parametrize("gate_value", ["true", "false", 1, "yes", {"on": True}])
 def test_capture_events_fails_closed_on_non_boolean(
     bm_home: Path, claude_project: Path, gate_value
@@ -716,6 +742,7 @@ def test_pre_compact_surfaces_write_error_on_stderr(
 def test_pre_compact_codex_includes_workspace_sections(bm_home: Path, tmp_path: Path) -> None:
     project = tmp_path / "codex-proj"
     (project / ".codex").mkdir(parents=True)
+    _init_git_repo(project)
     (project / ".codex" / "basic-memory.json").write_text(
         json.dumps({"primaryProject": "demo"}),
         encoding="utf-8",  # flat form, no basicMemory key
@@ -741,7 +768,7 @@ def test_pre_compact_codex_includes_workspace_sections(bm_home: Path, tmp_path: 
     assert result.exit_code == 0
     assert mock_write.await_args is not None
     kwargs = mock_write.await_args.kwargs
-    assert kwargs["directory"] == "codex"
+    assert kwargs["directory"] == "codex/codex-proj"
     assert kwargs["tags"] == ["codex", "auto-capture"]
     assert kwargs["title"].startswith("Codex session ")
     assert kwargs["note_type"] == "codex_session"
@@ -818,6 +845,76 @@ def test_pre_compact_codex_skips_working_tree_when_workspace_denied(
     assert "customer-roadmap.md" not in kwargs["content"]
     # The cwd itself is still redacted in frontmatter (the denial took effect).
     assert kwargs["metadata"]["cwd"] == "[REDACTED_PATH]"
+
+
+def test_pre_compact_codex_malformed_project_does_not_use_user_checkpoint_route(
+    bm_home: Path, tmp_path: Path
+) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "user-wide",
+                    "captureEvents": True,
+                    "redactPaths": ["/shared/private"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    project = tmp_path / "codex-proj"
+    (project / ".codex").mkdir(parents=True)
+    (project / ".codex" / "basic-memory.json").write_text("{broken", encoding="utf-8")
+    transcript = _transcript(tmp_path)
+    mock_write = AsyncMock()
+
+    with patch("basic_memory.mcp.tools.write_note", mock_write):
+        result = runner.invoke(
+            cli_app,
+            ["hook", "pre-compact", "--harness", "codex", "--project-dir", str(project)],
+            input=_payload(project, transcript_path=str(transcript), trigger="auto"),
+        )
+
+    assert result.exit_code == 0
+    assert not (bm_home / "inbox").exists()
+    mock_write.assert_not_awaited()
+
+
+def test_pre_compact_codex_malformed_user_blocks_project_checkpoint_route(
+    bm_home: Path, tmp_path: Path
+) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text("{broken", encoding="utf-8")
+    project = tmp_path / "codex-proj"
+    (project / ".codex").mkdir(parents=True)
+    (project / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "project-level",
+                    "captureEvents": True,
+                    "redactPaths": ["/project/private"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    transcript = _transcript(tmp_path)
+    mock_write = AsyncMock()
+
+    with patch("basic_memory.mcp.tools.write_note", mock_write):
+        result = runner.invoke(
+            cli_app,
+            ["hook", "pre-compact", "--harness", "codex", "--project-dir", str(project)],
+            input=_payload(project, transcript_path=str(transcript), trigger="auto"),
+        )
+
+    assert result.exit_code == 0
+    assert not (bm_home / "inbox").exists()
+    mock_write.assert_not_awaited()
 
 
 # --- Fail-open contract ---
@@ -1631,7 +1728,57 @@ def test_codex_settings_broken_file_counts_as_configured(tmp_path: Path) -> None
 
     merged, found = hook_module.load_codex_settings(project)
 
-    assert merged == {}
+    assert merged == {"captureEvents": False, "captureFolder": "codex"}
+    assert found is True
+
+
+def test_codex_settings_malformed_project_invalidates_user_fallback(tmp_path: Path) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "user-wide",
+                    "captureEvents": True,
+                    "redactPaths": ["/shared/private"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    project = tmp_path / "proj"
+    (project / ".codex").mkdir(parents=True)
+    (project / ".codex" / "basic-memory.json").write_text("{broken", encoding="utf-8")
+
+    merged, found = hook_module.load_codex_settings(project)
+
+    assert merged == {"captureEvents": False, "captureFolder": "codex"}
+    assert found is True
+
+
+def test_codex_settings_malformed_user_blocks_project_fallback(tmp_path: Path) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text("{broken", encoding="utf-8")
+    project = tmp_path / "proj"
+    (project / ".codex").mkdir(parents=True)
+    (project / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "project-level",
+                    "captureEvents": True,
+                    "redactPaths": ["/project/private"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    merged, found = hook_module.load_codex_settings(project)
+
+    assert merged == {"captureEvents": False, "captureFolder": "codex"}
     assert found is True
 
 
@@ -1640,7 +1787,10 @@ def test_codex_settings_non_dict_document(tmp_path: Path) -> None:
     (project / ".codex").mkdir(parents=True)
     (project / ".codex" / "basic-memory.json").write_text("[1]", encoding="utf-8")
 
-    assert hook_module.load_codex_settings(project) == ({}, True)
+    assert hook_module.load_codex_settings(project) == (
+        {"captureEvents": False, "captureFolder": "codex"},
+        True,
+    )
 
 
 def test_codex_settings_non_dict_basic_memory_block(tmp_path: Path) -> None:
@@ -1650,7 +1800,91 @@ def test_codex_settings_non_dict_basic_memory_block(tmp_path: Path) -> None:
         json.dumps({"basicMemory": 42}), encoding="utf-8"
     )
 
-    assert hook_module.load_codex_settings(project) == ({}, True)
+    assert hook_module.load_codex_settings(project) == (
+        {"captureEvents": False, "captureFolder": "codex"},
+        True,
+    )
+
+
+def test_codex_settings_default_on_without_config(tmp_path: Path) -> None:
+    project = tmp_path / "bare"
+    project.mkdir()
+
+    assert hook_module.load_codex_settings(project) == (
+        {"captureEvents": True, "captureFolder": "codex"},
+        False,
+    )
+
+
+def test_codex_settings_merge_user_then_project_with_checkout_folder(tmp_path: Path) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "user-wide",
+                    "recallTimeframe": "9d",
+                    "captureEvents": True,
+                    "redactKeys": ["token", "shared-secret"],
+                    "redactPaths": ["/shared/private"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    project = tmp_path / "widgets"
+    (project / ".codex").mkdir(parents=True)
+    _init_git_repo(project)
+    (project / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "project-level",
+                    "redactKeys": ["token", "repo-secret"],
+                    "redactPaths": [],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    merged, found = hook_module.load_codex_settings(project)
+
+    assert found is True
+    assert merged["primaryProject"] == "project-level"
+    assert merged["recallTimeframe"] == "9d"
+    assert merged["captureEvents"] is True
+    assert merged["captureFolder"] == "codex/widgets"
+    assert merged["redactKeys"] == ["token", "shared-secret", "repo-secret"]
+    assert merged["redactPaths"] == ["/shared/private"]
+
+
+def test_codex_project_settings_override_user_capture_defaults(tmp_path: Path) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text(
+        json.dumps({"basicMemory": {"captureEvents": True}}), encoding="utf-8"
+    )
+    project = tmp_path / "proj"
+    (project / ".codex").mkdir(parents=True)
+    (project / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "captureEvents": False,
+                    "captureFolder": "private/checkpoints",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    merged, found = hook_module.load_codex_settings(project)
+
+    assert found is True
+    assert merged["captureEvents"] is False
+    assert merged["captureFolder"] == "private/checkpoints"
 
 
 def test_string_list_guards_config_types() -> None:

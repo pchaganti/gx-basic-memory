@@ -3,14 +3,14 @@
 Harness plugins reduce to manifests plus one-line shims that exec
 ``bm hook <event> --harness claude|codex`` with the hook JSON on stdin. All
 logic lives here: per-harness stdin adapters, the session-start context brief,
-the pre-compact checkpoint note, opt-in envelope capture into the inbox WAL,
+the pre-compact checkpoint note, lifecycle-event capture into the inbox WAL,
 and the flush/status operator surface.
 
 Contracts:
   - Harness verbs (session-start, pre-compact) are fail-open: any error logs
     to stderr and exits 0 — a hook must never disrupt an agent session.
-  - The capture gate is fail-closed: ``captureEvents`` must be the JSON
-    boolean ``true``; strings never enable recording.
+  - Codex event capture defaults on. An explicit JSON boolean ``false`` turns
+    it off, while malformed values and malformed config fail closed.
   - Graph-derived brief content is fenced and labeled as reference data, not
     instructions — the prompt-injection boundary.
 
@@ -18,8 +18,9 @@ Settings sources are the same files the original plugin hook scripts read
 (ported here; the plugin hooks are now zero-logic shims that exec these
 verbs): the ``basicMemory`` block of ``.claude/settings.json`` /
 ``.claude/settings.local.json`` (nearest ancestor, over the user-level
-``~/.claude/settings.json``) for Claude, and ``.codex/basic-memory.json`` for
-Codex. ``install`` / ``remove`` wire the same verbs into the user-level
+``~/.claude/settings.json``) for Claude, and the nearest project
+``.codex/basic-memory.json`` over ``~/.codex/basic-memory.json`` for Codex.
+``install`` / ``remove`` wire the same verbs into the user-level
 harness config for standalone (non-marketplace) users, ownership-tagged so
 removal is surgical.
 """
@@ -71,6 +72,7 @@ QUERY_TIMEOUT_SECONDS = 10.0
 # Cap how many shared projects we read per session — bounds latency and output.
 MAX_SHARED = 6
 CODING_SESSION_PROFILE = "coding"
+CODEX_DEFAULT_CAPTURE_EVENTS = True
 
 
 @dataclass(frozen=True)
@@ -227,23 +229,102 @@ def load_claude_settings(directory: Path) -> tuple[dict, bool]:
     return merged, found
 
 
-def load_codex_settings(directory: Path) -> tuple[dict, bool]:
-    """Read the Codex config file, mirroring the codex hook scripts.
-
-    A present-but-broken file still counts as configured (found=True) so the
-    user sees the status hint instead of the first-run nudge.
-    """
-    path = directory / ".codex" / "basic-memory.json"
+def _read_codex_block(path: Path) -> tuple[dict | None, bool]:
+    """Read one Codex settings block and preserve malformed-file presence."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return {}, False
+        return None, False
     except (OSError, json.JSONDecodeError):
-        return {}, True
+        return None, True
     if not isinstance(data, dict):
-        return {}, True
+        return None, True
     block = data.get("basicMemory", data)
-    return (block if isinstance(block, dict) else {}), True
+    return (block if isinstance(block, dict) else None), True
+
+
+def _codex_project_dir(directory: Path) -> Path:
+    """Nearest ancestor with a project Codex config, excluding user fallback."""
+    current = directory.resolve()
+    while True:
+        if (current / ".codex" / "basic-memory.json").is_file():
+            return current
+        if current.parent == current:
+            return directory.resolve()
+        current = current.parent
+
+
+def _git_value(directory: Path, *args: str) -> str | None:
+    """Read one optional Git value without turning config defaults into failures."""
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = result.stdout.strip()
+    return value if result.returncode == 0 and value else None
+
+
+def _codex_default_capture_folder(directory: Path) -> str:
+    """Namespace the default checkpoint folder by the current repository directory."""
+    repo_root = _git_value(directory, "rev-parse", "--show-toplevel")
+    if repo_root is None:
+        return PROFILES[Harness.codex].default_capture_folder
+    repo_dir = Path(repo_root).name.strip()
+    if not repo_dir:
+        return PROFILES[Harness.codex].default_capture_folder
+    return f"codex/{repo_dir}"
+
+
+def load_codex_settings(directory: Path) -> tuple[dict, bool]:
+    """Merge user and project Codex settings, then resolve checkout defaults.
+
+    Precedence (lowest to highest): ``~/.codex/basic-memory.json``, then the
+    nearest project ``.codex/basic-memory.json``. Redaction lists accumulate so
+    a project cannot weaken user-level privacy rules. Codex capture is enabled
+    when omitted, and its default folder is namespaced by the Git repository
+    directory. Any malformed source counts as configured and fails closed for
+    the whole evaluation so a later source cannot rebuild routing without the
+    missing redaction policy.
+    """
+    defaults: dict = {
+        "captureEvents": CODEX_DEFAULT_CAPTURE_EVENTS,
+        "captureFolder": _codex_default_capture_folder(directory),
+    }
+    merged = dict(defaults)
+    found = False
+    home = Path.home()
+    sources = [home / ".codex" / "basic-memory.json"]
+    project = _codex_project_dir(directory)
+    project_path = project / ".codex" / "basic-memory.json"
+    if project_path != sources[0]:
+        sources.append(project_path)
+
+    for path in sources:
+        block, present = _read_codex_block(path)
+        if not present:
+            continue
+        found = True
+        if block is None:
+            # Trigger: any configured source exists but cannot be trusted.
+            # Why: continuing could combine a later checkpoint route with a
+            # missing earlier redaction policy and persist unredacted data.
+            # Outcome: discard every route and disable capture for this event.
+            return {**defaults, "captureEvents": False}, True
+        cumulative_redactions: dict[str, list[str]] = {}
+        for key in ("redactKeys", "redactPaths"):
+            values = [*_string_list(merged.get(key)), *_string_list(block.get(key))]
+            if values:
+                cumulative_redactions[key] = list(dict.fromkeys(values))
+        merged.update(block)
+        merged.update(cumulative_redactions)
+
+    return merged, found
 
 
 def load_harness_settings(harness: Harness, directory: Path) -> tuple[dict, bool]:
