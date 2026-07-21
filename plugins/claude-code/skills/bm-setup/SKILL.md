@@ -40,6 +40,17 @@ Ask only what you can't infer. Cover:
    instead of asking, still say the use-case you assumed and the structure it
    implies, and let the user correct it in one word.
 
+   A code/dev answer makes this a **coding setup** (`sessionProfile: "coding"`):
+   verify the directory is inside a Git repository, resolve a stable `repository`
+   identifier such as `owner/name` from the origin remote or GitHub CLI, show it
+   to the user, and ask for confirmation. Do not guess when the remote is missing
+   or ambiguous, and do not infer `coding` merely because the current directory
+   is a Git checkout — for mixed use, ask whether this repository should capture
+   Git and pull-request context. The coding profile seeds the Coding Session
+   schema so deliberate checkpoints carry required, queryable Git identity
+   (repository, branch, SHA, and working directory), plus typed pull-request
+   fields when a PR exists.
+
 2. **Project mapping.** "Do you already have a Basic Memory project for this, or
    should I create one?"
    - Existing → show `list_memory_projects()` and let them pick. That name becomes
@@ -96,8 +107,9 @@ Ask only what you can't infer. Cover:
    SessionStart brief surfaces it (alongside `captureFolder`), so this is what makes
    your captures land where the user expects — without it, placement is guesswork.
 
-5. **Schemas.** "I'll add schemas for session checkpoints, decisions, and tasks so
-   I can find them precisely later — okay?" (See "Seed the schemas" below.)
+5. **Schemas.** "I'll add schemas for session checkpoints, decisions, and tasks
+   — plus coding sessions for a coding setup — so I can find them precisely
+   later — okay?" (See "Seed the schemas" below.)
 
 6. **Lifecycle-event capture.** "Should I also keep a local, redacted trail of
    SessionStart and PreCompact events for later projection?" Default to **off**.
@@ -156,6 +168,11 @@ For each one:
     round-trips correctly on both local and cloud. After seeding, verify one note
     with `read_note(..., output_format="json", include_frontmatter=true)` —
     `schema`/`settings` must come back as nested objects, not strings.
+- **Coding setup:** when `sessionProfile` is `coding`, also read and seed
+  `coding-session.md` (title `Coding Session`) the same way. Its Git identity
+  fields (`repository`, `repo_root`, `cwd`, `branch`, `git_sha`) are required by
+  design — required-and-proven fields are what make coding checkpoints queryable
+  — so seed the schema unmodified.
 
 ### 2. Install the shared skills (if the user opted in)
 **First, guard against clobbering a source checkout.** If `./skills` already exists,
@@ -191,6 +208,8 @@ Build the `basicMemory` block from the interview:
     "rememberFolder": "bm-remember",
     "recallTimeframe": "3d",
     "preCompactCapture": "extractive",
+    "sessionProfile": "coding",
+    "repository": "owner/name",
     "captureEvents": false,
     "redactKeys": [],
     "redactPaths": [],
@@ -200,6 +219,12 @@ Build the `basicMemory` block from the interview:
   "outputStyle": "basic-memory"
 }
 ```
+Persist `sessionProfile` explicitly. Persist `repository` only for the `coding`
+profile, after the user confirms it — a coding setup is incomplete without a
+repository identifier because the `coding_session` schema requires queryable
+Git identity fields. Omit both keys' example values for a `general` setup
+(`"sessionProfile": "general"`, no `repository`).
+
 Only include `outputStyle` if the user opted in. Ask whether this is a **team
 default** (write/merge into `.claude/settings.json`, suggest committing it) or
 **personal** (`.claude/settings.local.json`). **Merge** into any existing file —
@@ -217,9 +242,10 @@ missing cloud credentials, or a ref that doesn't route, while the user is still 
 to fix it. Run the same structured query the SessionStart hook runs, via the CLI it
 uses (`basic-memory` / `bm` / `uvx basic-memory`):
 
-- **Primary:** `… tool search-notes --type schema --page-size 5` against
+- **Primary:** `… tool search-notes --type schema --page-size 10` against
   `primaryProject` — use `--project-id <uuid>` for a UUID, `--project <ref>`
-  otherwise. It should return the three schemas you just seeded.
+  otherwise. It should return the schemas you just seeded. For a coding setup,
+  confirm the `Coding Session` schema is present.
 - **One shared project** (only if `secondaryProjects` is non-empty): a
   `--type decision --status open` query against the first ref. It just needs to
   return *cleanly* — `0 results` is fine; an **error** means the ref doesn't route.
@@ -235,8 +261,9 @@ ref before closing — don't let the next session's brief come up empty.
 
 ## Close
 
-Confirm what you did in a few lines: the project mapping, which schemas were seeded
-vs. already present, whether placement was learned or suggested, the smoke-test
+Confirm what you did in a few lines: the project mapping, the session profile
+(and confirmed repository for a coding setup), which schemas were seeded vs.
+already present, whether placement was learned or suggested, the smoke-test
 result, whether lifecycle-event capture is enabled, any extra redaction controls,
 the shared hook inbox/flush state, and whether the output style is on.
 

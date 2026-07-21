@@ -18,19 +18,26 @@ settings:
     ended?: string, when the session was checkpointed
     status?(enum, lifecycle of the checkpoint): [open, resumed, closed]
     cwd?: string, the working directory the session ran in
+    username?: string, operating-system user that created the checkpoint
+    hostname?: string, host that created the checkpoint
     claude_session_id?: string, Claude Code session identifier
-    capture?(enum, how this checkpoint was produced): [extractive, summarized]
+    capture?(enum, how this checkpoint was produced): [extractive, deliberate, summarized]
 ---
 
 # Session
 
-A **SessionNote** is a resume checkpoint written by the Basic Memory plugin's
-PreCompact hook (and, later, the `/basic-memory:bm-handoff` command) right before
-Claude Code compacts the context window. It records what the session was doing
-so the next session can pick up where this one left off.
+A **SessionNote** is a resume checkpoint. The Basic Memory plugin's PreCompact
+hook writes one right before Claude Code compacts the context window, and the
+`/basic-memory:bm-checkpoint` skill writes one deliberately. It records what the
+session was doing so the next session can pick up where this one left off.
 
 Sessions are found by the SessionStart hook via structured recall:
 `search_notes(metadata_filters={"type": "session"}, after_date="3d")`.
+
+In a **coding setup** (`sessionProfile: "coding"`), deliberate checkpoints use
+the Coding Session schema instead — it adds required, queryable Git identity
+(`repository`, `branch`, `git_sha`, pull-request fields). This schema stays the
+general-purpose checkpoint.
 
 ## What goes in a SessionNote
 
