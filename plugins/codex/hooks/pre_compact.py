@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "basic-memory @ git+https://github.com/basicmachines-co/basic-memory@6e9f2fcf5f00f3577d38a3d8b6e2f2baca3079f7",
+#     "basic-memory @ git+https://github.com/basicmachines-co/basic-memory@c28159d2077158c4f596fb62f351e6e9012b95a5",
 # ]
 # ///
 """PreCompact hook launcher backed by a pinned Basic Memory revision.

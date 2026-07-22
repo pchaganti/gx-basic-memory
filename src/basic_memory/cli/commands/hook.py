@@ -3,14 +3,14 @@
 Harness plugins reduce to manifests plus one-line shims that exec
 ``bm hook <event> --harness claude|codex`` with the hook JSON on stdin. All
 logic lives here: per-harness stdin adapters, the session-start context brief,
-the pre-compact checkpoint note, opt-in envelope capture into the inbox WAL,
-and the flush/status operator surface.
+checkpoint coordination, lifecycle-event capture into the inbox WAL, and the
+flush/status operator surface.
 
 Contracts:
-  - Harness verbs (session-start, pre-compact) are fail-open: any error logs
+  - Harness verbs (session-start, pre-compact, stop) are fail-open: any error logs
     to stderr and exits 0 — a hook must never disrupt an agent session.
-  - The capture gate is fail-closed: ``captureEvents`` must be the JSON
-    boolean ``true``; strings never enable recording.
+  - Codex event capture defaults on. An explicit JSON boolean ``false`` turns
+    it off, while malformed values and malformed config fail closed.
   - Graph-derived brief content is fenced and labeled as reference data, not
     instructions — the prompt-injection boundary.
 
@@ -18,8 +18,9 @@ Settings sources are the same files the original plugin hook scripts read
 (ported here; the plugin hooks are now zero-logic shims that exec these
 verbs): the ``basicMemory`` block of ``.claude/settings.json`` /
 ``.claude/settings.local.json`` (nearest ancestor, over the user-level
-``~/.claude/settings.json``) for Claude, and ``.codex/basic-memory.json`` for
-Codex. ``install`` / ``remove`` wire the same verbs into the user-level
+``~/.claude/settings.json``) for Claude, and the nearest project
+``.codex/basic-memory.json`` over ``~/.codex/basic-memory.json`` for Codex.
+``install`` / ``remove`` wire the same verbs into the user-level
 harness config for standalone (non-marketplace) users, ownership-tagged so
 removal is surgical.
 """
@@ -71,6 +72,15 @@ QUERY_TIMEOUT_SECONDS = 10.0
 # Cap how many shared projects we read per session — bounds latency and output.
 MAX_SHARED = 6
 CODING_SESSION_PROFILE = "coding"
+CODEX_DEFAULT_CAPTURE_EVENTS = True
+CODEX_CHECKPOINT_REASON = (
+    "Basic Memory checkpoint required after compaction. Use the "
+    "`codex:bm-checkpoint` skill now to write one deliberate, durable handoff "
+    "for the work completed in this turn. Capture the problem, approach, actual "
+    "changes, verification, decisions, blockers, and next action from the "
+    "compacted context. Do not write lifecycle telemetry or a transcript dump. "
+    "Complete the checkpoint before ending the turn."
+)
 
 
 @dataclass(frozen=True)
@@ -80,9 +90,7 @@ class HarnessProfile:
     default_recall_timeframe: str
     default_capture_folder: str
     session_note_type: str  # type stamped on this harness's checkpoint notes
-    # Types the session-start brief recalls. Includes the generic ``session``
-    # the `bm hook flush` projector writes, so flushed/legacy sessions surface
-    # even when the harness stamps its checkpoints with a distinct type.
+    # Types the session-start brief recalls from durable, authored checkpoints.
     recall_session_types: tuple[str, ...]
     session_id_key: str
     checkpoint_title_prefix: str
@@ -91,7 +99,6 @@ class HarnessProfile:
     status_hint: str
     pin_tip: str
     default_recall_prompt: str
-    include_workspace_sections: bool  # codex adds git status + assistant cursor
     coding_session_note_type: str
 
 
@@ -121,16 +128,13 @@ PROFILES: dict[Harness, HarnessProfile] = {
             "user makes a material decision, capture it as a note with type: decision. "
             "Cite permalinks when referencing prior work."
         ),
-        include_workspace_sections=False,
         coding_session_note_type="coding_session",
     ),
     Harness.codex: HarnessProfile(
         default_recall_timeframe="7d",
         default_capture_folder="codex",
         session_note_type="codex_session",
-        # Codex stamps checkpoints codex_session, but the projector writes plain
-        # `session` — recall both so flushed sessions aren't invisible to Codex.
-        recall_session_types=("codex_session", "session"),
+        recall_session_types=("codex_session",),
         session_id_key="codex_session_id",
         checkpoint_title_prefix="Codex session",
         checkpoint_tags=("codex", "auto-capture"),
@@ -150,7 +154,6 @@ PROFILES: dict[Harness, HarnessProfile] = {
             "Use Basic Memory as durable context, but keep required repo rules in "
             "AGENTS.md or checked-in docs."
         ),
-        include_workspace_sections=True,
         coding_session_note_type="coding_session",
     ),
 }
@@ -227,23 +230,102 @@ def load_claude_settings(directory: Path) -> tuple[dict, bool]:
     return merged, found
 
 
-def load_codex_settings(directory: Path) -> tuple[dict, bool]:
-    """Read the Codex config file, mirroring the codex hook scripts.
-
-    A present-but-broken file still counts as configured (found=True) so the
-    user sees the status hint instead of the first-run nudge.
-    """
-    path = directory / ".codex" / "basic-memory.json"
+def _read_codex_block(path: Path) -> tuple[dict | None, bool]:
+    """Read one Codex settings block and preserve malformed-file presence."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return {}, False
+        return None, False
     except (OSError, json.JSONDecodeError):
-        return {}, True
+        return None, True
     if not isinstance(data, dict):
-        return {}, True
+        return None, True
     block = data.get("basicMemory", data)
-    return (block if isinstance(block, dict) else {}), True
+    return (block if isinstance(block, dict) else None), True
+
+
+def _codex_project_dir(directory: Path) -> Path:
+    """Nearest ancestor with a project Codex config, excluding user fallback."""
+    current = directory.resolve()
+    while True:
+        if (current / ".codex" / "basic-memory.json").is_file():
+            return current
+        if current.parent == current:
+            return directory.resolve()
+        current = current.parent
+
+
+def _git_value(directory: Path, *args: str) -> str | None:
+    """Read one optional Git value without turning config defaults into failures."""
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=directory,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = result.stdout.strip()
+    return value if result.returncode == 0 and value else None
+
+
+def _codex_default_capture_folder(directory: Path) -> str:
+    """Namespace the default checkpoint folder by the current repository directory."""
+    repo_root = _git_value(directory, "rev-parse", "--show-toplevel")
+    if repo_root is None:
+        return PROFILES[Harness.codex].default_capture_folder
+    repo_dir = Path(repo_root).name.strip()
+    if not repo_dir:
+        return PROFILES[Harness.codex].default_capture_folder
+    return f"codex/{repo_dir}"
+
+
+def load_codex_settings(directory: Path) -> tuple[dict, bool]:
+    """Merge user and project Codex settings, then resolve checkout defaults.
+
+    Precedence (lowest to highest): ``~/.codex/basic-memory.json``, then the
+    nearest project ``.codex/basic-memory.json``. Redaction lists accumulate so
+    a project cannot weaken user-level privacy rules. Codex capture is enabled
+    when omitted, and its default folder is namespaced by the Git repository
+    directory. Any malformed source counts as configured and fails closed for
+    the whole evaluation so a later source cannot rebuild routing without the
+    missing redaction policy.
+    """
+    defaults: dict = {
+        "captureEvents": CODEX_DEFAULT_CAPTURE_EVENTS,
+        "captureFolder": _codex_default_capture_folder(directory),
+    }
+    merged = dict(defaults)
+    found = False
+    home = Path.home()
+    sources = [home / ".codex" / "basic-memory.json"]
+    project = _codex_project_dir(directory)
+    project_path = project / ".codex" / "basic-memory.json"
+    if project_path != sources[0]:
+        sources.append(project_path)
+
+    for path in sources:
+        block, present = _read_codex_block(path)
+        if not present:
+            continue
+        found = True
+        if block is None:
+            # Trigger: any configured source exists but cannot be trusted.
+            # Why: continuing could combine a later checkpoint route with a
+            # missing earlier redaction policy and persist unredacted data.
+            # Outcome: discard every route and disable capture for this event.
+            return {**defaults, "captureEvents": False}, True
+        cumulative_redactions: dict[str, list[str]] = {}
+        for key in ("redactKeys", "redactPaths"):
+            values = [*_string_list(merged.get(key)), *_string_list(block.get(key))]
+            if values:
+                cumulative_redactions[key] = list(dict.fromkeys(values))
+        merged.update(block)
+        merged.update(cumulative_redactions)
+
+    return merged, found
 
 
 def load_harness_settings(harness: Harness, directory: Path) -> tuple[dict, bool]:
@@ -346,7 +428,7 @@ def _capture_envelope(
 
 
 def _project_query_kwargs(project_ref: str) -> dict[str, str]:
-    from basic_memory.hooks.projector import split_project_ref
+    from basic_memory.hooks.project_ref import split_project_ref
 
     project, project_id = split_project_ref(project_ref)
     return {"project_id": project_id} if project_id else {"project": project or project_ref}
@@ -400,9 +482,8 @@ async def _gather_context(
                 after_date=timeframe,
             )
         )
-    # General and core-projected sessions remain a lower-priority compatibility
-    # path. They predate required repository metadata and cannot be safely
-    # narrowed, so coding_session results are always merged first.
+    # General checkpoints are a lower-priority path because coding_session
+    # results carry repository identity and are therefore merged first.
     session_queries.append(
         _query(project, note_types=list(profile.recall_session_types), after_date=timeframe)
     )
@@ -451,7 +532,7 @@ def _label(result: dict) -> str:
 
 
 def _readable(ref: str) -> str:
-    from basic_memory.hooks.projector import UUID_RE
+    from basic_memory.hooks.project_ref import UUID_RE
 
     # Qualified names ("my-team-2/notes") read fine as-is; UUIDs get shortened.
     return f"shared project {ref[:8]}…" if UUID_RE.match(ref) else ref
@@ -629,7 +710,11 @@ def _text_of(content: Any) -> str:
     if isinstance(content, list):
         parts = []
         for block in content:
-            if isinstance(block, dict) and block.get("type") == "text":
+            if isinstance(block, dict) and block.get("type") in {
+                "text",
+                "input_text",
+                "output_text",
+            }:
                 text = block.get("text")
                 if isinstance(text, str):
                     parts.append(text)
@@ -637,12 +722,14 @@ def _text_of(content: Any) -> str:
     return ""
 
 
-def _transcript_turns(path: str) -> list[tuple[str, str]]:
+def _transcript_turns(path: str, harness: Harness = Harness.claude) -> list[tuple[str, str]]:
     """Extract (role, text) turns from a JSONL transcript.
 
     Skips injected/meta frames and tool results — only real human input and
-    assistant prose count. Claude Code marks tool results with a
-    ``toolUseResult`` field and injected/meta turns with ``isMeta``.
+    assistant prose count. Claude Code stores a top-level ``message``; Codex
+    stores messages under ``response_item.payload`` with ``input_text`` and
+    ``output_text`` content blocks. Codex transcripts are not a stable public
+    API, so this host-specific branch is intentionally narrow and fixture-backed.
     """
     if not path:
         return []
@@ -657,9 +744,19 @@ def _transcript_turns(path: str) -> list[tuple[str, str]]:
                     obj = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if obj.get("isMeta") or obj.get("toolUseResult") is not None:
-                    continue
-                msg = obj.get("message") if isinstance(obj.get("message"), dict) else obj
+                if harness is Harness.codex:
+                    payload = obj.get("payload")
+                    if (
+                        obj.get("type") != "response_item"
+                        or not isinstance(payload, dict)
+                        or payload.get("type") != "message"
+                    ):
+                        continue
+                    msg = payload
+                else:
+                    if obj.get("isMeta") or obj.get("toolUseResult") is not None:
+                        continue
+                    msg = obj.get("message") if isinstance(obj.get("message"), dict) else obj
                 role = msg.get("role") or obj.get("type")
                 if role not in ("user", "assistant"):
                     continue
@@ -674,23 +771,6 @@ def _transcript_turns(path: str) -> list[tuple[str, str]]:
 def _clip(value: str, limit: int) -> str:
     compact = " ".join(value.split())
     return compact if len(compact) <= limit else compact[: limit - 1].rstrip() + "…"
-
-
-def _git_status(directory: str) -> list[str]:
-    """Best-effort working-tree snapshot for Codex checkpoints (read-only)."""
-    try:
-        out = subprocess.run(
-            ["git", "status", "--short"],
-            cwd=directory or None,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return []
-    if out.returncode != 0:
-        return []
-    return [line for line in out.stdout.splitlines() if line.strip()][:20]
 
 
 @dataclass(frozen=True, slots=True)
@@ -806,17 +886,13 @@ def _checkpoint_note(
     # (#997: redact obvious secrets before writing artifacts). Redact once at
     # extraction — every downstream use draws from the redacted strings.
     # Deferred import: redaction pulls detect-secrets, too heavy for CLI start (#886).
-    from basic_memory.hooks.redaction import REDACTED_PATH, Redactor
+    from basic_memory.hooks.redaction import Redactor
 
-    # One ruleset for the whole checkpoint: every turn, the cwd, and each git
-    # status row share the same deny rules, so compile the patterns once here
-    # rather than per redacted string.
+    # One ruleset for the whole checkpoint: every turn and the cwd share the
+    # same deny rules, so compile the patterns once rather than per string.
     redactor = Redactor.build(extra_redact_paths=extra_redact_paths)
 
     user_messages = [redactor.redact_text(text) for role, text in conversation if role == "user"]
-    assistant_messages = [
-        redactor.redact_text(text) for role, text in conversation if role == "assistant"
-    ]
     # cwd is a user path too: a session under a configured redactPaths (or a
     # default deny dir) must not leak the raw path into the note frontmatter or
     # body. Redact once so both draw from the scrubbed string.
@@ -911,23 +987,6 @@ def _checkpoint_note(
                 f"- Pull request: #{coding_context.pull_request.number} — "
                 f"{metadata['pull_request_url']}"
             )
-    if profile.include_workspace_sections:
-        recent_assistant = assistant_messages[-2:]
-        if recent_assistant:
-            body += ["", "## Recent assistant notes"]
-            body += [f"- {_clip(message, 240)}" for message in recent_assistant]
-        # Skip the working tree entirely when the workspace itself is denied
-        # (safe_cwd redacted to the marker means cwd matched a redactPaths entry).
-        # `git status --short` emits repo-relative filenames with no absolute
-        # prefix (`M customer-roadmap.md`), so per-row redaction can't match the
-        # deny path — the whole denied workspace's file list would leak.
-        status_lines = [] if safe_cwd == REDACTED_PATH else _git_status(working_directory)
-        if status_lines:
-            # git status rows carry filenames/paths too — pass them through the
-            # same floor as the transcript text and cwd (a secret token in a
-            # filename, or a denied path elsewhere, must not leak into the note).
-            body += ["", "## Working tree"]
-            body += [f"- `{redactor.redact_text(line)}`" for line in status_lines]
     body += [
         "",
         "## Observations",
@@ -993,7 +1052,19 @@ def _pre_compact(harness: Harness, project_dir: Optional[Path]) -> None:
     if not primary:
         return
 
-    conversation = _transcript_turns(event.transcript_path)
+    if harness is Harness.codex:
+        # PreCompact stdout is ignored by Codex, so this hook cannot ask the
+        # active model to author memory directly. Persist a private request; the
+        # Stop hook turns it into a one-time continuation prompt after Codex has
+        # compacted the same turn and still has its summarized working context.
+        if not event.session_id:
+            return
+        from basic_memory.hooks import checkpoint_requests
+
+        checkpoint_requests.create(event.session_id, event.turn_id)
+        return
+
+    conversation = _transcript_turns(event.transcript_path, harness)
     # Trigger: nothing usable in the transcript, or no real human turn in it.
     # Why: an empty or human-less checkpoint is worse than none. Outcome: no-op.
     if not conversation or not any(role == "user" for role, _ in conversation):
@@ -1015,7 +1086,7 @@ def _pre_compact(harness: Harness, project_dir: Optional[Path]) -> None:
     )
 
     # Deferred import (#886); same internal write path as `bm tool write-note`.
-    from basic_memory.hooks.projector import split_project_ref
+    from basic_memory.hooks.project_ref import split_project_ref
     from basic_memory.mcp.tools import write_note
 
     project, project_id = split_project_ref(primary)
@@ -1037,6 +1108,55 @@ def _pre_compact(harness: Harness, project_dir: Optional[Path]) -> None:
     if isinstance(result, dict) and result.get("error"):
         # Best-effort write: surface the failure without disrupting compaction.
         print(f"bm hook pre-compact: checkpoint write failed: {result['error']}", file=sys.stderr)
+
+
+def _codex_stop_response(payload: dict[str, Any]) -> dict[str, Any]:
+    """Resolve one Codex Stop event against its pending checkpoint request."""
+    session_id = str(payload.get("session_id") or "")
+    if not session_id:
+        return {"continue": True}
+
+    from basic_memory.hooks import checkpoint_requests
+
+    request = checkpoint_requests.read(session_id)
+    if request is None:
+        return {"continue": True}
+
+    current_turn_id = payload.get("turn_id")
+    # Trigger: the saved request belongs to an earlier Codex turn, or the
+    # current Stop cannot prove it belongs to the requesting turn.
+    # Why: an interrupted continuation can leave the request behind; blocking
+    # a later turn would author a checkpoint from the wrong working context.
+    # Outcome: abandon the stale handshake and let the current turn end.
+    if request.source_turn_id is not None and current_turn_id != request.source_turn_id:
+        checkpoint_requests.clear(session_id)
+        return {"continue": True}
+
+    # Trigger: Codex says this Stop is already a continuation. Why: blocking
+    # again would create a Stop-hook loop. Outcome: clear the local handshake
+    # and allow the turn to end. Until Codex confirms that continuation state,
+    # leave the request pending so a failed hook response cannot lose it.
+    if payload.get("stop_hook_active") is True:
+        checkpoint_requests.clear(session_id)
+        return {"continue": True}
+
+    return {"decision": "block", "reason": CODEX_CHECKPOINT_REASON}
+
+
+def _stop(harness: Harness) -> None:
+    payload = _read_stdin_payload()
+    response = _codex_stop_response(payload) if harness is Harness.codex else {"continue": True}
+    print(json.dumps(response, separators=(",", ":")))
+
+
+def _run_json_fail_open(verb: str, run: Callable[[], None]) -> None:
+    """Run a JSON-output hook and always leave Codex with a valid response."""
+    try:
+        run()
+    except (Exception, SystemExit) as exc:
+        logger.exception(f"bm hook {verb} failed")
+        print(f"bm hook {verb}: {exc}", file=sys.stderr)
+        print('{"continue":true}')
 
 
 # --- Typer verbs ---
@@ -1063,8 +1183,14 @@ def pre_compact(
     harness: Harness = HARNESS_OPTION,
     project_dir: Optional[Path] = PROJECT_DIR_OPTION,
 ) -> None:
-    """Checkpoint the session before compaction; capture an envelope when enabled."""
+    """Capture compaction trace and coordinate a durable checkpoint."""
     _run_fail_open("pre-compact", lambda: _pre_compact(harness, project_dir))
+
+
+@hook_app.command("stop")
+def stop(harness: Harness = HARNESS_OPTION) -> None:
+    """Request one agent-authored Codex checkpoint after compaction."""
+    _run_json_fail_open("stop", lambda: _stop(harness))
 
 
 @hook_app.command("flush")
@@ -1078,21 +1204,19 @@ def flush(
         help="Retention window in days for processed and unresolved-pending envelopes",
     ),
 ) -> None:
-    """Project pending inbox envelopes into knowledge-graph artifacts."""
-    # Deferred: the projector pulls the envelope stack (detect-secrets) (#886).
-    from basic_memory.hooks.projector import flush as run_flush
+    """Archive pending lifecycle envelopes locally; never write graph notes."""
+    # Deferred: the archive sweep pulls the envelope stack (detect-secrets) (#886).
+    from basic_memory.hooks.archive import flush as run_flush
 
     result = run_with_cleanup(run_flush(older_than_days=older_than_days))
     if result.skipped:
         typer.echo("flush skipped: another flush is already running")
         return
     typer.echo(
-        f"swept {result.swept} envelope(s): {result.projected} projected, "
+        f"swept {result.swept} envelope(s): {result.archived} archived, "
         f"{result.duplicates} duplicate(s), {result.pending} pending, "
         f"{result.invalid} invalid, {result.pruned} pruned"
     )
-    for note in result.notes:
-        typer.echo(f"  wrote: {note}")
 
 
 # --- install / remove (standalone users, no plugin marketplace) ---
@@ -1104,7 +1228,7 @@ def flush(
 # matches every launcher form we may write — ``basic-memory``, ``bm``, and the
 # ``uvx "basic-memory>=X"`` fallback — while staying distinctive to our CLI.
 OWNED_HOOK_COMMAND_RE = re.compile(
-    r"\bhook\s+(?:session-start|pre-compact)\s+--harness\s+(?:claude|codex)\b"
+    r"\bhook\s+(?:session-start|pre-compact|stop)\s+--harness\s+(?:claude|codex)\b"
 )
 
 
@@ -1191,6 +1315,7 @@ def _owned_hook_groups(harness: Harness) -> dict[str, dict[str, Any]]:
     return {
         "SessionStart": group("session-start", 30, "startup|resume|compact"),
         "PreCompact": group("pre-compact", 60, "manual|auto"),
+        "Stop": group("stop", 30, None),
     }
 
 
@@ -1373,7 +1498,7 @@ def status(
 ) -> None:
     """Show inbox depth, last flush, settings summary, and tool versions."""
     import basic_memory
-    from basic_memory.hooks import inbox
+    from basic_memory.hooks import checkpoint_requests, inbox
 
     pending = len(inbox.list_envelopes())
     processed = len(list(inbox.processed_dir().glob("*.json")))
@@ -1383,7 +1508,8 @@ def status(
 
     typer.echo(f"inbox: {inbox.inbox_dir()}")
     typer.echo(f"pending envelopes: {pending}")
-    typer.echo(f"processed envelopes: {processed}")
+    typer.echo(f"archived envelopes: {processed}")
+    typer.echo(f"pending checkpoint requests: {checkpoint_requests.pending_count()}")
     typer.echo(f"last flush: {inbox.last_flush() or 'never'}")
     typer.echo(
         f"settings ({harness.value}, {mapping_dir}): {'found' if configured else 'not found'}"

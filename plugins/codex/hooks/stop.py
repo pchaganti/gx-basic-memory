@@ -5,16 +5,16 @@
 #     "basic-memory @ git+https://github.com/basicmachines-co/basic-memory@c28159d2077158c4f596fb62f351e6e9012b95a5",
 # ]
 # ///
-"""SessionStart hook launcher backed by a pinned Basic Memory revision.
+"""Stop hook launcher backed by a pinned Basic Memory revision.
 
-Fail-open contract: a hook must never disrupt an agent session, so every
-failure path exits 0. Codex has no project-dir env var; project mapping uses
-the payload cwd. The hook JSON on stdin passes through untouched.
+Stop must always return valid JSON. Running Typer without Click's standalone
+mode avoids treating its normal completion as an exception; real failures emit
+a fail-open response so Basic Memory can never strand a Codex turn.
 """
 
 import sys
 
-VERB = "session-start"
+VERB = "stop"
 HARNESS = "codex"
 
 
@@ -26,12 +26,12 @@ def main() -> None:
     from basic_memory.cli.main import app
 
     sys.argv = ["basic-memory", *hook_args()]
-    app()
+    app(standalone_mode=False)
 
 
 if __name__ == "__main__":
     try:
         main()
     except BaseException:  # noqa: BLE001 - the documented fail-open boundary
-        pass
+        print('{"continue":true}')
     sys.exit(0)

@@ -26,6 +26,9 @@ REQUIRED_SKILLS = (
 REQUIRED_SKILL_TEXT: dict[str, tuple[str, ...]] = {
     "bm-setup": (
         "captureEvents",
+        "user-level",
+        "project-level",
+        "codex/<repo-dir>",
         "redactKeys",
         "redactPaths",
         "sessionProfile",
@@ -33,23 +36,27 @@ REQUIRED_SKILL_TEXT: dict[str, tuple[str, ...]] = {
         "hook status --harness codex",
     ),
     "bm-status": (
+        "~/.codex/basic-memory.json",
         "hook status --harness codex",
         "pending envelopes",
-        "processed envelopes",
+        "archived envelopes",
+        "Pending checkpoint requests",
         "last flush",
         "type=codex_session",
         "type=coding_session",
-        "type=session",
     ),
     "bm-orient": (
-        "Always query `codex_session` and `session`",
+        "Always query `codex_session`",
         "type=codex_session",
         "type=coding_session",
-        "type=session",
     ),
     "bm-checkpoint": (
         "Apply the `bm-writing` skill",
         "A checkpoint is a durable handoff, not a status dump",
+        "## Privacy Gate",
+        "`redactKeys` and `redactPaths` accumulate",
+        "[REDACTED_PATH]",
+        "skip the checkpoint",
         "username: <current username>",
         "hostname: <current hostname>",
         "type: coding_session",
@@ -69,12 +76,13 @@ REQUIRED_SKILL_TEXT: dict[str, tuple[str, ...]] = {
     ),
 }
 REQUIRED_SCHEMAS = ("codex-session.md", "coding-session.md", "decision.md", "task.md")
-REQUIRED_HOOK_EVENTS = ("SessionStart", "PreCompact")
+REQUIRED_HOOK_EVENTS = ("SessionStart", "PreCompact", "Stop")
 # Zero-logic shims: the only hook code the plugin ships. The Python bodies
 # moved into the basic-memory package behind `bm hook` (SPEC-55).
 REQUIRED_HOOK_SCRIPTS = (
     "hooks/session_start.py",
     "hooks/pre_compact.py",
+    "hooks/stop.py",
 )
 REQUIRED_SKILL_AGENT_FILES = ("agents/openai.yaml", "assets/icon.svg")
 REQUIRED_INTERFACE_ASSETS = {
@@ -194,7 +202,11 @@ def validate_plugin(plugin_dir: Path) -> None:
             raise SystemExit(f"{schema_file}: missing entity")
 
     readme = (plugin_dir / "README.md").read_text(encoding="utf-8")
-    for required_text in ("normalized `session`", "`tool_ledger`", "core-owned contracts"):
+    for required_text in (
+        "lifecycle trace stays local",
+        "Stop hook",
+        "agent-authored checkpoint",
+    ):
         if required_text not in readme:
             raise SystemExit(f"README.md: missing schema ownership text {required_text!r}")
 

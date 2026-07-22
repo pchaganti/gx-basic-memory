@@ -89,6 +89,44 @@ def _transcript(tmp_path: Path) -> Path:
     return path
 
 
+def _codex_transcript(tmp_path: Path) -> Path:
+    """A sanitized fixture matching Codex's current response_item JSONL shape."""
+    lines = [
+        {"type": "session_meta", "payload": {"id": "s-abc12345"}},
+        {
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": "Fix the login bug"}],
+            },
+        },
+        {
+            "type": "response_item",
+            "payload": {"type": "reasoning", "summary": ["private reasoning"]},
+        },
+        {
+            "type": "response_item",
+            "payload": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "Found the null check issue"}],
+            },
+        },
+        {
+            "type": "response_item",
+            "payload": {"type": "function_call_output", "output": "tool noise"},
+        },
+    ]
+    path = tmp_path / "codex-transcript.jsonl"
+    path.write_text("\n".join(json.dumps(line) for line in lines), encoding="utf-8")
+    return path
+
+
+def _init_git_repo(project: Path) -> None:
+    subprocess.run(["git", "init"], cwd=project, check=True, capture_output=True)
+
+
 def _inbox_envelopes(bm_home: Path) -> list[dict]:
     inbox_dir = bm_home / "inbox"
     return [
@@ -402,28 +440,24 @@ def test_session_start_codex_profile(bm_home: Path, tmp_path: Path) -> None:
         )
 
     assert result.exit_code == 0
-    # Codex recalls its own codex_session checkpoints *and* the generic `session`
-    # notes the flush projector writes, over a 7d default window.
+    # Codex recalls durable checkpoints, not locally archived lifecycle trace.
     session_query = mock_search.await_args_list[2].kwargs
-    assert session_query["note_types"] == ["codex_session", "session"]
+    assert session_query["note_types"] == ["codex_session"]
     assert session_query["after_date"] == "7d"
     assert "codex/" in result.stdout
 
 
-def test_session_start_codex_recalls_flushed_generic_session(bm_home: Path, tmp_path: Path) -> None:
-    # Regression: `bm hook flush` writes session artifacts as type `session`.
-    # The Codex brief must recall them, not only `codex_session` checkpoints.
+def test_session_start_codex_does_not_query_lifecycle_trace(bm_home: Path, tmp_path: Path) -> None:
     project = tmp_path / "codex-proj"
     (project / ".codex").mkdir(parents=True)
     (project / ".codex" / "basic-memory.json").write_text(
         json.dumps({"basicMemory": {"primaryProject": "demo"}}), encoding="utf-8"
     )
-    flushed = _search_result("Session s-1 (codex)")
     with patch(
         "basic_memory.mcp.tools.search_notes",
         new_callable=AsyncMock,
-        side_effect=[SEARCH_EMPTY, SEARCH_EMPTY, flushed],
-    ):
+        return_value=SEARCH_EMPTY,
+    ) as mock_search:
         result = runner.invoke(
             cli_app,
             ["hook", "session-start", "--harness", "codex", "--project-dir", str(project)],
@@ -431,7 +465,7 @@ def test_session_start_codex_recalls_flushed_generic_session(bm_home: Path, tmp_
         )
 
     assert result.exit_code == 0
-    assert "Session s-1 (codex)" in result.stdout
+    assert mock_search.await_args_list[2].kwargs["note_types"] == ["codex_session"]
 
 
 # --- session-start / pre-compact: envelope capture gate ---
@@ -459,6 +493,28 @@ def test_capture_events_true_boolean_writes_envelope(bm_home: Path, claude_proje
     assert envelope["promotion_status"] == "raw"
     assert envelope["payload"]["trigger"] == "startup"
     assert envelope["payload"]["capture_folder"] == "sessions"
+
+
+def test_codex_capture_events_defaults_on(bm_home: Path, tmp_path: Path) -> None:
+    project = tmp_path / "codex-proj"
+    (project / ".codex").mkdir(parents=True)
+    (project / ".codex" / "basic-memory.json").write_text(
+        json.dumps({"basicMemory": {"primaryProject": "demo"}}), encoding="utf-8"
+    )
+    with patch(
+        "basic_memory.mcp.tools.search_notes", new_callable=AsyncMock, return_value=SEARCH_EMPTY
+    ):
+        result = runner.invoke(
+            cli_app,
+            ["hook", "session-start", "--harness", "codex", "--project-dir", str(project)],
+            input=_payload(project, source="startup"),
+        )
+
+    assert result.exit_code == 0
+    envelopes = _inbox_envelopes(bm_home)
+    assert len(envelopes) == 1
+    assert envelopes[0]["source"] == "codex"
+    assert envelopes[0]["payload"]["capture_folder"] == "codex"
 
 
 @pytest.mark.parametrize("gate_value", ["true", "false", 1, "yes", {"on": True}])
@@ -675,7 +731,7 @@ def test_pre_compact_missing_transcript_is_silent(bm_home: Path, claude_project:
 
 def test_pre_compact_captures_envelope_even_without_mapping(bm_home: Path, tmp_path: Path) -> None:
     # Capture is dumb: an unmapped session is still trace worth keeping; the
-    # projector holds it pending until a mapping resolves.
+    # The trace remains useful even though no durable checkpoint can be routed.
     project = tmp_path / "unmapped"
     (project / ".claude").mkdir(parents=True)
     (project / ".claude" / "settings.json").write_text(
@@ -713,19 +769,21 @@ def test_pre_compact_surfaces_write_error_on_stderr(
     assert "checkpoint write failed" in result.stderr
 
 
-def test_pre_compact_codex_includes_workspace_sections(bm_home: Path, tmp_path: Path) -> None:
+def test_codex_pre_compact_requests_agent_authored_checkpoint_at_stop(
+    bm_home: Path, tmp_path: Path
+) -> None:
+    from basic_memory.hooks import checkpoint_requests
+
     project = tmp_path / "codex-proj"
     (project / ".codex").mkdir(parents=True)
+    _init_git_repo(project)
     (project / ".codex" / "basic-memory.json").write_text(
         json.dumps({"primaryProject": "demo"}),
         encoding="utf-8",  # flat form, no basicMemory key
     )
-    transcript = _transcript(tmp_path)
+    transcript = _codex_transcript(tmp_path)
     mock_write = AsyncMock(return_value={"action": "created"})
-    with (
-        patch("basic_memory.mcp.tools.write_note", mock_write),
-        patch.object(hook_module, "_git_status", return_value=["M src/app.py"]),
-    ):
+    with patch("basic_memory.mcp.tools.write_note", mock_write):
         result = runner.invoke(
             cli_app,
             ["hook", "pre-compact", "--harness", "codex", "--project-dir", str(project)],
@@ -739,38 +797,100 @@ def test_pre_compact_codex_includes_workspace_sections(bm_home: Path, tmp_path: 
         )
 
     assert result.exit_code == 0
-    assert mock_write.await_args is not None
-    kwargs = mock_write.await_args.kwargs
-    assert kwargs["directory"] == "codex"
-    assert kwargs["tags"] == ["codex", "auto-capture"]
-    assert kwargs["title"].startswith("Codex session ")
-    assert kwargs["note_type"] == "codex_session"
-    assert kwargs["metadata"]["codex_session_id"] == "s-abc12345"
-    assert kwargs["metadata"]["codex_turn_id"] == "turn-42"
-    assert kwargs["metadata"]["model"] == "gpt-5.2-codex"
-    content = kwargs["content"]
-    assert "## Recent assistant notes" in content
-    assert "## Working tree" in content
-    assert "- `M src/app.py`" in content
+    mock_write.assert_not_awaited()
+    request = checkpoint_requests.read("s-abc12345")
+    assert request is not None
+    assert request.source_turn_id == "turn-42"
+
+    first_stop = runner.invoke(
+        cli_app,
+        ["hook", "stop", "--harness", "codex"],
+        input=_payload(project, turn_id="turn-42", stop_hook_active=False),
+    )
+
+    assert first_stop.exit_code == 0
+    response = json.loads(first_stop.stdout)
+    assert response["decision"] == "block"
+    assert "`codex:bm-checkpoint`" in response["reason"]
+    assert "lifecycle telemetry" in response["reason"]
+    assert checkpoint_requests.read("s-abc12345") is not None
+
+    second_stop = runner.invoke(
+        cli_app,
+        ["hook", "stop", "--harness", "codex"],
+        input=_payload(project, turn_id="turn-42", stop_hook_active=True),
+    )
+
+    assert json.loads(second_stop.stdout) == {"continue": True}
+    assert checkpoint_requests.read("s-abc12345") is None
 
 
-def test_pre_compact_codex_redacts_working_tree_rows(bm_home: Path, tmp_path: Path) -> None:
-    # Regression: git status rows carry filenames/paths and must pass the same
-    # redaction floor as the transcript and cwd (a secret in a filename leaks
-    # otherwise).
+def test_codex_transcript_parser_reads_response_items_only(tmp_path: Path) -> None:
+    transcript = _codex_transcript(tmp_path)
+
+    assert hook_module._transcript_turns(str(transcript), hook_module.Harness.codex) == [
+        ("user", "Fix the login bug"),
+        ("assistant", "Found the null check issue"),
+    ]
+
+
+def test_codex_stop_without_checkpoint_request_is_json_noop(bm_home: Path) -> None:
+    result = runner.invoke(
+        cli_app,
+        ["hook", "stop", "--harness", "codex"],
+        input=json.dumps({"session_id": "none", "stop_hook_active": False}),
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"continue": True}
+
+
+def test_codex_stop_clears_checkpoint_request_from_prior_turn(bm_home: Path) -> None:
+    from basic_memory.hooks import checkpoint_requests
+
+    checkpoint_requests.create("s-abc12345", "turn-42")
+
+    result = runner.invoke(
+        cli_app,
+        ["hook", "stop", "--harness", "codex"],
+        input=json.dumps(
+            {
+                "session_id": "s-abc12345",
+                "turn_id": "turn-43",
+                "stop_hook_active": False,
+            }
+        ),
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(result.stdout) == {"continue": True}
+    assert checkpoint_requests.read("s-abc12345") is None
+
+
+def test_pre_compact_codex_malformed_project_does_not_use_user_checkpoint_route(
+    bm_home: Path, tmp_path: Path
+) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "user-wide",
+                    "captureEvents": True,
+                    "redactPaths": ["/shared/private"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     project = tmp_path / "codex-proj"
     (project / ".codex").mkdir(parents=True)
-    (project / ".codex" / "basic-memory.json").write_text(
-        json.dumps({"primaryProject": "demo"}), encoding="utf-8"
-    )
+    (project / ".codex" / "basic-memory.json").write_text("{broken", encoding="utf-8")
     transcript = _transcript(tmp_path)
-    mock_write = AsyncMock(return_value={"action": "created"})
-    with (
-        patch("basic_memory.mcp.tools.write_note", mock_write),
-        patch.object(
-            hook_module, "_git_status", return_value=["?? config/AKIAIOSFODNN7EXAMPLE.env"]
-        ),
-    ):
+    mock_write = AsyncMock()
+
+    with patch("basic_memory.mcp.tools.write_note", mock_write):
         result = runner.invoke(
             cli_app,
             ["hook", "pre-compact", "--harness", "codex", "--project-dir", str(project)],
@@ -778,46 +898,43 @@ def test_pre_compact_codex_redacts_working_tree_rows(bm_home: Path, tmp_path: Pa
         )
 
     assert result.exit_code == 0
-    assert mock_write.await_args is not None
-    content = mock_write.await_args.kwargs["content"]
-    assert "## Working tree" in content
-    assert "AKIAIOSFODNN7EXAMPLE" not in content
+    assert not (bm_home / "inbox").exists()
+    mock_write.assert_not_awaited()
 
 
-def test_pre_compact_codex_skips_working_tree_when_workspace_denied(
+def test_pre_compact_codex_malformed_user_blocks_project_checkpoint_route(
     bm_home: Path, tmp_path: Path
 ) -> None:
-    # Regression (#997): `git status --short` emits repo-relative filenames with
-    # no absolute prefix, so per-row redaction can't match a redactPaths entry.
-    # When the whole workspace is denied (cwd redacted to the marker), the
-    # section is skipped entirely rather than leaking the denied file list.
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text("{broken", encoding="utf-8")
     project = tmp_path / "codex-proj"
     (project / ".codex").mkdir(parents=True)
     (project / ".codex" / "basic-memory.json").write_text(
-        json.dumps({"primaryProject": "demo", "redactPaths": ["/srv/clients/"]}),
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "project-level",
+                    "captureEvents": True,
+                    "redactPaths": ["/project/private"],
+                }
+            }
+        ),
         encoding="utf-8",
     )
     transcript = _transcript(tmp_path)
-    mock_write = AsyncMock(return_value={"action": "created"})
-    with (
-        patch("basic_memory.mcp.tools.write_note", mock_write),
-        patch.object(hook_module, "_git_status", return_value=["M customer-roadmap.md"]),
-    ):
+    mock_write = AsyncMock()
+
+    with patch("basic_memory.mcp.tools.write_note", mock_write):
         result = runner.invoke(
             cli_app,
             ["hook", "pre-compact", "--harness", "codex", "--project-dir", str(project)],
-            input=_payload(
-                "/srv/clients/acme/repo", transcript_path=str(transcript), trigger="auto"
-            ),
+            input=_payload(project, transcript_path=str(transcript), trigger="auto"),
         )
 
     assert result.exit_code == 0
-    assert mock_write.await_args is not None
-    kwargs = mock_write.await_args.kwargs
-    assert "## Working tree" not in kwargs["content"]
-    assert "customer-roadmap.md" not in kwargs["content"]
-    # The cwd itself is still redacted in frontmatter (the denial took effect).
-    assert kwargs["metadata"]["cwd"] == "[REDACTED_PATH]"
+    assert not (bm_home / "inbox").exists()
+    mock_write.assert_not_awaited()
 
 
 # --- Fail-open contract ---
@@ -868,29 +985,27 @@ def test_hook_stdin_non_object_payload_normalizes(bm_home: Path, claude_project:
 # --- flush ---
 
 
-def test_flush_reports_projector_summary(bm_home: Path) -> None:
-    from basic_memory.hooks.projector import FlushResult
+def test_flush_reports_local_archive_summary(bm_home: Path) -> None:
+    from basic_memory.hooks.archive import FlushResult
 
     result_obj = FlushResult(
         swept=3,
-        projected=2,
+        archived=2,
         duplicates=1,
         pending=0,
         invalid=0,
         pruned=4,
-        notes=["Session s-1 (claude-code)"],
     )
     with patch(
-        "basic_memory.hooks.projector.flush", new_callable=AsyncMock, return_value=result_obj
+        "basic_memory.hooks.archive.flush", new_callable=AsyncMock, return_value=result_obj
     ) as mock_flush:
         result = runner.invoke(cli_app, ["hook", "flush", "--older-than-days", "7"])
 
     assert result.exit_code == 0
     mock_flush.assert_awaited_once_with(older_than_days=7)
-    assert "swept 3 envelope(s): 2 projected, 1 duplicate(s), 0 pending, 0 invalid, 4 pruned" in (
+    assert "swept 3 envelope(s): 2 archived, 1 duplicate(s), 0 pending, 0 invalid, 4 pruned" in (
         result.stdout
     )
-    assert "wrote: Session s-1 (claude-code)" in result.stdout
 
 
 def test_flush_rejects_negative_retention_window(bm_home: Path) -> None:
@@ -938,7 +1053,8 @@ def test_status_reports_inbox_and_settings(
 
     assert result.exit_code == 0
     assert "pending envelopes: 1" in result.stdout
-    assert "processed envelopes: 1" in result.stdout
+    assert "archived envelopes: 1" in result.stdout
+    assert "pending checkpoint requests: 0" in result.stdout
     assert "last flush: 2026-07-15T10:00:00+00:00" in result.stdout
     assert "found" in result.stdout
     assert "primary project: demo" in result.stdout
@@ -1016,6 +1132,9 @@ def test_install_codex_writes_hooks_json_with_matchers() -> None:
         "basic-memory hook session-start --harness codex"
     )
     assert data["hooks"]["PreCompact"][0]["matcher"] == "manual|auto"
+    assert data["hooks"]["Stop"][0]["hooks"][0]["command"] == (
+        "basic-memory hook stop --harness codex"
+    )
 
 
 def test_install_preserves_existing_user_settings_and_hooks() -> None:
@@ -1572,11 +1691,6 @@ def test_uv_version_handles_subprocess_failure(monkeypatch: pytest.MonkeyPatch) 
     assert hook_module._uv_version() is None
 
 
-def test_git_status_returns_empty_on_failure(tmp_path: Path) -> None:
-    # A directory that is not a git repo -> non-zero exit -> [].
-    assert hook_module._git_status(str(tmp_path)) == []
-
-
 def test_claude_settings_precedence_and_local_overrides(tmp_path: Path) -> None:
     home = Path.home()  # isolated_home points this at tmp_path
     (home / ".claude").mkdir(parents=True, exist_ok=True)
@@ -1631,7 +1745,57 @@ def test_codex_settings_broken_file_counts_as_configured(tmp_path: Path) -> None
 
     merged, found = hook_module.load_codex_settings(project)
 
-    assert merged == {}
+    assert merged == {"captureEvents": False, "captureFolder": "codex"}
+    assert found is True
+
+
+def test_codex_settings_malformed_project_invalidates_user_fallback(tmp_path: Path) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "user-wide",
+                    "captureEvents": True,
+                    "redactPaths": ["/shared/private"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    project = tmp_path / "proj"
+    (project / ".codex").mkdir(parents=True)
+    (project / ".codex" / "basic-memory.json").write_text("{broken", encoding="utf-8")
+
+    merged, found = hook_module.load_codex_settings(project)
+
+    assert merged == {"captureEvents": False, "captureFolder": "codex"}
+    assert found is True
+
+
+def test_codex_settings_malformed_user_blocks_project_fallback(tmp_path: Path) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text("{broken", encoding="utf-8")
+    project = tmp_path / "proj"
+    (project / ".codex").mkdir(parents=True)
+    (project / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "project-level",
+                    "captureEvents": True,
+                    "redactPaths": ["/project/private"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    merged, found = hook_module.load_codex_settings(project)
+
+    assert merged == {"captureEvents": False, "captureFolder": "codex"}
     assert found is True
 
 
@@ -1640,7 +1804,10 @@ def test_codex_settings_non_dict_document(tmp_path: Path) -> None:
     (project / ".codex").mkdir(parents=True)
     (project / ".codex" / "basic-memory.json").write_text("[1]", encoding="utf-8")
 
-    assert hook_module.load_codex_settings(project) == ({}, True)
+    assert hook_module.load_codex_settings(project) == (
+        {"captureEvents": False, "captureFolder": "codex"},
+        True,
+    )
 
 
 def test_codex_settings_non_dict_basic_memory_block(tmp_path: Path) -> None:
@@ -1650,7 +1817,91 @@ def test_codex_settings_non_dict_basic_memory_block(tmp_path: Path) -> None:
         json.dumps({"basicMemory": 42}), encoding="utf-8"
     )
 
-    assert hook_module.load_codex_settings(project) == ({}, True)
+    assert hook_module.load_codex_settings(project) == (
+        {"captureEvents": False, "captureFolder": "codex"},
+        True,
+    )
+
+
+def test_codex_settings_default_on_without_config(tmp_path: Path) -> None:
+    project = tmp_path / "bare"
+    project.mkdir()
+
+    assert hook_module.load_codex_settings(project) == (
+        {"captureEvents": True, "captureFolder": "codex"},
+        False,
+    )
+
+
+def test_codex_settings_merge_user_then_project_with_checkout_folder(tmp_path: Path) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "user-wide",
+                    "recallTimeframe": "9d",
+                    "captureEvents": True,
+                    "redactKeys": ["token", "shared-secret"],
+                    "redactPaths": ["/shared/private"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    project = tmp_path / "widgets"
+    (project / ".codex").mkdir(parents=True)
+    _init_git_repo(project)
+    (project / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "primaryProject": "project-level",
+                    "redactKeys": ["token", "repo-secret"],
+                    "redactPaths": [],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    merged, found = hook_module.load_codex_settings(project)
+
+    assert found is True
+    assert merged["primaryProject"] == "project-level"
+    assert merged["recallTimeframe"] == "9d"
+    assert merged["captureEvents"] is True
+    assert merged["captureFolder"] == "codex/widgets"
+    assert merged["redactKeys"] == ["token", "shared-secret", "repo-secret"]
+    assert merged["redactPaths"] == ["/shared/private"]
+
+
+def test_codex_project_settings_override_user_capture_defaults(tmp_path: Path) -> None:
+    home = Path.home()
+    (home / ".codex").mkdir(parents=True, exist_ok=True)
+    (home / ".codex" / "basic-memory.json").write_text(
+        json.dumps({"basicMemory": {"captureEvents": True}}), encoding="utf-8"
+    )
+    project = tmp_path / "proj"
+    (project / ".codex").mkdir(parents=True)
+    (project / ".codex" / "basic-memory.json").write_text(
+        json.dumps(
+            {
+                "basicMemory": {
+                    "captureEvents": False,
+                    "captureFolder": "private/checkpoints",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    merged, found = hook_module.load_codex_settings(project)
+
+    assert found is True
+    assert merged["captureEvents"] is False
+    assert merged["captureFolder"] == "private/checkpoints"
 
 
 def test_string_list_guards_config_types() -> None:
