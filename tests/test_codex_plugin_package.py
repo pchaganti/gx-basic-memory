@@ -38,6 +38,7 @@ def test_codex_plugin_hooks_are_zero_logic_uv_scripts() -> None:
     for script, verb in (
         ("session_start.py", "session-start"),
         ("pre_compact.py", "pre-compact"),
+        ("stop.py", "stop"),
     ):
         text = (hooks_dir / script).read_text(encoding="utf-8")
         assert "# /// script" in text
@@ -58,6 +59,7 @@ def test_release_recipes_pin_codex_hooks_to_the_release_tag() -> None:
 
     assert justfile.count('just set-codex-hook-version "{{version}}"') == 2
     assert 'just set-codex-hook-version "$(git rev-parse HEAD)"' not in justfile
+    assert "uv add --script plugins/codex/hooks/stop.py" in justfile
 
 
 def test_codex_plugin_marketplace_identity() -> None:
@@ -79,6 +81,8 @@ def test_codex_plugin_docs_explain_global_install_and_repo_mapping() -> None:
     assert 'codex plugin marketplace add "$(git rev-parse --show-toplevel)"' in readme
     assert "codex plugin add codex@basic-memory" in readme
     assert "Plugin installation is user-level in Codex" in readme
+    assert "Selecting only `plugins/codex` omits" in readme
+    assert "marketplace file should not" in readme
     assert "Configuration can live at user level in `~/.codex/basic-memory.json`" in readme
     assert "the nearest project file overrides only the keys it declares" in readme
     assert "keep both the profile and checkout-specific repository" in readme
@@ -151,6 +155,20 @@ def test_bm_checkpoint_tells_a_story_and_uses_graph_semantics() -> None:
     assert "problem -> approach -> current state and impact" in writing
     assert "- relation_type [[Target Note]]" in writing
     assert "Do not invent intent, impact, verification, decisions, or drama" in writing
+
+
+def test_codex_checkpoint_applies_accumulated_redaction_before_write() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    skill = (repo_root / "plugins/codex/skills/bm-checkpoint/SKILL.md").read_text(encoding="utf-8")
+
+    assert "## Privacy Gate" in skill
+    assert "`redactKeys` and `redactPaths` accumulate" in skill
+    assert "Scrub **every string** passed to `write_note`" in skill
+    assert "Do not omit schema-required path fields; use the marker" in skill
+    assert "[REDACTED_PATH]" in skill
+    assert "[REDACTED]" in skill
+    assert "fail closed: skip the checkpoint" in skill
+    assert "Do not fall back to an unredacted note" in skill
 
 
 def test_infographics_skill_keeps_weekly_contract_and_bm_style_pool() -> None:
