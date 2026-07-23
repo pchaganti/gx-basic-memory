@@ -608,20 +608,29 @@ async def _run_accepted_note_update(
             request.base_checksum is not None
             and current_note_content.db_checksum != request.base_checksum
         ):
-            # Relay self-supersede (#1589): when the current accepted version was
-            # itself written by the collaboration relay AND this request is the
-            # relay again, a stale base can only mean a lost ack — a persist that
-            # timed out client-side after committing here. The relay's next
-            # snapshot always supersedes its own prior write (the live Y.Doc is
-            # the merge of everything the relay ever persisted), so rejecting
-            # would wedge every subsequent store against our own committed
-            # version (2026-07-23 production incident). Foreign writers keep the
-            # full guarded semantics.
-            relay_self_supersede = (
-                request.source == NOTE_SOURCE_COLLABORATION_RELAY
-                and current_note_content.last_source == NOTE_SOURCE_COLLABORATION_RELAY
+            # Hot-doc canonical (#1589 Phase G): while a live session exists the
+            # Y.Doc is canonical, so a relay persist supersedes the current
+            # head. The invariant that makes this safe is "the superseded
+            # version survives as a storage object version", so a FOREIGN head
+            # may only be superseded once it is provably IN storage: 'synced'
+            # and nothing else. 'external_change_detected' explicitly means the
+            # accepted DB markdown did NOT materialize (the guard protected an
+            # unexpected external file), and pending/writing/failed heads have
+            # no object version yet — superseding any of them would erase the
+            # only copy, because their queued materialization preflights as
+            # stale and never writes (Codex review, PR #1146). Rejecting keeps
+            # the relay's next store retrying (seconds) until materialization
+            # lands. Relay-over-relay stays unconditional: the live Y.Doc is
+            # the merge of everything the relay ever persisted, which is what
+            # closes the lost-ack wedge (2026-07-23 production incident).
+            # Non-relay writers keep the full guarded semantics; the
+            # deleted-entity 409 above and the db_version CAS both remain.
+            current_head_in_storage = current_note_content.file_write_status == "synced"
+            relay_supersede = request.source == NOTE_SOURCE_COLLABORATION_RELAY and (
+                current_note_content.last_source == NOTE_SOURCE_COLLABORATION_RELAY
+                or current_head_in_storage
             )
-            if not relay_self_supersede:
+            if not relay_supersede:
                 reject_stale_base_checksum(
                     current_db_checksum=current_note_content.db_checksum
                 )
