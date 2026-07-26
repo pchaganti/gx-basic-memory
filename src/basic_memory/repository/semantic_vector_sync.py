@@ -63,6 +63,19 @@ class PreparedEntityVectorSync:
     remaining_jobs_after_shard: int = 0
     prepare_seconds: float = 0.0
     queue_start: float | None = None
+    delete_entity_vectors: bool = False
+    stale_chunk_ids: list[int] = field(default_factory=list)
+    staged_deletions: list[StagedVectorDeletion] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class StagedVectorDeletion:
+    """Manifest generation durably staged for adapter deletion."""
+
+    row_id: int
+    chunk_key: str
+    source_hash: str
+    vector_index: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +99,7 @@ class DeleteEntityVectorPreparePlan:
     sync_start: float
     prepare_start: float
     source_rows_count: int
+    expected_deletions: list[StagedVectorDeletion]
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +112,7 @@ class UpsertEntityVectorPreparePlan:
     source_rows_count: int
     existing_by_key: dict[str, VectorChunkState]
     stale_ids: list[int]
+    stale_deletions: list[StagedVectorDeletion]
     metadata_update_ids: list[int]
     scheduled_records: list[VectorChunkRecord]
     entity_fingerprint: str
@@ -152,6 +167,8 @@ class VectorChunkState:
     entity_fingerprint: str
     embedding_model: str
     has_embedding: bool
+    vector_index: str = ""
+    embedding_status: str = ""
 
 
 def plan_entity_vector_shard(
@@ -621,9 +638,8 @@ def prepare_window_existing_rows_sql(placeholders: str) -> str:
     """Build SQL for existing chunk and embedding rows in one prepare window."""
     return (
         "SELECT c.entity_id, c.id, c.chunk_key, c.source_hash, c.entity_fingerprint, "
-        "c.embedding_model, (e.chunk_id IS NOT NULL) AS has_embedding "
+        "c.embedding_model, c.vector_index, c.embedding_status "
         "FROM search_vector_chunks c "
-        "LEFT JOIN search_vector_embeddings e ON e.chunk_id = c.id "
         f"WHERE c.project_id = :project_id AND c.entity_id IN ({placeholders}) "
         "ORDER BY c.entity_id ASC, c.chunk_key ASC"
     )
@@ -651,7 +667,12 @@ async def fetch_prepare_window_existing_rows(
                 source_hash=str(row["source_hash"]),
                 entity_fingerprint=str(row["entity_fingerprint"]),
                 embedding_model=str(row["embedding_model"]),
-                has_embedding=bool(row["has_embedding"]),
+                vector_index=str(row["vector_index"]),
+                embedding_status=str(row["embedding_status"]),
+                has_embedding=(
+                    str(row["embedding_status"]) == "ready"
+                    and str(row["vector_index"]) == repository._semantic_vector_index_name
+                ),
             )
         )
     return grouped_rows
@@ -711,13 +732,59 @@ async def prepare_entity_vector_jobs_window(
             async with repository._prepare_entity_write_scope():
                 async with db.scoped_session(repository.session_maker) as session:
                     await repository._prepare_vector_session(session)
-                    for index, plan in mutation_plans:
+                    await repository._lock_external_vector_write(session)
+                    plans_to_apply = mutation_plans
+                    if repository._uses_external_vector_index():
+                        # Trigger: entity deletion can finish after the shared read
+                        # snapshot but before this prepare transaction gets the
+                        # project lock.
+                        # Why: applying that stale plan would recreate a manifest
+                        # for an entity the delete just removed.
+                        # Outcome: external writes re-read and re-plan under the
+                        # shared lock before making any manifest mutation.
+                        mutation_entity_ids = [plan.entity_id for _index, plan in mutation_plans]
+                        locked_source_rows = await repository._fetch_prepare_window_source_rows(
+                            session,
+                            mutation_entity_ids,
+                        )
+                        locked_existing_rows = await repository._fetch_prepare_window_existing_rows(
+                            session,
+                            mutation_entity_ids,
+                        )
+                        plans_to_apply = []
+                        for index, original_plan in mutation_plans:
+                            replanned = plan_entity_vector_jobs_prefetched(
+                                repository,
+                                entity_id=original_plan.entity_id,
+                                source_rows=locked_source_rows.get(
+                                    original_plan.entity_id,
+                                    [],
+                                ),
+                                existing_rows=locked_existing_rows.get(
+                                    original_plan.entity_id,
+                                    [],
+                                ),
+                            )
+                            if isinstance(replanned, PreparedEntityVectorSync):
+                                prepared_by_index[index] = replanned
+                            else:
+                                plans_to_apply.append((index, replanned))
+
+                    for index, plan in plans_to_apply:
                         prepared_by_index[index] = await apply_entity_vector_prepare_plan(
                             repository,
                             session,
                             plan,
                         )
                     await session.commit()
+
+            for index, _plan in mutation_plans:
+                prepared = prepared_by_index[index]
+                if isinstance(prepared, PreparedEntityVectorSync):
+                    try:
+                        await repository._finalize_prepared_vector_deletions(prepared)
+                    except Exception as exc:
+                        prepared_by_index[index] = exc
         except Exception as exc:
             # The mutation plans share one transaction, so a failed write
             # invalidates every entity whose result depended on that commit.
@@ -759,9 +826,34 @@ async def prepare_entity_vector_jobs_prefetched(
     async with repository._prepare_entity_write_scope():
         async with db.scoped_session(repository.session_maker) as session:
             await repository._prepare_vector_session(session)
-            prepared = await apply_entity_vector_prepare_plan(repository, session, planned)
+            await repository._lock_external_vector_write(session)
+            locked_plan = planned
+            if repository._uses_external_vector_index():
+                locked_source_rows = await repository._fetch_prepare_window_source_rows(
+                    session,
+                    [entity_id],
+                )
+                locked_existing_rows = await repository._fetch_prepare_window_existing_rows(
+                    session,
+                    [entity_id],
+                )
+                locked_plan = plan_entity_vector_jobs_prefetched(
+                    repository,
+                    entity_id=entity_id,
+                    source_rows=locked_source_rows.get(entity_id, []),
+                    existing_rows=locked_existing_rows.get(entity_id, []),
+                )
+                if isinstance(locked_plan, PreparedEntityVectorSync):
+                    return locked_plan
+
+            prepared = await apply_entity_vector_prepare_plan(
+                repository,
+                session,
+                locked_plan,
+            )
             await session.commit()
-            return prepared
+        await repository._finalize_prepared_vector_deletions(prepared)
+        return prepared
 
 
 def plan_entity_vector_jobs_prefetched(
@@ -783,6 +875,15 @@ def plan_entity_vector_jobs_prefetched(
             sync_start=sync_start,
             prepare_start=prepare_start,
             source_rows_count=source_rows_count,
+            expected_deletions=[
+                StagedVectorDeletion(
+                    row_id=row.id,
+                    chunk_key=row.chunk_key,
+                    source_hash=row.source_hash,
+                    vector_index=row.vector_index,
+                )
+                for row in existing_rows
+            ],
         )
 
     if not source_rows:
@@ -795,10 +896,21 @@ def plan_entity_vector_jobs_prefetched(
 
     current_entity_fingerprint = repository._build_entity_fingerprint(chunk_records)
     current_embedding_model = repository._embedding_model_key()
+    current_vector_index = repository._semantic_vector_index_name
     existing_by_key = {row.chunk_key: row for row in existing_rows}
     incoming_chunk_keys = {record["chunk_key"] for record in chunk_records}
     stale_ids = [
         row.id for chunk_key, row in existing_by_key.items() if chunk_key not in incoming_chunk_keys
+    ]
+    stale_deletions = [
+        StagedVectorDeletion(
+            row_id=row.id,
+            chunk_key=row.chunk_key,
+            source_hash=row.source_hash,
+            vector_index=row.vector_index,
+        )
+        for chunk_key, row in existing_by_key.items()
+        if chunk_key not in incoming_chunk_keys
     ]
     orphan_ids = {row.id for row in existing_rows if not row.has_embedding}
 
@@ -815,6 +927,7 @@ def plan_entity_vector_jobs_prefetched(
         and all(
             row.entity_fingerprint == current_entity_fingerprint
             and row.embedding_model == current_embedding_model
+            and row.vector_index in {"", current_vector_index}
             for row in existing_rows
         )
     )
@@ -843,8 +956,14 @@ def plan_entity_vector_jobs_prefetched(
         same_source_hash = current.source_hash == record["source_hash"]
         same_entity_fingerprint = current.entity_fingerprint == current_entity_fingerprint
         same_embedding_model = current.embedding_model == current_embedding_model
+        same_vector_index = current.vector_index in {"", current_vector_index}
 
-        if same_source_hash and current.id not in orphan_ids and same_embedding_model:
+        if (
+            same_source_hash
+            and current.id not in orphan_ids
+            and same_embedding_model
+            and same_vector_index
+        ):
             if not same_entity_fingerprint:
                 metadata_update_ids.append(current.id)
             skipped_chunks_count += 1
@@ -872,6 +991,7 @@ def plan_entity_vector_jobs_prefetched(
         source_rows_count=source_rows_count,
         existing_by_key=existing_by_key,
         stale_ids=stale_ids,
+        stale_deletions=stale_deletions,
         metadata_update_ids=metadata_update_ids,
         scheduled_records=scheduled_records,
         entity_fingerprint=current_entity_fingerprint,
@@ -889,18 +1009,30 @@ async def apply_entity_vector_prepare_plan(
 ) -> PreparedEntityVectorSync:
     """Apply one planned entity mutation inside the caller-owned transaction."""
     if isinstance(plan, DeleteEntityVectorPreparePlan):
-        await repository._delete_entity_chunks(session, plan.entity_id)
+        staged_deletions = await repository._delete_entity_chunks(
+            session,
+            plan.entity_id,
+            expected_deletions=plan.expected_deletions,
+        )
         return PreparedEntityVectorSync(
             entity_id=plan.entity_id,
             sync_start=plan.sync_start,
             source_rows_count=plan.source_rows_count,
             embedding_jobs=[],
             prepare_seconds=time.perf_counter() - plan.prepare_start,
+            delete_entity_vectors=True,
+            staged_deletions=staged_deletions,
         )
 
     timestamp_expr = repository._timestamp_now_expr()
+    staged_deletions: list[StagedVectorDeletion] = []
     if plan.stale_ids:
-        await repository._delete_stale_chunks(session, plan.stale_ids, plan.entity_id)
+        staged_deletions = await repository._delete_stale_chunks(
+            session,
+            plan.stale_ids,
+            plan.entity_id,
+            expected_deletions=plan.stale_deletions,
+        )
     for row_id in plan.metadata_update_ids:
         await session.execute(
             text(
@@ -944,6 +1076,8 @@ async def apply_entity_vector_prepare_plan(
         remaining_jobs_after_shard=plan.shard_plan.remaining_jobs_after_shard,
         prepare_seconds=prepare_seconds,
         queue_start=time.perf_counter(),
+        stale_chunk_ids=[deletion.row_id for deletion in staged_deletions],
+        staged_deletions=staged_deletions,
     )
 
 
@@ -958,6 +1092,11 @@ async def upsert_scheduled_chunk_records(
     embedding_model: str,
 ) -> list[tuple[int, str]]:
     """Upsert scheduled chunk rows and return embedding jobs."""
+    repository._assert_manifest_vector_ownership(
+        current.vector_index
+        for record in scheduled_records
+        if (current := existing_by_key.get(record["chunk_key"])) is not None
+    )
     timestamp_expr = repository._timestamp_now_expr()
     embedding_jobs: list[tuple[int, str]] = []
     for record in scheduled_records:
@@ -967,6 +1106,8 @@ async def upsert_scheduled_chunk_records(
                 current.source_hash != record["source_hash"]
                 or current.entity_fingerprint != entity_fingerprint
                 or current.embedding_model != embedding_model
+                or current.vector_index != repository._semantic_vector_index_name
+                or not current.has_embedding
             ):
                 await session.execute(
                     text(
@@ -974,6 +1115,8 @@ async def upsert_scheduled_chunk_records(
                         "SET chunk_text = :chunk_text, source_hash = :source_hash, "
                         "entity_fingerprint = :entity_fingerprint, "
                         "embedding_model = :embedding_model, "
+                        "vector_index = :vector_index, "
+                        "embedding_status = 'pending', "
                         f"updated_at = {timestamp_expr} "
                         "WHERE id = :id"
                     ),
@@ -983,6 +1126,7 @@ async def upsert_scheduled_chunk_records(
                         "source_hash": record["source_hash"],
                         "entity_fingerprint": entity_fingerprint,
                         "embedding_model": embedding_model,
+                        "vector_index": repository._semantic_vector_index_name,
                     },
                 )
             embedding_jobs.append((current.id, record["chunk_text"]))
@@ -993,10 +1137,11 @@ async def upsert_scheduled_chunk_records(
                 "INSERT INTO search_vector_chunks ("
                 "entity_id, project_id, chunk_key, chunk_text, source_hash, "
                 "entity_fingerprint, embedding_model, updated_at"
+                ", vector_index, embedding_status"
                 ") VALUES ("
                 ":entity_id, :project_id, :chunk_key, :chunk_text, :source_hash, "
                 ":entity_fingerprint, :embedding_model, "
-                f"{timestamp_expr}"
+                f"{timestamp_expr}, :vector_index, 'pending'"
                 ") RETURNING id"
             ),
             {
@@ -1007,6 +1152,7 @@ async def upsert_scheduled_chunk_records(
                 "source_hash": record["source_hash"],
                 "entity_fingerprint": entity_fingerprint,
                 "embedding_model": embedding_model,
+                "vector_index": repository._semantic_vector_index_name,
             },
         )
         embedding_jobs.append((int(inserted.scalar_one()), record["chunk_text"]))
@@ -1032,11 +1178,8 @@ async def flush_embedding_jobs(
         raise RuntimeError("Embedding provider returned an unexpected number of vectors.")
 
     write_start = time.perf_counter()
-    async with db.scoped_session(repository.session_maker) as session:
-        await repository._prepare_vector_session(session)
-        write_jobs = [(job.chunk_row_id, job.chunk_text) for job in flush_jobs]
-        await repository._write_embeddings(session, write_jobs, embeddings)
-        await session.commit()
+    write_jobs = [(job.chunk_row_id, job.chunk_text) for job in flush_jobs]
+    await repository._persist_embeddings(write_jobs, embeddings)
     write_seconds = time.perf_counter() - write_start
 
     flush_size = len(flush_jobs)

@@ -99,6 +99,7 @@ All settings are fields on `BasicMemoryConfig` and can be set via environment va
 | Config Field | Env Var | Default | Description |
 |---|---|---|---|
 | `semantic_search_enabled` | `BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED` | Auto (`true` when semantic deps are available) | Enable semantic search. Required before vector/hybrid modes work. |
+| `semantic_vector_index` | `BASIC_MEMORY_SEMANTIC_VECTOR_INDEX` | `"pgvector"` | Postgres vector storage adapter. `"pgvector"` is built in; other names resolve through the `basic_memory.semantic_vector_indexes` Python entry-point group. SQLite always uses its built-in `sqlite-vec` adapter. |
 | `semantic_embedding_provider` | `BASIC_MEMORY_SEMANTIC_EMBEDDING_PROVIDER` | `"fastembed"` | Embedding provider: `"fastembed"` (local), `"openai"` (API), or `"litellm"` (multi-provider API, **experimental** — advanced users only). |
 | `semantic_embedding_model` | `BASIC_MEMORY_SEMANTIC_EMBEDDING_MODEL` | `"bge-small-en-v1.5"` | Model identifier. Auto-adjusted per provider if left at default. |
 | `semantic_embedding_api_base` | `BASIC_MEMORY_SEMANTIC_EMBEDDING_API_BASE` | Unset | Optional custom endpoint for the LiteLLM provider, including local or self-hosted OpenAI-compatible servers. |
@@ -460,6 +461,7 @@ bm reindex -p my-project
 - **Dimension change**: After changing `semantic_embedding_dimensions`
 - **LiteLLM role change**: After changing `semantic_embedding_document_input_type` or `semantic_embedding_query_input_type`
 - **Literal prefix change**: After changing `semantic_embedding_document_prefix` or `semantic_embedding_query_prefix`
+- **Vector index change**: After completing the external-adapter cleanup procedure below and changing `semantic_vector_index`
 
 The reindex command shows progress with embedded/skipped/error counts:
 
@@ -509,17 +511,118 @@ Vector and hybrid modes return individual observations and relations as first-cl
 
 - **Vector storage**: [sqlite-vec](https://github.com/asg017/sqlite-vec) virtual table
 - **Table creation**: At runtime when semantic search is first used — no migration needed
-- **Embedding table**: `search_vector_embeddings` using `vec0(embedding float[N])` where N is the configured dimensions
+- **Embedding table**: `search_vector_embeddings` using `vec0(embedding float[N], +source_hash text)` where N is the configured dimensions
 - **Chunk metadata**: `search_vector_chunks` table stores chunk text, keys, and source hashes
 
 The sqlite-vec extension is loaded per-connection. Vector tables are created lazily on first use.
 
 ### Postgres (cloud)
 
-- **Vector storage**: [pgvector](https://github.com/pgvector/pgvector) with HNSW indexing
+- **Default vector storage**: [pgvector](https://github.com/pgvector/pgvector) with HNSW indexing
 - **Local Docker**: use `docker-compose-postgres.yml` (`pgvector/pgvector:pg17`). Plain `postgres:17` lacks the extension; run `CREATE EXTENSION IF NOT EXISTS vector;` on any external instance before first migration.
 - **Chunk metadata table**: Created via Alembic migration (`search_vector_chunks` with `BIGSERIAL` primary key)
 - **Embedding table**: `search_vector_embeddings` created at runtime (dimension-dependent, same pattern as SQLite)
 - **Index**: HNSW index on the embedding column for fast approximate nearest-neighbour queries
 
 The Alembic migration creates the dimension-independent chunks table. The embeddings table and HNSW index are deferred to runtime because they depend on the configured vector dimensions.
+
+## Pluggable Vector Indexes
+
+Postgres deployments can replace pgvector storage and nearest-neighbour lookup without
+replacing Basic Memory's SQL repositories or embedding providers:
+
+```bash
+export BASIC_MEMORY_SEMANTIC_VECTOR_INDEX=milvus
+```
+
+The named extension must be installed in the same Python environment as Basic Memory. A
+configured extension that is missing, duplicated, invalid, or returns an incompatible adapter
+fails explicitly at startup. Basic Memory does not silently fall back to pgvector, because doing
+so would split vectors across stores while appearing healthy.
+
+SQLite remains automatic in this version: local SQLite databases always select `sqlite-vec`, even
+if `semantic_vector_index` is set. The selector controls Postgres-backed runtimes only.
+
+### Extension Package Contract
+
+A separately distributed package registers one factory under the
+`basic_memory.semantic_vector_indexes` entry-point group:
+
+```toml
+[project.entry-points."basic_memory.semantic_vector_indexes"]
+milvus = "basic_memory_milvus:create_index"
+```
+
+The factory receives an explicit scope and the validated Basic Memory configuration:
+
+```python
+from basic_memory.config import BasicMemoryConfig
+from basic_memory.repository.semantic_vector_index import (
+    SemanticVectorIndex,
+    VectorIndexScope,
+)
+
+
+def create_index(
+    *,
+    scope: VectorIndexScope,
+    app_config: BasicMemoryConfig,
+) -> SemanticVectorIndex:
+    ...
+```
+
+`VectorIndexScope` contains a stable, credential-free database namespace, project ID, embedding
+identity, and vector dimensions. Extensions must isolate physical storage by
+`scope.storage_key`, which contains only the stable database namespace and project ID.
+`embedding_identity` and `dimensions` describe the current vector schema for validation and
+initialization; adapters must not use those mutable fields to create a second unreachable
+project collection when the embedding configuration changes. Extensions own their client
+lifecycle, credentials, collection/index creation, vector persistence, and nearest-neighbour
+implementation.
+
+The returned `SemanticVectorIndex` has five asynchronous operations:
+
+- `initialize()` validates or creates backend storage.
+- `upsert(records)` idempotently writes vectors by `(entity_id, chunk_key)` for each record's
+  `source_hash` generation.
+- `delete(records)` removes stable keys only for each record's `source_hash` generation; stale or
+  missing records are successful no-ops.
+- `delete_entity(entity_id)` removes all vectors for one entity in the scope.
+- `search(query, limit)` returns stable keys with normalized cosine similarity in `[0, 1]`.
+
+The adapter never receives a SQLAlchemy session and never calls the embedding provider. Basic
+Memory owns chunking and embedding, while the extension owns vector storage and lookup.
+The built-in pgvector and sqlite-vec adapters additionally remove each pending SQL manifest row in
+the same database transaction as its vector so no newer generation can enter between those steps.
+Each `VectorRecord` and `VectorDeletion` carries the SHA-256 source generation that produced its
+value. Basic Memory holds the matching SQL manifest locked across extension adapter I/O and the
+ready-state transition or deletion (`FOR UPDATE` on Postgres and a conditional write lock on
+SQLite), so an older overlapping sync cannot overwrite or remove a newer generation under the same
+stable adapter key.
+
+Adapters may also implement the separate `SemanticVectorIndexReconciler` capability. After a
+vector reindex, Basic Memory passes it the complete set of current ready keys so the adapter can
+delete scoped external orphans. Keeping reconciliation separate preserves the narrow required
+storage protocol while allowing external stores to reclaim records left by interrupted deletes or
+ready-state commits.
+
+### SQL Manifest and Failure Recovery
+
+`search_vector_chunks` remains the authoritative manifest even when vectors live in an external
+store. Each row records the selected `vector_index`, embedding identity, stable chunk key, and an
+`embedding_status` of `pending` or `ready`.
+
+Writes and deletes commit `pending` before calling the adapter. A successful adapter operation then
+makes the manifest row ready or removes it. Vector writes are generation checked inside built-in
+adapter transactions; extension writes retain the manifest lock across adapter I/O. If the external
+operation fails, the pending row is not searchable and the next sync safely retries the idempotent
+operation. Adapter search results are hydrated only through current, ready manifest rows, so stale
+or orphaned external matches fail closed.
+
+Basic Memory deliberately refuses to mutate manifest rows owned by a different external adapter.
+Before switching `semantic_vector_index`, keep the old adapter configured and use that extension's
+project-scope administrative cleanup to remove the old vectors. Remove the corresponding
+`search_vector_chunks` manifest rows only after the external cleanup succeeds. Then switch the
+configured adapter and run `bm reindex --embeddings` to populate the new store. If configuration
+was switched too early, restore the old adapter first; the ownership check will continue to fail
+closed until cleanup is completed.
