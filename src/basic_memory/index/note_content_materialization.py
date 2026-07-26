@@ -13,7 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory import db, file_utils
 from basic_memory.indexing.index_file_runner import IndexFileExecutor
-from basic_memory.indexing.note_file_delete_runner import run_note_file_delete
+from basic_memory.indexing.note_file_delete_runner import (
+    MoveVacateClearer,
+    RepositoryMoveVacateClearer,
+    run_note_file_delete,
+)
 from basic_memory.indexing.note_materialization_runner import (
     ContentStoreNoteMaterializationFileWriter,
     RepositoryNoteMaterializationPreflight,
@@ -36,11 +40,16 @@ from basic_memory.runtime.note_content import (
     RuntimePendingNoteMaterialization,
     plan_accepted_note_response,
     plan_note_materialization_job_request,
+    read_runtime_file_checksum,
 )
 from basic_memory.runtime.note_materialization import RuntimeFileMetadataSource
 from basic_memory.runtime.storage import RuntimeFileChecksum, RuntimeFilePath
 from basic_memory.models import Entity
 from basic_memory.repository import EntityRepository, NoteContentRepository
+from basic_memory.repository.note_file_vacate_repository import (
+    NoteFileVacateRepository,
+    RecoverableVacate,
+)
 from basic_memory.schemas.response import ObservationResponse, RelationResponse
 from basic_memory.services.file_service import FileService
 
@@ -192,7 +201,10 @@ async def run_recovery_materialization(
         writer=ContentStoreNoteMaterializationFileWriter(storage),
         publisher=RepositoryNoteMaterializationPublisher(session_maker=session_maker),
         status_publisher=RepositoryNoteMaterializationStatusPublisher(session_maker=session_maker),
-        cleanup_enqueuer=InlineNoteFileDeleteEnqueuer(storage),
+        cleanup_enqueuer=InlineNoteFileDeleteEnqueuer(
+            storage,
+            vacate_clearer=RepositoryMoveVacateClearer(session_maker=session_maker),
+        ),
     )
 
 
@@ -254,6 +266,120 @@ async def recover_stuck_materializations(
             continue
         if result.status is RuntimeNoteMaterializationStatus.written:
             recovered += 1
+    return recovered
+
+
+async def _recover_deleted_destination_vacate(
+    vacate: RecoverableVacate,
+    *,
+    project_id: int,
+    storage: "LocalNoteContentStorage",
+    vacate_clearer: MoveVacateClearer,
+) -> None:
+    """Resolve one guarded vacate after its destination entity was deleted."""
+    actual_checksum = await read_runtime_file_checksum(storage, vacate.file_path)
+    if actual_checksum == vacate.file_checksum:
+        await storage.delete_file(vacate.file_path)
+    await vacate_clearer.clear_move_vacate(
+        project_id=project_id,
+        file_path=vacate.file_path,
+        file_checksum=vacate.file_checksum,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class SessionMoveVacateClearer:
+    """Retire a recovery marker in the transaction that locked its current state."""
+
+    session: AsyncSession
+
+    async def clear_move_vacate(
+        self,
+        *,
+        project_id: int,
+        file_path: RuntimeFilePath,
+        file_checksum: RuntimeFileChecksum | None,
+    ) -> None:
+        await NoteFileVacateRepository(project_id).clear_vacate(
+            self.session,
+            file_path=str(file_path),
+            file_checksum=file_checksum,
+        )
+
+
+async def recover_move_vacates(
+    *,
+    session_maker: async_sessionmaker[AsyncSession],
+    file_service: FileService,
+    project_id: int,
+) -> int:
+    """Retry durable move-source cleanup work that an in-process enqueue lost.
+
+    Only checksum-guarded markers with a synchronized or deleted destination are
+    eligible. This keeps the old source intact while destination publication is
+    still pending or failed, then converges it on a later startup after recovery
+    reaches ``synced``.
+    """
+    async with db.scoped_session(session_maker) as session:
+        vacates = await NoteFileVacateRepository(project_id).list_recoverable_vacates(session)
+
+    if not vacates:
+        return 0
+
+    logger.info(
+        "Recovering move-vacate source cleanup",
+        project_id=project_id,
+        vacate_count=len(vacates),
+    )
+    storage = LocalNoteContentStorage(file_service)
+    vacate_repository = NoteFileVacateRepository(project_id)
+    recovered = 0
+    for candidate in vacates:
+        try:
+            async with db.scoped_session(session_maker) as session:
+                vacate = await vacate_repository.lock_recoverable_vacate(
+                    session,
+                    file_path=candidate.file_path,
+                    file_checksum=candidate.file_checksum,
+                )
+                if vacate is None:
+                    continue
+
+                vacate_clearer = SessionMoveVacateClearer(session)
+                if vacate.entity_id is None:
+                    # The destination entity no longer exists, so the queue-neutral
+                    # cleanup request has no valid entity identity. The durable
+                    # marker still carries the checksum needed for the same guarded
+                    # storage delete and marker retirement.
+                    await _recover_deleted_destination_vacate(
+                        vacate,
+                        project_id=project_id,
+                        storage=storage,
+                        vacate_clearer=vacate_clearer,
+                    )
+                else:
+                    await InlineNoteFileDeleteEnqueuer(
+                        storage,
+                        vacate_clearer=vacate_clearer,
+                    ).enqueue_note_file_delete(
+                        RuntimeNoteFileDeleteJobRequest(
+                            project_id=project_id,
+                            entity_id=vacate.entity_id,
+                            file_path=vacate.file_path,
+                            file_checksum=vacate.file_checksum,
+                            live_file_path=vacate.live_file_path,
+                        )
+                    )
+        except Exception:  # pragma: no cover - defensive startup guard
+            # A failed marker stays durable and can be retried on the next startup;
+            # one unavailable path must not block cleanup for the rest of the project.
+            logger.exception(
+                "Failed to recover move-vacate source cleanup",
+                project_id=project_id,
+                file_path=candidate.file_path,
+            )
+            continue
+        recovered += 1
     return recovered
 
 
@@ -401,6 +527,8 @@ class InlineNoteFileDeleteEnqueuer:
     """Execute note-file cleanup immediately in the local runtime."""
 
     storage: LocalNoteContentStorage
+    # Clears the move-vacate marker once a moved note's source object is actually deleted (#1601).
+    vacate_clearer: MoveVacateClearer | None = None
 
     async def enqueue_note_file_delete(self, request: RuntimeNoteFileDeleteJobRequest) -> None:
         # Trigger: a move scheduled old-path cleanup whose old and new paths differ
@@ -422,8 +550,18 @@ class InlineNoteFileDeleteEnqueuer:
                 file_path=request.file_path,
                 live_file_path=request.live_file_path,
             )
+            # No separate source object exists: the old path aliases the live destination, so the
+            # move is already physically complete and its suppression marker must not outlive it.
+            if self.vacate_clearer is not None:
+                await self.vacate_clearer.clear_move_vacate(
+                    project_id=request.project_id,
+                    file_path=request.file_path,
+                    file_checksum=request.file_checksum,
+                )
             return
-        await run_note_file_delete(request, storage=self.storage)
+        await run_note_file_delete(
+            request, storage=self.storage, vacate_clearer=self.vacate_clearer
+        )
 
 
 class RelationResolutionScheduling(Protocol):
@@ -494,7 +632,10 @@ class LocalNoteContentMaterializationProvider:
         if accepted.materialization is None:  # pragma: no cover - guarded by caller
             return accepted
         storage = LocalNoteContentStorage(self.file_service)
-        cleanup_enqueuer = InlineNoteFileDeleteEnqueuer(storage)
+        cleanup_enqueuer = InlineNoteFileDeleteEnqueuer(
+            storage,
+            vacate_clearer=RepositoryMoveVacateClearer(session_maker=self.session_maker),
+        )
         result = await run_note_materialization(
             plan_note_materialization_job_request(accepted.materialization),
             preflight=RepositoryNoteMaterializationPreflight(
@@ -554,7 +695,8 @@ class LocalNoteContentMaterializationProvider:
             return accepted
 
         storage = LocalNoteContentStorage(self.file_service)
-        await InlineNoteFileDeleteEnqueuer(storage).enqueue_note_file_delete(
-            plan_note_file_delete_job_request(accepted.file_delete)
-        )
+        await InlineNoteFileDeleteEnqueuer(
+            storage,
+            vacate_clearer=RepositoryMoveVacateClearer(session_maker=self.session_maker),
+        ).enqueue_note_file_delete(plan_note_file_delete_job_request(accepted.file_delete))
         return accepted
