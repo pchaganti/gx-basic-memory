@@ -6,6 +6,7 @@ The actual repository implementations are backend-specific:
 - PostgresSearchRepository: Uses tsvector/tsquery with GIN indexes
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Callable, List, Optional, Protocol
 
@@ -14,9 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory.config import BasicMemoryConfig, DatabaseBackend
 from basic_memory.repository.embedding_provider_factory import create_embedding_provider
+from basic_memory.repository.rerank_provider_factory import create_rerank_provider
 from basic_memory.repository.postgres_search_repository import PostgresSearchRepository
 from basic_memory.repository.search_index_row import SearchIndexRow
 from basic_memory.repository.search_repository_base import VectorSyncBatchResult
+from basic_memory.repository.semantic_vector_index_factory import (
+    create_semantic_vector_index,
+    resolve_semantic_vector_index_name,
+)
 from basic_memory.repository.sqlite_search_repository import SQLiteSearchRepository
 from basic_memory.schemas.search import SearchItemType, SearchRetrievalMode
 
@@ -96,6 +102,31 @@ class SearchRepository(Protocol):
         """Delete semantic vector chunks and embeddings for one entity."""
         ...
 
+    async def delete_external_entity_vectors(
+        self,
+        session: AsyncSession,
+        entity_ids: Sequence[int],
+    ) -> None:
+        """Delete DB-first entity vectors through an extension adapter."""
+        ...
+
+    async def delete_project_vector_rows(
+        self,
+        *,
+        strict_adapter_cleanup: bool = True,
+        session: AsyncSession | None = None,
+    ) -> None:
+        """Delete all semantic vector chunks and embeddings for this project."""
+        ...
+
+    async def delete_stale_vector_rows(self) -> None:
+        """Delete semantic vectors whose source entities no longer exist."""
+        ...
+
+    async def reconcile_vector_index(self) -> None:
+        """Remove adapter vectors that have no current ready manifest row."""
+        ...
+
     async def sync_entity_vectors_batch(
         self,
         entity_ids: list[int],
@@ -138,8 +169,21 @@ def create_search_repository(
     # Outcome: resolve the cached singleton here once and inject it, so the provider
     # is the single source of truth across all callers of this factory.
     embedding_provider = None
+    vector_index_name = resolve_semantic_vector_index_name(config, database_backend)
+    vector_index = None
+    rerank_provider = None
     if config.semantic_search_enabled:
         embedding_provider = create_embedding_provider(config)
+        vector_index_name, vector_index = create_semantic_vector_index(
+            session_maker=session_maker,
+            project_id=project_id,
+            app_config=config,
+            database_backend=database_backend,
+            embedding_provider=embedding_provider,
+        )
+        # Returns None unless reranking is enabled; resolve the cached singleton
+        # here so both backends share one process-wide reranker model.
+        rerank_provider = create_rerank_provider(config)
 
     if database_backend == DatabaseBackend.POSTGRES:  # pragma: no cover
         return PostgresSearchRepository(  # pragma: no cover
@@ -147,6 +191,9 @@ def create_search_repository(
             project_id=project_id,
             app_config=app_config,
             embedding_provider=embedding_provider,
+            vector_index_name=vector_index_name,
+            vector_index=vector_index,
+            rerank_provider=rerank_provider,
         )
     else:
         return SQLiteSearchRepository(
@@ -154,6 +201,9 @@ def create_search_repository(
             project_id=project_id,
             app_config=app_config,
             embedding_provider=embedding_provider,
+            vector_index_name=vector_index_name,
+            vector_index=vector_index,
+            rerank_provider=rerank_provider,
         )
 
 

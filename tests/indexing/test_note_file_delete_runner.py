@@ -103,3 +103,50 @@ async def test_run_note_file_delete_propagates_delete_failures() -> None:
 
     with pytest.raises(FileOperationError, match="delete failed"):
         await run_note_file_delete(delete_request(), storage=storage)
+
+
+class FakeVacateClearer:
+    def __init__(self) -> None:
+        self.cleared: list[tuple[int, str, str | None]] = []
+
+    async def clear_move_vacate(
+        self, *, project_id: int, file_path: str, file_checksum: str | None
+    ) -> None:
+        self.cleared.append((project_id, file_path, file_checksum))
+
+
+@pytest.mark.asyncio
+async def test_run_note_file_delete_clears_vacate_marker_on_delete() -> None:
+    """When the source object is actually deleted, the move-vacate marker is cleared (#1601)."""
+    storage = FakeNoteFileStorage(checksum="file-sum")
+    clearer = FakeVacateClearer()
+
+    result = await run_note_file_delete(delete_request(), storage=storage, vacate_clearer=clearer)
+
+    assert result.status == RuntimeDeleteStatus.deleted
+    assert clearer.cleared == [(101, "notes/a.md", "file-sum")]
+
+
+@pytest.mark.asyncio
+async def test_run_note_file_delete_clears_marker_after_source_replacement() -> None:
+    """A guarded replacement proves the moved source object no longer needs suppression."""
+    storage = FakeNoteFileStorage(checksum="changed-on-disk")  # != request checksum -> skip
+    clearer = FakeVacateClearer()
+
+    result = await run_note_file_delete(delete_request(), storage=storage, vacate_clearer=clearer)
+
+    assert result.status == RuntimeDeleteStatus.skipped
+    assert storage.delete_calls == []
+    assert clearer.cleared == [(101, "notes/a.md", "file-sum")]
+
+
+@pytest.mark.asyncio
+async def test_run_note_file_delete_clears_marker_when_source_already_absent() -> None:
+    """If the source is already gone (missing), still clear the marker (#1601 P2)."""
+    storage = FakeNoteFileStorage(checksum=None)  # object already absent -> missing
+    clearer = FakeVacateClearer()
+
+    result = await run_note_file_delete(delete_request(), storage=storage, vacate_clearer=clearer)
+
+    assert result.status == RuntimeDeleteStatus.missing
+    assert clearer.cleared == [(101, "notes/a.md", "file-sum")]

@@ -13,7 +13,7 @@ from basic_memory.runtime.note_content_deletes import (
     RuntimeDeletedNoteResponse,
     RuntimeMaterializedNoteSource,
     RuntimePendingNoteFileDelete,
-    plan_previous_materialized_note_file_delete,
+    plan_previous_note_file_delete,
     select_deleted_note_file_checksum,
 )
 from basic_memory.runtime.note_content_responses import (
@@ -33,6 +33,7 @@ from basic_memory.runtime.storage import (
     NoteExternalId,
     ProjectId,
     RuntimeEntityId,
+    RuntimeFileChecksum,
     RuntimeFilePath,
     RuntimeIntegrityErrorMessage,
     RuntimeNoteActorKind,
@@ -65,6 +66,16 @@ class RuntimeAcceptedNoteContentWriteSource(
 ):
     """Minimal note_content row shape needed to plan accepted writes."""
 
+    @property
+    def db_checksum(self) -> RuntimeFileChecksum:
+        """Return the accepted checksum that identifies the source bytes."""
+
+    @property
+    def file_version(self) -> RuntimeNoteContentVersion | None: ...
+
+    @property
+    def file_write_status(self) -> str: ...
+
 
 class RuntimeAcceptedNoteWriteContentSource(
     RuntimeNoteContentStateSource,
@@ -81,6 +92,48 @@ def next_runtime_note_content_version(
     if current_note_content is None:
         return 1
     return int(current_note_content.db_version) + 1
+
+
+def select_accepted_note_source_checksum(
+    current_note_content: RuntimeAcceptedNoteContentWriteSource,
+    *,
+    observed_file_checksum: RuntimeFileChecksum | None = None,
+) -> RuntimeFileChecksum | None:
+    """Select the checksum for source bytes vacated by an accepted path change.
+
+    ``accept_write`` deliberately preserves the previously published file fields while the next
+    DB version is pending. During ``pending``, ``writing``, ``failed``, or
+    ``external_change_detected``, storage may contain either known version or unrelated bytes. A
+    live checksum matching either known version resolves that ambiguity. An absent or unexpected
+    object proves neither version owns the path, so cleanup must remain unclaimed. A synchronized
+    file version identifies the expected checksum, but storage observation still proves that those
+    bytes exist at the source path before cleanup ownership is recorded.
+    """
+    if current_note_content.file_write_status in {
+        "pending",
+        "writing",
+        "failed",
+        "external_change_detected",
+    }:
+        if observed_file_checksum in {
+            current_note_content.db_checksum,
+            current_note_content.file_checksum,
+        }:
+            return observed_file_checksum
+        return None
+
+    file_version_is_current = (
+        current_note_content.file_write_status == "synced"
+        and current_note_content.file_version is not None
+        and int(current_note_content.file_version) == int(current_note_content.db_version)
+    )
+    if (
+        file_version_is_current
+        and current_note_content.file_checksum is not None
+        and observed_file_checksum == current_note_content.file_checksum
+    ):
+        return observed_file_checksum
+    return None
 
 
 def accepted_note_file_path_conflicts(
@@ -128,16 +181,25 @@ def plan_accepted_note_content_write(
     accepted_file_path: RuntimeFilePath,
     current_note_content: RuntimeAcceptedNoteContentWriteSource | None = None,
     existing_file_path: RuntimeFilePath | None = None,
+    source_file_checksum: RuntimeFileChecksum | None = None,
 ) -> RuntimeAcceptedNoteContentWritePlan:
     """Plan accepted DB versioning and old-file cleanup for a note_content write."""
+    source_checksum = (
+        select_accepted_note_source_checksum(
+            current_note_content,
+            observed_file_checksum=source_file_checksum,
+        )
+        if current_note_content is not None
+        else None
+    )
     return RuntimeAcceptedNoteContentWritePlan(
         db_version=next_runtime_note_content_version(current_note_content),
-        previous_file_delete=plan_previous_materialized_note_file_delete(
+        previous_file_delete=plan_previous_note_file_delete(
             project_id=project_id,
             entity_id=entity_id,
             existing_file_path=existing_file_path,
             accepted_file_path=accepted_file_path,
-            current_note_content=current_note_content,
+            file_checksum=source_checksum,
         ),
     )
 

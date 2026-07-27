@@ -31,6 +31,7 @@ from basic_memory.indexing.accepted_note_write_runner import (
 )
 from basic_memory.models import Entity, NoteContent, Project
 from basic_memory.repository import NoteContentVersionConflict
+from basic_memory.repository.note_file_vacate_repository import NoteFileVacateRepository
 from basic_memory.services.exceptions import EntityAlreadyExistsError
 from basic_memory.runtime.note_content import (
     RuntimeAcceptedNoteChange,
@@ -39,6 +40,7 @@ from basic_memory.runtime.note_content import (
     accepted_note_file_path_conflicts,
     classify_accepted_note_write_conflict,
     plan_accepted_note_write_change,
+    select_accepted_note_source_checksum,
 )
 from basic_memory.runtime.note_move import normalize_note_move_destination_path
 from basic_memory.runtime.note_object_metadata import NOTE_SOURCE_COLLABORATION_RELAY
@@ -46,6 +48,7 @@ from basic_memory.runtime.storage import (
     NoteExternalId,
     ProjectExternalId,
     ProjectId,
+    RuntimeFileChecksum,
     RuntimeFilePath,
     RuntimeNoteActorKind,
     RuntimeNoteActorName,
@@ -262,6 +265,12 @@ class AcceptedNoteMutationPreparerFactory(Protocol):
 
     def create_note_preparer(self, project: Project) -> AcceptedNoteMutationPreparer: ...
 
+    async def load_current_file_checksum(
+        self,
+        project: Project,
+        file_path: RuntimeFilePath,
+    ) -> RuntimeFileChecksum | None: ...
+
 
 class AcceptedNoteMutationRepositories(Protocol):
     """Repository lookup capability set for accepted-note mutation orchestration."""
@@ -339,6 +348,24 @@ def reject_stale_base_checksum(current_db_checksum: str | None) -> NoReturn:
             kind=AcceptedNoteMutationRejectKind.conflict,
             detail=AcceptedNoteBaseChecksumConflict(db_checksum=current_db_checksum),
         )
+    )
+
+
+async def resolve_accepted_note_source_checksum(
+    *,
+    project: Project,
+    file_path: RuntimeFilePath,
+    current_note_content: NoteContent,
+    preparer_factory: AcceptedNoteMutationPreparerFactory,
+) -> RuntimeFileChecksum | None:
+    """Resolve source bytes only when current storage proves ownership."""
+    observed_file_checksum = await preparer_factory.load_current_file_checksum(
+        project,
+        file_path,
+    )
+    return select_accepted_note_source_checksum(
+        current_note_content,
+        observed_file_checksum=observed_file_checksum,
     )
 
 
@@ -533,6 +560,7 @@ async def _run_accepted_note_update(
     )
     created = entity is None
     existing_file_path = entity.file_path if entity is not None else None
+    vacated_source: tuple[RuntimeFilePath, RuntimeFileChecksum | None] | None = None
 
     await reject_conflicting_accepted_note_file_path(
         session,
@@ -596,6 +624,19 @@ async def _run_accepted_note_update(
             dependencies=dependencies,
             missing_kind=AcceptedNoteMutationRejectKind.conflict,
         )
+        # A PUT replacement may also rename the note. Capture the exact source bytes before
+        # persistence mutates the entity and note_content to the destination version so delayed
+        # cleanup cannot let a later project index recreate the old path as a ghost.
+        if request.data.file_path != entity.file_path:
+            vacated_source = (
+                entity.file_path,
+                await resolve_accepted_note_source_checksum(
+                    project=project,
+                    file_path=entity.file_path,
+                    current_note_content=current_note_content,
+                    preparer_factory=dependencies.preparer_factory,
+                ),
+            )
         # Optimistic-concurrency precondition: the caller sent the db_checksum it
         # last synced; if the accepted row has advanced to a different write,
         # reject with the current checksum so the client rebases instead of
@@ -631,9 +672,7 @@ async def _run_accepted_note_update(
                 or current_head_in_storage
             )
             if not relay_supersede:
-                reject_stale_base_checksum(
-                    current_db_checksum=current_note_content.db_checksum
-                )
+                reject_stale_base_checksum(current_db_checksum=current_note_content.db_checksum)
         try:
             prepared_write = await prepare_accepted_note_replace(
                 preparer,
@@ -658,8 +697,20 @@ async def _run_accepted_note_update(
         current_note_content=current_note_content,
         existing_file_path=existing_file_path,
         accepted_file_path=entity.file_path,
+        source_file_checksum=vacated_source[1] if vacated_source is not None else None,
         repositories=dependencies.write_repositories,
     )
+    if (
+        vacated_source is not None
+        and vacated_source[1] is not None
+        and entity.file_path != vacated_source[0]
+    ):
+        await NoteFileVacateRepository(project.id).record_vacate(
+            session,
+            entity_id=entity.id,
+            file_path=vacated_source[0],
+            file_checksum=vacated_source[1],
+        )
     return plan_accepted_note_write_change(
         status_code=201 if created else 200,
         entity=entity,
@@ -763,6 +814,17 @@ async def _run_accepted_note_move(
             "Source and destination paths are the same.",
         )
 
+    # Capture the source checksum before persisting the move mutates note_content to the
+    # destination version. Observe storage for every publication state: even a synchronized DB
+    # row can outlive a locally deleted source, and stale DB state must not authorize cleanup of a
+    # byte-identical file recreated at that path later.
+    vacated_source_checksum = await resolve_accepted_note_source_checksum(
+        project=project,
+        file_path=existing_file_path,
+        current_note_content=current_note_content,
+        preparer_factory=dependencies.preparer_factory,
+    )
+
     await reject_conflicting_accepted_note_file_path(
         session,
         project_id=project.id,
@@ -804,8 +866,20 @@ async def _run_accepted_note_move(
         updated_at=now,
         current_note_content=current_note_content,
         existing_file_path=existing_file_path,
+        source_file_checksum=vacated_source_checksum,
         repositories=dependencies.write_repositories,
     )
+    # Trigger: storage confirms which source bytes this move vacated.
+    # Why: an absent source is not evidence that the accepted DB checksum owns that path; recording
+    # it could let delayed cleanup delete a legitimate byte-identical file created there later.
+    # Outcome: only confirmed source objects receive the durable orphan gate and guarded cleanup.
+    if vacated_source_checksum is not None:
+        await NoteFileVacateRepository(project.id).record_vacate(
+            session,
+            entity_id=entity.id,
+            file_path=existing_file_path,
+            file_checksum=vacated_source_checksum,
+        )
     return plan_accepted_note_write_change(
         status_code=200,
         entity=entity,

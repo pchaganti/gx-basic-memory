@@ -45,8 +45,11 @@ from basic_memory.indexing.file_batch_runner import (
 from basic_memory.indexing.file_index_checking import (
     FileIndexChecker,
     RepositoryIndexedFileChecksumSource,
+    RepositoryMovedEntitySource,
+    RepositoryMoveVacateSource,
     StorageCurrentFileChecksumSource,
 )
+from basic_memory.repository.note_file_vacate_repository import NoteFileVacateRepository
 from basic_memory.indexing.models import (
     IndexFileBatchJobResult,
     IndexFileJobResult,
@@ -588,10 +591,19 @@ class LocalProjectIndexRuntimeFactory:
             current_checksum_source=StorageCurrentFileChecksumSource(
                 metadata_source=metadata_source,
             ),
+            moved_entity_source=RepositoryMovedEntitySource(
+                session_maker=dependencies.session_maker,
+                entity_repository=dependencies.entity_repository,
+            ),
+            move_vacate_source=RepositoryMoveVacateSource(
+                session_maker=dependencies.session_maker,
+                vacate_repository=NoteFileVacateRepository(dependencies.project_id),
+            ),
         )
         maintenance_store = RepositoryProjectIndexMaintenanceStore(
             session_maker=dependencies.session_maker,
             project_id=dependencies.project_id,
+            external_vector_cleaner=dependencies.external_vector_cleaner,
             move_content_updater=LocalProjectIndexMoveContentUpdater(
                 entity_service=dependencies.entity_service,
                 file_service=dependencies.file_service,

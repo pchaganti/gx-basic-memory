@@ -20,6 +20,13 @@ Semantic search dependencies (fastembed, sqlite-vec, openai) are included in the
 pip install basic-memory
 ```
 
+Milvus support is a first-party optional extra, so its heavier client dependencies are installed
+only when requested:
+
+```bash
+pip install "basic-memory[milvus]"
+```
+
 You can always override with `BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED=true|false`.
 
 ### Platform Compatibility
@@ -99,6 +106,12 @@ All settings are fields on `BasicMemoryConfig` and can be set via environment va
 | Config Field | Env Var | Default | Description |
 |---|---|---|---|
 | `semantic_search_enabled` | `BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED` | Auto (`true` when semantic deps are available) | Enable semantic search. Required before vector/hybrid modes work. |
+| `semantic_vector_index` | `BASIC_MEMORY_SEMANTIC_VECTOR_INDEX` | `"pgvector"` | Postgres vector storage adapter. `"pgvector"` is built in, `"milvus"` is available through the `basic-memory[milvus]` extra, and other names resolve through the `basic_memory.semantic_vector_indexes` Python entry-point group. SQLite always uses its built-in `sqlite-vec` adapter. |
+| `milvus_uri` | `BASIC_MEMORY_MILVUS_URI` | Unset | Milvus, Milvus Lite, or Zilliz Cloud connection URI. Required when `semantic_vector_index="milvus"`. |
+| `milvus_token` | `BASIC_MEMORY_MILVUS_TOKEN` | Unset | Optional Milvus or Zilliz Cloud authentication token. |
+| `milvus_timeout_seconds` | `BASIC_MEMORY_MILVUS_TIMEOUT_SECONDS` | `30.0` | Finite per-operation timeout for Milvus and Zilliz client calls. Increase it for unusually slow deployments. |
+| `milvus_collection_prefix` | `BASIC_MEMORY_MILVUS_COLLECTION_PREFIX` | `"basic_memory"` | Prefix for deterministic project-isolated Milvus collections. |
+| `milvus_database` | `BASIC_MEMORY_MILVUS_DATABASE` | `"default"` | Milvus database name. |
 | `semantic_embedding_provider` | `BASIC_MEMORY_SEMANTIC_EMBEDDING_PROVIDER` | `"fastembed"` | Embedding provider: `"fastembed"` (local), `"openai"` (API), or `"litellm"` (multi-provider API, **experimental** — advanced users only). |
 | `semantic_embedding_model` | `BASIC_MEMORY_SEMANTIC_EMBEDDING_MODEL` | `"bge-small-en-v1.5"` | Model identifier. Auto-adjusted per provider if left at default. |
 | `semantic_embedding_api_base` | `BASIC_MEMORY_SEMANTIC_EMBEDDING_API_BASE` | Unset | Optional custom endpoint for the LiteLLM provider, including local or self-hosted OpenAI-compatible servers. |
@@ -322,6 +335,117 @@ Score-based fusion uses the formula `max(vec, fts) + bonus * min(vec, fts)` to p
 | `vector` | Conceptual queries, paraphrase matching, exploratory searches |
 | `hybrid` | General-purpose search combining precision and recall |
 
+## Cross-Encoder Reranking
+
+Reranking is an optional second stage for vector and hybrid search. Initial
+retrieval finds a candidate pool efficiently; a cross-encoder then reads each
+query and candidate together and replaces the leading candidates' scores with
+more precise relevance scores.
+
+Reranking is disabled by default. It requires semantic search and does not
+change `text`, `title`, or `permalink` search behavior.
+
+### Quick Start
+
+Use the default local FastEmbed provider:
+
+```bash
+export BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED=true
+export BASIC_MEMORY_RERANKER_ENABLED=true
+```
+
+The first reranked search downloads the model when it is not already cached,
+then loads `jinaai/jina-reranker-v1-tiny-en`. Later searches reuse the
+process-wide model instance and cache.
+
+To use a hosted reranker through LiteLLM:
+
+```bash
+export BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED=true
+export BASIC_MEMORY_RERANKER_ENABLED=true
+export BASIC_MEMORY_RERANKER_PROVIDER=litellm
+export BASIC_MEMORY_RERANKER_MODEL=cohere/rerank-v3.5
+export COHERE_API_KEY=...
+```
+
+LiteLLM model names must use explicit `provider/model` routing. Standard
+provider environment variables, such as `COHERE_API_KEY`, work normally. You
+can instead set `BASIC_MEMORY_RERANKER_API_KEY` to pass a credential directly
+to LiteLLM.
+
+### Providers
+
+| Provider | Runs | Default model | Tradeoff |
+|---|---|---|---|
+| `fastembed` | Locally with ONNX | `jinaai/jina-reranker-v1-tiny-en` | No API key or per-query cost; downloads a model on first use and adds local inference latency. |
+| `litellm` | Hosted or self-hosted API | No implicit hosted default | Supports LiteLLM rerank providers such as Cohere, Jina, and Voyage; adds network latency, provider cost, and credential requirements. |
+
+### Configuration Reference
+
+All settings use the `BASIC_MEMORY_` environment prefix:
+
+| Config Field | Environment Variable | Default | Description |
+|---|---|---|---|
+| `reranker_enabled` | `BASIC_MEMORY_RERANKER_ENABLED` | `false` | Enable reranking for vector and hybrid search. Requires semantic search. |
+| `reranker_provider` | `BASIC_MEMORY_RERANKER_PROVIDER` | `fastembed` | `fastembed` for a local ONNX cross-encoder or `litellm` for an API provider. |
+| `reranker_model` | `BASIC_MEMORY_RERANKER_MODEL` | `jinaai/jina-reranker-v1-tiny-en` | Model identifier. LiteLLM requires explicit `provider/model` routing. |
+| `reranker_candidates` | `BASIC_MEMORY_RERANKER_CANDIDATES` | `20` | Number of leading retrieval results rescored on every page. Larger values can improve recall but increase latency and provider usage. |
+| `reranker_max_document_chars` | `BASIC_MEMORY_RERANKER_MAX_DOCUMENT_CHARS` | `0` | Maximum characters sent per candidate. `0` sends the full matched text; a positive cap bounds latency and request size. |
+| `reranker_api_base` | `BASIC_MEMORY_RERANKER_API_BASE` | Unset | Optional custom endpoint for the LiteLLM provider. |
+| `reranker_api_key` | `BASIC_MEMORY_RERANKER_API_KEY` | Unset | Optional credential passed directly to LiteLLM. When unset, LiteLLM resolves provider credentials from its normal environment variables. |
+
+Configuration is validated at startup. Basic Memory rejects unsupported
+providers, blank models, unavailable FastEmbed models or dependencies, a
+LiteLLM model without a provider prefix, and reranking without semantic search.
+
+### Ranking and Pagination Behavior
+
+- Basic Memory reranks the same fixed leading candidate window on every
+  non-empty page. Results outside that window retain retrieval order and are
+  calibrated at or below the reranked floor. When that floor is zero, stable
+  prefix-before-tail ordering breaks the tie.
+- The matched chunk is placed before optional title context in the reranker
+  document. A positive document-character cap therefore preserves the passage
+  that caused the retrieval match.
+- Reranker scores replace retrieval scores for the reranked prefix and remain
+  within the public `[0, 1]` search score range.
+- Multi-project MCP search reranks inside each project's search service, then
+  merges the returned project-owned scores. It does not perform a second global
+  rerank in the MCP process.
+
+These rules keep independently fetched pages stable while still allowing
+larger requests to expand the untouched retrieval tail.
+
+### Failure Behavior
+
+An enabled reranker is part of the requested ranking contract, so Basic Memory
+does not silently return retrieval order when it fails:
+
+- Temporary provider, rate-limit, connection, timeout, or first-download
+  failures return HTTP 503. Retry the search after the provider recovers.
+- Malformed or incomplete provider responses return HTTP 502.
+- Authentication, model, dependency, and permanent configuration failures
+  surface directly instead of being treated as transient.
+- In multi-project search, a retryable failure from any project aborts the
+  aggregate page instead of returning a partial result set whose ordering could
+  change on retry.
+
+### Tuning
+
+Start with the defaults, then tune only if measurements justify it:
+
+- Increase `reranker_candidates` when relevant results enter the retrieval set
+  but remain outside the desired cutoff. This increases local inference time or
+  hosted provider usage.
+- Set `reranker_max_document_chars` to a positive value such as `1000` to
+  bound latency and hosted request size for long notes. The matched chunk comes
+  first, so a modest cap retains the strongest retrieval signal.
+- Keep reranking disabled when retrieval latency matters more than the
+  additional ranking pass.
+
+Changing reranker providers, models, candidate counts, or document caps does
+not change stored embeddings, so it does not require `bm reindex --embeddings`.
+
 ## The Reindex Command
 
 The `bm reindex` command rebuilds search indexes without dropping the database.
@@ -349,6 +473,7 @@ bm reindex -p my-project
 - **Dimension change**: After changing `semantic_embedding_dimensions`
 - **LiteLLM role change**: After changing `semantic_embedding_document_input_type` or `semantic_embedding_query_input_type`
 - **Literal prefix change**: After changing `semantic_embedding_document_prefix` or `semantic_embedding_query_prefix`
+- **Vector index change**: After completing the external-adapter cleanup procedure below and changing `semantic_vector_index`
 
 The reindex command shows progress with embedded/skipped/error counts:
 
@@ -398,17 +523,143 @@ Vector and hybrid modes return individual observations and relations as first-cl
 
 - **Vector storage**: [sqlite-vec](https://github.com/asg017/sqlite-vec) virtual table
 - **Table creation**: At runtime when semantic search is first used — no migration needed
-- **Embedding table**: `search_vector_embeddings` using `vec0(embedding float[N])` where N is the configured dimensions
+- **Embedding table**: `search_vector_embeddings` using `vec0(embedding float[N], +source_hash text)` where N is the configured dimensions
 - **Chunk metadata**: `search_vector_chunks` table stores chunk text, keys, and source hashes
 
 The sqlite-vec extension is loaded per-connection. Vector tables are created lazily on first use.
 
 ### Postgres (cloud)
 
-- **Vector storage**: [pgvector](https://github.com/pgvector/pgvector) with HNSW indexing
+- **Default vector storage**: [pgvector](https://github.com/pgvector/pgvector) with HNSW indexing
 - **Local Docker**: use `docker-compose-postgres.yml` (`pgvector/pgvector:pg17`). Plain `postgres:17` lacks the extension; run `CREATE EXTENSION IF NOT EXISTS vector;` on any external instance before first migration.
 - **Chunk metadata table**: Created via Alembic migration (`search_vector_chunks` with `BIGSERIAL` primary key)
 - **Embedding table**: `search_vector_embeddings` created at runtime (dimension-dependent, same pattern as SQLite)
 - **Index**: HNSW index on the embedding column for fast approximate nearest-neighbour queries
 
 The Alembic migration creates the dimension-independent chunks table. The embeddings table and HNSW index are deferred to runtime because they depend on the configured vector dimensions.
+
+## Milvus and Pluggable Vector Indexes
+
+Postgres deployments can replace pgvector storage and nearest-neighbour lookup without
+replacing Basic Memory's SQL repositories or embedding providers. Milvus is the first-party
+optional provider:
+
+```bash
+pip install "basic-memory[milvus]"
+```
+
+```bash
+export BASIC_MEMORY_SEMANTIC_VECTOR_INDEX=milvus
+export BASIC_MEMORY_MILVUS_URI=http://localhost:19530
+export BASIC_MEMORY_MILVUS_TOKEN=root:Milvus  # optional
+export BASIC_MEMORY_MILVUS_TIMEOUT_SECONDS=30
+```
+
+Zilliz Cloud uses the same URI and token settings. On macOS or Linux, the optional extra also
+includes Milvus Lite; set `BASIC_MEMORY_MILVUS_URI` to a local `.db` path. Milvus Lite does not
+support Windows, but Windows installations can connect to Milvus Standalone, Milvus Distributed,
+or Zilliz Cloud.
+
+Basic Memory applies the configured finite timeout to every remote Milvus operation. Cancellation
+waits for the active client call to terminate before releasing the project's SQL mutation lock,
+preventing stale writes without letting a half-open connection block the project indefinitely.
+Collections and repository reads use strong consistency so a search through a fresh client
+observes writes already marked ready in Basic Memory's SQL manifest.
+
+Each project receives one deterministic collection derived from the stable database namespace
+and project ID. Collection identity deliberately excludes the embedding model and dimensions. If
+an existing collection uses another dimension or an incompatible schema, Basic Memory preserves
+it and fails initialization instead of deleting shared vectors during a rolling deployment.
+Coordinate the exact collection migration, then run `bm reindex --embeddings`.
+
+Other provider names still resolve through the extension entry-point contract. A configured
+extension that is missing, duplicated, invalid, or returns an incompatible adapter fails
+explicitly at startup. Basic Memory does not silently fall back to pgvector, because doing so
+would split vectors across stores while appearing healthy.
+
+SQLite remains automatic in this version: local SQLite databases always select `sqlite-vec`, even
+if `semantic_vector_index` is set. The selector controls Postgres-backed runtimes only.
+
+### Extension Package Contract
+
+A separately distributed package registers one factory under the
+`basic_memory.semantic_vector_indexes` entry-point group:
+
+```toml
+[project.entry-points."basic_memory.semantic_vector_indexes"]
+qdrant = "acme_basic_memory_qdrant:create_index"
+```
+
+The factory receives an explicit scope and the validated Basic Memory configuration:
+
+```python
+from basic_memory.config import BasicMemoryConfig
+from basic_memory.repository.semantic_vector_index import (
+    SemanticVectorIndex,
+    VectorIndexScope,
+)
+
+
+def create_index(
+    *,
+    scope: VectorIndexScope,
+    app_config: BasicMemoryConfig,
+) -> SemanticVectorIndex:
+    ...
+```
+
+`VectorIndexScope` contains a stable, credential-free database namespace, project ID, embedding
+identity, and vector dimensions. Extensions must isolate physical storage by
+`scope.storage_key`, which contains only the stable database namespace and project ID.
+`embedding_identity` and `dimensions` describe the current vector schema for validation and
+initialization; adapters must not use those mutable fields to create a second unreachable
+project collection when the embedding configuration changes. Extensions own their client
+lifecycle, credentials, collection/index creation, vector persistence, and nearest-neighbour
+implementation.
+
+The returned `SemanticVectorIndex` has five asynchronous operations:
+
+- `initialize()` validates or creates backend storage.
+- `upsert(records)` idempotently writes vectors by `(entity_id, chunk_key)` for each record's
+  `source_hash` generation.
+- `delete(records)` removes stable keys only for each record's `source_hash` generation; stale or
+  missing records are successful no-ops.
+- `delete_entity(entity_id)` removes all vectors for one entity in the scope.
+- `search(query, limit)` returns stable keys with normalized cosine similarity in `[0, 1]`.
+
+The adapter never receives a SQLAlchemy session and never calls the embedding provider. Basic
+Memory owns chunking and embedding, while the extension owns vector storage and lookup.
+The built-in pgvector and sqlite-vec adapters additionally remove each pending SQL manifest row in
+the same database transaction as its vector so no newer generation can enter between those steps.
+Each `VectorRecord` and `VectorDeletion` carries the SHA-256 source generation that produced its
+value. Basic Memory holds the matching SQL manifest locked across extension adapter I/O and the
+ready-state transition or deletion (`FOR UPDATE` on Postgres and a conditional write lock on
+SQLite), so an older overlapping sync cannot overwrite or remove a newer generation under the same
+stable adapter key.
+
+Adapters may also implement the separate `SemanticVectorIndexReconciler` capability. After a
+vector reindex, Basic Memory passes it the complete set of current ready keys so the adapter can
+delete scoped external orphans. Keeping reconciliation separate preserves the narrow required
+storage protocol while allowing external stores to reclaim records left by interrupted deletes or
+ready-state commits.
+
+### SQL Manifest and Failure Recovery
+
+`search_vector_chunks` remains the authoritative manifest even when vectors live in an external
+store. Each row records the selected `vector_index`, embedding identity, stable chunk key, and an
+`embedding_status` of `pending` or `ready`.
+
+Writes and deletes commit `pending` before calling the adapter. A successful adapter operation then
+makes the manifest row ready or removes it. Vector writes are generation checked inside built-in
+adapter transactions; extension writes retain the manifest lock across adapter I/O. If the external
+operation fails, the pending row is not searchable and the next sync safely retries the idempotent
+operation. Adapter search results are hydrated only through current, ready manifest rows, so stale
+or orphaned external matches fail closed.
+
+Basic Memory deliberately refuses to mutate manifest rows owned by a different external adapter.
+Before switching `semantic_vector_index`, keep the old adapter configured and use that extension's
+project-scope administrative cleanup to remove the old vectors. Remove the corresponding
+`search_vector_chunks` manifest rows only after the external cleanup succeeds. Then switch the
+configured adapter and run `bm reindex --embeddings` to populate the new store. If configuration
+was switched too early, restore the old adapter first; the ownership check will continue to fail
+closed until cleanup is completed.

@@ -239,6 +239,43 @@ def test_config_get_never_prints_cloud_api_key(runner, write_config):
     assert "cloud_api_key = ********" in result.output
 
 
+def test_config_get_never_prints_reranker_api_key(runner, write_config):
+    write_config(_base_config(reranker_api_key="reranker-super-secret"))
+
+    result = runner.invoke(app, ["config", "get", "reranker_api_key"])
+
+    assert result.exit_code == 0, result.output
+    assert "reranker-super-secret" not in result.output
+    assert "reranker_api_key = ********" in result.output
+
+
+def test_config_get_never_prints_milvus_token(runner, write_config):
+    write_config(_base_config(milvus_token="milvus-super-secret"))
+
+    result = runner.invoke(app, ["config", "get", "milvus_token"])
+
+    assert result.exit_code == 0, result.output
+    assert "milvus-super-secret" not in result.output
+    assert "milvus_token = ********" in result.output
+
+
+def test_config_get_masks_milvus_uri_credentials(runner, write_config):
+    write_config(
+        _base_config(
+            milvus_uri=(
+                "https://provider-user:provider-password@milvus.example.com"
+                "?token=query-secret&timeout=30"
+            )
+        )
+    )
+
+    result = runner.invoke(app, ["config", "get", "milvus_uri"])
+
+    assert result.exit_code == 0, result.output
+    masked_url = result.output.split("milvus_uri = ", 1)[1].strip()
+    assert masked_url == "https://***@milvus.example.com?token=%2A%2A%2A&timeout=30"
+
+
 def test_config_list_never_prints_cloud_api_key(runner, write_config):
     write_config(_base_config(cloud_api_key="bmc_super_secret_token"))
 
@@ -248,6 +285,59 @@ def test_config_list_never_prints_cloud_api_key(runner, write_config):
     assert "bmc_super_secret_token" not in result.output
     rows = {row["key"]: row for row in json.loads(result.output)}
     assert rows["cloud_api_key"]["value"] == "********"
+
+
+def test_config_list_never_prints_milvus_token(runner, write_config):
+    write_config(_base_config(milvus_token="milvus-super-secret"))
+
+    result = runner.invoke(app, ["config", "list", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert "milvus-super-secret" not in result.output
+    rows = {row["key"]: row for row in json.loads(result.output)}
+    assert rows["milvus_token"]["value"] == "********"
+
+
+def test_config_list_redacts_reranker_credentials(runner, write_config):
+    write_config(
+        _base_config(
+            reranker_api_key="reranker-super-secret",
+            reranker_api_base=(
+                "https://provider-user:provider-password@reranker.example.com/v1"
+                "?api_key=query-secret&timeout=30"
+            ),
+        )
+    )
+
+    result = runner.invoke(app, ["config", "list", "--json"])
+
+    assert result.exit_code == 0, result.output
+    for secret in (
+        "reranker-super-secret",
+        "provider-user",
+        "provider-password",
+        "query-secret",
+    ):
+        assert secret not in result.output
+    rows = {row["key"]: row for row in json.loads(result.output)}
+    assert rows["reranker_api_key"]["value"] == "********"
+    assert rows["reranker_api_base"]["value"] == (
+        "https://***@reranker.example.com/v1?api_key=%2A%2A%2A&timeout=30"
+    )
+
+
+def test_config_set_never_prints_reranker_api_key(runner, write_config):
+    config_file = write_config(_base_config())
+
+    result = runner.invoke(
+        app,
+        ["config", "set", "reranker_api_key", "reranker-super-secret"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "reranker-super-secret" not in result.output
+    assert "reranker_api_key = ********" in result.output
+    assert json.loads(config_file.read_text())["reranker_api_key"] == "reranker-super-secret"
 
 
 def test_config_get_masks_database_url_credentials(runner, write_config):

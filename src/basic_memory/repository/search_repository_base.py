@@ -1,8 +1,9 @@
 """Abstract base class for search repository implementations."""
 
+import hashlib
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import datetime
@@ -10,7 +11,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import logfire as logfire
 from loguru import logger
-from sqlalchemy import Executable, Result, text
+from sqlalchemy import Executable, Result, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory import db
@@ -18,6 +19,12 @@ from basic_memory.repository import semantic_vector_sync
 from basic_memory.repository.embedding_provider import (
     EmbeddingProvider,
     embedding_provider_identity,
+)
+from basic_memory.repository.rerank_provider import (
+    RerankProvider,
+    build_rerank_document,
+    demote_tail_scores,
+    validate_rerank_scores,
 )
 from basic_memory.repository.search_index_row import SearchIndexRow
 from basic_memory.repository.semantic_chunking import (
@@ -30,12 +37,22 @@ from basic_memory.repository.semantic_chunking import (
 from basic_memory.repository.semantic_errors import (
     SemanticDependenciesMissingError,
     SemanticSearchDisabledError,
+    SemanticVectorIndexExtensionError,
+)
+from basic_memory.repository.semantic_vector_index import (
+    SemanticVectorIndex,
+    SemanticVectorIndexReconciler,
+    VectorDeletion,
+    VectorKey,
+    VectorMatch,
+    VectorRecord,
 )
 from basic_memory.repository.semantic_vector_sync import (
     EntitySyncRuntime as _EntitySyncRuntime,
     EntityVectorShardPlan as _EntityVectorShardPlan,
     PendingEmbeddingJob as _PendingEmbeddingJob,
     PreparedEntityVectorSync as _PreparedEntityVectorSync,
+    StagedVectorDeletion as _StagedVectorDeletion,
     VectorChunkState,
     VectorSyncBatchResult,
 )
@@ -44,12 +61,18 @@ from basic_memory.schemas.search import SearchItemType, SearchRetrievalMode
 # --- Semantic search constants ---
 
 VECTOR_FILTER_SCAN_LIMIT = 50000
+VECTOR_HYDRATION_BATCH_SIZE = 250
+# Over-fetch factor for the rerank candidate chunk pool: chunks collapse to unique
+# (type, id) rows before reranking, so fetch several times reranker_candidates chunks
+# to keep enough unique documents in the rerank window.
+RERANK_POOL_CHUNK_FANOUT = 4
 FUSION_BONUS = 0.3
 FTS_GATE_THRESHOLD = 0.0
 TOP_CHUNKS_PER_RESULT = 5
 SMALL_NOTE_CONTENT_LIMIT = 2000
 OVERSIZED_ENTITY_VECTOR_SHARD_SIZE = semantic_vector_sync.OVERSIZED_ENTITY_VECTOR_SHARD_SIZE
 _SQLITE_MAX_PREPARE_WINDOW = semantic_vector_sync.SQLITE_MAX_PREPARE_WINDOW
+_BUILT_IN_VECTOR_INDEX_NAMES = frozenset({"pgvector", "sqlite-vec"})
 
 # Entity, observation, and relation rows in search_index carry ids from independent
 # auto-increment sequences, so a bare id is ambiguous across row types. Every map in
@@ -76,9 +99,16 @@ class SearchRepositoryBase(ABC):
     _semantic_vector_k: int
     _semantic_min_similarity: float
     _embedding_provider: Optional[EmbeddingProvider]
+    # Class-level defaults: a repo with no reranker configured (or a lightweight
+    # test double that bypasses __init__) safely skips reranking.
+    _rerank_provider: Optional[RerankProvider] = None
+    _reranker_candidates: int = 20
+    _reranker_max_document_chars: int = 0
     _semantic_embedding_sync_batch_size: int
     _vector_dimensions: int
     _vector_tables_initialized: bool
+    _semantic_vector_index: SemanticVectorIndex
+    _semantic_vector_index_name: str = ""
 
     def __init__(self, session_maker: async_sessionmaker[AsyncSession], project_id: int):
         """Initialize with session maker and project_id filter.
@@ -198,55 +228,447 @@ class SearchRepositoryBase(ABC):
         """Create backend-specific vector chunk and embedding tables."""
         pass
 
-    @abstractmethod
     async def _run_vector_query(
         self,
         session: AsyncSession,
         query_embedding: list[float],
         candidate_limit: int,
     ) -> list[dict]:
-        """Execute backend-specific nearest-neighbour vector query.
+        """Query the configured adapter and hydrate only live, ready manifest rows."""
+        if candidate_limit <= 0:
+            return []
 
-        Returns list of mappings with keys ``entity_id`` and ``best_distance``.
-        """
-        pass
+        external_vector_index = self._semantic_vector_index_name not in _BUILT_IN_VECTOR_INDEX_NAMES
+        if not external_vector_index:
+            matches = await self._semantic_vector_index.search(
+                query_embedding,
+                limit=candidate_limit,
+            )
+            return await self._hydrate_vector_matches(session, matches)
 
-    @abstractmethod
+        scan_limit = min(candidate_limit, VECTOR_FILTER_SCAN_LIMIT)
+        while True:
+            matches = await self._semantic_vector_index.search(
+                query_embedding,
+                limit=scan_limit,
+            )
+            hydrated = await self._hydrate_vector_matches(session, matches)
+            if (
+                len(hydrated) >= candidate_limit
+                or len(matches) < scan_limit
+                or scan_limit >= VECTOR_FILTER_SCAN_LIMIT
+            ):
+                return hydrated[:candidate_limit]
+
+            # Trigger: stale, pending, or wrong-model adapter hits consumed the
+            # requested top-k before manifest hydration.
+            # Why: returning early lets stale extension data crowd every live
+            # result out of an otherwise valid semantic search.
+            # Outcome: retry from the same ranked prefix with bounded geometric
+            # overfetch until enough live rows survive or the adapter is exhausted.
+            scan_limit = min(scan_limit * 2, VECTOR_FILTER_SCAN_LIMIT)
+
+    async def _hydrate_vector_matches(
+        self,
+        session: AsyncSession,
+        matches: list[VectorMatch],
+    ) -> list[dict]:
+        """Resolve adapter matches through the authoritative ready manifest."""
+        if not matches:
+            return []
+
+        chunks_by_key: dict[VectorKey, str] = {}
+        for batch_start in range(0, len(matches), VECTOR_HYDRATION_BATCH_SIZE):
+            batch = matches[batch_start : batch_start + VECTOR_HYDRATION_BATCH_SIZE]
+            params: dict[str, object] = {
+                "project_id": self.project_id,
+                "vector_index": self._semantic_vector_index_name,
+                "embedding_model": self._embedding_model_key(),
+            }
+            predicates: list[str] = []
+            for index, match in enumerate(batch):
+                params[f"entity_id_{index}"] = match.key.entity_id
+                params[f"chunk_key_{index}"] = match.key.chunk_key
+                predicates.append(
+                    f"(entity_id = :entity_id_{index} AND chunk_key = :chunk_key_{index})"
+                )
+
+            # Constraint: adapters may return thousands of candidates for deep pages.
+            # PostgreSQL and SQLite both cap bind parameters, so hydrate in fixed-size
+            # batches while retaining the adapter's original ranking in the final list.
+            result = await session.execute(
+                text(
+                    "SELECT entity_id, chunk_key, chunk_text FROM search_vector_chunks "
+                    "WHERE project_id = :project_id "
+                    "AND vector_index = :vector_index "
+                    "AND embedding_model = :embedding_model "
+                    "AND embedding_status = 'ready' "
+                    "AND (" + " OR ".join(predicates) + ")"
+                ),
+                params,
+            )
+            chunks_by_key.update(
+                {
+                    VectorKey(
+                        entity_id=int(row["entity_id"]),
+                        chunk_key=str(row["chunk_key"]),
+                    ): str(row["chunk_text"])
+                    for row in result.mappings().all()
+                }
+            )
+        return [
+            {
+                "entity_id": match.key.entity_id,
+                "chunk_key": match.key.chunk_key,
+                "chunk_text": chunks_by_key[match.key],
+                "best_similarity": match.similarity,
+            }
+            for match in matches
+            if match.key in chunks_by_key
+        ]
+
     async def _write_embeddings(
         self,
         session: AsyncSession,
         jobs: list[tuple[int, str]],
         embeddings: list[list[float]],
     ) -> None:
-        """Write embedding vectors for the given chunk row IDs.
+        """Legacy storage hook retained for focused pre-adapter test repositories."""
+        raise NotImplementedError
 
-        ``jobs`` is a list of ``(chunk_row_id, chunk_text)`` pairs.
-        ``embeddings`` is the corresponding list of vectors.
-        """
-        pass
+    async def _persist_embeddings(
+        self,
+        jobs: list[tuple[int, str]],
+        embeddings: list[list[float]],
+    ) -> None:
+        """Write vectors through the adapter, then make their manifest rows ready."""
+        if not jobs:
+            return
 
-    @abstractmethod
+        # Compatibility: focused orchestration tests and third-party subclasses
+        # from before the adapter contract may still override the private writer.
+        # Real repositories always configure `_semantic_vector_index` and take the
+        # manifest-safe path below.
+        if not hasattr(self, "_semantic_vector_index"):
+            async with db.scoped_session(self.session_maker) as session:
+                await self._prepare_vector_session(session)
+                await self._write_embeddings(session, jobs, embeddings)
+                await session.commit()
+            return
+
+        row_ids = [row_id for row_id, _ in jobs]
+        lookup_params = {f"row_id_{index}": row_id for index, row_id in enumerate(row_ids)}
+        lookup_placeholders = ", ".join(f":row_id_{index}" for index in range(len(row_ids)))
+        async with db.scoped_session(self.session_maker) as session:
+            connection = await session.connection()
+            dialect_name = connection.dialect.name
+            external_vector_index = (
+                self._semantic_vector_index_name not in _BUILT_IN_VECTOR_INDEX_NAMES
+            )
+            lock_external_write = external_vector_index and dialect_name in {"postgresql", "sqlite"}
+            if external_vector_index:
+                await self._lock_external_vector_write(session)
+            if external_vector_index and dialect_name == "sqlite":
+                # SQLite has no SELECT FOR UPDATE. A conditional no-op write takes
+                # the database write lock before extension I/O, serializing a newer
+                # manifest generation behind this adapter write and ready commit.
+                lookup_statement = (
+                    "UPDATE search_vector_chunks SET source_hash = source_hash "
+                    f"WHERE project_id = :project_id AND id IN ({lookup_placeholders}) "
+                    "RETURNING id, entity_id, chunk_key, source_hash"
+                )
+            else:
+                lock_clause = (
+                    " FOR UPDATE" if external_vector_index and dialect_name == "postgresql" else ""
+                )
+                lookup_statement = (
+                    "SELECT id, entity_id, chunk_key, source_hash FROM search_vector_chunks "
+                    f"WHERE project_id = :project_id AND id IN ({lookup_placeholders})"
+                    f"{lock_clause}"
+                )
+            result = await session.execute(
+                text(lookup_statement),
+                {**lookup_params, "project_id": self.project_id},
+            )
+            rows_by_id = {int(row["id"]): row for row in result.mappings().all()}
+
+            missing_row_ids = [row_id for row_id in row_ids if row_id not in rows_by_id]
+            if missing_row_ids:
+                raise RuntimeError(
+                    f"Vector manifest rows disappeared before write: {missing_row_ids}"
+                )
+
+            current_jobs: list[tuple[int, str, str, list[float]]] = []
+            for (row_id, chunk_text), embedding in zip(jobs, embeddings, strict=True):
+                expected_source_hash = hashlib.sha256(chunk_text.encode("utf-8")).hexdigest()
+                if str(rows_by_id[row_id]["source_hash"]) != expected_source_hash:
+                    continue
+                current_jobs.append((row_id, chunk_text, expected_source_hash, embedding))
+            if not current_jobs:
+                return
+
+            params: dict[str, object] = {}
+            generation_predicates: list[str] = []
+            records = [
+                VectorRecord(
+                    key=VectorKey(
+                        entity_id=int(rows_by_id[row_id]["entity_id"]),
+                        chunk_key=str(rows_by_id[row_id]["chunk_key"]),
+                    ),
+                    source_hash=source_hash,
+                    values=tuple(embedding),
+                )
+                for row_id, _chunk_text, source_hash, embedding in current_jobs
+            ]
+            for index, (row_id, _chunk_text, source_hash, _embedding) in enumerate(current_jobs):
+                params[f"row_id_{index}"] = row_id
+                params[f"source_hash_{index}"] = source_hash
+                generation_predicates.append(
+                    f"(id = :row_id_{index} AND source_hash = :source_hash_{index})"
+                )
+
+            if lock_external_write:
+                # Constraint: extension adapters use stable logical keys outside
+                # the authoritative SQL database. Hold its manifest lock across
+                # adapter I/O so a newer prepare cannot advance this generation
+                # before the external write and ready transition complete.
+                await self._semantic_vector_index.upsert(records)
+                await self._mark_embedding_jobs_ready(
+                    session,
+                    params=params,
+                    generation_predicates=generation_predicates,
+                )
+                await session.commit()
+                return
+
+        # Built-in adapters share the authoritative database. They verify and lock
+        # each record's source_hash inside the same transaction as their vector write.
+        await self._semantic_vector_index.upsert(records)
+        async with db.scoped_session(self.session_maker) as session:
+            await self._mark_embedding_jobs_ready(
+                session,
+                params=params,
+                generation_predicates=generation_predicates,
+            )
+            await session.commit()
+
+    async def _mark_embedding_jobs_ready(
+        self,
+        session: AsyncSession,
+        *,
+        params: dict[str, object],
+        generation_predicates: list[str],
+    ) -> None:
+        """Publish only the source generations written by the adapter."""
+        await session.execute(
+            text(
+                "UPDATE search_vector_chunks SET embedding_status = 'ready', "
+                f"updated_at = {self._timestamp_now_expr()} "
+                "WHERE project_id = :project_id "
+                "AND vector_index = :vector_index "
+                "AND embedding_model = :embedding_model "
+                "AND (" + " OR ".join(generation_predicates) + ")"
+            ),
+            {
+                **params,
+                "project_id": self.project_id,
+                "vector_index": self._semantic_vector_index_name,
+                "embedding_model": self._embedding_model_key(),
+            },
+        )
+
     async def _delete_entity_chunks(
         self,
         session: AsyncSession,
         entity_id: int,
-    ) -> None:
-        """Delete all chunk + embedding rows for an entity.
+        *,
+        expected_deletions: Sequence[_StagedVectorDeletion] | None = None,
+    ) -> list[_StagedVectorDeletion]:
+        """Stage an entity deletion by making its manifest rows non-searchable."""
+        return await self._stage_vector_deletions(
+            session,
+            entity_id=entity_id,
+            expected_deletions=expected_deletions,
+        )
 
-        SQLite must explicitly delete embeddings first (no CASCADE).
-        Postgres relies on ON DELETE CASCADE from the FK.
-        """
-        pass
-
-    @abstractmethod
     async def _delete_stale_chunks(
         self,
         session: AsyncSession,
         stale_ids: list[int],
         entity_id: int,
+        *,
+        expected_deletions: Sequence[_StagedVectorDeletion] | None = None,
+    ) -> list[_StagedVectorDeletion]:
+        """Stage stale chunk deletion by making manifest rows non-searchable."""
+        if not stale_ids:
+            return []
+        return await self._stage_vector_deletions(
+            session,
+            entity_id=entity_id,
+            row_ids=stale_ids,
+            expected_deletions=expected_deletions,
+        )
+
+    async def _stage_vector_deletions(
+        self,
+        session: AsyncSession,
+        *,
+        entity_id: int,
+        row_ids: Sequence[int] | None = None,
+        expected_deletions: Sequence[_StagedVectorDeletion] | None = None,
+    ) -> list[_StagedVectorDeletion]:
+        """Durably stage and return the exact manifest generations to delete."""
+        params: dict[str, object] = {
+            "project_id": self.project_id,
+            "entity_id": entity_id,
+        }
+        generation_clause = ""
+        if expected_deletions is not None:
+            if not expected_deletions:
+                return []
+            predicates: list[str] = []
+            for index, deletion in enumerate(expected_deletions):
+                params[f"row_id_{index}"] = deletion.row_id
+                params[f"source_hash_{index}"] = deletion.source_hash
+                params[f"vector_index_{index}"] = deletion.vector_index
+                predicates.append(
+                    f"(id = :row_id_{index} "
+                    f"AND source_hash = :source_hash_{index} "
+                    f"AND vector_index = :vector_index_{index})"
+                )
+            generation_clause = " AND (" + " OR ".join(predicates) + ")"
+        elif row_ids is not None:
+            if not row_ids:
+                return []
+            placeholders: list[str] = []
+            for index, row_id in enumerate(row_ids):
+                params[f"row_id_{index}"] = row_id
+                placeholders.append(f":row_id_{index}")
+            generation_clause = " AND id IN (" + ", ".join(placeholders) + ")"
+
+        result = await session.execute(
+            text(
+                "UPDATE search_vector_chunks SET embedding_status = 'pending' "
+                "WHERE project_id = :project_id AND entity_id = :entity_id"
+                + generation_clause
+                + " RETURNING id, chunk_key, source_hash, vector_index"
+            ),
+            params,
+        )
+        staged = [
+            _StagedVectorDeletion(
+                row_id=int(row["id"]),
+                chunk_key=str(row["chunk_key"]),
+                source_hash=str(row["source_hash"]),
+                vector_index=str(row["vector_index"]),
+            )
+            for row in result.mappings().all()
+        ]
+        self._assert_manifest_vector_ownership(deletion.vector_index for deletion in staged)
+        return staged
+
+    async def _finalize_prepared_vector_deletions(
+        self,
+        prepared: _PreparedEntityVectorSync,
     ) -> None:
-        """Delete stale chunk rows (and their embeddings) by ID."""
-        pass
+        """Delete staged adapter records, then remove their SQL manifest rows.
+
+        The prepare transaction commits `pending` first. If an external delete
+        fails, those rows remain non-searchable and the next sync retries the
+        idempotent delete instead of losing cleanup intent.
+        """
+        if not prepared.staged_deletions:
+            return
+        if not hasattr(self, "_semantic_vector_index"):
+            return
+
+        params: dict[str, object] = {
+            "project_id": self.project_id,
+            "entity_id": prepared.entity_id,
+        }
+        predicates: list[str] = []
+        for index, deletion in enumerate(prepared.staged_deletions):
+            params[f"row_id_{index}"] = deletion.row_id
+            params[f"source_hash_{index}"] = deletion.source_hash
+            params[f"vector_index_{index}"] = deletion.vector_index
+            predicates.append(
+                f"(id = :row_id_{index} "
+                f"AND source_hash = :source_hash_{index} "
+                f"AND vector_index = :vector_index_{index})"
+            )
+        generation_clause = " OR ".join(predicates)
+        deletions = [
+            VectorDeletion(
+                key=VectorKey(
+                    entity_id=prepared.entity_id,
+                    chunk_key=deletion.chunk_key,
+                ),
+                source_hash=deletion.source_hash,
+            )
+            for deletion in prepared.staged_deletions
+        ]
+
+        external_vector_index = self._semantic_vector_index_name not in _BUILT_IN_VECTOR_INDEX_NAMES
+        if external_vector_index:
+            async with db.scoped_session(self.session_maker) as session:
+                connection = await session.connection()
+                if connection.dialect.name == "sqlite":
+                    lock_statement = (
+                        "UPDATE search_vector_chunks SET source_hash = source_hash "
+                        "WHERE project_id = :project_id AND entity_id = :entity_id "
+                        "AND embedding_status = 'pending' AND ("
+                        + generation_clause
+                        + ") RETURNING id, chunk_key, source_hash, vector_index"
+                    )
+                else:
+                    lock_statement = (
+                        "SELECT id, chunk_key, source_hash, vector_index "
+                        "FROM search_vector_chunks "
+                        "WHERE project_id = :project_id AND entity_id = :entity_id "
+                        "AND embedding_status = 'pending' AND ("
+                        + generation_clause
+                        + ") FOR UPDATE"
+                    )
+                result = await session.execute(text(lock_statement), params)
+                rows = result.mappings().all()
+                self._assert_manifest_vector_ownership(row["vector_index"] for row in rows)
+                current_generations = {(int(row["id"]), str(row["source_hash"])) for row in rows}
+                current_deletions = [
+                    deletion
+                    for deletion, staged in zip(
+                        deletions,
+                        prepared.staged_deletions,
+                        strict=True,
+                    )
+                    if (staged.row_id, staged.source_hash) in current_generations
+                ]
+                if not current_deletions:
+                    return
+                await self._semantic_vector_index.delete(current_deletions)
+                await session.execute(
+                    text(
+                        "DELETE FROM search_vector_chunks "
+                        "WHERE project_id = :project_id AND entity_id = :entity_id "
+                        "AND embedding_status = 'pending' AND (" + generation_clause + ")"
+                    ),
+                    params,
+                )
+                await session.commit()
+            return
+
+        await self._semantic_vector_index.delete(deletions)
+        if self._semantic_vector_index_name in _BUILT_IN_VECTOR_INDEX_NAMES:
+            return
+        async with db.scoped_session(self.session_maker) as session:
+            await session.execute(
+                text(
+                    "DELETE FROM search_vector_chunks "
+                    "WHERE project_id = :project_id AND entity_id = :entity_id "
+                    "AND embedding_status = 'pending' AND (" + generation_clause + ")"
+                ),
+                params,
+            )
+            await session.commit()
 
     @abstractmethod
     def _distance_to_similarity(self, distance: float) -> float:
@@ -402,9 +824,394 @@ class SearchRepositoryBase(ABC):
         await self._ensure_vector_tables()
 
         async with db.scoped_session(self.session_maker) as session:
-            await self._prepare_vector_session(session)
-            await self._delete_entity_chunks(session, entity_id)
+            staged_deletions = await self._delete_entity_chunks(session, entity_id)
             await session.commit()
+        await self._finalize_prepared_vector_deletions(
+            _PreparedEntityVectorSync(
+                entity_id=entity_id,
+                sync_start=time.perf_counter(),
+                source_rows_count=0,
+                embedding_jobs=[],
+                delete_entity_vectors=True,
+                staged_deletions=staged_deletions,
+            )
+        )
+
+    async def delete_external_entity_vectors(
+        self,
+        session: AsyncSession,
+        entity_ids: Sequence[int],
+    ) -> None:
+        """Delete externally stored entity vectors under the caller's project lock."""
+        deleted_entity_ids = tuple(dict.fromkeys(entity_ids))
+        await self._lock_external_vector_write(session)
+        if not deleted_entity_ids:
+            return
+
+        params = {
+            "project_id": self.project_id,
+            **{
+                f"entity_id_{index}": entity_id
+                for index, entity_id in enumerate(deleted_entity_ids)
+            },
+        }
+        placeholders = ", ".join(f":entity_id_{index}" for index in range(len(deleted_entity_ids)))
+        ownership_result = await session.execute(
+            text(
+                "SELECT DISTINCT vector_index FROM search_vector_chunks "
+                "WHERE project_id = :project_id "
+                f"AND entity_id IN ({placeholders})"
+            ),
+            params,
+        )
+        recorded_indexes = frozenset(
+            str(vector_index) for vector_index in ownership_result.scalars().all()
+        )
+        await self._delete_external_entity_vectors_locked(
+            session,
+            deleted_entity_ids,
+            recorded_indexes=recorded_indexes,
+        )
+
+    async def _delete_external_entity_vectors_locked(
+        self,
+        session: AsyncSession,
+        entity_ids: Sequence[int],
+        *,
+        recorded_indexes: frozenset[str],
+    ) -> None:
+        """Delete external vectors after the caller has acquired the project lock."""
+        self._assert_manifest_vector_ownership(recorded_indexes)
+        external_indexes = recorded_indexes - _BUILT_IN_VECTOR_INDEX_NAMES
+        if not external_indexes:
+            return
+
+        deleted_entity_ids = tuple(dict.fromkeys(entity_ids))
+        configured_index = self._semantic_vector_index_name
+        if not hasattr(self, "_semantic_vector_index"):
+            raise SemanticVectorIndexExtensionError(
+                f"Semantic vector adapter {configured_index!r} is unavailable. "
+                "Enable semantic search and retry the entity deletion."
+            )
+
+        # Trigger: DB-first deletion runs inside a caller-owned SQL transaction.
+        # Why: the external adapter cannot participate in that transaction. If its
+        # delete succeeds and the caller later rolls back, ready manifests would
+        # incorrectly claim the now-missing vectors are searchable.
+        # Outcome: commit a non-searchable retry marker in an independent session
+        # before touching external storage while the caller retains the project
+        # lock; a retried delete remains idempotent and no new generation can race.
+        stage_params = {
+            "project_id": self.project_id,
+            "vector_index": configured_index,
+            **{
+                f"entity_id_{index}": entity_id
+                for index, entity_id in enumerate(deleted_entity_ids)
+            },
+        }
+        placeholders = ", ".join(f":entity_id_{index}" for index in range(len(deleted_entity_ids)))
+        connection = await session.connection()
+        if connection.dialect.name == "postgresql":
+            async with db.scoped_session(self.session_maker) as marker_session:
+                await marker_session.execute(
+                    text(
+                        "UPDATE search_vector_chunks SET embedding_status = 'pending' "
+                        "WHERE project_id = :project_id AND vector_index = :vector_index "
+                        f"AND entity_id IN ({placeholders})"
+                    ),
+                    stage_params,
+                )
+                await marker_session.commit()
+        else:
+            # SQLite permits only one writer, so a second marker transaction would
+            # deadlock behind the project write lock. Keep the marker in the caller
+            # transaction; extension cleanup still remains serialized.
+            await session.execute(
+                text(
+                    "UPDATE search_vector_chunks SET embedding_status = 'pending' "
+                    "WHERE project_id = :project_id AND vector_index = :vector_index "
+                    f"AND entity_id IN ({placeholders})"
+                ),
+                stage_params,
+            )
+
+        await self._semantic_vector_index.initialize()
+        for entity_id in deleted_entity_ids:
+            await self._semantic_vector_index.delete_entity(entity_id)
+
+    async def _delete_project_builtin_vector_rows(self, session: AsyncSession) -> None:
+        """Delete backend-owned vector rows before their SQL manifest is removed."""
+
+    async def _lock_external_vector_project(
+        self,
+        session: AsyncSession,
+        *,
+        dialect_name: str,
+    ) -> None:
+        """Serialize project-wide cleanup with external adapter writes."""
+        if dialect_name == "postgresql":
+            await session.execute(
+                text("SELECT id FROM project WHERE id = :project_id FOR UPDATE"),
+                {"project_id": self.project_id},
+            )
+            return
+        if dialect_name == "sqlite":
+            # SQLite has no row-level lock. This no-op write acquires its database
+            # write lock before ownership is read and keeps it through adapter I/O.
+            await session.execute(
+                text("UPDATE project SET id = id WHERE id = :project_id"),
+                {"project_id": self.project_id},
+            )
+            return
+        raise SemanticVectorIndexExtensionError(
+            f"External vector cleanup does not support SQL dialect {dialect_name!r}."
+        )
+
+    async def _lock_external_vector_write(self, session: AsyncSession) -> None:
+        """Share one project lock across external manifest mutations and cleanup."""
+        if not self._uses_external_vector_index():
+            return
+
+        connection = await session.connection()
+        await self._lock_external_vector_project(
+            session,
+            dialect_name=connection.dialect.name,
+        )
+
+    def _uses_external_vector_index(self) -> bool:
+        """Return whether this repository writes vectors outside the SQL backend."""
+        return self._semantic_vector_index_name not in _BUILT_IN_VECTOR_INDEX_NAMES and hasattr(
+            self, "_semantic_vector_index"
+        )
+
+    def _assert_manifest_vector_ownership(self, vector_index_names: Iterable[object]) -> None:
+        """Reject cleanup that cannot reach every externally owned vector."""
+        recorded_indexes = frozenset(str(name) for name in vector_index_names if str(name))
+        external_indexes = recorded_indexes - _BUILT_IN_VECTOR_INDEX_NAMES
+        configured_index = self._semantic_vector_index_name
+        if external_indexes and (
+            not hasattr(self, "_semantic_vector_index")
+            or external_indexes != frozenset({configured_index})
+        ):
+            raise SemanticVectorIndexExtensionError(
+                "Cannot mutate vector manifests owned by external indexes "
+                f"{sorted(external_indexes)!r} with configured adapter "
+                f"{configured_index!r}. Restore the owning adapter and retry."
+            )
+
+    async def delete_project_vector_rows(
+        self,
+        *,
+        strict_adapter_cleanup: bool = True,
+        session: AsyncSession | None = None,
+    ) -> None:
+        """Delete this project's vectors through the configured storage adapter.
+
+        Core enumerates ownership from the SQL manifest because the adapter
+        contract intentionally has no project-wide listing or destructive reset.
+        A full reindex clears the manifest even when semantic search is disabled,
+        so stale ready rows cannot become current if the feature is re-enabled.
+        External adapter cleanup is strict by default because the manifest is the
+        only durable ownership record for remote vectors. Ownership mismatches
+        fail closed because only the owning extension can safely remove previously
+        written vectors.
+        """
+        if session is not None:
+            await self._delete_project_vector_rows_in_session(
+                session,
+                strict_adapter_cleanup=strict_adapter_cleanup,
+            )
+            return
+
+        async with db.scoped_session(self.session_maker) as owned_session:
+            changed = await self._delete_project_vector_rows_in_session(
+                owned_session,
+                strict_adapter_cleanup=strict_adapter_cleanup,
+            )
+            if changed:
+                await owned_session.commit()
+
+    async def _delete_project_vector_rows_in_session(
+        self,
+        session: AsyncSession,
+        *,
+        strict_adapter_cleanup: bool,
+    ) -> bool:
+        """Delete project vectors while retaining the caller's transaction boundary."""
+        connection = await session.connection()
+        manifest_exists = await connection.run_sync(
+            lambda sync_connection: inspect(sync_connection).has_table("search_vector_chunks")
+        )
+        if not manifest_exists:
+            return False
+
+        manifest_columns = await connection.run_sync(
+            lambda sync_connection: {
+                str(column["name"])
+                for column in inspect(sync_connection).get_columns("search_vector_chunks")
+            }
+        )
+        manifest_has_embedding_status = "embedding_status" in manifest_columns
+        configured_index = self._semantic_vector_index_name
+        external_adapter_available = (
+            configured_index not in _BUILT_IN_VECTOR_INDEX_NAMES
+            and hasattr(self, "_semantic_vector_index")
+        )
+        if external_adapter_available:
+            # Constraint: the project row is the only lock that also covers future
+            # manifest inserts. The caller retains it through adapter I/O, manifest
+            # removal, and—during hard deletion—the project-row delete itself.
+            await self._lock_external_vector_write(session)
+
+        entity_ids_by_vector_index: dict[str, list[int]] = {}
+        if "vector_index" in manifest_columns:
+            result = await session.execute(
+                text(
+                    "SELECT DISTINCT entity_id, vector_index FROM search_vector_chunks "
+                    "WHERE project_id = :project_id ORDER BY vector_index, entity_id"
+                ),
+                {"project_id": self.project_id},
+            )
+            for entity_id, vector_index in result.all():
+                entity_ids_by_vector_index.setdefault(str(vector_index), []).append(int(entity_id))
+        else:
+            result = await session.execute(
+                text(
+                    "SELECT DISTINCT entity_id FROM search_vector_chunks "
+                    "WHERE project_id = :project_id ORDER BY entity_id"
+                ),
+                {"project_id": self.project_id},
+            )
+            legacy_vector_index = (
+                "sqlite-vec" if connection.dialect.name == "sqlite" else "pgvector"
+            )
+            entity_ids_by_vector_index[legacy_vector_index] = [
+                int(entity_id) for entity_id in result.scalars().all()
+            ]
+
+        # Trigger: manifests belong to an external index other than the available adapter.
+        # Why: adapter configuration can change after vectors were written, and deleting
+        # the manifest would discard the only durable routing information for old vectors.
+        # Outcome: fail before touching any adapter or manifest so the owner can be restored.
+        self._assert_manifest_vector_ownership(entity_ids_by_vector_index)
+
+        builtin_indexes = frozenset(entity_ids_by_vector_index) & _BUILT_IN_VECTOR_INDEX_NAMES
+        if manifest_has_embedding_status and (not external_adapter_available or builtin_indexes):
+            builtin_filter = ""
+            if external_adapter_available:
+                builtin_filter = " AND vector_index IN ('pgvector', 'sqlite-vec')"
+            await session.execute(
+                text(
+                    "UPDATE search_vector_chunks SET embedding_status = 'pending' "
+                    f"WHERE project_id = :project_id{builtin_filter}"
+                ),
+                {"project_id": self.project_id},
+            )
+
+        adapter_entity_ids = entity_ids_by_vector_index.get(configured_index, [])
+        if external_adapter_available:
+            try:
+                await self._delete_external_entity_vectors_locked(
+                    session,
+                    adapter_entity_ids,
+                    recorded_indexes=frozenset(entity_ids_by_vector_index),
+                )
+            except Exception as exc:
+                # Trigger: a configured external adapter cannot initialize or delete.
+                # Why: reindex and project deletion must not discard the only
+                # ownership manifest for external data.
+                # Outcome: strict callers stop for a retry before manifest deletion.
+                logger.warning(
+                    "Could not clean semantic vector adapter: "
+                    "project_id={project_id} vector_index={vector_index} error={error}",
+                    project_id=self.project_id,
+                    vector_index=self._semantic_vector_index_name,
+                    error=exc,
+                )
+                if strict_adapter_cleanup:
+                    raise
+
+        await self._delete_project_builtin_vector_rows(session)
+        await session.execute(
+            text("DELETE FROM search_vector_chunks WHERE project_id = :project_id"),
+            {"project_id": self.project_id},
+        )
+        return True
+
+    async def delete_stale_vector_rows(self) -> None:
+        """Delete vectors whose source entity no longer exists.
+
+        The SQL manifest remains the source of truth for ownership. External
+        indexes receive stable entity deletes before their manifest rows are
+        removed, avoiding backend-specific cleanup in the service layer.
+        """
+        if not self._semantic_enabled:
+            return
+
+        await self._ensure_vector_tables()
+        async with db.scoped_session(self.session_maker) as session:
+            result = await session.execute(
+                text(
+                    "SELECT DISTINCT entity_id FROM search_vector_chunks "
+                    "WHERE project_id = :project_id AND entity_id NOT IN ("
+                    "SELECT id FROM entity WHERE project_id = :project_id) "
+                    "ORDER BY entity_id"
+                ),
+                {"project_id": self.project_id},
+            )
+            entity_ids = [int(entity_id) for entity_id in result.scalars().all()]
+
+        for entity_id in entity_ids:
+            await self.delete_entity_vector_rows(entity_id)
+
+    async def reconcile_vector_index(self) -> None:
+        """Let capable adapters prune records absent from the ready SQL manifest."""
+        if not self._semantic_enabled:
+            return
+
+        await self._ensure_vector_tables()
+        if not isinstance(self._semantic_vector_index, SemanticVectorIndexReconciler):
+            return
+
+        external_vector_index = self._uses_external_vector_index()
+        async with db.scoped_session(self.session_maker) as session:
+            if external_vector_index:
+                # Trigger: reconciliation snapshots the live manifest before asking
+                # an external adapter to delete everything else.
+                # Why: a concurrent watcher could otherwise publish a new vector
+                # after the snapshot and have reconciliation delete that live key.
+                # Outcome: share the project lock with external writes through both
+                # the manifest read and orphan deletion.
+                await self._lock_external_vector_write(session)
+            result = await session.execute(
+                text(
+                    "SELECT entity_id, chunk_key FROM search_vector_chunks "
+                    "WHERE project_id = :project_id "
+                    "AND vector_index = :vector_index "
+                    "AND embedding_model = :embedding_model "
+                    "AND embedding_status = 'ready' "
+                    "ORDER BY entity_id, chunk_key"
+                ),
+                {
+                    "project_id": self.project_id,
+                    "vector_index": self._semantic_vector_index_name,
+                    "embedding_model": self._embedding_model_key(),
+                },
+            )
+            live_keys = [
+                VectorKey(
+                    entity_id=int(row["entity_id"]),
+                    chunk_key=str(row["chunk_key"]),
+                )
+                for row in result.mappings().all()
+            ]
+
+            if external_vector_index:
+                await self._semantic_vector_index.delete_orphans(live_keys)
+                await session.commit()
+                return
+
+        await self._semantic_vector_index.delete_orphans(live_keys)
 
     # ------------------------------------------------------------------
     # Shared semantic search: guard, text processing, chunking
@@ -801,6 +1608,130 @@ class SearchRepositoryBase(ABC):
         parts = chunk_key.split(":")
         return parts[0], int(parts[1])
 
+    # ------------------------------------------------------------------
+    # Shared semantic search: cross-encoder reranking
+    # ------------------------------------------------------------------
+
+    def _should_rerank(self, query_text: str) -> bool:
+        """Return whether a configured reranker should run for this query."""
+        return self._rerank_provider is not None and bool(query_text)
+
+    def _rerank_candidate_limit(self) -> int:
+        """Return the fixed chunk window that owns reranker-prefix membership."""
+        return max(
+            self._semantic_vector_k,
+            self._reranker_candidates * RERANK_POOL_CHUNK_FANOUT,
+        )
+
+    def _candidate_limit(self, limit: int, offset: int, query_text: str) -> int:
+        """Size the retrieval candidate *chunk* pool for vector/hybrid search.
+
+        ``candidate_limit`` bounds vector chunks, but many chunks of one large note
+        collapse to a single ``(type, id)`` row before reranking, so a chunk count does
+        not equal a unique-document count. When reranking is active we over-fetch by
+        ``RERANK_POOL_CHUNK_FANOUT`` so a few multi-chunk notes can't starve the rerank
+        window below ``reranker_candidates`` unique rows. This is best-effort headroom,
+        not a hard guarantee — a single note dominating the entire nearest-neighbour set
+        can still yield fewer unique rows (a pathological corpus shape).
+        """
+        if self._should_rerank(query_text):
+            # Trigger: the requested window extends beyond the fixed reranked prefix.
+            # Why: a bounded prefix alone can under-fill large pages and hide the
+            # semantic pagination probe even when more matches exist.
+            # Outcome: keep prefix membership fixed while adding chunk headroom only
+            # for the untouched tail that this request must return.
+            rerank_candidate_limit = self._rerank_candidate_limit()
+            tail_size = max(0, limit + offset - self._reranker_candidates)
+            return rerank_candidate_limit + tail_size * 10
+        return max(self._semantic_vector_k, (limit + offset) * 10)
+
+    def _rerank_document_text(self, row: SearchIndexRow) -> str:
+        """Build the document text handed to the cross-encoder for one candidate.
+
+        Prefer the matched chunk (the most relevant passage of a large note),
+        falling back to the stored snippet.
+        """
+        body = row.matched_chunk_text or row.content_snippet or ""
+        return build_rerank_document(row.title, body, self._reranker_max_document_chars)
+
+    @staticmethod
+    def _demote_tail(tail: list[SearchIndexRow], floor: float) -> list[SearchIndexRow]:
+        """Rescore un-reranked tail rows at or below the floor, preserving their order.
+
+        The reranked pool carries [0, 1] relevance scores while the tail still holds
+        raw retrieval scores on a different scale ([0, 1.3] for fused hybrid). Left as
+        is, a tail row could outrank a reranked row numerically. Positive floors put
+        the tail strictly below the pool; a zero floor yields zeroes because no smaller
+        score exists in the public [0, 1] range. The returned pool-plus-tail sequence,
+        rather than a later score-only sort, owns that tie-breaking invariant.
+        """
+        return [
+            replace(row, score=score)
+            for row, score in zip(tail, demote_tail_scores(floor, len(tail)))
+        ]
+
+    async def _rerank_and_paginate(
+        self,
+        query_text: str,
+        rows: list[SearchIndexRow],
+        *,
+        offset: int,
+        limit: int,
+        stable_rows: list[SearchIndexRow] | None = None,
+    ) -> list[SearchIndexRow]:
+        """Rerank the top candidates, then return the requested ``[offset:offset+limit]`` page.
+
+        Trigger: a reranker is configured and there is a real query.
+        Why: bi-encoder/FTS ranking lands the gold document in the top-N but often
+        just below the top-k cutoff (#950); a cross-encoder that reads query and
+        document together recovers those near-misses.
+        Outcome: the first ``reranker_candidates`` rows are reordered by reranker
+        relevance (which replaces ``score``); the requested page is sliced from the
+        reordered list.
+
+        Every non-empty page rescores the same fixed prefix before slicing so the
+        untouched tail can be demoted onto the reranker's public ``[0, 1]`` scale.
+        """
+        page_end = offset + limit
+        if self._rerank_provider is None or not query_text:
+            return rows[offset:page_end]
+
+        # Trigger: pagination needs more rows than the fixed rerank retrieval window.
+        # Why: an expanded retrieval may introduce or strengthen raw candidates, but
+        # letting them replace the original prefix causes duplicates and skips.
+        # Outcome: the fixed window owns prefix membership; the expanded result only
+        # supplies new, de-duplicated tail rows.
+        pool_source = stable_rows if stable_rows is not None else rows
+        pool = pool_source[: self._reranker_candidates]
+        pool_keys = {(row.type, row.id) for row in pool}
+        tail = [row for row in rows if (row.type, row.id) not in pool_keys]
+        ordered_rows = pool + tail
+
+        # Skip only when there is no prefix to calibrate or the requested page is
+        # empty. Even a singleton prefix or a wholly-tail page needs the prefix's
+        # relevance floor so raw hybrid scores cannot leak into cross-project sorting.
+        if not pool or offset >= len(ordered_rows):
+            return ordered_rows[offset:page_end]
+
+        documents = [self._rerank_document_text(row) for row in pool]
+        # A transient provider failure must surface instead of switching this page
+        # back to retrieval order. A prior page may already have returned reranked
+        # order, so degrading here can duplicate one result and omit another.
+        scores = validate_rerank_scores(
+            await self._rerank_provider.rerank(query_text, documents),
+            len(pool),
+        )
+
+        order = sorted(range(len(pool)), key=lambda i: scores[i], reverse=True)
+        reranked = [replace(pool[i], score=scores[i]) for i in order]
+        logger.debug(
+            "Reranked candidates: pool={pool} model={model}",
+            pool=len(pool),
+            model=self._rerank_provider.model_name,
+        )
+        demoted_tail = self._demote_tail(tail, floor=reranked[-1].score or 0.0)
+        return (reranked + demoted_tail)[offset:page_end]
+
     async def _search_vector_only(
         self,
         *,
@@ -816,28 +1747,51 @@ class SearchRepositoryBase(ABC):
         min_similarity: Optional[float] = None,
         limit: int,
         offset: int,
+        candidate_limit: int | None = None,
         _emit_observability_log: bool = True,
+        _apply_rerank: bool = True,
     ) -> List[SearchIndexRow]:
         """Run vector-only search returning chunk-level results.
 
         Returns individual search_index rows (entities, observations, relations)
         ranked by vector similarity. Each observation or relation is a first-class
         result, not collapsed into its parent entity.
+
+        ``candidate_limit`` is supplied only by a composed retrieval stage that
+        already sized the shared candidate pool.
         """
         self._assert_semantic_available()
         await self._ensure_vector_tables()
         assert self._embedding_provider is not None
         query_text = search_text.strip()
-        candidate_limit = max(self._semantic_vector_k, (limit + offset) * 10)
+        if candidate_limit is None:
+            candidate_limit = self._candidate_limit(limit, offset, query_text)
         query_start = time.perf_counter()
         embed_start = time.perf_counter()
         query_embedding = await self._embedding_provider.embed_query(query_text)
         embed_ms = (time.perf_counter() - embed_start) * 1000
         vector_query_start = time.perf_counter()
 
-        async with db.scoped_session(self.session_maker) as session:
-            await self._prepare_vector_session(session)
-            vector_rows = await self._run_vector_query(session, query_embedding, candidate_limit)
+        if hasattr(self, "_semantic_vector_index"):
+            # Constraint: vector adapters may open their own session, while the SQLite
+            # test/runtime pool can contain only one connection. A plain AsyncSession
+            # defers checkout until hydration runs after adapter search has released it.
+            async with self.session_maker() as session:
+                vector_rows = await self._run_vector_query(
+                    session,
+                    query_embedding,
+                    candidate_limit,
+                )
+        else:
+            # Compatibility for focused test repositories that implement the
+            # pre-extension private query hook without configuring an adapter.
+            async with db.scoped_session(self.session_maker) as session:
+                await self._prepare_vector_session(session)
+                vector_rows = await self._run_vector_query(
+                    session,
+                    query_embedding,
+                    candidate_limit,
+                )
         vector_query_ms = (time.perf_counter() - vector_query_start) * 1000
         vector_row_count = len(vector_rows)
         hydrate_ms = 0.0
@@ -878,8 +1832,12 @@ class SearchRepositoryBase(ABC):
         chunks_by_si_key: dict[SearchIndexKey, list[tuple[float, str]]] = {}
         for row in vector_rows:
             chunk_key = row.get("chunk_key", "")
-            distance = float(row["best_distance"])
-            similarity = self._distance_to_similarity(distance)
+            if "best_similarity" in row:
+                similarity = float(row["best_similarity"])
+            else:
+                # Compatibility: private test doubles may still return native distance.
+                distance = float(row["best_distance"])
+                similarity = self._distance_to_similarity(distance)
             chunk_text = row.get("chunk_text", "")
             try:
                 si_key = self._parse_chunk_key(chunk_key)
@@ -976,8 +1934,45 @@ class SearchRepositoryBase(ABC):
 
         ranked_rows.sort(key=lambda item: item.score or 0.0, reverse=True)
         hydrate_ms = (time.perf_counter() - hydrate_start) * 1000
+        # Rerank over the wide candidate pool, then slice to the page. Suppressed when
+        # hybrid calls this internally (_apply_rerank=False) — hybrid reranks its own
+        # fused result; _rerank_and_paginate no-ops back to a plain slice otherwise.
+        if _apply_rerank:
+            stable_rows = ranked_rows
+            if self._should_rerank(query_text):
+                stable_candidate_limit = self._rerank_candidate_limit()
+                if candidate_limit > stable_candidate_limit:
+                    stable_rows = await self._search_vector_only(
+                        search_text=search_text,
+                        permalink=permalink,
+                        permalink_match=permalink_match,
+                        title=title,
+                        note_types=note_types,
+                        after_date=after_date,
+                        search_item_types=search_item_types,
+                        categories=categories,
+                        metadata_filters=metadata_filters,
+                        min_similarity=min_similarity,
+                        limit=stable_candidate_limit,
+                        offset=0,
+                        candidate_limit=stable_candidate_limit,
+                        _emit_observability_log=False,
+                        _apply_rerank=False,
+                    )
+            output = await self._rerank_and_paginate(
+                query_text,
+                ranked_rows,
+                offset=offset,
+                limit=limit,
+                stable_rows=stable_rows,
+            )
+        else:
+            output = ranked_rows[offset : offset + limit]
+        # Vector latency owns the optional rerank stage too. Logging before the
+        # awaited provider call hides the feature's dominant cost and can suppress
+        # the slow-query warning entirely.
         _log_vector_summary()
-        return ranked_rows[offset : offset + limit]
+        return output
 
     async def _fetch_search_index_rows_by_ids(
         self, row_ids: list[int]
@@ -1030,6 +2025,9 @@ class SearchRepositoryBase(ABC):
         min_similarity: Optional[float] = None,
         limit: int,
         offset: int,
+        _candidate_limit_override: int | None = None,
+        _apply_rerank: bool = True,
+        _emit_observability_log: bool = True,
     ) -> List[SearchIndexRow]:
         """Fuse FTS and vector results using score-based fusion.
 
@@ -1039,8 +2037,14 @@ class SearchRepositoryBase(ABC):
         """
         self._assert_semantic_available()
         query_text = search_text.strip()
+        rerank_configured = self._should_rerank(query_text)
+        rerank_enabled = _apply_rerank and rerank_configured
         query_start = time.perf_counter()
-        candidate_limit = max(self._semantic_vector_k, (limit + offset) * 10)
+        candidate_limit = (
+            _candidate_limit_override
+            if _candidate_limit_override is not None
+            else self._candidate_limit(limit, offset, query_text)
+        )
         fts_start = time.perf_counter()
         # allow_relaxed: question-form queries rarely AND-match, and a dead FTS
         # branch silently degrades hybrid to vector-only ranking. Fusion plus
@@ -1075,7 +2079,13 @@ class SearchRepositoryBase(ABC):
             min_similarity=min_similarity,
             limit=candidate_limit,
             offset=0,
+            # Trigger: reranking owns a bounded candidate window shared by both legs.
+            # Why: the disabled path historically expands the vector leg again to
+            # preserve recall when many vector chunks collapse into a few search rows.
+            # Outcome: avoid double expansion only when reranking is actually active.
+            candidate_limit=candidate_limit if rerank_configured else None,
             _emit_observability_log=False,
+            _apply_rerank=False,
         )
         vector_ms = (time.perf_counter() - vector_start) * 1000
         fusion_start = time.perf_counter()
@@ -1093,25 +2103,31 @@ class SearchRepositoryBase(ABC):
         fts_max = max(fts_abs) if fts_abs else 1.0
 
         fts_scores: dict[SearchIndexKey, float] = {}
-        for row in fts_results:
+        fts_ranks: dict[SearchIndexKey, int] = {}
+        for rank, row in enumerate(fts_results):
             if row.id is None:
                 continue
+            row_key = (row.type, row.id)
             norm = abs(row.score or 0.0) / fts_max if fts_max > 0 else 0.0
             # Gate: FTS scores below threshold contribute zero
             if norm < FTS_GATE_THRESHOLD:
                 norm = 0.0
-            fts_scores[(row.type, row.id)] = norm
-            rows_by_key[(row.type, row.id)] = row
+            fts_scores[row_key] = norm
+            fts_ranks.setdefault(row_key, rank)
+            rows_by_key[row_key] = row
 
         vec_scores: dict[SearchIndexKey, float] = {}
-        for row in vector_results:
+        vec_ranks: dict[SearchIndexKey, int] = {}
+        for rank, row in enumerate(vector_results):
             if row.id is None:
                 continue
+            row_key = (row.type, row.id)
             # Trigger: no re-normalization by vec_max
             # Why: vector similarity is already calibrated [0, 1]; re-normalizing
             # inflates weak matches when the entire result set is mediocre
-            vec_scores[(row.type, row.id)] = row.score or 0.0
-            rows_by_key[(row.type, row.id)] = row
+            vec_scores[row_key] = row.score or 0.0
+            vec_ranks.setdefault(row_key, rank)
+            rows_by_key[row_key] = row
 
         # Fuse: max(v, f) + FUSION_BONUS * min(v, f)
         # Preserves the dominant signal; bonus rewards dual-source agreement.
@@ -1123,18 +2139,74 @@ class SearchRepositoryBase(ABC):
             fused_scores[row_key] = max(v, f) + FUSION_BONUS * min(v, f)
 
         ranked = sorted(fused_scores.items(), key=lambda item: item[1], reverse=True)
-        output: list[SearchIndexRow] = []
-        for row_key, fused_score in ranked[offset : offset + limit]:
+
+        def _materialize(entry: tuple[SearchIndexKey, float]) -> SearchIndexRow:
+            row_key, fused_score = entry
             row = rows_by_key[row_key]
             # Trigger: FTS-only results have no matched_chunk_text from vector search.
             # Why: without chunk text, API falls back to truncated content, losing answer text.
             # Outcome: FTS-only results get full content_snippet as matched_chunk.
             if row.matched_chunk_text is None and row.content_snippet:
                 row = replace(row, matched_chunk_text=row.content_snippet)
-            output.append(replace(row, score=fused_score))
+            return replace(row, score=fused_score)
+
+        # Rerank the top fused candidates before paginating. When reranking is active
+        # we materialize the whole candidate list (cheap next to a cross-encoder call)
+        # and hand it to the shared paginate helper; the disabled path stays cheap by
+        # materializing only the requested page.
+        if rerank_enabled:
+            candidates = [_materialize(entry) for entry in ranked]
+            stable_candidates = candidates
+            stable_candidate_limit = self._rerank_candidate_limit()
+            if candidate_limit > stable_candidate_limit:
+                stable_candidates = await self._search_hybrid(
+                    search_text=search_text,
+                    permalink=permalink,
+                    permalink_match=permalink_match,
+                    title=title,
+                    note_types=note_types,
+                    after_date=after_date,
+                    search_item_types=search_item_types,
+                    categories=categories,
+                    metadata_filters=metadata_filters,
+                    min_similarity=min_similarity,
+                    limit=stable_candidate_limit,
+                    offset=0,
+                    _candidate_limit_override=stable_candidate_limit,
+                    _apply_rerank=False,
+                    _emit_observability_log=False,
+                )
+                stable_keys = {(row.type, row.id) for row in stable_candidates}
+                expanded_tail = [entry for entry in ranked if entry[0] not in stable_keys]
+
+                # Trigger: deeper pages expand the FTS/vector retrieval windows.
+                # Why: score fusion can strengthen an existing row when its second
+                # signal appears later, moving it across a page already returned.
+                # Outcome: freeze the fixed fused universe, then order newly admitted
+                # rows by their earliest source rank. That rank cannot improve after a
+                # row first appears, so each larger window only appends to the tail.
+                expanded_tail.sort(
+                    key=lambda entry: (
+                        min(
+                            fts_ranks.get(entry[0], candidate_limit),
+                            vec_ranks.get(entry[0], candidate_limit),
+                        ),
+                        entry[0],
+                    )
+                )
+                candidates = stable_candidates + [_materialize(entry) for entry in expanded_tail]
+            output = await self._rerank_and_paginate(
+                query_text,
+                candidates,
+                offset=offset,
+                limit=limit,
+                stable_rows=stable_candidates,
+            )
+        else:
+            output = [_materialize(entry) for entry in ranked[offset : offset + limit]]
         fusion_ms = (time.perf_counter() - fusion_start) * 1000
         total_ms = (time.perf_counter() - query_start) * 1000
-        if total_ms > 2500:
+        if _emit_observability_log and total_ms > 2500:
             logger.warning(
                 "[SEMANTIC_SLOW_QUERY] Semantic query timing: project_id={project_id} "
                 "retrieval_mode={retrieval_mode} query_length={query_length} "
