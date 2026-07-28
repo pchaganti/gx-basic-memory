@@ -6,9 +6,8 @@ to ensure consistent application startup across all entry points.
 
 import asyncio
 import os
-import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 
 from loguru import logger
@@ -23,19 +22,13 @@ from basic_memory.repository import (
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-    from basic_memory.index.local_project import LocalProjectIndexRuntime
-
-
-class InitialProjectIndexRuntimeFactory(Protocol):
-    """Build local project-index runtime dependencies for startup indexing."""
-
-    async def runtime_for_project(self, project: Project) -> "LocalProjectIndexRuntime": ...
+    from basic_memory.index.local_project import LocalProjectIndexRuntimeProvider
 
 
 async def run_initial_project_index(
     project: Project,
     *,
-    runtime_factory: InitialProjectIndexRuntimeFactory,
+    runtime_factory: "LocalProjectIndexRuntimeProvider",
 ) -> None:
     """Run startup project indexing through the local project-index fanout runtime."""
     from basic_memory.index.local_project import run_local_project_index_for_project
@@ -358,13 +351,6 @@ def ensure_initialization(app_config: BasicMemoryConfig) -> None:
         finally:
             # Always cleanup database connections to prevent process hang
             await db.shutdown_db()
-
-    # On Windows, use SelectorEventLoop to avoid ProactorEventLoop cleanup issues
-    # The ProactorEventLoop can raise "IndexError: pop from an empty deque" during
-    # event loop cleanup when there are pending handles. SelectorEventLoop is more
-    # stable for our use case (no subprocess pipes or named pipes needed).
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     asyncio.run(_init_and_cleanup())
     logger.info("Initialization completed successfully")

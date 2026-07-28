@@ -9,6 +9,7 @@ from basic_memory import db
 from basic_memory.repository.search_index_row import SearchIndexRow
 from basic_memory.schemas.search import SearchQuery, SearchItemType, SearchRetrievalMode
 from basic_memory.services.search_service import _strip_nul
+from typing import Any
 
 
 async def _create_entity(session_maker, entity_repo, data):
@@ -559,7 +560,7 @@ async def test_boolean_operators_detection(search_service):
 @pytest.mark.asyncio
 async def test_plain_multiterm_fts_enables_repository_relaxed_fallback(search_service, monkeypatch):
     """Plain multi-term FTS should let the repository render relaxed backend syntax."""
-    calls: list[dict] = []
+    calls: list[dict[str, Any]] = []
 
     now = datetime.now().astimezone()
     fallback_row = SearchIndexRow(
@@ -596,7 +597,7 @@ async def test_plain_cjk_multiterm_fts_enables_repository_relaxed_fallback(
     search_service, monkeypatch
 ):
     """Whitespace-separated CJK terms need backend prefix relaxed rendering."""
-    calls: list[dict] = []
+    calls: list[dict[str, Any]] = []
 
     now = datetime.now().astimezone()
     fallback_row = SearchIndexRow(
@@ -633,7 +634,7 @@ async def test_plain_cjk_multiterm_count_enables_repository_relaxed_fallback(
     search_service, monkeypatch
 ):
     """Count should use the same backend relaxed fallback as search."""
-    calls: list[dict] = []
+    calls: list[dict[str, Any]] = []
 
     async def fake_count(**kwargs):
         calls.append(kwargs)
@@ -1467,7 +1468,7 @@ async def test_index_entity_markdown_strips_nul_bytes(search_service, session_ma
 async def test_reindex_vectors(search_service, session_maker, test_project, monkeypatch):
     """Test that reindex_vectors processes all entities and reports stats."""
     from basic_memory.repository import EntityRepository
-    from basic_memory.repository.search_repository_base import VectorSyncBatchResult
+    from basic_memory.runtime.vector_sync import VectorSyncBatchResult
     from datetime import datetime
 
     entity_repo = EntityRepository(project_id=test_project.id)
@@ -1517,7 +1518,7 @@ async def test_reindex_vectors(search_service, session_maker, test_project, monk
             entities_total=len(entity_ids),
             entities_synced=len(entity_ids),
             entities_failed=0,
-            failed_entity_ids=[],
+            failed_entity_ids=(),
             embedding_jobs_total=9,
             embed_seconds_total=1.2,
             write_seconds_total=0.4,
@@ -1555,7 +1556,7 @@ async def test_reindex_vectors_no_callback(
 ):
     """Test reindex_vectors works without a progress callback."""
     from basic_memory.repository import EntityRepository
-    from basic_memory.repository.search_repository_base import VectorSyncBatchResult
+    from basic_memory.runtime.vector_sync import VectorSyncBatchResult
     from datetime import datetime
 
     entity_repo = EntityRepository(project_id=test_project.id)
@@ -1598,7 +1599,7 @@ async def test_reindex_vectors_no_callback(
             entities_total=len(entity_ids),
             entities_synced=len(entity_ids),
             entities_failed=0,
-            failed_entity_ids=[],
+            failed_entity_ids=(),
             embedding_jobs_total=3,
             embed_seconds_total=0.5,
             write_seconds_total=0.1,

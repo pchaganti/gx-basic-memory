@@ -22,10 +22,10 @@ from basic_memory.repository import EntityRepository
 from basic_memory.repository.search_repository import (
     SearchIndexRow,
     SearchRepository,
-    VectorSyncBatchResult,
 )
 from basic_memory.repository.search_query import relaxed_query_words
 from basic_memory.schemas.search import SearchQuery, SearchItemType, SearchRetrievalMode
+from basic_memory.runtime.vector_sync import VectorSyncBatchResult
 from basic_memory.services import FileService
 
 # Maximum size for content_stems field to stay under Postgres's 8KB index row limit.
@@ -429,10 +429,17 @@ class SearchService:
         )
         try:
             with logfire.span("search.index_entity_data", entity_id=entity.id):
+                replacement_content = content
+                if entity.is_markdown and replacement_content is None:
+                    # Trigger: synchronized and legacy notes source search text from storage.
+                    # Why: a transient read failure must preserve the last valid projection.
+                    # Outcome: storage errors remain visible before any search rows are deleted.
+                    replacement_content = await self.file_service.read_entity_content(entity)
+
                 await self.repository.delete_by_entity_id(entity_id=entity.id)
 
                 if entity.is_markdown:
-                    await self.index_entity_markdown(entity, content)
+                    await self.index_entity_markdown(entity, replacement_content)
                 else:
                     await self.index_entity_file(entity)
 
@@ -539,11 +546,11 @@ class SearchService:
                 + sum(result.entities_skipped for result in repository_results)
                 - len(unknown_ids)
             ),
-            failed_entity_ids=[
+            failed_entity_ids=tuple(
                 failed_entity_id
                 for result in repository_results
                 for failed_entity_id in result.failed_entity_ids
-            ],
+            ),
             chunks_total=sum(result.chunks_total for result in repository_results),
             chunks_skipped=sum(result.chunks_skipped for result in repository_results),
             embedding_jobs_total=sum(result.embedding_jobs_total for result in repository_results),
@@ -558,7 +565,9 @@ class SearchService:
         )
         return batch_result
 
-    async def reindex_vectors(self, progress_callback=None, force_full: bool = False) -> dict:
+    async def reindex_vectors(
+        self, progress_callback=None, force_full: bool = False
+    ) -> dict[str, Any]:
         """Rebuild vector embeddings for all entities.
 
         Args:

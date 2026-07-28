@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import override, Any
 
 from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -65,6 +65,7 @@ from basic_memory.repository.note_content_repository import (
     NoteContentRepository,
 )
 from basic_memory.repository.relation_repository import (
+    PendingRelationSearchRefresh,
     ResolvedRelationWrite,
     ResolvedRelationWriteResult,
 )
@@ -74,6 +75,7 @@ from basic_memory.runtime.jobs import (
     RuntimeProjectIndexJobRequest,
 )
 from basic_memory.runtime.projects import ProjectRuntimeReference
+from basic_memory.runtime.vector_sync import VectorSyncBatchResult
 from basic_memory.schemas.search import SearchItemType, SearchQuery
 from basic_memory.services import FileService
 from basic_memory.services.exceptions import FileOperationError
@@ -960,6 +962,7 @@ async def test_run_local_project_index_resolves_relations_after_inline_fanout() 
     maintenance_runner = RecordingMaintenanceRunner()
 
     class EventBatchEnqueuer(RecordingBatchEnqueuer):
+        @override
         async def enqueue_index_file_batch(self, request: RuntimeIndexFileBatchJobRequest) -> None:
             events.append("batch")
             await super().enqueue_index_file_batch(request)
@@ -2492,7 +2495,7 @@ class RecordingMarkdownFileIndexer:
 class RuntimeFactoryEntityRepository:
     project_id: int | None = 12
 
-    def select(self, *entities: Any) -> Select:
+    def select(self, *entities: Any) -> Select[Any]:
         # Runtime-factory composition tests never run a watermark scan, so the
         # stat-projection query builder is unused here.
         raise NotImplementedError
@@ -2567,17 +2570,12 @@ class RuntimeFactorySearchIndex:
     async def sync_entity_vectors_batch(
         self,
         entity_ids: list[int],
-    ) -> "RuntimeFactoryVectorBatchResult":
-        return RuntimeFactoryVectorBatchResult(entities_synced=len(entity_ids))
-
-
-# Not frozen: EmbeddingIndexBatchSummary declares plain (writable) attribute members.
-@dataclass(slots=True)
-class RuntimeFactoryVectorBatchResult:
-    entities_synced: int
-    entities_skipped: int = 0
-    entities_failed: int = 0
-    entities_deferred: int = 0
+    ) -> VectorSyncBatchResult:
+        return VectorSyncBatchResult(
+            entities_total=len(entity_ids),
+            entities_synced=len(entity_ids),
+            entities_failed=0,
+        )
 
 
 class RuntimeFactoryRelationRepository:
@@ -2614,6 +2612,21 @@ class RuntimeFactoryRelationRepository:
             affected_entity_ids=frozenset(write.from_id for write in writes),
             duplicate_relation_ids=(),
         )
+
+    async def list_pending_search_refreshes(
+        self,
+        session: AsyncSession,
+        *,
+        entity_id: int | None = None,
+    ) -> Sequence[PendingRelationSearchRefresh]:
+        return ()
+
+    async def clear_pending_search_refreshes(
+        self,
+        session: AsyncSession,
+        refresh_ids: Sequence[int],
+    ) -> None:
+        return None
 
 
 class RuntimeFactoryLinkResolver:

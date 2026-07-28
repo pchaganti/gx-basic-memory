@@ -6,11 +6,10 @@ import asyncio
 import math
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from loguru import logger
 
-from basic_memory.repository.embedding_provider import EmbeddingProvider
 from basic_memory.repository.semantic_errors import SemanticDependenciesMissingError
 
 if TYPE_CHECKING:
@@ -35,7 +34,7 @@ _MISSING_ARTIFACT_ERROR_MARKERS = (
 )
 
 
-class FastEmbedEmbeddingProvider(EmbeddingProvider):
+class FastEmbedEmbeddingProvider:
     """Local ONNX embedding provider backed by FastEmbed."""
 
     _MODEL_ALIASES = {
@@ -92,7 +91,7 @@ class FastEmbedEmbeddingProvider(EmbeddingProvider):
         # long-running process it leaks tens of GB (#872). FastEmbed exposes
         # enable_cpu_mem_arena via its session-option kwargs, so we disable the arena to
         # let any transient extra load free memory.
-        model_kwargs: dict = {
+        model_kwargs: dict[str, Any] = {
             "model_name": resolved_model_name,
             "enable_cpu_mem_arena": False,
         }

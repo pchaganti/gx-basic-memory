@@ -3,7 +3,7 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import FrozenInstanceError, dataclass
 from datetime import timedelta
-from typing import cast
+from typing import override, cast
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -23,6 +23,7 @@ from basic_memory.indexing.relation_resolution import (
 from basic_memory.indexing.models import IndexFileJobStatus
 from basic_memory.models import Entity
 from basic_memory.repository.relation_repository import (
+    PendingRelationSearchRefresh,
     ResolvedRelationWrite,
     ResolvedRelationWriteResult,
 )
@@ -67,8 +68,7 @@ class FakeSession:
         pass
 
 
-# Not frozen: UnresolvedRelation declares plain (writable) attribute members.
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class FakeRelation:
     id: int
     from_id: int
@@ -76,8 +76,7 @@ class FakeRelation:
     relation_type: str = "related_to"
 
 
-# Not frozen: ResolvedRelationTarget declares plain (writable) attribute members.
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class FakeResolvedEntity:
     id: int
     title: str
@@ -93,6 +92,8 @@ class StubRelationRepository:
         self._unresolved_per_call = unresolved_per_call
         self.calls = 0
         self.write_batches: list[tuple[ResolvedRelationWrite, ...]] = []
+        self.pending_search_refreshes: list[PendingRelationSearchRefresh] = []
+        self._next_refresh_id = 1
 
     async def find_unresolved_relations(
         self,
@@ -122,10 +123,43 @@ class StubRelationRepository:
     ) -> ResolvedRelationWriteResult:
         assert isinstance(session, FakeSession)
         self.write_batches.append(tuple(writes))
+        affected_entity_ids = frozenset(write.from_id for write in writes)
+        for entity_id in sorted(affected_entity_ids):
+            self.pending_search_refreshes.append(
+                PendingRelationSearchRefresh(
+                    id=self._next_refresh_id,
+                    entity_id=entity_id,
+                )
+            )
+            self._next_refresh_id += 1
         return ResolvedRelationWriteResult(
-            affected_entity_ids=frozenset(write.from_id for write in writes),
+            affected_entity_ids=affected_entity_ids,
             duplicate_relation_ids=(),
         )
+
+    async def list_pending_search_refreshes(
+        self,
+        session: AsyncSession,
+        *,
+        entity_id: int | None = None,
+    ) -> list[PendingRelationSearchRefresh]:
+        assert isinstance(session, FakeSession)
+        return [
+            refresh
+            for refresh in self.pending_search_refreshes
+            if entity_id is None or refresh.entity_id == entity_id
+        ]
+
+    async def clear_pending_search_refreshes(
+        self,
+        session: AsyncSession,
+        refresh_ids: Sequence[int],
+    ) -> None:
+        assert isinstance(session, FakeSession)
+        completed_ids = set(refresh_ids)
+        self.pending_search_refreshes = [
+            refresh for refresh in self.pending_search_refreshes if refresh.id not in completed_ids
+        ]
 
 
 class StubEntityRepository:
@@ -216,6 +250,7 @@ class StubEntityIndexer:
 class MissingFileEntityIndexer(StubEntityIndexer):
     """Model SearchService's disk fallback for entities without accepted content."""
 
+    @override
     async def index_entities(
         self,
         entities: Sequence[Entity],
@@ -547,7 +582,7 @@ async def test_repository_runtime_batches_resolution_and_entity_refresh_sessions
             FakeResolvedEntity(id=11, title="Source B"),
         )
     ]
-    assert FakeSession.created_count == 2
+    assert FakeSession.created_count == 3
 
 
 @pytest.mark.asyncio
@@ -616,6 +651,7 @@ async def test_resolve_relations_skips_ambiguous_target_without_aborting_pass() 
             super().__init__(targets)
             self.ambiguous = ambiguous
 
+        @override
         async def resolve_link(
             self,
             link_text: str,
@@ -626,9 +662,7 @@ async def test_resolve_relations_skips_ambiguous_target_without_aborting_pass() 
             assert isinstance(session, FakeSession)
             self.calls.append((link_text, strict))
             if link_text in self.ambiguous:
-                raise AmbiguousIdentifierError(
-                    link_text, [("dup-a", "a.md"), ("dup-b", "b.md")]
-                )
+                raise AmbiguousIdentifierError(link_text, [("dup-a", "a.md"), ("dup-b", "b.md")])
             return self.targets.get(link_text)
 
     repo = StubRelationRepository(

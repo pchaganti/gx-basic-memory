@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import override, Protocol
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -37,7 +37,8 @@ class ExternalFileDeleteEntities(Protocol):
 class ExternalFileDeleteEntityRepository(Protocol):
     """Repository capability used by storage-event external delete adapters."""
 
-    project_id: ProjectId | None
+    @property
+    def project_id(self) -> ProjectId | None: ...
 
     async def get_by_file_path(
         self,
@@ -88,6 +89,7 @@ class RepositoryExternalFileDeleteEntities(ExternalFileDeleteEntities):
     session_maker: async_sessionmaker[AsyncSession]
     entity_repository: ExternalFileDeleteEntityRepository
 
+    @override
     async def find_entity_by_file_path(
         self,
         file_path: RuntimeFilePath,
@@ -95,6 +97,7 @@ class RepositoryExternalFileDeleteEntities(ExternalFileDeleteEntities):
         async with db.scoped_session(self.session_maker) as session:
             return await self.entity_repository.get_by_file_path(session, file_path)
 
+    @override
     async def delete_entity_if_file_path_matches(
         self,
         *,

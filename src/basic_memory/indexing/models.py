@@ -6,7 +6,7 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Protocol, TYPE_CHECKING
+from typing import override, Any, Protocol, TYPE_CHECKING
 
 from basic_memory.indexing.embedding_index_planning import (
     EmbeddingIndexJobRequest,
@@ -96,7 +96,7 @@ class IndexFrontmatterUpdate:
     metadata: dict[str, Any]
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class IndexFrontmatterWriteResult:
     """Typed result for a frontmatter write performed during indexing."""
 
@@ -825,8 +825,11 @@ class IndexFileWriter(Protocol):
 class IndexFrontmatterStorageResult(Protocol):
     """Storage write result shape needed by the indexing writer adapter."""
 
-    checksum: str
-    content: str
+    @property
+    def checksum(self) -> str: ...
+
+    @property
+    def content(self) -> str: ...
 
 
 class IndexFrontmatterStorage(Protocol):
@@ -845,6 +848,7 @@ class StorageIndexFileWriter(IndexFileWriter):
 
     storage: IndexFrontmatterStorage
 
+    @override
     async def write_frontmatter(
         self, update: IndexFrontmatterUpdate
     ) -> IndexFrontmatterWriteResult:

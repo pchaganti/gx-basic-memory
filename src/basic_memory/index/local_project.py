@@ -7,7 +7,7 @@ import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Any, override, Protocol
 
 from loguru import logger
 from sqlalchemy import Select
@@ -47,7 +47,6 @@ from basic_memory.indexing.file_index_checking import (
     RepositoryIndexedFileChecksumSource,
     RepositoryMovedEntitySource,
     RepositoryMoveVacateSource,
-    StorageCurrentFileChecksumSource,
 )
 from basic_memory.repository.note_file_vacate_repository import NoteFileVacateRepository
 from basic_memory.indexing.models import (
@@ -130,7 +129,7 @@ class LocalProjectIndexedFileStatSource(Protocol):
 class LocalProjectIndexStatRepository(Protocol):
     """Project-scoped select capability for reading indexed file stat rows."""
 
-    def select(self, *entities: object) -> Select: ...
+    def select(self, *entities: object) -> Select[Any]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +139,7 @@ class RepositoryLocalProjectIndexedFileStatSource(LocalProjectIndexedFileStatSou
     session_maker: async_sessionmaker[AsyncSession]
     entity_repository: LocalProjectIndexStatRepository
 
+    @override
     async def load_indexed_file_stats(self) -> dict[str, IndexedFileStat]:
         # Only the three stat columns are projected (not full entities) so this
         # stays a cheap single query even for large projects.
@@ -287,6 +287,7 @@ class LocalProjectIndexObservedFileSource(ProjectIndexObservedFileSource):
     ignore_patterns: LocalProjectIndexIgnorePatterns | None = None
     indexed_stat_source: LocalProjectIndexedFileStatSource | None = None
 
+    @override
     async def list_observed_index_files(self) -> tuple[RuntimeObservedIndexFile, ...]:
         scan = await asyncio.to_thread(
             scan_local_project_index_files,
@@ -414,6 +415,7 @@ class LocalProjectIndexDeletePathVerifier(ProjectIndexDeletePathVerifier):
 
     file_service: FileService
 
+    @override
     async def confirm_deleted_paths(self, paths: Sequence[str]) -> frozenset[str]:
         confirmed_paths: set[str] = set()
         for path in paths:
@@ -463,13 +465,7 @@ LocalProjectIndexObservation = ProjectIndexObservation
 
 
 class LocalProjectIndexRuntimeProvider(Protocol):
-    """Minimal factory shape needed to run a local project-index request.
-
-    A structural seam so callers in higher layers (e.g. services/initialization,
-    which declares its own matching InitialProjectIndexRuntimeFactory Protocol)
-    can supply a runtime factory without importing the concrete
-    LocalProjectIndexRuntimeFactory from this module.
-    """
+    """Minimal factory shape needed to run a local project-index request."""
 
     async def runtime_for_project(self, project: Project) -> LocalProjectIndexRuntime: ...
 
@@ -490,6 +486,7 @@ class LocalIndexFileBatchReader(IndexFileBatchReader[IndexInputFile]):
 
     file_service: FileService
 
+    @override
     async def read_current_files(
         self,
         file_paths: Sequence[str],
@@ -550,6 +547,7 @@ class LocalProjectIndexBatchEnqueuer(ProjectIndexBatchEnqueuer):
     read_max_concurrent: int = 8
     index_max_concurrent: int = 8
 
+    @override
     async def enqueue_index_file_batch(
         self,
         request: RuntimeIndexFileBatchJobRequest,
@@ -589,9 +587,7 @@ class LocalProjectIndexRuntimeFactory:
                 session_maker=dependencies.session_maker,
                 entity_repository=dependencies.entity_repository,
             ),
-            current_checksum_source=StorageCurrentFileChecksumSource(
-                metadata_source=metadata_source,
-            ),
+            current_checksum_source=metadata_source,
             moved_entity_source=RepositoryMovedEntitySource(
                 session_maker=dependencies.session_maker,
                 entity_repository=dependencies.entity_repository,

@@ -18,11 +18,11 @@ from basic_memory.repository.embedding_provider_factory import create_embedding_
 from basic_memory.repository.rerank_provider_factory import create_rerank_provider
 from basic_memory.repository.postgres_search_repository import PostgresSearchRepository
 from basic_memory.repository.search_index_row import SearchIndexRow
-from basic_memory.repository.search_repository_base import VectorSyncBatchResult
 from basic_memory.repository.semantic_vector_index_factory import (
     create_semantic_vector_index,
     resolve_semantic_vector_index_name,
 )
+from basic_memory.runtime.vector_sync import VectorSyncBatchResult
 from basic_memory.repository.sqlite_search_repository import SQLiteSearchRepository
 from basic_memory.schemas.search import SearchItemType, SearchRetrievalMode
 
@@ -33,7 +33,8 @@ class SearchRepository(Protocol):
     Both SQLite and Postgres implementations must satisfy this protocol.
     """
 
-    project_id: int
+    @property
+    def project_id(self) -> int: ...
 
     async def init_search_index(self) -> None:
         """Initialize the search index schema."""
@@ -49,7 +50,7 @@ class SearchRepository(Protocol):
         after_date: Optional[datetime] = None,
         search_item_types: Optional[List[SearchItemType]] = None,
         categories: Optional[List[str]] = None,
-        metadata_filters: Optional[dict] = None,
+        metadata_filters: Optional[dict[str, Any]] = None,
         retrieval_mode: SearchRetrievalMode = SearchRetrievalMode.FTS,
         min_similarity: Optional[float] = None,
         limit: int = 10,
@@ -70,7 +71,7 @@ class SearchRepository(Protocol):
         after_date: Optional[datetime] = None,
         search_item_types: Optional[List[SearchItemType]] = None,
         categories: Optional[List[str]] = None,
-        metadata_filters: Optional[dict] = None,
+        metadata_filters: Optional[dict[str, Any]] = None,
         retrieval_mode: SearchRetrievalMode = SearchRetrievalMode.FTS,
         min_similarity: Optional[float] = None,
         allow_relaxed: bool = False,
@@ -135,7 +136,7 @@ class SearchRepository(Protocol):
         """Sync semantic vector chunks for a batch of entities."""
         ...
 
-    async def execute_query(self, query, params: dict) -> Result:
+    async def execute_query(self, query, params: dict[str, Any]) -> Result[Any]:
         """Execute a raw SQL query."""
         ...
 

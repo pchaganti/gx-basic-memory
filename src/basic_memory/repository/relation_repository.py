@@ -1,7 +1,7 @@
 """Repository for managing Relation objects."""
 
 from dataclasses import dataclass
-from typing import Sequence, List, Optional, Any, cast
+from typing import override, Sequence, List, Optional, Any, cast
 
 from sqlalchemy import and_, case, delete, select, update
 from sqlalchemy.engine import CursorResult
@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.orm.interfaces import LoaderOption
 
-from basic_memory.models import Relation, Entity
+from basic_memory.models import Entity, Relation, RelationSearchRefresh
 from basic_memory.repository.repository import Repository
 
 
@@ -48,6 +48,14 @@ class ResolvedRelationWriteResult:
 
     affected_entity_ids: frozenset[int]
     duplicate_relation_ids: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PendingRelationSearchRefresh:
+    """One durable relation-search reconciliation item."""
+
+    id: int
+    entity_id: int
 
 
 class RelationRepository(Repository[Relation]):
@@ -133,6 +141,39 @@ class RelationRepository(Repository[Relation]):
         query = self.select().filter(Relation.from_id == entity_id, Relation.to_id.is_(None))
         result = await self.execute_query(session, query)
         return result.scalars().all()
+
+    async def list_pending_search_refreshes(
+        self,
+        session: AsyncSession,
+        *,
+        entity_id: int | None = None,
+    ) -> list[PendingRelationSearchRefresh]:
+        """Return committed relation changes whose source projection needs refresh."""
+        query = (
+            select(RelationSearchRefresh.id, RelationSearchRefresh.entity_id)
+            .where(RelationSearchRefresh.project_id == self.project_id)
+            .order_by(RelationSearchRefresh.id)
+        )
+        if entity_id is not None:
+            query = query.where(RelationSearchRefresh.entity_id == entity_id)
+        result = await session.execute(query)
+        return [
+            PendingRelationSearchRefresh(id=refresh_id, entity_id=refresh_entity_id)
+            for refresh_id, refresh_entity_id in result.tuples().all()
+        ]
+
+    async def clear_pending_search_refreshes(
+        self,
+        session: AsyncSession,
+        refresh_ids: Sequence[int],
+    ) -> None:
+        """Retire only refresh work completed by the caller's successful pass."""
+        await session.execute(
+            delete(RelationSearchRefresh).where(
+                RelationSearchRefresh.project_id == self.project_id,
+                RelationSearchRefresh.id.in_(refresh_ids),
+            )
+        )
 
     async def apply_resolved_targets(
         self,
@@ -243,6 +284,19 @@ class RelationRepository(Repository[Relation]):
                 .execution_options(synchronize_session=False)
             )
 
+        # Trigger: relation targets changed or duplicate edges were removed.
+        # Why: a later storage/search failure must not consume the only evidence
+        # that each source projection still needs reconciliation.
+        # Outcome: the relation mutation and its retryable refresh work commit
+        # atomically, while concurrent later changes receive separate markers.
+        session.add_all(
+            RelationSearchRefresh(
+                project_id=self.project_id,
+                entity_id=entity_id,
+            )
+            for entity_id in sorted(source_entity_ids)
+        )
+
         return ResolvedRelationWriteResult(
             affected_entity_ids=frozenset(source_entity_ids),
             duplicate_relation_ids=tuple(duplicate_relation_ids),
@@ -334,5 +388,6 @@ class RelationRepository(Repository[Relation]):
         # the unique (from_id, to_name, relation_type) constraint from aborting.
         await self.add_all_ignore_duplicates(session, rows)
 
+    @override
     def get_load_options(self) -> List[LoaderOption]:
         return [selectinload(Relation.from_entity), selectinload(Relation.to_entity)]

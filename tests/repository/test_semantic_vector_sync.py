@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 from types import SimpleNamespace
-from typing import Any
+from typing import override, Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -30,12 +30,15 @@ class _TestRepository(SearchRepositoryBase):
         self.session_maker = None
         self.project_id = 1
 
+    @override
     async def init_search_index(self):
         pass
 
+    @override
     def _prepare_search_term(self, term, is_prefix=True):
         return term
 
+    @override
     async def search(
         self,
         search_text: str | None = None,
@@ -55,18 +58,23 @@ class _TestRepository(SearchRepositoryBase):
     ) -> list[SearchIndexRow]:
         return []
 
+    @override
     async def _ensure_vector_tables(self):
         pass
 
+    @override
     async def _run_vector_query(self, session, query_embedding, candidate_limit):
         return []
 
+    @override
     async def _write_embeddings(self, session, jobs, embeddings):
         pass
 
+    @override
     async def _delete_entity_chunks(self, session, entity_id, *, expected_deletions=None):
         return []
 
+    @override
     async def _delete_stale_chunks(
         self,
         session,
@@ -77,6 +85,7 @@ class _TestRepository(SearchRepositoryBase):
     ):
         return []
 
+    @override
     def _distance_to_similarity(self, distance: float) -> float:
         return 1.0 / (1.0 + max(distance, 0.0))
 
@@ -211,7 +220,7 @@ async def test_vector_sync_handles_final_flush_errors_and_orphan_runtime(
         continue_on_error=True,
     )
 
-    assert failed_result.failed_entity_ids == [1]
+    assert failed_result.failed_entity_ids == (1,)
 
     strict_repository = _batch_repository(
         monkeypatch,
@@ -242,7 +251,7 @@ async def test_vector_sync_handles_final_flush_errors_and_orphan_runtime(
         continue_on_error=True,
     )
 
-    assert orphan_result.failed_entity_ids == [1]
+    assert orphan_result.failed_entity_ids == (1,)
 
 
 def test_vector_shard_planning_and_logging_edges(monkeypatch) -> None:
