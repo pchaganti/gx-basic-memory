@@ -6,6 +6,7 @@ to ensure consistent application startup across all entry points.
 
 import asyncio
 import os
+from contextlib import nullcontext
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     from basic_memory.index.local_project import LocalProjectIndexRuntimeProvider
+    from basic_memory.read_cache import ReadCache, ReadCacheInvalidator
 
 
 async def run_initial_project_index(
@@ -50,6 +52,8 @@ async def run_initial_project_index(
 async def recover_project_materializations(
     project: Project,
     session_maker: "async_sessionmaker[AsyncSession]",
+    *,
+    read_cache: "ReadCacheInvalidator | None" = None,
 ) -> None:
     """Re-drive note materialization and move cleanup lost across a process exit.
 
@@ -65,31 +69,63 @@ async def recover_project_materializations(
         recover_move_vacates,
         recover_stuck_materializations,
     )
+    from basic_memory.read_cache import invalidate_cache
     from basic_memory.services.file_service import FileService
 
-    try:
-        # FileService needs only base_path to write the accepted markdown bytes;
-        # the markdown_processor/app_config are unused on the materialization path.
-        file_service = FileService(Path(project.path))
-        recovered = await recover_stuck_materializations(
-            session_maker=session_maker,
-            file_service=file_service,
-            project_id=project.id,
-        )
-        recovered_vacates = await recover_move_vacates(
-            session_maker=session_maker,
-            file_service=file_service,
-            project_id=project.id,
-        )
-        if recovered or recovered_vacates:
-            logger.info(
-                "Recovered note materialization state on startup",
-                project=project.name,
-                recovered_materializations=recovered,
-                recovered_move_vacates=recovered_vacates,
+    # FileService needs only base_path to write the accepted markdown bytes;
+    # the markdown_processor/app_config are unused on the materialization path.
+    file_service = FileService(Path(project.path))
+    # Recovery reports whether it published state only after its transaction-bearing
+    # phase exits. Scope the whole phase so cancellation cannot land in that window;
+    # a harmless generation bump after a no-op recovery is the correctness tradeoff.
+    materialization_scope = (
+        invalidate_cache(read_cache, str(project.external_id))
+        if read_cache is not None
+        else nullcontext()
+    )
+    async with materialization_scope:
+        try:
+            materialization_recovery = await recover_stuck_materializations(
+                session_maker=session_maker,
+                file_service=file_service,
+                project_id=project.id,
             )
-    except Exception as e:  # pragma: no cover - defensive startup guard
-        logger.error(f"Error recovering stuck materializations for project {project.name}: {e}")
+        except Exception as e:  # pragma: no cover - defensive startup guard
+            logger.error(f"Error recovering stuck materializations for project {project.name}: {e}")
+            return
+
+    if materialization_recovery.attempted:
+        logger.info(
+            "Recovered note materialization state on startup",
+            project=project.name,
+            attempted_materializations=materialization_recovery.attempted,
+            recovered_materializations=materialization_recovery.written,
+        )
+
+    vacate_scope = (
+        invalidate_cache(read_cache, str(project.external_id))
+        if read_cache is not None
+        else nullcontext()
+    )
+    async with vacate_scope:
+        try:
+            recovered_vacates = await recover_move_vacates(
+                session_maker=session_maker,
+                file_service=file_service,
+                project_id=project.id,
+            )
+        except Exception as e:  # pragma: no cover - defensive startup guard
+            logger.error(f"Error recovering move vacates for project {project.name}: {e}")
+            return
+
+    if not recovered_vacates:
+        return
+
+    logger.info(
+        "Recovered note move-vacate state on startup",
+        project=project.name,
+        recovered_move_vacates=recovered_vacates,
+    )
 
 
 async def initialize_database(app_config: BasicMemoryConfig) -> None:
@@ -151,6 +187,7 @@ async def initialize_file_indexing(
     quiet: bool = True,
     *,
     recovery_complete: asyncio.Event | None = None,
+    read_cache: "ReadCache | None" = None,
 ) -> None:
     """Initialize file indexing services.
 
@@ -160,6 +197,7 @@ async def initialize_file_indexing(
         app_config: The Basic Memory project configuration
         quiet: Whether to suppress Rich console output (True for MCP, False for CLI watch)
         recovery_complete: Optional startup barrier set after durable recovery finishes.
+        read_cache: Optional host-injected semantic read cache.
 
     Returns:
         The watch service task that's monitoring file changes
@@ -190,11 +228,13 @@ async def initialize_file_indexing(
     # running multiple `basic-memory mcp --project X` processes does not produce
     # duplicate watchers fighting over the same files.
     constrained_project = os.environ.get("BASIC_MEMORY_MCP_PROJECT")
-
     event_index_runtime_factory = LocalWatchEventIndexRuntimeFactory(
         index_embeddings=app_config.semantic_search_enabled,
+        read_cache=read_cache,
     )
-    project_index_runtime_factory = LocalProjectIndexRuntimeFactory()
+    project_index_runtime_factory = LocalProjectIndexRuntimeFactory(
+        read_cache=read_cache,
+    )
 
     # Initialize watch service
     watch_service = WatchService(
@@ -227,7 +267,11 @@ async def initialize_file_indexing(
     # cleanup whose in-process enqueue was lost. Runs synchronously so the files
     # converge before the initial project index scans them.
     for project in active_projects:
-        await recover_project_materializations(project, session_maker)
+        await recover_project_materializations(
+            project,
+            session_maker,
+            read_cache=read_cache,
+        )
 
     # Trigger: the API/MCP lifespan is waiting for durable startup recovery.
     # Why: serving accepted writes while recovery holds cached vacate work can

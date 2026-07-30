@@ -27,6 +27,10 @@ from basic_memory.repository.note_content_repository import (
     NoteContentRepository,
 )
 from basic_memory.repository.note_file_vacate_repository import NoteFileVacateRepository
+from basic_memory.read_cache import (
+    ReadCacheInvalidator,
+    ReadCacheInvalidationStatus,
+)
 from basic_memory.runtime.cleanup import RuntimeNoteFileDeleteJobRequest
 from basic_memory.indexing.models import FileIndexOperation, FileIndexResult
 from basic_memory.runtime.note_content import (
@@ -41,6 +45,8 @@ from basic_memory.runtime.note_content import (
     runtime_note_content_payload_as_dict,
 )
 from basic_memory.services.file_service import FileService
+
+PROJECT_EXTERNAL_ID = "00000000-0000-0000-0000-000000000007"
 
 
 class RecordingFileIndexer:
@@ -58,6 +64,15 @@ class RecordingFileIndexer:
             checksum="indexed-checksum",
             operation=FileIndexOperation.updated,
         )
+
+
+class RecordingReadCache:
+    def __init__(self) -> None:
+        self.invalidated_project_ids: list[str] = []
+
+    async def invalidate_project(self, project_id: str) -> ReadCacheInvalidationStatus:
+        self.invalidated_project_ids.append(project_id)
+        return ReadCacheInvalidationStatus.invalidated
 
 
 def accepted_materialization_change() -> RuntimeAcceptedNoteChange[
@@ -102,12 +117,15 @@ def local_materialization_provider(
     indexer: RecordingFileIndexer,
     *,
     test_mode: bool = True,
+    read_cache: ReadCacheInvalidator | None = None,
 ) -> LocalNoteContentMaterializationProvider:
     # test_mode=True keeps materialization inline so these tests can assert the
     # result synchronously; production defers it to a background task.
     return LocalNoteContentMaterializationProvider(
         session_maker=cast(async_sessionmaker[AsyncSession], object()),
         file_service=cast(FileService, object()),
+        project_external_id=PROJECT_EXTERNAL_ID,
+        read_cache=read_cache,
         file_indexer=indexer,
         test_mode=test_mode,
     )
@@ -277,19 +295,27 @@ async def test_local_materialization_defers_write_off_the_accept_path(
     pool = note_content_materialization._MaterializationWorkerPool()
     monkeypatch.setattr(note_content_materialization, "_materialization_pool", pool)
     indexer = RecordingFileIndexer()
+    read_cache = RecordingReadCache()
     accepted = accepted_materialization_change()
 
     result = await local_materialization_provider(
-        indexer, test_mode=False
+        indexer,
+        test_mode=False,
+        read_cache=read_cache,
     ).materialize_write_change(accepted)
 
     # Returned immediately with the accepted DB state — no inline write yet.
     assert result is accepted
     assert requests == []
+    assert read_cache.invalidated_project_ids == []
 
     # The write happens off the accept path via the bounded pool; drain to confirm.
     await pool.join()
     assert len(requests) == 1
+    assert read_cache.invalidated_project_ids == [
+        PROJECT_EXTERNAL_ID,
+        PROJECT_EXTERNAL_ID,
+    ]
     await pool.aclose()
 
 
@@ -350,9 +376,12 @@ async def test_local_materialization_schedules_relation_resolution_after_index(
         def schedule_relation_resolution(self, *, project_id: int) -> None:
             scheduled.append(project_id)
 
+    read_cache = RecordingReadCache()
     provider = LocalNoteContentMaterializationProvider(
         session_maker=cast(async_sessionmaker[AsyncSession], object()),
         file_service=cast(FileService, object()),
+        project_external_id=PROJECT_EXTERNAL_ID,
+        read_cache=read_cache,
         file_indexer=RecordingFileIndexer(),
         test_mode=True,
         relation_resolution_scheduler=RecordingScheduler(),
@@ -362,6 +391,10 @@ async def test_local_materialization_schedules_relation_resolution_after_index(
 
     assert accepted.materialization is not None
     assert scheduled == [accepted.materialization.project_id]
+    assert read_cache.invalidated_project_ids == [
+        PROJECT_EXTERNAL_ID,
+        PROJECT_EXTERNAL_ID,
+    ]
 
 
 @pytest.mark.asyncio
@@ -531,7 +564,8 @@ async def test_recover_stuck_materializations_writes_file_and_marks_synced(
         project_id=test_project.id,
     )
 
-    assert recovered == 1
+    assert recovered.attempted == 1
+    assert recovered.written == 1
     written = file_service.base_path / sample_entity.file_path
     assert written.read_text(encoding="utf-8") == "# Recovered\n\nThe crash left this unwritten.\n"
 
@@ -587,14 +621,13 @@ async def test_move_vacate_recovery_waits_for_destination_then_cleans_source(
     )
     assert source.exists()
 
-    assert (
-        await recover_stuck_materializations(
-            session_maker=session_maker,
-            file_service=file_service,
-            project_id=test_project.id,
-        )
-        == 1
+    recovered = await recover_stuck_materializations(
+        session_maker=session_maker,
+        file_service=file_service,
+        project_id=test_project.id,
     )
+    assert recovered.attempted == 1
+    assert recovered.written == 1
     assert (
         await recover_move_vacates(
             session_maker=session_maker,
@@ -639,7 +672,8 @@ async def test_recover_stuck_materializations_re_drives_failed_row(
         project_id=test_project.id,
     )
 
-    assert recovered == 1
+    assert recovered.attempted == 1
+    assert recovered.written == 1
     written = file_service.base_path / sample_entity.file_path
     assert written.read_text(encoding="utf-8") == "# Recovered after transient failure\n"
 
@@ -674,7 +708,8 @@ async def test_recover_stuck_materializations_returns_zero_when_none_stuck(
         project_id=test_project.id,
     )
 
-    assert recovered == 0
+    assert recovered.attempted == 0
+    assert recovered.written == 0
 
 
 @pytest.mark.asyncio
@@ -707,7 +742,8 @@ async def test_recover_stuck_materializations_is_non_fatal_per_row(
         project_id=test_project.id,
     )
 
-    assert recovered == 0
+    assert recovered.attempted == 1
+    assert recovered.written == 0
 
 
 @pytest.mark.asyncio
@@ -739,7 +775,8 @@ async def test_recover_stuck_materializations_does_not_overwrite_unexpected_file
         project_id=test_project.id,
     )
 
-    assert recovered == 0
+    assert recovered.attempted == 1
+    assert recovered.written == 0
     assert target.read_text(encoding="utf-8") == "# External edit\n"
 
     repository = NoteContentRepository(project_id=test_project.id)
@@ -788,7 +825,8 @@ async def test_recover_stuck_materializations_publishes_already_written_file(
         project_id=test_project.id,
     )
 
-    assert recovered == 1
+    assert recovered.attempted == 1
+    assert recovered.written == 1
     assert target.read_text(encoding="utf-8") == markdown_content
 
     repository = NoteContentRepository(project_id=test_project.id)

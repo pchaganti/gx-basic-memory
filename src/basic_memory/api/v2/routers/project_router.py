@@ -10,6 +10,7 @@ Key improvements:
 - Consistent with v2 entity operations
 """
 
+from contextlib import nullcontext
 import os
 from typing import Literal, Optional
 
@@ -24,10 +25,12 @@ from basic_memory.deps import (
     ProjectIndexCommandDep,
     ProjectIndexObserverDep,
     ProjectExternalIdPathDep,
+    ReadCacheDep,
     SessionDep,
     SessionMakerDep,
 )
 from basic_memory.index.local_project import ProjectIndexRouteRequest
+from basic_memory.read_cache import invalidate_cache
 from basic_memory.schemas import ProjectIndexStatusResponse
 from basic_memory.models import Project
 from basic_memory.repository.project_repository import ProjectRepository
@@ -408,6 +411,7 @@ async def update_project_by_id(
     project_service: ProjectServiceDep,
     session_maker: SessionMakerDep,
     project_repository: ProjectRepositoryDep,
+    read_cache: ReadCacheDep,
     project_id: str = Path(..., description="Project external ID (UUID)"),
     path: Optional[str] = Body(None, description="New absolute path for the project"),
     is_active: Optional[bool] = Body(None, description="Status of the project (active/inactive)"),
@@ -454,7 +458,17 @@ async def update_project_by_id(
 
         # Update using project name (service layer still uses names internally)
         if path:
-            await project_service.move_project(old_project.name, path)
+            # A path update changes the filesystem source behind every
+            # resource key while project and entity UUIDs stay stable. The
+            # service can update config before its DB follow-up completes,
+            # so invalidate on every attempted move completion path.
+            invalidation_scope = (
+                invalidate_cache(read_cache, project_id)
+                if read_cache is not None
+                else nullcontext()
+            )
+            async with invalidation_scope:
+                await project_service.move_project(old_project.name, path)
         elif is_active is not None:
             await project_service.update_project(old_project.name, is_active=is_active)
 

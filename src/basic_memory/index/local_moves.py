@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import override, Protocol
@@ -35,6 +36,7 @@ from basic_memory.runtime.storage import (
     STORAGE_OBJECT_CREATED_EVENTS,
     STORAGE_OBJECT_DELETED_EVENT,
 )
+from basic_memory.read_cache import ReadCache, invalidate_cache
 from basic_memory.services import FileService
 
 
@@ -171,6 +173,8 @@ class LocalWatchMoveProcessor:
     entity_repository: LocalMoveEntityRepository
     maintenance_runner: ProjectIndexMaintenanceRunner
     moved_entity_search_refresher: ProjectIndexMovedEntitySearchRefresher
+    project_external_id: str
+    read_cache: ReadCache | None
     batch_size: int = 100
 
     async def process_moves(
@@ -182,15 +186,26 @@ class LocalWatchMoveProcessor:
         removed_event_indexes: set[int] = set()
 
         if moved_files:
-            move_run = await self.maintenance_runner.run_move_batches(
-                moved_files=moved_files,
-                batch_size=self.batch_size,
+            # Move pairs bypass ordinary file/delete completion callbacks.
+            # Invalidate after maintenance and search refresh so cached paths,
+            # permalinks, and relations cannot retain the pre-move state.
+            invalidation_scope = (
+                invalidate_cache(self.read_cache, self.project_external_id)
+                if self.read_cache is not None
+                else nullcontext()
             )
-            refresh_entity_ids = move_run.moved_entity_ids | move_run.relation_cleanup_entity_ids
-            if refresh_entity_ids:
-                await self.moved_entity_search_refresher.refresh_moved_entities(
-                    sorted(refresh_entity_ids)
+            async with invalidation_scope:
+                move_run = await self.maintenance_runner.run_move_batches(
+                    moved_files=moved_files,
+                    batch_size=self.batch_size,
                 )
+                refresh_entity_ids = (
+                    move_run.moved_entity_ids | move_run.relation_cleanup_entity_ids
+                )
+                if refresh_entity_ids:
+                    await self.moved_entity_search_refresher.refresh_moved_entities(
+                        sorted(refresh_entity_ids)
+                    )
 
             moved_old_paths = set(moved_files) - set(move_run.missing_paths)
             moved_new_paths = {moved_files[old_path] for old_path in moved_old_paths}

@@ -14,7 +14,7 @@ behavior of its own:
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Path as FastAPIPath
 from loguru import logger
 
 from basic_memory.deps.config import AppConfigDep
@@ -23,6 +23,7 @@ from basic_memory.deps.projects import (
     ProjectConfigV2ExternalDep,
     ProjectRepositoryDep,
 )
+from basic_memory.deps.read_cache import ReadCacheDep
 from basic_memory.deps.repositories import (
     EntityRepositoryV2ExternalDep,
     ObservationRepositoryV2ExternalDep,
@@ -47,6 +48,7 @@ from basic_memory.repository.search_repository import create_search_repository
 from basic_memory.index.local_project import (
     LocalProjectIndexCommand,
     LocalProjectIndexRunner,
+    LocalProjectIndexRuntimeFactory,
 )
 from basic_memory.index.project_indexing import (
     ProjectIndexCommand,
@@ -313,6 +315,7 @@ async def get_note_content_mutation_service(
     file_indexer: IndexFileExecutorV2ExternalDep,
     session_maker: SessionMakerDep,
     app_config: AppConfigDep,
+    read_cache: ReadCacheDep,
 ) -> NoteContentMutationService:
     """Create the local accepted-note mutation facade for API routes."""
     accepted_note_repositories = AcceptedNoteRepositories(
@@ -347,6 +350,7 @@ async def get_note_content_mutation_service(
             file_indexer=file_indexer,
             session_maker=session_maker,
         ),
+        read_cache=read_cache,
     )
 
 
@@ -361,11 +365,13 @@ NoteContentMutationServiceDep = Annotated[
 async def get_project_index_runner(
     project_repository: ProjectRepositoryDep,
     session_maker: SessionMakerDep,
+    read_cache: ReadCacheDep,
 ) -> LocalProjectIndexRunner:
     """Create the local project-index runner used by API routes and tasks."""
     return LocalProjectIndexRunner(
         project_repository=project_repository,
         session_maker=session_maker,
+        runtime_factory=LocalProjectIndexRuntimeFactory(read_cache=read_cache),
     )
 
 
@@ -411,22 +417,32 @@ async def get_project_index_scheduler(
 
 
 async def get_search_reindex_scheduler(
+    project_external_id: Annotated[
+        str, FastAPIPath(alias="project_id", description="Project external UUID")
+    ],
     search_service: SearchServiceV2ExternalDep,
     app_config: AppConfigDep,
+    read_cache: ReadCacheDep,
 ) -> SearchReindexScheduler:
     return LocalSearchReindexScheduler(
         search_service=search_service,
+        project_external_id=project_external_id,
+        read_cache=read_cache,
         test_mode=app_config.is_test_env,
     )
 
 
 async def get_relation_resolution_scheduler(
+    project_external_id: Annotated[
+        str, FastAPIPath(alias="project_id", description="Project external UUID")
+    ],
     session_maker: SessionMakerDep,
     entity_repository: EntityRepositoryV2ExternalDep,
     relation_repository: RelationRepositoryV2ExternalDep,
     link_resolver: LinkResolverV2ExternalDep,
     search_service: SearchServiceV2ExternalDep,
     app_config: AppConfigDep,
+    read_cache: ReadCacheDep,
 ) -> RelationResolutionScheduler:
     # Build the project-scoped resolution runtime. It owns its own sessions via
     # session_maker, so it is safe to run from a detached background task.
@@ -443,6 +459,8 @@ async def get_relation_resolution_scheduler(
     )
     return LocalRelationResolutionScheduler(
         relation_runtime=runtime,
+        project_external_id=project_external_id,
+        read_cache=read_cache,
         test_mode=app_config.is_test_env,
     )
 
@@ -474,11 +492,15 @@ RelationResolutionSchedulerDep = Annotated[
 
 
 async def get_note_content_materialization_provider(
+    project_external_id: Annotated[
+        str, FastAPIPath(alias="project_id", description="Project external UUID")
+    ],
     file_service: FileServiceV2ExternalDep,
     file_indexer: IndexFileExecutorV2ExternalDep,
     session_maker: SessionMakerDep,
     app_config: AppConfigDep,
     relation_resolution_scheduler: RelationResolutionSchedulerDep,
+    read_cache: ReadCacheDep,
 ) -> LocalNoteContentMaterializationProvider:
     """Create the local materializer for accepted-note route writes.
 
@@ -489,6 +511,8 @@ async def get_note_content_materialization_provider(
     return LocalNoteContentMaterializationProvider(
         session_maker=session_maker,
         file_service=file_service,
+        project_external_id=project_external_id,
+        read_cache=read_cache,
         file_indexer=file_indexer,
         test_mode=app_config.is_test_env,
         materialization_workers=app_config.materialization_workers,

@@ -9,6 +9,7 @@ behind the same protocols.
 """
 
 import asyncio
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any, Coroutine
 
@@ -20,6 +21,7 @@ from basic_memory.indexing.relation_resolution import (
     RelationResolutionRuntime,
     resolve_project_relations,
 )
+from basic_memory.read_cache import ReadCacheInvalidator, invalidate_cache
 from basic_memory.runtime.vector_sync import EntityVectorSync
 
 # --- Background Task Machinery ---
@@ -154,14 +156,28 @@ class LocalProjectIndexScheduler:
 @dataclass(frozen=True, slots=True)
 class LocalSearchReindexScheduler:
     search_service: SearchReindexService
+    project_external_id: str
+    read_cache: ReadCacheInvalidator | None
     test_mode: bool
 
     def schedule_search_reindex(self, *, project_id: int) -> None:
         _ = project_id
         _schedule_background_coroutine(
-            self.search_service.reindex_all(),
+            self._run_search_reindex(),
             test_mode=self.test_mode,
         )
+
+    async def _run_search_reindex(self) -> None:
+        # A rebuild publishes search rows incrementally after dropping the old
+        # index. Invalidate after success or partial failure so fuzzy resolutions
+        # cached during that window cannot survive the rebuild.
+        invalidation_scope = (
+            invalidate_cache(self.read_cache, self.project_external_id)
+            if self.read_cache is not None
+            else nullcontext()
+        )
+        async with invalidation_scope:
+            await self.search_service.reindex_all()
 
 
 # Process-lifetime coalescing state: project ids with a relation-resolution
@@ -192,6 +208,8 @@ class LocalRelationResolutionScheduler:
     """
 
     relation_runtime: RelationResolutionRuntime
+    project_external_id: str
+    read_cache: ReadCacheInvalidator | None
     test_mode: bool
     debounce_seconds: float = 0.5
 
@@ -220,12 +238,22 @@ class LocalRelationResolutionScheduler:
             # Writes up to here are covered by the scan we are about to run, so only
             # writes that land DURING the scan should force a re-run.
             _dirty_relation_resolution.discard(project_id)
-            await resolve_project_relations(self.relation_runtime)
+            # Relation resolution commits entity changes after the index pass.
+            # A second bump closes the window in which an intermediate entity
+            # response could have populated the current generation.
+            invalidation_scope = (
+                invalidate_cache(self.read_cache, self.project_external_id)
+                if self.read_cache is not None
+                else nullcontext()
+            )
+            async with invalidation_scope:
+                await resolve_project_relations(self.relation_runtime)
         finally:
             rerun = project_id in _dirty_relation_resolution
             _dirty_relation_resolution.discard(project_id)
             _pending_relation_resolution.discard(project_id)
-        # Re-arm outside the in-flight window (pending now cleared) so a write that
-        # raced the scan gets its own pass. Bounded to one extra pass per burst.
-        if rerun:
-            self.schedule_relation_resolution(project_id=project_id)
+            # Re-arm after clearing the in-flight marker so a write that raced the
+            # scan gets its own pass. Keep this in the cleanup path so a cache
+            # failure cannot drop the required relation rerun.
+            if rerun:
+                self.schedule_relation_resolution(project_id=project_id)

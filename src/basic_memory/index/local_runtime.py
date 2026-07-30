@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 
 from loguru import logger
@@ -27,7 +28,12 @@ from basic_memory.index.storage_events import (
     StorageEventOperationProcessorFactory,
     StorageEventProjectResolver,
 )
-from basic_memory.indexing.external_file_delete_runner import ExternalFileDeleteResult
+from basic_memory.indexing.external_file_delete_runner import (
+    ExternalFileDeleteEntities,
+    ExternalFileDeleteResult,
+    InvalidatingExternalFileDeleteEntities,
+    RepositoryExternalFileDeleteEntities,
+)
 from basic_memory.indexing.file_index_checking import (
     FileIndexChecker,
     RepositoryIndexedFileChecksumSource,
@@ -37,10 +43,13 @@ from basic_memory.indexing.file_index_checking import (
 from basic_memory.repository.note_file_vacate_repository import NoteFileVacateRepository
 from basic_memory.indexing.index_file_runner import (
     IndexFileObjectMetadata,
+    IndexFileExecutor,
+    InvalidatingIndexFileExecutor,
     RepositoryCurrentMaterializedNoteSource,
 )
 from basic_memory.indexing.models import IndexFileJobResult, IndexFileJobStatus
 from basic_memory.indexing.project_index_maintenance import (
+    InvalidatingProjectIndexBatchStore,
     ProjectIndexMovedEntitySearchRefresher,
     RepositoryProjectIndexMaintenanceStore,
     RepositoryProjectIndexMovedEntitySearchRefresher,
@@ -53,10 +62,12 @@ from basic_memory.indexing.relation_resolution import (
     plan_index_file_relation_resolution,
     resolve_project_relations,
 )
-from basic_memory.indexing.external_file_delete_runner import (
-    RepositoryExternalFileDeleteEntities,
-)
 from basic_memory.models import Entity, Project
+from basic_memory.read_cache import (
+    ReadCache,
+    finish_project_read_cache_invalidation,
+    invalidate_cache,
+)
 from basic_memory.repository import NoteContentRepository
 from basic_memory.runtime.projects import ProjectRuntimeReference
 from basic_memory.runtime.storage import (
@@ -64,6 +75,7 @@ from basic_memory.runtime.storage import (
     RuntimeFileChecksum,
     RuntimeFilePath,
     RuntimeStorageEventOperation,
+    RuntimeStorageEventOperationKind,
 )
 from basic_memory.services import FileService
 from basic_memory.services.exceptions import FileOperationError
@@ -144,6 +156,7 @@ class LocalInlineStorageEventResultRecorder:
     relation_cleanup_search_refresher: ProjectIndexMovedEntitySearchRefresher
     relation_runtime: RelationResolutionRuntime
     index_embeddings: bool
+    read_cache: ReadCache | None = None
 
     async def index_file_completed(
         self,
@@ -158,6 +171,12 @@ class LocalInlineStorageEventResultRecorder:
             entity_id=result.entity_id,
         )
 
+        if result.status == IndexFileJobStatus.processed and self.read_cache is not None:
+            await finish_project_read_cache_invalidation(
+                self.read_cache,
+                self.project.project_external_id,
+            )
+
         # --- Relation repair ---
         # Back-resolve forward references now that this file is indexed.
         relation_request = plan_index_file_relation_resolution(
@@ -168,15 +187,27 @@ class LocalInlineStorageEventResultRecorder:
             )
         )
         if relation_request is not None:
-            relation_result = await resolve_project_relations(self.relation_runtime)
-            logger.info(
-                "Local event-index relation repair completed",
-                project_id=relation_request.project_id,
-                project_path=relation_request.project_path,
-                resolved=relation_result.resolved,
-                remaining=relation_result.remaining,
-                passes=relation_result.passes,
+            # Relation repair changes cached entity payloads after indexing.
+            # A second generation bump closes the fill window opened by the
+            # first post-index invalidation, even after partial failure.
+            invalidation_scope = (
+                invalidate_cache(
+                    self.read_cache,
+                    self.project.project_external_id,
+                )
+                if self.read_cache is not None
+                else nullcontext()
             )
+            async with invalidation_scope:
+                relation_result = await resolve_project_relations(self.relation_runtime)
+                logger.info(
+                    "Local event-index relation repair completed",
+                    project_id=relation_request.project_id,
+                    project_path=relation_request.project_path,
+                    resolved=relation_result.resolved,
+                    remaining=relation_result.remaining,
+                    passes=relation_result.passes,
+                )
 
         # --- Semantic embedding ---
         # Trigger: a file was (re)indexed and semantic embeddings are enabled.
@@ -209,12 +240,31 @@ class LocalInlineStorageEventResultRecorder:
         )
         if not result.entity_deleted:
             return
-        if not isinstance(result.deleted_entity, Entity):
-            raise RuntimeError("Local external file delete returned an incomplete entity result")
-        await self.search_service.handle_delete(result.deleted_entity)
-        await self.relation_cleanup_search_refresher.refresh_moved_entities(
-            tuple(sorted(result.relation_cleanup_entity_ids)),
+        if self.read_cache is not None:
+            await finish_project_read_cache_invalidation(
+                self.read_cache,
+                self.project.project_external_id,
+            )
+        # Cleanup may rewrite relations on surviving entities. Invalidate
+        # values filled after the delete became visible, including partial
+        # cleanup progress followed by an error.
+        invalidation_scope = (
+            invalidate_cache(
+                self.read_cache,
+                self.project.project_external_id,
+            )
+            if self.read_cache is not None
+            else nullcontext()
         )
+        async with invalidation_scope:
+            if not isinstance(result.deleted_entity, Entity):
+                raise RuntimeError(
+                    "Local external file delete returned an incomplete entity result"
+                )
+            await self.search_service.handle_delete(result.deleted_entity)
+            await self.relation_cleanup_search_refresher.refresh_moved_entities(
+                tuple(sorted(result.relation_cleanup_entity_ids)),
+            )
 
     async def skip_event(self, operation: RuntimeStorageEventOperation) -> None:
         logger.debug(
@@ -233,6 +283,17 @@ class LocalInlineStorageEventResultRecorder:
             file_path=operation.relative_path,
             error=str(exc),
         )
+        if (
+            operation.kind == RuntimeStorageEventOperationKind.index_file
+            and self.read_cache is not None
+        ):
+            # LocalMarkdownFileIndexer commits the entity before all search and
+            # reconciliation follow-ups complete. A watcher failure can therefore
+            # publish partial state even though the success callback never runs.
+            await finish_project_read_cache_invalidation(
+                self.read_cache,
+                self.project.project_external_id,
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,6 +325,7 @@ class LocalWatchEventIndexRuntimeFactory:
     # let runtime construction opt in via semantic_search_enabled (#1016).
     index_embeddings: bool = False
     move_batch_size: int = 100
+    read_cache: ReadCache | None = None
 
     async def runtime_for_project(self, project: Project) -> StorageEventIndexRuntime:
         dependencies = await self.dependency_provider.dependencies_for_project(project)
@@ -294,15 +356,41 @@ class LocalWatchEventIndexRuntimeFactory:
                 file_service=dependencies.file_service,
             ),
         )
+        maintenance_batch_store = (
+            InvalidatingProjectIndexBatchStore(
+                move_store=maintenance_store,
+                delete_store=maintenance_store,
+                read_cache=self.read_cache,
+                project_external_id=project_ref.project_external_id,
+            )
+            if self.read_cache is not None
+            else maintenance_store
+        )
         maintenance_runner = StoreProjectIndexMaintenanceRunner(
-            move_store=maintenance_store,
-            delete_store=maintenance_store,
+            move_store=maintenance_batch_store,
+            delete_store=maintenance_batch_store,
         )
         moved_entity_search_refresher = RepositoryProjectIndexMovedEntitySearchRefresher(
             session_maker=dependencies.session_maker,
             entity_repository=dependencies.entity_repository,
             entity_indexer=dependencies.search_service,
         )
+        file_indexer: IndexFileExecutor = dependencies.file_indexer
+        delete_entities: ExternalFileDeleteEntities = RepositoryExternalFileDeleteEntities(
+            session_maker=dependencies.session_maker,
+            entity_repository=dependencies.entity_repository,
+        )
+        if self.read_cache is not None:
+            file_indexer = InvalidatingIndexFileExecutor(
+                executor=file_indexer,
+                read_cache=self.read_cache,
+                project_external_id=project_ref.project_external_id,
+            )
+            delete_entities = InvalidatingExternalFileDeleteEntities(
+                entities=delete_entities,
+                read_cache=self.read_cache,
+                project_external_id=project_ref.project_external_id,
+            )
         inline_runtime = InlineStorageEventIndexRuntime(
             project=project_ref,
             checker=checker,
@@ -311,11 +399,8 @@ class LocalWatchEventIndexRuntimeFactory:
                 session_maker=dependencies.session_maker,
                 entity_repository=dependencies.entity_repository,
             ),
-            file_indexer=dependencies.file_indexer,
-            delete_entities=RepositoryExternalFileDeleteEntities(
-                session_maker=dependencies.session_maker,
-                entity_repository=dependencies.entity_repository,
-            ),
+            file_indexer=file_indexer,
+            delete_entities=delete_entities,
             delete_objects=LocalExternalFileDeleteObjects(dependencies.file_service),
             result_recorder=LocalInlineStorageEventResultRecorder(
                 project=project_ref,
@@ -332,6 +417,7 @@ class LocalWatchEventIndexRuntimeFactory:
                     entity_indexer=dependencies.search_service,
                 ),
                 index_embeddings=self.index_embeddings,
+                read_cache=self.read_cache,
             ),
             index_embeddings=self.index_embeddings,
         )
@@ -349,6 +435,8 @@ class LocalWatchEventIndexRuntimeFactory:
                 entity_repository=dependencies.entity_repository,
                 maintenance_runner=maintenance_runner,
                 moved_entity_search_refresher=moved_entity_search_refresher,
+                project_external_id=project_ref.project_external_id,
+                read_cache=self.read_cache,
                 batch_size=self.move_batch_size,
             ),
         )
