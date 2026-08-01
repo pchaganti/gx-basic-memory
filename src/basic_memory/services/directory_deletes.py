@@ -19,6 +19,10 @@ from basic_memory.indexing.directory_delete_runner import (
     finish_directory_delete_acceptance,
     normalize_directory_delete_path,
 )
+from basic_memory.read_cache import (
+    ReadCacheInvalidator,
+    finish_project_read_cache_invalidation,
+)
 
 
 class DirectoryDeleteServiceError(Exception):
@@ -57,6 +61,7 @@ class DirectoryDeleteService:
         *,
         project_external_id: str,
         directory: str,
+        read_cache: ReadCacheInvalidator | None = None,
     ) -> DirectoryDeleteAcceptedResult:
         """Delete directory entities immediately and queue file cleanup in the background.
 
@@ -67,6 +72,7 @@ class DirectoryDeleteService:
             project_external_id=project_external_id,
             directory=directory,
         )
+        delete_may_have_committed = False
         try:
             # scoped_session enables `PRAGMA foreign_keys=ON` for SQLite; this bulk
             # delete issues a Core DELETE on entity and relies on ON DELETE CASCADE
@@ -78,27 +84,46 @@ class DirectoryDeleteService:
                     request=request,
                     store=self.runtime.store,
                 )
+                delete_may_have_committed = bool(accepted.files)
         except DirectoryDeleteRejected as error:
             raise directory_delete_service_error_from_rejection(error.rejection) from error
+        finally:
+            if delete_may_have_committed and read_cache is not None:
+                # Acceptance commits entity and search deletion before storage cleanup.
+                # Finish the generation bump even when cancellation interrupts the
+                # transaction exit, then preserve that cancellation.
+                await finish_project_read_cache_invalidation(
+                    read_cache,
+                    project_external_id,
+                )
 
-        result = await finish_directory_delete_acceptance(
-            request=request,
-            accepted=accepted,
-            enqueuer=self.runtime.file_delete_enqueuer,
-        )
-
-        # Trigger: notes outside the deleted directory linked into it.
-        # Why: the delete cascaded their relation rows away, but those sources own
-        #   matching search_index relation rows that now dangle; without a reindex
-        #   they linger until an unrelated rebuild.
-        # Outcome: reindex each surviving source inline when the runtime provides a
-        #   refresher (local); queued runtimes consume the ids from the result.
-        if accepted.relation_cleanup_entity_ids and self.runtime.relation_cleanup_refresher:
-            await self.runtime.relation_cleanup_refresher.refresh_relation_sources(
-                sorted(accepted.relation_cleanup_entity_ids)
+        try:
+            result = await finish_directory_delete_acceptance(
+                request=request,
+                accepted=accepted,
+                enqueuer=self.runtime.file_delete_enqueuer,
             )
 
-        return result
+            # Trigger: notes outside the deleted directory linked into it.
+            # Why: the delete cascaded their relation rows away, but those sources own
+            #   matching search_index relation rows that now dangle; without a reindex
+            #   they linger until an unrelated rebuild.
+            # Outcome: reindex each surviving source inline when the runtime provides a
+            #   refresher (local); queued runtimes consume the ids from the result.
+            if accepted.relation_cleanup_entity_ids and self.runtime.relation_cleanup_refresher:
+                await self.runtime.relation_cleanup_refresher.refresh_relation_sources(
+                    sorted(accepted.relation_cleanup_entity_ids)
+                )
+
+            return result
+        finally:
+            if accepted.files and read_cache is not None:
+                # Cleanup and relation refresh can publish additional state or fail
+                # after partial progress. Close the fill window in either case.
+                await finish_project_read_cache_invalidation(
+                    read_cache,
+                    project_external_id,
+                )
 
     @staticmethod
     def normalize_directory_path(directory: str) -> str:

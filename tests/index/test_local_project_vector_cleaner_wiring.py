@@ -33,11 +33,12 @@ def test_full_project_runtime_forwards_external_vector_cleaner() -> None:
         external_vector_cleaner=cleaner,
     )
 
-    runtime = LocalProjectIndexRuntimeFactory().runtime_from_dependencies(dependencies)
+    runtime = LocalProjectIndexRuntimeFactory().runtime_from_dependencies(
+        dependencies,
+        project_external_id="project-external-id",
+    )
 
     assert isinstance(runtime.maintenance_runner, StoreProjectIndexMaintenanceRunner)
-    assert isinstance(
-        runtime.maintenance_runner.delete_store,
-        RepositoryProjectIndexMaintenanceStore,
-    )
-    assert runtime.maintenance_runner.delete_store.external_vector_cleaner is cleaner
+    delete_store = runtime.maintenance_runner.delete_store
+    assert isinstance(delete_store, RepositoryProjectIndexMaintenanceStore)
+    assert delete_store.external_vector_cleaner is cleaner

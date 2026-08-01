@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import Mapping, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, override, Protocol
@@ -65,6 +66,7 @@ from basic_memory.indexing.project_index_coordinator import (
     run_project_index_coordinator,
 )
 from basic_memory.indexing.project_index_maintenance import (
+    InvalidatingProjectIndexBatchStore,
     ProjectIndexDeletePathVerifier,
     ProjectIndexMaintenanceRunner,
     ProjectIndexMovedEntitySearchRefresher,
@@ -79,6 +81,11 @@ from basic_memory.indexing.relation_resolution import (
     resolve_project_index_completion_relations,
 )
 from basic_memory.models import Entity, Project
+from basic_memory.read_cache import (
+    ReadCache,
+    ReadCacheInvalidator,
+    invalidate_cache,
+)
 from basic_memory.repository import NoteContentRepository
 from basic_memory.runtime.jobs import (
     RuntimeIndexFileBatchJobRequest,
@@ -459,6 +466,7 @@ class LocalProjectIndexRuntime:
     embedding_vector_sync: EmbeddingBatchVectorSync | None = None
     batch_size: int = 100
     coordinator_job_id: RuntimeJobId | None = None
+    read_cache: ReadCache | None = None
 
 
 LocalProjectIndexObservation = ProjectIndexObservation
@@ -544,6 +552,7 @@ class LocalProjectIndexBatchEnqueuer(ProjectIndexBatchEnqueuer):
     reader: IndexFileBatchReader[IndexInputFile]
     indexer: IndexFileBatchIndexer[IndexInputFile]
     content_classifier: IndexFileBatchContentClassifier
+    read_cache: ReadCacheInvalidator | None = None
     read_max_concurrent: int = 8
     index_max_concurrent: int = 8
 
@@ -552,15 +561,24 @@ class LocalProjectIndexBatchEnqueuer(ProjectIndexBatchEnqueuer):
         self,
         request: RuntimeIndexFileBatchJobRequest,
     ) -> IndexFileBatchJobResult:
-        return await run_index_file_batch(
-            request,
-            checker=self.checker,
-            reader=self.reader,
-            indexer=self.indexer,
-            content_classifier=self.content_classifier,
-            read_max_concurrent=self.read_max_concurrent,
-            index_max_concurrent=self.index_max_concurrent,
+        invalidation_scope = (
+            invalidate_cache(
+                self.read_cache,
+                request.project.project_external_id,
+            )
+            if self.read_cache is not None
+            else nullcontext()
         )
+        async with invalidation_scope:
+            return await run_index_file_batch(
+                request,
+                checker=self.checker,
+                reader=self.reader,
+                indexer=self.indexer,
+                content_classifier=self.content_classifier,
+                read_max_concurrent=self.read_max_concurrent,
+                index_max_concurrent=self.index_max_concurrent,
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -573,6 +591,7 @@ class LocalProjectIndexRuntimeFactory:
     batch_size: int = 100
     read_max_concurrent: int = 8
     index_max_concurrent: int = 8
+    read_cache: ReadCache | None = None
 
     async def dependencies_for_project(self, project: Project) -> LocalIndexProjectDependencies:
         return await self.dependency_provider.dependencies_for_project(project)
@@ -580,6 +599,8 @@ class LocalProjectIndexRuntimeFactory:
     def runtime_from_dependencies(
         self,
         dependencies: LocalIndexProjectDependencies,
+        *,
+        project_external_id: str,
     ) -> LocalProjectIndexRuntime:
         metadata_source = LocalStorageFileMetadataSource(dependencies.file_service)
         checker = FileIndexChecker(
@@ -613,6 +634,16 @@ class LocalProjectIndexRuntimeFactory:
             # concurrent creation that must be checksum-verified before deletion.
             verify_replaced_move_targets=True,
         )
+        active_maintenance_store = (
+            InvalidatingProjectIndexBatchStore(
+                move_store=maintenance_store,
+                delete_store=maintenance_store,
+                read_cache=self.read_cache,
+                project_external_id=project_external_id,
+            )
+            if self.read_cache is not None
+            else maintenance_store
+        )
         return LocalProjectIndexRuntime(
             observed_file_source=LocalProjectIndexObservedFileSource(
                 dependencies.file_service,
@@ -626,8 +657,8 @@ class LocalProjectIndexRuntimeFactory:
                 entity_repository=dependencies.entity_repository,
             ),
             maintenance_runner=StoreProjectIndexMaintenanceRunner(
-                move_store=maintenance_store,
-                delete_store=maintenance_store,
+                move_store=active_maintenance_store,
+                delete_store=active_maintenance_store,
             ),
             moved_entity_search_refresher=RepositoryProjectIndexMovedEntitySearchRefresher(
                 session_maker=dependencies.session_maker,
@@ -639,6 +670,7 @@ class LocalProjectIndexRuntimeFactory:
                 reader=LocalIndexFileBatchReader(dependencies.file_service),
                 indexer=dependencies.file_batch_indexer,
                 content_classifier=dependencies.file_service,
+                read_cache=self.read_cache,
                 read_max_concurrent=self.read_max_concurrent,
                 index_max_concurrent=self.index_max_concurrent,
             ),
@@ -652,10 +684,14 @@ class LocalProjectIndexRuntimeFactory:
             ),
             embedding_vector_sync=local_project_embedding_vector_sync(dependencies),
             batch_size=self.batch_size,
+            read_cache=self.read_cache,
         )
 
     async def runtime_for_project(self, project: Project) -> LocalProjectIndexRuntime:
-        return self.runtime_from_dependencies(await self.dependencies_for_project(project))
+        return self.runtime_from_dependencies(
+            await self.dependencies_for_project(project),
+            project_external_id=str(project.external_id),
+        )
 
 
 async def run_local_project_index_for_project(
@@ -699,7 +735,10 @@ class LocalProjectIndexRunner:
     async def observe_project(self, project_id: int) -> LocalProjectIndexObservation:
         project = await self._get_project(project_id)
         dependencies = await self.runtime_factory.dependencies_for_project(project)
-        runtime = self.runtime_factory.runtime_from_dependencies(dependencies)
+        runtime = self.runtime_factory.runtime_from_dependencies(
+            dependencies,
+            project_external_id=str(project.external_id),
+        )
         observed_files = await runtime.observed_file_source.list_observed_index_files()
         return LocalProjectIndexObservation(observed_files=observed_files)
 
@@ -757,25 +796,49 @@ async def run_local_project_index(
     runtime: LocalProjectIndexRuntime,
 ) -> ProjectIndexCoordinatorResult:
     """Run project-wide local indexing through the storage-neutral coordinator."""
-    result = await run_project_index_coordinator(
-        request,
-        coordinator_job_id=runtime.coordinator_job_id,
-        observed_file_source=runtime.observed_file_source,
-        change_detector=runtime.change_detector,
-        maintenance_runner=runtime.maintenance_runner,
-        moved_entity_search_refresher=runtime.moved_entity_search_refresher,
-        workflow_starter=runtime.workflow_starter,
-        batch_enqueuer=runtime.batch_enqueuer,
-        fanout_failure_recorder=runtime.fanout_failure_recorder,
-        batch_size=runtime.batch_size,
-        embedding_vector_sync=runtime.embedding_vector_sync,
-    )
-    if runtime.completion_relation_runtime is not None:
-        await resolve_project_index_completion_relations(
-            ProjectIndexRelationResolutionContext(
-                project_id=request.project.project_id,
-                project_path=request.project.project_path,
-            ),
-            runtime.completion_relation_runtime,
+    # The coordinator commits moves, deletes, and file batches incrementally.
+    # Invalidate even when a later batch or vector sync raises so already
+    # published changes cannot remain behind the previous generation.
+    invalidation_scope = (
+        invalidate_cache(
+            runtime.read_cache,
+            request.project.project_external_id,
         )
+        if runtime.read_cache is not None
+        else nullcontext()
+    )
+    async with invalidation_scope:
+        result = await run_project_index_coordinator(
+            request,
+            coordinator_job_id=runtime.coordinator_job_id,
+            observed_file_source=runtime.observed_file_source,
+            change_detector=runtime.change_detector,
+            maintenance_runner=runtime.maintenance_runner,
+            moved_entity_search_refresher=runtime.moved_entity_search_refresher,
+            workflow_starter=runtime.workflow_starter,
+            batch_enqueuer=runtime.batch_enqueuer,
+            fanout_failure_recorder=runtime.fanout_failure_recorder,
+            batch_size=runtime.batch_size,
+            embedding_vector_sync=runtime.embedding_vector_sync,
+        )
+    if runtime.completion_relation_runtime is not None:
+        # Relation repair can mutate cached entity responses after the first
+        # invalidation. Clear any value filled during that window, including
+        # when repair commits partial progress before raising.
+        relation_invalidation_scope = (
+            invalidate_cache(
+                runtime.read_cache,
+                request.project.project_external_id,
+            )
+            if runtime.read_cache is not None
+            else nullcontext()
+        )
+        async with relation_invalidation_scope:
+            await resolve_project_index_completion_relations(
+                ProjectIndexRelationResolutionContext(
+                    project_id=request.project.project_id,
+                    project_path=request.project.project_path,
+                ),
+                runtime.completion_relation_runtime,
+            )
     return result

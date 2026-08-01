@@ -1,6 +1,7 @@
 """Service for managing entities in the database."""
 
 from collections.abc import Callable
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional, Sequence, Tuple, Union
@@ -22,6 +23,7 @@ from basic_memory.models import Observation, Relation
 from basic_memory.models.knowledge import Entity
 from basic_memory.repository import ObservationRepository, RelationRepository
 from basic_memory.repository.entity_repository import EntityRepository
+from basic_memory.read_cache import ReadCache, invalidate_cache
 from basic_memory.runtime.note_move import normalize_note_move_destination_path
 from basic_memory.schemas import Entity as EntitySchema
 from basic_memory.schemas.base import Permalink
@@ -1129,6 +1131,9 @@ class EntityService(BaseService[EntityModel]):
         destination_directory: str,
         project_config: ProjectConfig,
         app_config: BasicMemoryConfig,
+        *,
+        project_external_id: str,
+        read_cache: ReadCache | None,
     ) -> DirectoryMoveResult:
         """Move all entities in a directory to a new location.
 
@@ -1141,6 +1146,8 @@ class EntityService(BaseService[EntityModel]):
             destination_directory: Destination directory path relative to project root
             project_config: Project configuration for file operations
             app_config: App configuration for permalink update settings
+            project_external_id: Canonical project UUID used for cache invalidation
+            read_cache: Namespace-bound semantic read cache
 
         Returns:
             DirectoryMoveResult with counts and details of moved files
@@ -1177,34 +1184,46 @@ class EntityService(BaseService[EntityModel]):
 
         # Process each entity
         for entity in entities:
-            try:
-                # Calculate new path by replacing source prefix with destination
-                old_path = entity.file_path
-                # Replace only the first occurrence of the source directory prefix
-                if old_path.startswith(f"{source_directory}/"):
-                    new_path = old_path.replace(
-                        f"{source_directory}/", f"{destination_directory}/", 1
+            # Calculate new path by replacing source prefix with destination
+            old_path = entity.file_path
+            # Replace only the first occurrence of the source directory prefix
+            if old_path.startswith(f"{source_directory}/"):
+                new_path = old_path.replace(f"{source_directory}/", f"{destination_directory}/", 1)
+            else:  # pragma: no cover
+                # Entity is directly in the source directory (shouldn't happen with prefix match)
+                new_path = f"{destination_directory}/{old_path}"
+
+            # Trigger: one file move can publish filesystem or database state before returning.
+            # Why: every move publishes independently and cached reads must not retain
+            #      an earlier file's state while the remaining directory batch runs.
+            # Outcome: finish one generation bump before reporting the result or cancellation.
+            invalidation_scope = (
+                invalidate_cache(read_cache, project_external_id)
+                if read_cache is not None
+                else nullcontext()
+            )
+            move_error: Exception | None = None
+            async with invalidation_scope:
+                try:
+                    # Move the individual entity
+                    await self.move_entity(
+                        identifier=entity.file_path,
+                        destination_path=new_path,
+                        project_config=project_config,
+                        app_config=app_config,
                     )
-                else:  # pragma: no cover
-                    # Entity is directly in the source directory (shouldn't happen with prefix match)
-                    new_path = f"{destination_directory}/{old_path}"
+                except Exception as error:  # pragma: no cover
+                    move_error = error
 
-                # Move the individual entity
-                await self.move_entity(
-                    identifier=entity.file_path,
-                    destination_path=new_path,
-                    project_config=project_config,
-                    app_config=app_config,
-                )
-
-                moved_files.append(new_path)
-                successful_moves += 1
-                logger.debug(f"Moved entity: {old_path} -> {new_path}")
-
-            except Exception as e:  # pragma: no cover
+            if move_error is not None:  # pragma: no cover
                 failed_moves += 1
-                errors.append(DirectoryMoveError(path=entity.file_path, error=str(e)))
-                logger.error(f"Failed to move entity {entity.file_path}: {e}")
+                errors.append(DirectoryMoveError(path=entity.file_path, error=str(move_error)))
+                logger.error(f"Failed to move entity {entity.file_path}: {move_error}")
+                continue
+
+            moved_files.append(new_path)
+            successful_moves += 1
+            logger.debug(f"Moved entity: {old_path} -> {new_path}")
 
         logger.info(
             f"Directory move complete: {successful_moves} succeeded, {failed_moves} failed "
