@@ -13,8 +13,8 @@ Redis instance.
   requirement.
 - Make cache semantics, typed serialization, TTLs, and invalidation part of Basic Memory.
 - Let a host such as Basic Memory Cloud inject an existing Redis client and opaque namespace.
-- Preserve independent clients, key prefixes, metrics, and failure behavior for read caching and
-  rate limiting.
+- Preserve independent key prefixes, metrics, ownership, and failure behavior for read caching
+  and rate limiting.
 
 ## Ownership Boundary
 
@@ -36,13 +36,13 @@ Cloud owns:
 - capacity, eviction, and availability decisions when Redis is shared.
 
 Physical topology is deliberately outside the Basic Memory cache contract. Cloud may point the
-read cache and limiter at separate Redis instances or at separately configured clients on one
-instance.
+read cache and limiter at separate Redis instances or clients, or reuse one client and connection
+pool when both concerns share an instance.
 
 ### Tenant isolation on shared Redis
 
-Cloud does not create a Redis instance or connection pool per tenant. It reuses one long-lived,
-Basic Memory-specific Redis client and constructs a lightweight `RedisReadCache` adapter from
+Cloud does not create a Redis instance or connection pool per tenant. It reuses one long-lived
+Redis client and connection pool and constructs a lightweight `RedisReadCache` adapter from
 trusted request or worker context:
 
 - `namespace`: the stable tenant/workspace UUID;
@@ -61,8 +61,7 @@ invalidates the exact scope populated by the request path.
 
 ### Cloud host requirements
 
-Basic Memory Cloud must satisfy all of these requirements before enabling cached reads for a
-tenant:
+Basic Memory Cloud must satisfy all of these requirements when composing cached reads:
 
 1. Derive one stable namespace from authenticated Cloud context. The preferred value is the
    tenant UUID or workspace UUID already owned by Cloud. Project UUID alone is not a tenant
@@ -70,11 +69,13 @@ tenant:
 1. Complete authorization and tenant database/schema selection before cache lookup. The
    namespace prevents key collisions; it does not replace Cloud's access-control boundary.
 1. Override the low-level `get_read_cache` dependency at the Cloud composition root. Construct
-   `RedisReadCache(client=shared_basic_memory_client, namespace=trusted_namespace)` as a
-   lightweight request-scoped adapter; reuse the long-lived client and connection pool.
-   FastAPI route dependencies then create lightweight `ModelReadCache` facades from that shared
-   backend and bind Basic Memory's response type, TTL, and payload-size policy. Cloud should not
-   duplicate those policy constants or construct Redis clients per response model.
+   `RedisReadCache(client=shared_redis_client, namespace=trusted_namespace)` as a lightweight
+   request-scoped adapter; reuse the long-lived client and connection pool. A single Cloud
+   composition function owns this choice so the cache can move to a separate client or instance
+   later without changing Basic Memory routes or workers. FastAPI route dependencies then create
+   lightweight `ModelReadCache` facades from that shared backend and bind Basic Memory's response
+   type, TTL, and payload-size policy. Cloud should not duplicate those policy constants or
+   construct Redis clients per response model.
 1. Pass the trusted tenant/workspace identity through internal queue payloads, or include enough
    trusted identifiers for workers to derive the exact same namespace. Never copy a namespace
    from a public request field.
@@ -83,6 +84,10 @@ tenant:
    watcher-detected paired moves, relation-resolution workers, and startup recovery or
    reconciliation. Request-path invalidation alone is insufficient because a worker can update a
    cached entity after the request returns.
+1. Invalidate after semantic vector publication, including partial-failure paths. Vector sync can
+   run after the mutation and file-index generation bumps, so VECTOR/HYBRID responses filled while
+   embeddings are stale must not survive the later derived-state update. Queue-backed Cloud vector
+   workers use the same trusted tenant namespace and canonical project UUID as request reads.
 1. Treat each asynchronous state transition as a separate freshness boundary. Invalidate after
    the accepted-note transaction commits, immediately after terminal materialization/status
    publication before indexing begins, again after indexing, and again after relation resolution
@@ -142,9 +147,10 @@ tenant:
 1. Keep `bm:read:v1` separate from rate-limit and Cloud control-plane prefixes, metrics,
    timeouts, and failure policies. The clients may target one Redis deployment, but a read-cache
    timeout must bypass while a rate-limit decision keeps its Cloud-owned security behavior.
-1. Enable reads only after request and worker invalidation use the same namespace in the target
-   environment. Roll out by tenant cohort, watch hit/bypass/invalidation outcomes and database
-   queries, then remove overlapping Cloud gateway response caches only after parity.
+1. Activate request reads and worker invalidation together in the same Cloud release, using the
+   same namespace function. The cache is fail-open and TTL-bounded, so do not add tenant cohorts,
+   shadow reads, or a second rollout switch; use integration coverage and cache telemetry to
+   verify the direct activation.
 1. Coordinate rolling deployments around the `bm:read:v1` payload/key contract. Bump the prefix
    for incompatible serialized response changes so mixed application versions never interpret
    one another's payloads with different schemas.
@@ -233,12 +239,12 @@ Phase one:
 | Directory tree              |  60 seconds | Full hierarchy; two MiB measured payload cap        |
 | Paginated directory listing |  60 seconds | Include path, depth, glob, page, and page-size keys |
 
-Phase two, after measuring phase one:
+Additional measured surfaces:
 
 | Operation                   |   Initial TTL | Constraints                                    |
 | --------------------------- | ------------: | ---------------------------------------------- |
-| Search                      |    30 seconds | Canonicalize the complete query and pagination |
-| Context and recent activity | 15-30 seconds | Normalize or bound time-relative inputs        |
+| Search                      |    30 seconds | Implemented; complete query plus pagination key |
+| Context and recent activity | 15-30 seconds | Future; normalize or bound time-relative inputs |
 
 Do not initially cache failures, missing entities, graph/orphan responses, large or arbitrary
 binary resources, schema inference, writes, or Cloud control-plane data.
@@ -337,10 +343,21 @@ an optional package extra. A host may instead supply a compatible, already-owned
 
 The Core `ApiContainer` carries `ReadCache | None` and defaults to `None`. A managed host
 activates caching by injecting or dependency-overriding a namespace-bound implementation and owns
-that client's lifecycle; Cloud therefore reuses its long-lived Basic Memory cache client. Local
-CLI, MCP in-process ASGI routing, and the standalone API simply skip cache work in the first
-rollout. A later standalone Redis setting can create and close a client in the FastAPI lifespan
-without changing the cache contract.
+that client's lifecycle; Cloud therefore reuses its long-lived Basic Memory cache client.
+
+Standalone `bm mcp` activates the cache when `BASIC_MEMORY_REDIS_URL` is set. A bare hostname such
+as `redis` is normalized to `redis://redis`; complete `redis://` and `rediss://` URLs are preserved.
+The optional `BASIC_MEMORY_REDIS_MAX_CONNECTIONS` setting tunes that process-owned connection pool
+and defaults to 20; it does not activate caching by itself. The MCP lifespan owns one async client
+and shares its namespace-bound cache with both in-process FastAPI requests and watcher/index
+invalidation, then closes the client after those paths shut down. After project reconciliation and
+before accepting requests, every standalone MCP lifespan replaces each active project's persisted
+generation. This prevents entries from an earlier process from hiding a source-of-truth file edit
+made while MCP was stopped. If Redis cannot complete every startup invalidation, caching is disabled
+for that lifespan and requests use the authoritative path; a later Redis recovery cannot revive the
+untrusted generation. When the URL is absent, the dependency remains `None` and callers take only
+the authoritative path. Cloud runtime mode ignores this standalone composition because Cloud
+injects a separately owned cache using its trusted tenant namespace and capacity policy.
 
 `get_read_cache` is the host override point and returns `ReadCache | None`. Core-owned,
 route-specific FastAPI providers call `create_model_read_cache` to return a correctly typed facade
@@ -350,6 +367,15 @@ optional backend or narrower invalidation capability; they do not depend on Fast
 The FastAPI Redis SDK is not the foundational dependency for this work. The cache contract must
 also participate in portable indexing and hosted storage-event invalidation, and Basic Memory's
 local ASGI transport does not run FastAPI lifespan.
+
+The end-to-end MCP benchmark is documented in
+[`benchmarks/docs/read-load-benchmark.md`](../benchmarks/docs/read-load-benchmark.md). It removes
+ambient Redis configuration for the authoritative run and sets `BASIC_MEMORY_REDIS_URL` only for
+the warmed-cache run, so both cases exercise the same `bm mcp` process boundary. The harness also
+sets `BASIC_MEMORY_REDIS_MAX_CONNECTIONS` to the largest requested workload or seed concurrency and
+records that non-secret value in the manifest. Without this capacity guarantee, Redis pool
+exhaustion would correctly bypass to authoritative reads but mislabel the resulting benchmark row
+as a warmed-cache measurement.
 
 ## Cloud Production Calibration
 
@@ -399,9 +425,10 @@ absorb that authorization-aware composition. Cloud should optimize that active-p
 reconciliation and its own project-list cache independently.
 
 Directory caching in Basic Memory is intended to replace overlapping route families after Cloud
-reaches namespace, invalidation, and observability parity. During rollout, the inner cache can
-also share tenant-project directory results across already-authorized users while Cloud's current
-outer key remains user-specific. Do not keep both response-cache layers as the final design.
+reaches namespace, invalidation, and observability parity. During the transition away from the
+overlapping outer cache, the inner cache can also share tenant-project directory results across
+already-authorized users while Cloud's current outer key remains user-specific. Do not keep both
+response-cache layers as the final design.
 
 ## Failure Behavior
 
@@ -438,7 +465,7 @@ Redis URL.
 Run the focused suite with:
 
 ```bash
-LOGFIRE_IGNORE_NO_CONFIG=1 uv run pytest -p pytest_mock --no-cov -q test-int/read_cache
+just test-read-cache
 ```
 
 `BASIC_MEMORY_TEST_REDIS_URL` selects an externally managed test server. Otherwise the fixture
@@ -457,6 +484,8 @@ The real-Redis suite must prove:
 - generation metadata expires for inactive projects, including legacy persistent keys, and stores
   keep it alive at least as long as their response data;
 - Redis restart or unavailability produces explicit bypass behavior;
+- a fresh standalone MCP lifespan replaces persisted project generations before serving, so
+  offline file edits cannot remain hidden behind cache entries from the previous process;
 - no invalidation operation touches keys outside the Basic Memory prefix;
 - payload size limits;
 - repeated API entity reads use the real cached representation;
@@ -520,13 +549,15 @@ semantics themselves are asserted only against the real Redis integration fixtur
 - Wire project invalidation through accepted writes and indexing paths.
 - Add full-stack API, repeated `read_note`, and directory refresh integration coverage.
 
-### 3. Cloud rollout
+### 3. Cloud integration
 
 - Inject a Basic Memory-specific Redis client and tenant namespace.
 - Derive that namespace from trusted request and worker context with one canonical function.
 - Invalidate after accepted-note commit, immediately after terminal materialization/status
   publication before indexing, again after indexing, and after relation-resolution workers using
   the same tenant namespace as the request path.
+- Invalidate after semantic vector publication, including partial failures, because vector sync is
+  derived work that can complete after the note/index freshness boundaries.
 - Invalidate watcher-detected paired moves at move completion, and invalidate any recovery or
   reconciliation attempt that can publish terminal state before releasing the serving barrier or
   resuming tenant traffic.
@@ -564,15 +595,14 @@ semantics themselves are asserted only against the real Redis integration fixtur
   can change while every cache identity remains stable.
 - Put each startup recovery phase inside a cancellation-safe invalidation scope before beginning
   the next phase.
-- Enable reads for a tenant only after every request, worker, partial-index, direct-index,
-  read-repair, import, accepted-delete, move, and recovery boundary has namespace and invalidation
-  parity.
-- Start with shadow telemetry or a limited tenant cohort.
-- Compare hit rate, Redis latency, database query volume, and end-to-end tool latency.
+- Land request reads and the worker invalidation boundaries in one Cloud change, using the same
+  tenant namespace function everywhere.
+- Do not add shadow reads, tenant cohorts, or a cache-specific rollout switch. Observe hit rate,
+  Redis latency, database query volume, and end-to-end tool latency after direct activation.
 
 ### 4. Expand from evidence
 
-- Add search and graph-context reads when measured reuse supports them.
+- Add graph-context and recent-activity reads when measured reuse supports them.
 - Refine project-wide invalidation only if unrelated writes materially reduce the entity hit
   rate.
 
