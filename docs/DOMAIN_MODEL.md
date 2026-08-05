@@ -52,6 +52,9 @@ which graph and search projections attach.
 - `permalink` is the human/agent-facing semantic address for Markdown content. It is
   project-scoped, may be absent when permalinks are disabled or inapplicable, and changes only
   according to the configured move and permalink policies.
+- Non-Markdown entities always have `permalink=None`. `external_id` is their stable API identity,
+  and `file_path` locates the stored resource; a database-only permalink would not round-trip
+  through the source file.
 - `title` is mutable display metadata, not identity.
 - For Markdown notes, `created_at` and `updated_at` project the canonical `created` and `modified`
   frontmatter values. Missing values fall back independently to file ctime and mtime for legacy
@@ -61,6 +64,17 @@ which graph and search projections attach.
   timestamps.
 - Parsed metadata and indexed text describe synchronized state; they are not independent
   knowledge sources.
+
+### Resolution Contracts
+
+Project-scoped entity resolution treats the route project as the target. It may use a source path
+to disambiguate notes inside that project, but it must never return an entity owned by another
+project.
+
+Source-aware wikilink resolution treats the route project as the source/default context. A
+qualified reference may select another target project, and the response names that target project
+explicitly. Hosted callers must authorize the target project separately; authorization of the
+source project does not grant access to the resolved target.
 
 ### Observation
 

@@ -71,6 +71,20 @@ async def detect_project_from_workspace_identifier_prefix(
     return workspace_resolution.project_identifier
 
 
+def normalize_link_text(link_text: str) -> tuple[str, str | None]:
+    """Strip wikilink syntax and return the target text plus optional alias."""
+    text = link_text.strip()
+    if text.startswith("[[") and text.endswith("]]"):
+        text = text[2:-2]
+
+    alias = None
+    if "|" in text:
+        text, alias = text.split("|", 1)
+        alias = alias.strip()
+
+    return text.strip(), alias
+
+
 class LinkResolver:
     """Service for resolving markdown links to permalinks.
 
@@ -104,6 +118,48 @@ class LinkResolver:
         self._project_cache_by_identifier: Dict[str, Project] = {}
         self._entity_repository_cache: Dict[int, EntityRepository] = {}
         self._search_service_cache: Dict[int, SearchService] = {}
+
+    async def resolve_entity(
+        self,
+        identifier: str,
+        *,
+        strict: bool = False,
+        source_path: Optional[str] = None,
+        load_relations: bool = True,
+        session: AsyncSession | None = None,
+    ) -> Optional[Entity]:
+        """Resolve an entity without leaving the resolver's project scope.
+
+        Unlike :meth:`resolve_link`, project-qualified identifiers do not select a different
+        repository. This is the target-project contract used by entity read and mutation flows.
+        """
+        clean_text, _ = self._normalize_link_text(identifier)
+
+        async with db.scoped_session(self.session_maker, session) as active_session:
+            try:
+                canonical_id = str(uuid_mod.UUID(clean_text))
+                entity = await self.entity_repository.get_by_external_id(
+                    active_session,
+                    canonical_id,
+                    load_relations=load_relations,
+                )
+                if entity:
+                    return entity
+            except ValueError:
+                pass
+
+            project_permalink = await self._get_current_project_permalink(active_session)
+            return await self._resolve_in_project(
+                session=active_session,
+                entity_repository=self.entity_repository,
+                search_service=self.search_service,
+                link_text=clean_text,
+                use_search=True,
+                strict=strict,
+                source_path=source_path,
+                project_permalink=project_permalink,
+                load_relations=load_relations,
+            )
 
     async def resolve_link(
         self,
@@ -227,24 +283,7 @@ class LinkResolver:
         Returns:
             Tuple of (normalized_text, alias or None)
         """
-        # Strip whitespace
-        text = link_text.strip()
-
-        # Remove enclosing brackets if present
-        if text.startswith("[[") and text.endswith("]]"):
-            text = text[2:-2]
-
-        # Handle wiki link aliases (format: [[actual|alias]])
-        alias = None
-        if "|" in text:
-            text, alias = text.split("|", 1)
-            text = text.strip()
-            alias = alias.strip()
-        else:
-            # Strip whitespace from text even if no alias
-            text = text.strip()
-
-        return text, alias
+        return normalize_link_text(link_text)
 
     async def _resolve_in_project(
         self,

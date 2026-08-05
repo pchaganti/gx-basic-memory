@@ -104,6 +104,7 @@ class FakeClient:
         self.index_params = FakeIndexParams()
         self.created: list[dict[str, object]] = []
         self.create_exception: MilvusException | None = None
+        self.loaded: list[dict[str, object]] = []
         self.upserts: list[dict[str, object]] = []
         self.deletes: list[dict[str, object]] = []
         self.iterator = FakeIterator([[{"id": "one"}, {"id": "two"}], []])
@@ -166,6 +167,15 @@ class FakeClient:
         if self.create_exception is not None:
             raise self.create_exception
 
+    def load_collection(self, *, collection_name: str, timeout: float) -> None:
+        self._record_timeout("load_collection", timeout)
+        self.loaded.append(
+            {
+                "collection_name": collection_name,
+                "timeout": timeout,
+            }
+        )
+
     def upsert(self, **kwargs: object) -> None:
         self._record_kwargs_timeout("upsert", kwargs)
         self.upserts.append(kwargs)
@@ -221,6 +231,7 @@ def test_repository_applies_finite_deadline_to_every_remote_operation(
     client.has_collection_result = True
 
     assert repository.collection_dimensions("vectors") == 4
+    repository.load_collection("vectors")
     assert repository.create_collection("vectors", 4)
     repository.upsert(
         "vectors",
@@ -248,6 +259,7 @@ def test_repository_applies_finite_deadline_to_every_remote_operation(
         "describe_index",
         "has_collection",
         "list_indexes",
+        "load_collection",
         "query_iterator",
         "search",
         "upsert",
@@ -266,6 +278,11 @@ def test_collection_dimensions_reports_missing_and_valid_collection(
 
     client.has_collection_result = True
     assert repository.collection_dimensions("vectors") == 4
+    assert client.loaded == []
+
+    repository.load_collection("vectors")
+
+    assert client.loaded == [{"collection_name": "vectors", "timeout": 12.5}]
 
 
 @pytest.mark.parametrize(

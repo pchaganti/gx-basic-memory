@@ -59,6 +59,8 @@ class MilvusRepository(Protocol):
 
     def collection_dimensions(self, collection_name: str) -> int | None: ...
 
+    def load_collection(self, collection_name: str) -> None: ...
+
     def create_collection(self, collection_name: str, dimensions: int) -> bool: ...
 
     def upsert(self, collection_name: str, records: Sequence[MilvusStoredRecord]) -> None: ...
@@ -240,6 +242,12 @@ class PyMilvusRepository:
                 f"Milvus collection '{collection_name}' requires a COSINE index on 'embedding'."
             )
         return dimensions
+
+    def load_collection(self, collection_name: str) -> None:
+        self._client.load_collection(
+            collection_name=collection_name,
+            timeout=self._timeout,
+        )
 
     def create_collection(self, collection_name: str, dimensions: int) -> bool:
         """Return whether this client created the collection."""

@@ -347,6 +347,7 @@ async def test_batch_indexer_indexes_non_markdown_files(
     search_service,
     file_service,
     project_config,
+    monkeypatch,
 ):
     pdf_path = "assets/doc.pdf"
     image_path = "assets/image.png"
@@ -357,6 +358,10 @@ async def test_batch_indexer_indexes_non_markdown_files(
         pdf_path: await _load_input(file_service, pdf_path),
         image_path: await _load_input(file_service, image_path),
     }
+    resolve_permalink = AsyncMock(
+        side_effect=AssertionError("non-Markdown files must not resolve permalinks")
+    )
+    monkeypatch.setattr(entity_service, "resolve_permalink", resolve_permalink)
     batch_indexer = _make_batch_indexer(
         app_config,
         entity_service,
@@ -380,8 +385,11 @@ async def test_batch_indexer_indexes_non_markdown_files(
         image_entity = await entity_repository.get_by_file_path(session, image_path)
     assert pdf_entity is not None
     assert pdf_entity.content_type == "application/pdf"
+    assert pdf_entity.permalink is None
     assert image_entity is not None
     assert image_entity.content_type == "image/png"
+    assert image_entity.permalink is None
+    resolve_permalink.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -653,6 +661,58 @@ async def test_batch_indexer_uses_parsed_markdown_body_for_malformed_frontmatter
     async with db.scoped_session(search_service.session_maker) as session:
         entity = await entity_repository.get_by_file_path(session, path)
     assert entity is not None
+
+
+@pytest.mark.asyncio
+async def test_batch_indexer_reports_malformed_yaml_without_rewriting_source(
+    app_config,
+    entity_service,
+    entity_repository,
+    relation_repository,
+    search_service,
+    file_service,
+    project_config,
+):
+    path = "notes/malformed-yaml.md"
+    original_content = dedent(
+        """\
+        ---
+        title: Important
+        description: Agent context: urgent: keep
+        tags: [critical]
+        ---
+
+        # Important
+
+        The source file must remain authoritative.
+        """
+    )
+    await _create_file(project_config.home / path, original_content)
+    batch_indexer = _make_batch_indexer(
+        app_config,
+        entity_service,
+        entity_repository,
+        relation_repository,
+        search_service,
+        file_service,
+    )
+
+    result = await batch_indexer.index_files(
+        {path: await _load_input(file_service, path)},
+        max_concurrent=1,
+        parse_max_concurrent=1,
+    )
+
+    assert result.indexed == []
+    assert len(result.errors) == 1
+    error_path, error = result.errors[0]
+    assert error_path == path
+    assert "Refusing to update malformed frontmatter" in error
+    assert (project_config.home / path).read_text(encoding="utf-8") == original_content
+
+    async with db.scoped_session(search_service.session_maker) as session:
+        entity = await entity_repository.get_by_file_path(session, path)
+    assert entity is None
 
 
 @pytest.mark.asyncio
