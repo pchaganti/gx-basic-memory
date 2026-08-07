@@ -1,6 +1,6 @@
 """Integration coverage for retryable relation-derived search refreshes."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 
 import pytest
@@ -22,16 +22,15 @@ class StaticLinkResolver:
         self.targets = targets
         self.calls = 0
 
-    async def resolve_link(
+    async def resolve_relation_targets(
         self,
-        link_text: str,
+        link_texts: Sequence[str],
         *,
-        strict: bool,
         session: AsyncSession,
-    ) -> Entity | None:
-        del strict, session
-        self.calls += 1
-        return self.targets.get(link_text)
+    ) -> Mapping[str, Entity | None]:
+        del session
+        self.calls += len(link_texts)
+        return {link_text: self.targets.get(link_text) for link_text in link_texts}
 
 
 @pytest.mark.asyncio
@@ -145,7 +144,7 @@ async def test_relation_refresh_retries_after_storage_read_failure_and_runtime_r
         relation_repository=relation_repository,
         entity_repository=entity_repository,
         note_content_repository=NoteContentRepository(project_id=test_project.id),
-        link_resolver=first_resolver,
+        target_resolver=first_resolver,
         entity_indexer=search_service,
     )
 
@@ -181,7 +180,7 @@ async def test_relation_refresh_retries_after_storage_read_failure_and_runtime_r
         relation_repository=RelationRepository(project_id=test_project.id),
         entity_repository=EntityRepository(project_id=test_project.id),
         note_content_repository=NoteContentRepository(project_id=test_project.id),
-        link_resolver=retry_resolver,
+        target_resolver=retry_resolver,
         entity_indexer=search_service,
     )
 

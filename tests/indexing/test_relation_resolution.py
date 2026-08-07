@@ -11,12 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from basic_memory.indexing.relation_resolution import (
     IndexFileRelationResolutionContext,
     ProjectIndexRelationResolutionContext,
+    RELATION_RESOLUTION_WRITE_BATCH_SIZE,
     RESOLVE_RELATIONS_DEBOUNCE_SECONDS,
     RepositoryRelationResolutionRuntime,
     ResolveRelationsJobRequest,
     ResolveRelationsResult,
     plan_index_file_relation_resolution,
     plan_project_index_completion_relation_resolution,
+    plan_resolved_relation_write_batches,
     resolve_project_index_completion_relations,
     resolve_project_relations,
 )
@@ -80,6 +82,10 @@ class FakeRelation:
 class FakeResolvedEntity:
     id: int
     title: str
+
+    @property
+    def external_id(self) -> str:
+        return f"external-{self.id}"
 
 
 class StubRelationRepository:
@@ -215,16 +221,15 @@ class StubLinkResolver:
         self.targets = targets
         self.calls: list[tuple[str, bool]] = []
 
-    async def resolve_link(
+    async def resolve_relation_targets(
         self,
-        link_text: str,
+        link_texts: Sequence[str],
         *,
-        strict: bool,
         session: AsyncSession,
-    ) -> FakeResolvedEntity | None:
+    ) -> Mapping[str, FakeResolvedEntity | None]:
         assert isinstance(session, FakeSession)
-        self.calls.append((link_text, strict))
-        return self.targets.get(link_text)
+        self.calls.extend((link_text, True) for link_text in link_texts)
+        return {link_text: self.targets.get(link_text) for link_text in link_texts}
 
 
 class StubEntityIndexer:
@@ -270,7 +275,7 @@ class MissingFileEntityIndexer(StubEntityIndexer):
 
 def build_repository_runtime(
     relation_repository: StubRelationRepository,
-    link_resolver: StubLinkResolver,
+    target_resolver: StubLinkResolver,
     entity_indexer: StubEntityIndexer,
     note_contents: Sequence[FakeNoteContent] = (),
 ) -> RepositoryRelationResolutionRuntime:
@@ -279,7 +284,7 @@ def build_repository_runtime(
         relation_repository=relation_repository,
         entity_repository=StubEntityRepository(),
         note_content_repository=StubNoteContentRepository(note_contents),
-        link_resolver=link_resolver,
+        target_resolver=target_resolver,
         entity_indexer=entity_indexer,
     )
 
@@ -398,6 +403,56 @@ def test_index_file_relation_resolution_plan_requires_incremental_processed_file
     )
 
 
+def test_relation_write_batch_plan_keeps_collision_domains_together() -> None:
+    assert plan_resolved_relation_write_batches([]) == ()
+    with pytest.raises(ValueError, match="target size must be positive"):
+        plan_resolved_relation_write_batches([], target_size=0)
+
+    independent_writes = [
+        ResolvedRelationWrite(
+            relation_id=relation_id,
+            from_id=relation_id,
+            original_target_name=f"Original {relation_id}",
+            target_id=1_000 + relation_id,
+            target_external_id=f"external-{1_000 + relation_id}",
+            target_name=f"Target {relation_id}",
+            relation_type="related_to",
+        )
+        for relation_id in range(1, RELATION_RESOLUTION_WRITE_BATCH_SIZE)
+    ]
+    colliding_writes = [
+        ResolvedRelationWrite(
+            relation_id=RELATION_RESOLUTION_WRITE_BATCH_SIZE,
+            from_id=999,
+            original_target_name="Alias A",
+            target_id=2_000,
+            target_external_id="external-2000",
+            target_name="Canonical B",
+            relation_type="related_to",
+        ),
+        ResolvedRelationWrite(
+            relation_id=RELATION_RESOLUTION_WRITE_BATCH_SIZE + 1,
+            from_id=999,
+            original_target_name="Alias B",
+            target_id=2_001,
+            target_external_id="external-2001",
+            target_name="Canonical A",
+            relation_type="related_to",
+        ),
+    ]
+
+    batches = plan_resolved_relation_write_batches([*independent_writes, *colliding_writes])
+
+    assert [len(batch.writes) for batch in batches] == [
+        RELATION_RESOLUTION_WRITE_BATCH_SIZE - 1,
+        2,
+    ]
+    assert {write.relation_id for write in batches[1].writes} == {
+        RELATION_RESOLUTION_WRITE_BATCH_SIZE,
+        RELATION_RESOLUTION_WRITE_BATCH_SIZE + 1,
+    }
+
+
 @pytest.mark.asyncio
 async def test_resolves_until_a_stable_pass_changes_nothing() -> None:
     runtime = StubRelationResolutionRuntime([3, 1], [{10, 11}, set()])
@@ -481,19 +536,22 @@ async def test_project_relation_resolution_uses_repository_runtime_and_counts_re
             ResolvedRelationWrite(
                 relation_id=1,
                 from_id=10,
+                original_target_name="Target A",
                 target_id=20,
+                target_external_id="external-20",
                 target_name="Target A",
                 relation_type="related_to",
             ),
             ResolvedRelationWrite(
                 relation_id=2,
                 from_id=11,
+                original_target_name="Target B",
                 target_id=21,
+                target_external_id="external-21",
                 target_name="Target B",
                 relation_type="related_to",
             ),
         ),
-        (),
     ]
     assert entity_indexer.indexed_batches == [
         (
@@ -520,7 +578,7 @@ async def test_project_relation_resolution_stops_when_nothing_resolves() -> None
     assert result.passes == 1
     assert result.resolved == 0
     assert result.remaining == 1
-    assert repo.write_batches == [()]
+    assert repo.write_batches == []
     assert entity_indexer.indexed_entities == []
 
 
@@ -563,7 +621,7 @@ async def test_repository_runtime_batches_resolution_and_entity_refresh_sessions
     entity_indexer = StubEntityIndexer()
     runtime = build_repository_runtime(
         relation_repository=repo,
-        link_resolver=StubLinkResolver(
+        target_resolver=StubLinkResolver(
             {
                 "Target A": FakeResolvedEntity(id=20, title="Target A"),
                 "Target B": FakeResolvedEntity(id=21, title="Target B"),
@@ -582,7 +640,84 @@ async def test_repository_runtime_batches_resolution_and_entity_refresh_sessions
             FakeResolvedEntity(id=11, title="Source B"),
         )
     ]
-    assert FakeSession.created_count == 3
+    assert FakeSession.created_count == 4
+
+
+@pytest.mark.asyncio
+async def test_repository_runtime_commits_write_batches_and_resumes_after_interruption() -> None:
+    relations = [
+        FakeRelation(
+            id=relation_id,
+            from_id=10,
+            to_name=f"Target {relation_id}",
+            relation_type=f"related_to_{relation_id}",
+        )
+        for relation_id in range(1, RELATION_RESOLUTION_WRITE_BATCH_SIZE + 2)
+    ]
+
+    class InterruptingRelationRepository(StubRelationRepository):
+        def __init__(self) -> None:
+            super().__init__([relations])
+            self.remaining = list(relations)
+            self.apply_attempts = 0
+
+        @override
+        async def find_unresolved_relations(
+            self,
+            session: AsyncSession,
+        ) -> list[FakeRelation]:
+            assert isinstance(session, FakeSession)
+            return list(self.remaining)
+
+        @override
+        async def apply_resolved_targets(
+            self,
+            session: AsyncSession,
+            writes: Sequence[ResolvedRelationWrite],
+        ) -> ResolvedRelationWriteResult:
+            self.apply_attempts += 1
+            if self.apply_attempts == 2:
+                raise RuntimeError("worker interrupted between committed batches")
+
+            result = await super().apply_resolved_targets(session, writes)
+            completed_ids = {write.relation_id for write in writes}
+            self.remaining = [
+                relation for relation in self.remaining if relation.id not in completed_ids
+            ]
+            return result
+
+    repository = InterruptingRelationRepository()
+    link_resolver = StubLinkResolver(
+        {
+            relation.to_name: FakeResolvedEntity(
+                id=1_000 + relation.id,
+                title=relation.to_name,
+            )
+            for relation in relations
+        }
+    )
+    runtime = build_repository_runtime(
+        repository,
+        link_resolver,
+        StubEntityIndexer(),
+    )
+
+    with pytest.raises(RuntimeError, match="interrupted between committed batches"):
+        await runtime.resolve_relations()
+
+    assert len(repository.remaining) == 1
+    assert len(repository.write_batches) == 1
+    assert len(repository.write_batches[0]) == RELATION_RESOLUTION_WRITE_BATCH_SIZE
+
+    link_resolver.calls.clear()
+    assert await runtime.resolve_relations() == {10}
+
+    assert link_resolver.calls == [(relations[-1].to_name, True)]
+    assert repository.remaining == []
+    assert [len(batch) for batch in repository.write_batches] == [
+        RELATION_RESOLUTION_WRITE_BATCH_SIZE,
+        1,
+    ]
 
 
 @pytest.mark.asyncio
@@ -591,7 +726,7 @@ async def test_repository_runtime_refreshes_pending_source_from_accepted_content
     entity_indexer = MissingFileEntityIndexer()
     runtime = build_repository_runtime(
         relation_repository=repo,
-        link_resolver=StubLinkResolver({"Target A": FakeResolvedEntity(id=20, title="Target A")}),
+        target_resolver=StubLinkResolver({"Target A": FakeResolvedEntity(id=20, title="Target A")}),
         entity_indexer=entity_indexer,
         note_contents=[
             FakeNoteContent(
@@ -617,7 +752,7 @@ async def test_repository_runtime_preserves_missing_file_error_for_synced_source
     repo = StubRelationRepository([[FakeRelation(id=1, from_id=10, to_name="Target A")]])
     runtime = build_repository_runtime(
         relation_repository=repo,
-        link_resolver=StubLinkResolver({"Target A": FakeResolvedEntity(id=20, title="Target A")}),
+        target_resolver=StubLinkResolver({"Target A": FakeResolvedEntity(id=20, title="Target A")}),
         entity_indexer=MissingFileEntityIndexer(),
         note_contents=[
             FakeNoteContent(
@@ -640,7 +775,6 @@ async def test_resolve_relations_skips_ambiguous_target_without_aborting_pass() 
     notes. The repair pass must treat that as an unresolved forward reference rather than let the
     exception abort the whole batch and strand other resolvable relations.
     """
-    from basic_memory.services.exceptions import AmbiguousIdentifierError
 
     class AmbiguousStubLinkResolver(StubLinkResolver):
         def __init__(
@@ -652,18 +786,18 @@ async def test_resolve_relations_skips_ambiguous_target_without_aborting_pass() 
             self.ambiguous = ambiguous
 
         @override
-        async def resolve_link(
+        async def resolve_relation_targets(
             self,
-            link_text: str,
+            link_texts: Sequence[str],
             *,
-            strict: bool,
             session: AsyncSession,
-        ) -> FakeResolvedEntity | None:
+        ) -> Mapping[str, FakeResolvedEntity | None]:
             assert isinstance(session, FakeSession)
-            self.calls.append((link_text, strict))
-            if link_text in self.ambiguous:
-                raise AmbiguousIdentifierError(link_text, [("dup-a", "a.md"), ("dup-b", "b.md")])
-            return self.targets.get(link_text)
+            self.calls.extend((link_text, True) for link_text in link_texts)
+            return {
+                link_text: None if link_text in self.ambiguous else self.targets.get(link_text)
+                for link_text in link_texts
+            }
 
     repo = StubRelationRepository(
         [

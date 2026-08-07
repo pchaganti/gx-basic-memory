@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
 from basic_memory import db
@@ -757,21 +758,27 @@ async def test_apply_resolved_targets_batches_updates_and_duplicate_cleanup(
                 ResolvedRelationWrite(
                     relation_id=accepted_related_id,
                     from_id=source_entity.id,
+                    original_target_name="Related Alias",
                     target_id=related_entity.id,
+                    target_external_id=related_entity.external_id,
                     target_name=related_entity.title,
                     relation_type="references",
                 ),
                 ResolvedRelationWrite(
                     relation_id=redundant_unresolved_id,
                     from_id=source_entity.id,
+                    original_target_name="Duplicate Target Alias",
                     target_id=target_entity.id,
+                    target_external_id=target_entity.external_id,
                     target_name=target_entity.title,
                     relation_type="links_to",
                 ),
                 ResolvedRelationWrite(
                     relation_id=accepted_target_id,
                     from_id=source_entity.id,
+                    original_target_name="Target Alias",
                     target_id=target_entity.id,
+                    target_external_id=target_entity.external_id,
                     target_name=target_entity.title,
                     relation_type="documents",
                 ),
@@ -799,3 +806,279 @@ async def test_apply_resolved_targets_batches_updates_and_duplicate_cleanup(
         (target_entity.id, target_entity.title)
     ]
     assert redundant is None
+
+
+@pytest.mark.asyncio
+async def test_apply_resolved_targets_preserves_canonical_name_swaps(
+    relation_repository: RelationRepository,
+    source_entity: Entity,
+    target_entity: Entity,
+    related_entity: Entity,
+    test_project: Project,
+    session_maker,
+):
+    """Relations exchanging occupied names remain valid when planned together."""
+    first_relation = Relation(
+        project_id=test_project.id,
+        from_id=source_entity.id,
+        to_id=None,
+        to_name=target_entity.title,
+        relation_type="renames_to",
+    )
+    second_relation = Relation(
+        project_id=test_project.id,
+        from_id=source_entity.id,
+        to_id=None,
+        to_name=related_entity.title,
+        relation_type="renames_to",
+    )
+    async with db.scoped_session(session_maker) as session:
+        session.add_all([first_relation, second_relation])
+        await session.flush()
+        first_relation_id = first_relation.id
+        second_relation_id = second_relation.id
+
+    async with db.scoped_session(session_maker) as session:
+        result = await relation_repository.apply_resolved_targets(
+            session,
+            [
+                ResolvedRelationWrite(
+                    relation_id=first_relation_id,
+                    from_id=source_entity.id,
+                    original_target_name=target_entity.title,
+                    target_id=related_entity.id,
+                    target_external_id=related_entity.external_id,
+                    target_name=related_entity.title,
+                    relation_type="renames_to",
+                ),
+                ResolvedRelationWrite(
+                    relation_id=second_relation_id,
+                    from_id=source_entity.id,
+                    original_target_name=related_entity.title,
+                    target_id=target_entity.id,
+                    target_external_id=target_entity.external_id,
+                    target_name=target_entity.title,
+                    relation_type="renames_to",
+                ),
+            ],
+        )
+
+    assert result.duplicate_relation_ids == ()
+    async with db.scoped_session(session_maker) as session:
+        relations = await relation_repository.find_by_type(session, "renames_to")
+
+    assert {(relation.id, relation.to_id, relation.to_name) for relation in relations} == {
+        (first_relation_id, related_entity.id, related_entity.title),
+        (second_relation_id, target_entity.id, target_entity.title),
+    }
+
+
+@pytest.mark.asyncio
+async def test_apply_resolved_targets_bounds_sql_for_oversized_collision_domain(
+    relation_repository: RelationRepository,
+    source_entity: Entity,
+    test_project: Project,
+    session_maker,
+):
+    """One large name-swap domain stays atomic without unbounded SQL expressions."""
+    domain_size = 1_100
+    now = datetime.now(timezone.utc)
+    target_entities = [
+        Entity(
+            project_id=test_project.id,
+            title=f"Large Domain Target {index}",
+            note_type="test",
+            permalink=f"large-domain/target-{index}",
+            file_path=f"large-domain/target-{index}.md",
+            content_type="text/markdown",
+            created_at=now,
+            updated_at=now,
+        )
+        for index in range(domain_size)
+    ]
+    async with db.scoped_session(session_maker) as session:
+        session.add_all(target_entities)
+        await session.flush()
+        unresolved_relations = [
+            Relation(
+                project_id=test_project.id,
+                from_id=source_entity.id,
+                to_id=None,
+                to_name=target_entities[(index + 1) % domain_size].title,
+                relation_type="large_domain",
+            )
+            for index in range(domain_size)
+        ]
+        session.add_all(unresolved_relations)
+        await session.flush()
+        writes = [
+            ResolvedRelationWrite(
+                relation_id=relation.id,
+                from_id=source_entity.id,
+                original_target_name=relation.to_name,
+                target_id=target.id,
+                target_external_id=target.external_id,
+                target_name=target.title,
+                relation_type=relation.relation_type,
+            )
+            for relation, target in zip(unresolved_relations, target_entities, strict=True)
+        ]
+        expected_targets = {(target.id, target.title) for target in target_entities}
+
+    async with db.scoped_session(session_maker) as session:
+        result = await relation_repository.apply_resolved_targets(session, writes)
+
+    assert result == ResolvedRelationWriteResult(
+        affected_entity_ids=frozenset({source_entity.id}),
+        duplicate_relation_ids=(),
+    )
+    async with db.scoped_session(session_maker) as session:
+        resolved_targets = set(
+            (
+                await session.execute(
+                    select(Relation.to_id, Relation.to_name).where(
+                        Relation.project_id == test_project.id,
+                        Relation.relation_type == "large_domain",
+                    )
+                )
+            )
+            .tuples()
+            .all()
+        )
+
+    assert resolved_targets == expected_targets
+
+
+@pytest.mark.asyncio
+async def test_apply_resolved_targets_skips_reused_target_identity(
+    relation_repository: RelationRepository,
+    source_entity: Entity,
+    target_entity: Entity,
+    test_project: Project,
+    session_maker,
+):
+    """A stale target ID cannot connect an edge to a replacement entity."""
+    unresolved_relation = Relation(
+        project_id=test_project.id,
+        from_id=source_entity.id,
+        to_id=None,
+        to_name="Original Target Alias",
+        relation_type="documents",
+    )
+    async with db.scoped_session(session_maker) as session:
+        session.add(unresolved_relation)
+        await session.flush()
+        relation_id = unresolved_relation.id
+
+    stale_write = ResolvedRelationWrite(
+        relation_id=relation_id,
+        from_id=source_entity.id,
+        original_target_name=unresolved_relation.to_name,
+        target_id=target_entity.id,
+        target_external_id=target_entity.external_id,
+        target_name=target_entity.title,
+        relation_type=unresolved_relation.relation_type,
+    )
+
+    # Trigger: the snapshotted target is deleted before relation repair commits.
+    # Why: SQLite can reuse its numeric ID for an unrelated entity.
+    # Outcome: the replacement has the same database ID but a new stable external ID.
+    now = datetime.now(timezone.utc)
+    async with db.scoped_session(session_maker) as session:
+        await session.execute(delete(Entity).where(Entity.id == target_entity.id))
+        replacement = Entity(
+            id=target_entity.id,
+            project_id=test_project.id,
+            title="Replacement Target",
+            note_type="test",
+            permalink="target/replacement-target",
+            file_path="target/replacement_target.md",
+            content_type="text/markdown",
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(replacement)
+        await session.flush()
+        replacement_external_id = replacement.external_id
+
+    async with db.scoped_session(session_maker) as session:
+        result = await relation_repository.apply_resolved_targets(session, [stale_write])
+
+    assert result == ResolvedRelationWriteResult(
+        affected_entity_ids=frozenset(),
+        duplicate_relation_ids=(),
+        stale_relation_ids=(relation_id,),
+    )
+    assert replacement_external_id != stale_write.target_external_id
+    async with db.scoped_session(session_maker) as session:
+        relation = await relation_repository.find_by_id(session, relation_id)
+
+    assert relation is not None
+    assert relation.to_id is None
+    assert relation.to_name == "Original Target Alias"
+
+
+@pytest.mark.asyncio
+async def test_apply_resolved_targets_skips_reused_relation_identity(
+    relation_repository: RelationRepository,
+    source_entity: Entity,
+    target_entity: Entity,
+    test_project: Project,
+    session_maker,
+):
+    """A stale command cannot resolve a replacement row that reused its database ID."""
+    original_relation = Relation(
+        project_id=test_project.id,
+        from_id=source_entity.id,
+        to_id=None,
+        to_name="Original Alias",
+        relation_type="documents",
+    )
+    async with db.scoped_session(session_maker) as session:
+        session.add(original_relation)
+        await session.flush()
+        reused_relation_id = original_relation.id
+
+    stale_write = ResolvedRelationWrite(
+        relation_id=reused_relation_id,
+        from_id=source_entity.id,
+        original_target_name=original_relation.to_name,
+        target_id=target_entity.id,
+        target_external_id=target_entity.external_id,
+        target_name=target_entity.title,
+        relation_type=original_relation.relation_type,
+    )
+
+    # Trigger: accepted-note replacement deletes the old unresolved row before repair writes.
+    # Why: SQLite may reuse the deleted row ID for a different outgoing relation.
+    # Outcome: the replacement deliberately carries the same ID but a different identity.
+    async with db.scoped_session(session_maker) as session:
+        assert await relation_repository.delete(session, reused_relation_id)
+        session.add(
+            Relation(
+                id=reused_relation_id,
+                project_id=test_project.id,
+                from_id=source_entity.id,
+                to_id=None,
+                to_name="Replacement Alias",
+                relation_type="supersedes",
+            )
+        )
+
+    async with db.scoped_session(session_maker) as session:
+        result = await relation_repository.apply_resolved_targets(session, [stale_write])
+
+    assert result == ResolvedRelationWriteResult(
+        affected_entity_ids=frozenset(),
+        duplicate_relation_ids=(),
+        stale_relation_ids=(reused_relation_id,),
+    )
+    async with db.scoped_session(session_maker) as session:
+        replacement = await relation_repository.find_by_id(session, reused_relation_id)
+        pending_refreshes = await relation_repository.list_pending_search_refreshes(session)
+
+    assert replacement is not None
+    assert replacement.to_id is None
+    assert replacement.to_name == "Replacement Alias"
+    assert replacement.relation_type == "supersedes"
+    assert pending_refreshes == []
