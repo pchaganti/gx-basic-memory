@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
@@ -44,6 +44,7 @@ from basic_memory.repository import (
     AcceptedObservationWrite,
     AcceptedRelationWrite,
 )
+from basic_memory.repository.relation_repository import RelationGenerationWriteResult
 from basic_memory.repository.entity_repository import AcceptedPendingEntityWrite
 from basic_memory.schemas.base import Entity as EntitySchema
 from basic_memory.services.note_preparation import (
@@ -147,28 +148,37 @@ class _RelationRepository:
     def __init__(self) -> None:
         self.calls: list[tuple[int, Sequence[AcceptedRelationWrite]]] = []
 
-    async def replace_accepted_outgoing_relations(
+    async def begin_relation_generation_publication(
         self,
         session: AsyncSession,
+        *,
         entity_id: int,
-        relations: Sequence[AcceptedRelationWrite],
-    ) -> None:
-        self.calls.append((entity_id, relations))
+        generation: int,
+    ) -> RelationGenerationWriteResult:
+        raise AssertionError(
+            "relation publication was not expected inside the accepted transaction"
+        )
 
-
-class _SelfRelationResolver:
-    def __init__(self, result: Entity | None = None) -> None:
-        self.result = result
-        self.calls: list[tuple[str, Entity, AsyncSession | None]] = []
-
-    async def resolve_deferred_self_relation(
+    async def upsert_relation_generation(
         self,
-        target: str,
-        entity: Entity,
-        session: AsyncSession | None = None,
-    ) -> Entity | None:
-        self.calls.append((target, entity, session))
-        return self.result
+        session: AsyncSession,
+        *,
+        entity_id: int,
+        generation: int,
+        relations: Sequence[AcceptedRelationWrite],
+    ) -> RelationGenerationWriteResult:
+        raise AssertionError(
+            "relation publication was not expected inside the accepted transaction"
+        )
+
+    async def cleanup_relation_generations(
+        self,
+        session: AsyncSession,
+        *,
+        entity_id: int,
+        generation: int,
+    ) -> RelationGenerationWriteResult:
+        raise AssertionError("relation cleanup was not expected inside the accepted transaction")
 
 
 def test_accepted_note_write_repositories_name_persistence_behavior() -> None:
@@ -207,7 +217,13 @@ def test_accepted_note_write_repositories_name_persistence_behavior() -> None:
 class _DeleteSession:
     def __init__(self, events: list[tuple[str, int]] | None = None) -> None:
         self.deleted: list[object] = []
+        self.scalar_count = 0
         self.events = events
+
+    async def scalar(self, statement: object) -> int:
+        assert statement is not None
+        self.scalar_count += 1
+        return 42
 
     async def delete(self, entity: object) -> None:
         self.deleted.append(entity)
@@ -303,7 +319,7 @@ class _EditPreparer:
 class _MovePreparer:
     def __init__(self, prepared: PreparedEntityMove) -> None:
         self.prepared = prepared
-        self.calls: list[tuple[Entity, str, str, AsyncSession | None]] = []
+        self.calls: list[tuple[Entity, str, str, bool, AsyncSession | None]] = []
 
     async def prepare_move_entity_content(
         self,
@@ -311,9 +327,12 @@ class _MovePreparer:
         current_content: str,
         destination_path: str,
         *,
+        should_update_permalink: bool,
         session: AsyncSession | None = None,
     ) -> PreparedEntityMove:
-        self.calls.append((entity, current_content, destination_path, session))
+        self.calls.append(
+            (entity, current_content, destination_path, should_update_permalink, session)
+        )
         return self.prepared
 
     async def verify_move_destination_absent(
@@ -323,6 +342,23 @@ class _MovePreparer:
         destination_file_path: str,
     ) -> None:
         return None
+
+
+@dataclass(slots=True)
+class _SelfRelationResolver:
+    """Resolve the exact self-link names selected by one focused test."""
+
+    resolved_names: set[str] = field(default_factory=set)
+    calls: list[tuple[str, Entity, AsyncSession | None]] = field(default_factory=list)
+
+    async def resolve_deferred_self_relation(
+        self,
+        target: str,
+        entity: Entity,
+        session: AsyncSession | None = None,
+    ) -> Entity | None:
+        self.calls.append((target, entity, session))
+        return entity if target in self.resolved_names else None
 
 
 def _unexpected_pending_entity_repository(_project_id: int) -> _PendingEntityRepository:
@@ -695,8 +731,16 @@ async def test_prepare_accepted_note_move_without_permalink_update_keeps_current
     current = _note_content()
     current.markdown_content = "---\ntitle: legacy\n\n# Body still matters\n"
 
+    prepared = _PreparedMove(
+        file_path=Path("archive/accepted.md"),
+        markdown_content=str(current.markdown_content),
+        search_content=str(current.markdown_content),
+        permalink="accepted",
+    )
+    preparer = _MovePreparer(prepared)
+
     result = await prepare_accepted_note_move(
-        None,
+        preparer,
         cast(AsyncSession, session),
         entity=entity,
         current_note_content=current,
@@ -716,6 +760,15 @@ async def test_prepare_accepted_note_move_without_permalink_update_keeps_current
     assert entity.updated_at == original_updated_at
     assert entity.last_updated_by == "user-4"
     assert session.flush_count == 1
+    assert preparer.calls == [
+        (
+            entity,
+            str(current.markdown_content),
+            "archive/accepted.md",
+            False,
+            cast(AsyncSession, session),
+        )
+    ]
 
 
 @pytest.mark.asyncio
@@ -743,7 +796,7 @@ async def test_prepare_accepted_note_move_with_permalink_update_uses_preparer() 
     )
 
     assert preparer.calls == [
-        (entity, "# Accepted\n", "archive/accepted.md", cast(AsyncSession, session)),
+        (entity, "# Accepted\n", "archive/accepted.md", True, cast(AsyncSession, session)),
     ]
     assert result.file_path == "archive/prepared.md"
     assert result.markdown_content == "# Prepared\n"
@@ -907,7 +960,7 @@ async def test_delete_accepted_note_search_index_uses_repository_protocol() -> N
 
 
 @pytest.mark.asyncio
-async def test_persist_accepted_note_snapshot_persists_content_search_and_graph() -> None:
+async def test_persist_accepted_note_snapshot_emits_relation_generation() -> None:
     session = cast(AsyncSession, object())
     entity = _entity()
     entity.file_path = "notes/new.md"
@@ -918,6 +971,7 @@ async def test_persist_accepted_note_snapshot_persists_content_search_and_graph(
     current_note_content.file_version = 3
     current_note_content.file_checksum = "old-file-checksum"
     persisted_note_content = _note_content()
+    persisted_note_content.db_version = 5
     content_repository = _NoteContentRepository(persisted_note_content)
     search_repository = _SearchRepository()
     observation_repository = _ObservationRepository()
@@ -939,24 +993,24 @@ async def test_persist_accepted_note_snapshot_persists_content_search_and_graph(
         observations=(observation,),
         relations=(relation,),
     )
+    self_relation_resolver = _SelfRelationResolver()
 
     result = await persist_accepted_note_snapshot(
         session,
         entity=entity,
         prepared=prepared,
         db_checksum="new-db-checksum",
-        self_relation_resolver=_SelfRelationResolver(),
         last_source="api",
         updated_at=updated_at,
         current_note_content=current_note_content,
         existing_file_path="notes/old.md",
         accepted_file_path="notes/new.md",
         source_file_checksum="db-checksum",
+        self_relation_resolver=self_relation_resolver,
         repositories=_repository_provider(
             note_content_repository=content_repository,
             search_repository=search_repository,
             observation_repository=observation_repository,
-            relation_repository=relation_repository,
         ),
     )
 
@@ -985,11 +1039,19 @@ async def test_persist_accepted_note_snapshot_persists_content_search_and_graph(
     assert search_repository.calls[0].entity_id == entity.id
     assert search_repository.calls[0].content_snippet == "New body"
     assert observation_repository.calls == [(entity.id, prepared.observations)]
-    assert relation_repository.calls == [(entity.id, prepared.relations)]
+    assert relation_repository.calls == []
+    assert result.relation_publication is not None
+    assert result.relation_publication.project_id == entity.project_id
+    assert result.relation_publication.entity_id == entity.id
+    assert result.relation_publication.generation == 5
+    assert result.relation_publication.relations[0].relation_type == "documents"
+    assert result.relation_publication.relations[0].target_name == "Another Note"
+    assert result.relation_publication.relations[0].target_id is None
+    assert self_relation_resolver.calls == [("Another Note", entity, session)]
 
 
 @pytest.mark.asyncio
-async def test_persist_accepted_note_move_is_explicitly_content_and_search_only() -> None:
+async def test_persist_accepted_note_move_emits_relation_generation() -> None:
     session = cast(AsyncSession, _FlushSession())
     entity = _entity()
     entity.file_path = "notes/new.md"
@@ -997,8 +1059,16 @@ async def test_persist_accepted_note_move_is_explicitly_content_and_search_only(
     current_note_content.file_path = "notes/old.md"
     content_repository = _NoteContentRepository(_note_content())
     search_repository = _SearchRepository()
+    move_preparer = _MovePreparer(
+        _PreparedMove(
+            file_path=Path("notes/new.md"),
+            markdown_content=str(current_note_content.markdown_content),
+            search_content=str(current_note_content.markdown_content),
+            permalink=entity.permalink,
+        )
+    )
     prepared = await prepare_accepted_note_move(
-        None,
+        move_preparer,
         session,
         entity=entity,
         current_note_content=current_note_content,
@@ -1007,7 +1077,7 @@ async def test_persist_accepted_note_move_is_explicitly_content_and_search_only(
         user_profile_value=None,
     )
 
-    await persist_accepted_note_move(
+    result = await persist_accepted_note_move(
         session,
         entity=entity,
         prepared=prepared,
@@ -1015,6 +1085,7 @@ async def test_persist_accepted_note_move_is_explicitly_content_and_search_only(
         updated_at=datetime(2026, 6, 19, 14, 0, tzinfo=UTC),
         current_note_content=current_note_content,
         existing_file_path="notes/old.md",
+        self_relation_resolver=_SelfRelationResolver(),
         repositories=_repository_provider(
             note_content_repository=content_repository,
             search_repository=search_repository,
@@ -1023,6 +1094,9 @@ async def test_persist_accepted_note_move_is_explicitly_content_and_search_only(
 
     assert len(content_repository.calls) == 1
     assert len(search_repository.calls) == 1
+    assert result.relation_publication is not None
+    assert result.relation_publication.generation == result.note_content.db_version
+    assert result.relation_publication.relations == ()
 
 
 @pytest.mark.asyncio
@@ -1074,6 +1148,7 @@ async def test_delete_accepted_note_plans_cleanup_and_deletes_entity() -> None:
 
     assert search_repository.deleted_entity_ids == [entity.id]
     assert search_repository.deleted_vector_entity_ids == [entity.id]
+    assert session.scalar_count == 1
     assert session.deleted == [entity]
     assert events == [
         ("search", entity.id),
@@ -1097,9 +1172,8 @@ async def test_delete_accepted_note_plans_cleanup_and_deletes_entity() -> None:
 
 
 @pytest.mark.asyncio
-async def test_persist_accepted_note_snapshot_resolves_safe_self_relation() -> None:
-    """A safe self-link carries its ID because deferred resolution skips self targets."""
-    relation_repository = _RelationRepository()
+async def test_persist_accepted_note_snapshot_pre_resolves_unambiguous_self_relation() -> None:
+    """Accepted publication keeps the authored alias and safe self target together."""
     entity = _entity()
     prepared = _prepared(
         markdown_content="# Accepted\n",
@@ -1122,63 +1196,54 @@ async def test_persist_accepted_note_snapshot_resolves_safe_self_relation() -> N
             )
         ],
     )
-    resolver = _SelfRelationResolver(entity)
-
-    await persist_accepted_note_snapshot(
-        cast(AsyncSession, object()),
+    session = cast(AsyncSession, object())
+    resolver = _SelfRelationResolver(resolved_names={"notes/accepted"})
+    result = await persist_accepted_note_snapshot(
+        session,
         entity=entity,
         prepared=prepared,
         db_checksum="snapshot-checksum",
-        self_relation_resolver=resolver,
         last_source="api",
         updated_at=entity.updated_at,
+        self_relation_resolver=resolver,
         repositories=_repository_provider(
             note_content_repository=_NoteContentRepository(_note_content()),
             search_repository=_SearchRepository(),
             observation_repository=_ObservationRepository(),
-            relation_repository=relation_repository,
         ),
     )
 
-    assert relation_repository.calls == [
-        (
-            entity.id,
-            [
-                AcceptedRelationWrite(
-                    relation_type="documents",
-                    target_name=entity.title,
-                    context=None,
-                    target_id=entity.id,
-                )
-            ],
-        )
-    ]
+    assert result.relation_publication is not None
+    assert result.relation_publication.relations[0].target_name == "notes/accepted"
+    assert result.relation_publication.relations[0].target_id == entity.id
+    assert resolver.calls == [("notes/accepted", entity, session)]
 
 
 @pytest.mark.asyncio
-async def test_persist_accepted_note_snapshot_forwards_empty_graph_sets() -> None:
-    """A note with no observations/relations still clears the graph (empty replace)."""
+async def test_persist_accepted_note_snapshot_emits_empty_relation_generation() -> None:
+    """An empty relation set still emits a publication so cleanup can remove stale rows."""
     observation_repository = _ObservationRepository()
     relation_repository = _RelationRepository()
     repositories = _repository_provider(
         note_content_repository=_NoteContentRepository(_note_content()),
         search_repository=_SearchRepository(),
         observation_repository=observation_repository,
-        relation_repository=relation_repository,
     )
     prepared = _prepared()
 
     entity = _entity()
-    await persist_accepted_note_snapshot(
+    result = await persist_accepted_note_snapshot(
         cast(AsyncSession, object()),
         entity=entity,
         prepared=prepared,
         db_checksum="snapshot-checksum",
-        self_relation_resolver=_SelfRelationResolver(),
         last_source="api",
         updated_at=entity.updated_at,
+        self_relation_resolver=_SelfRelationResolver(),
         repositories=repositories,
     )
 
     assert observation_repository.calls == [(42, [])]
-    assert relation_repository.calls == [(42, [])]
+    assert relation_repository.calls == []
+    assert result.relation_publication is not None
+    assert result.relation_publication.relations == ()

@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Awaitable, Callable, Mapping, TypeVar
+from typing import Awaitable, Callable, Mapping, Sequence, TypeVar
 
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
@@ -15,25 +15,37 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 import logfire
 from basic_memory import db
 from basic_memory.config import BasicMemoryConfig
-from basic_memory.file_utils import compute_checksum, has_frontmatter, remove_frontmatter
+from basic_memory.file_utils import (
+    ParseError,
+    compute_checksum,
+    has_frontmatter,
+    remove_frontmatter,
+)
 from basic_memory.markdown.schemas import EntityMarkdown
 from basic_memory.indexing.models import (
     IndexEntitySearchWriter,
     IndexedEntity,
+    IndexedRelation,
     IndexFileWriter,
     IndexFrontmatterUpdate,
     IndexingBatchResult,
     IndexInputFile,
+    RelationGenerationBatchResult,
 )
-from basic_memory.models import Entity, Relation
+from basic_memory.indexing.relation_resolution import RepositoryRelationResolutionRuntime
+from basic_memory.indexing.relation_persistence import RelationGenerationPublisher
+from basic_memory.models import Entity
+from basic_memory.repository import EntityRepository, RelationRepository
+from basic_memory.repository.note_content_repository import NoteContentRepository
 from basic_memory.repository.semantic_errors import SemanticDependenciesMissingError
 from basic_memory.runtime.storage import (
+    ProjectId,
     RUNTIME_MARKDOWN_CONTENT_TYPE,
     runtime_file_path_is_markdown_note,
 )
 from basic_memory.services import EntityService
+from basic_memory.services.bulk_link_resolver import BulkLinkResolver
 from basic_memory.services.exceptions import SyncFatalError
-from basic_memory.repository import EntityRepository, RelationRepository
 
 T = TypeVar("T")
 
@@ -49,6 +61,25 @@ class MarkdownOnlyIndexEntitySearchWriter:
             return
 
         await self.search_writer.index_entity_data(entity, content=content)
+
+
+@dataclass(frozen=True, slots=True)
+class RelationResolutionSearchWriter:
+    """Adapt the portable single-entity writer to resolver batch refreshes."""
+
+    search_writer: IndexEntitySearchWriter
+
+    async def index_entities(
+        self,
+        entities: Sequence[Entity],
+        *,
+        content_by_entity_id: Mapping[int, str],
+    ) -> None:
+        for entity in sorted(entities, key=lambda item: item.id):
+            await self.search_writer.index_entity_data(
+                entity,
+                content=content_by_entity_id.get(entity.id),
+            )
 
 
 @dataclass(slots=True)
@@ -69,6 +100,8 @@ class _PreparedEntity:
     content_type: str | None
     search_content: str | None
     markdown_content: str | None = None
+    relations: tuple[IndexedRelation, ...] = ()
+    resolve_relations: bool = True
 
 
 @dataclass(slots=True)
@@ -83,6 +116,7 @@ class BatchIndexer:
     def __init__(
         self,
         *,
+        project_id: ProjectId,
         app_config: BasicMemoryConfig,
         entity_service: EntityService,
         entity_repository: EntityRepository,
@@ -98,6 +132,21 @@ class BatchIndexer:
         self.search_service = search_service
         self.file_writer = file_writer
         self.session_maker = session_maker
+        self.relation_generation_publisher = RelationGenerationPublisher(
+            relation_repository=relation_repository,
+            session_maker=session_maker,
+        )
+        self.relation_resolution = RepositoryRelationResolutionRuntime(
+            session_maker=session_maker,
+            relation_repository=relation_repository,
+            entity_repository=entity_repository,
+            note_content_repository=NoteContentRepository(project_id=project_id),
+            target_resolver=BulkLinkResolver(
+                entity_repository=entity_repository,
+                app_config=app_config,
+            ),
+            entity_indexer=RelationResolutionSearchWriter(search_service),
+        )
 
     async def index_files(
         self,
@@ -135,8 +184,6 @@ class BatchIndexer:
         error_by_path.update(normalization_errors)
 
         indexed_entities: list[IndexedEntity] = []
-        resolved_count = 0
-        unresolved_count = 0
         search_indexed = 0
 
         prepared_entities: dict[str, _PreparedEntity] = {}
@@ -159,17 +206,6 @@ class BatchIndexer:
         )
         error_by_path.update(regular_errors)
         prepared_entities.update(regular_upserts)
-
-        markdown_entity_ids = [
-            prepared_entities[path].entity_id
-            for path in markdown_paths
-            if path in prepared_entities
-        ]
-        if markdown_entity_ids:
-            resolved_count, unresolved_count = await self._resolve_batch_relations(
-                markdown_entity_ids,
-                max_concurrent=max_concurrent,
-            )
 
         async with db.scoped_session(self.session_maker) as session:
             refreshed_entities = await self.entity_repository.find_by_ids(
@@ -197,8 +233,6 @@ class BatchIndexer:
         return IndexingBatchResult(
             indexed=indexed_entities,
             errors=[(path, error_by_path[path]) for path in ordered_paths if path in error_by_path],
-            relations_resolved=resolved_count,
-            relations_unresolved=unresolved_count,
             search_indexed=search_indexed,
         )
 
@@ -234,8 +268,6 @@ class BatchIndexer:
             persisted = await self._persist_markdown_file(
                 prepared,
                 is_new=new,
-                resolve_relations=resolve_relations,
-                reload_entity=False,
             )
         existing_permalink_by_path[file.path] = persisted.entity.permalink
 
@@ -249,7 +281,11 @@ class BatchIndexer:
         if len(refreshed) != 1:  # pragma: no cover
             raise ValueError(f"Failed to reload indexed entity for {file.path}")
         entity = refreshed[0]
-        prepared_entity = self._build_prepared_entity(persisted.prepared, entity)
+        prepared_entity = await self._build_prepared_entity(
+            persisted.prepared,
+            entity,
+            resolve_relations=resolve_relations,
+        )
 
         if index_search:
             with logfire.span(
@@ -266,6 +302,8 @@ class BatchIndexer:
             checksum=prepared_entity.checksum,
             content_type=prepared_entity.content_type,
             markdown_content=prepared_entity.markdown_content,
+            relations=prepared_entity.relations,
+            resolve_relations=prepared_entity.resolve_relations,
         )
 
     async def _get_file_path_to_permalink_map(self) -> dict[str, str | None]:
@@ -427,7 +465,7 @@ class BatchIndexer:
 
     async def _upsert_markdown_file(self, prepared: _PreparedMarkdownFile) -> _PreparedEntity:
         persisted = await self._persist_markdown_file(prepared)
-        return self._build_prepared_entity(persisted.prepared, persisted.entity)
+        return await self._build_prepared_entity(persisted.prepared, persisted.entity)
 
     async def _upsert_regular_file(self, file: IndexInputFile) -> _PreparedEntity:
         checksum = await self._resolve_checksum(file)
@@ -503,9 +541,140 @@ class BatchIndexer:
             content_type=file.content_type,
             search_content=None,
             markdown_content=None,
+            relations=(),
+            resolve_relations=False,
         )
 
     # --- Relations ---
+
+    async def publish_relation_generation(
+        self,
+        indexed: IndexedEntity,
+        *,
+        generation: int,
+    ) -> bool:
+        """Publish one indexed entity's parsed relations after generation claim."""
+        return await self.relation_generation_publisher.publish(
+            entity_id=indexed.entity_id,
+            generation=generation,
+            relations=indexed.relations,
+        )
+
+    async def publish_relation_generations(
+        self,
+        indexed_entities: list[IndexedEntity],
+        *,
+        generation_by_entity_id: Mapping[int, int],
+        max_concurrent: int,
+    ) -> RelationGenerationBatchResult:
+        """Publish claimed batch generations before resolving forward references."""
+        indexed_by_path = {
+            indexed.path: indexed
+            for indexed in indexed_entities
+            if indexed.markdown_content is not None and indexed.entity_id in generation_by_entity_id
+        }
+        published, errors = await self._run_bounded(
+            sorted(indexed_by_path),
+            limit=max_concurrent,
+            worker=lambda path: self.publish_relation_generation(
+                indexed_by_path[path],
+                generation=generation_by_entity_id[indexed_by_path[path].entity_id],
+            ),
+        )
+        resolvable_entity_ids = [
+            indexed_by_path[path].entity_id
+            for path in sorted(published)
+            if published[path] and indexed_by_path[path].resolve_relations
+        ]
+        resolved_count = 0
+        unresolved_count = 0
+        if resolvable_entity_ids:
+            resolved_count, unresolved_count = await self._resolve_batch_relations(
+                resolvable_entity_ids,
+                max_concurrent=max_concurrent,
+            )
+
+        _, refresh_errors = await self._run_bounded(
+            [path for path in sorted(published) if published[path]],
+            limit=max_concurrent,
+            worker=lambda path: self.refresh_indexed_entity_search(
+                indexed_by_path[path],
+                generation=generation_by_entity_id[indexed_by_path[path].entity_id],
+            ),
+        )
+        errors.update(refresh_errors)
+
+        return RelationGenerationBatchResult(
+            errors=tuple((path, errors[path]) for path in sorted(errors)),
+            relations_resolved=resolved_count,
+            relations_unresolved=unresolved_count,
+        )
+
+    async def resolve_relation_targets(
+        self,
+        entity_ids: list[int],
+        *,
+        max_concurrent: int,
+    ) -> tuple[int, int]:
+        """Resolve newly published relations through the shared guarded resolver."""
+        return await self._resolve_batch_relations(entity_ids, max_concurrent=max_concurrent)
+
+    async def refresh_indexed_entity_search(
+        self,
+        indexed: IndexedEntity,
+        *,
+        generation: int,
+    ) -> IndexedEntity:
+        """Refresh search only while this publication generation remains accepted."""
+        async with db.scoped_session(self.session_maker) as session:
+            refresh = await self.relation_repository.load_search_refresh_for_generation(
+                session,
+                entity_id=indexed.entity_id,
+                generation=generation,
+            )
+        # Trigger: a newer accepted note generation won after this publication.
+        # Why: combining generation-N parsed markdown with N+1 entity state would
+        # produce a search row that never represented one coherent note version.
+        # Outcome: terminal-wins; N+1 owns its refresh and this pass leaves durable
+        # marker IDs untouched for a later retry.
+        if refresh is None:
+            return indexed
+
+        try:
+            search_content = (
+                remove_frontmatter(indexed.markdown_content)
+                if indexed.markdown_content is not None
+                else None
+            )
+        except ParseError:
+            search_content = indexed.markdown_content
+
+        prepared = _PreparedEntity(
+            path=indexed.path,
+            entity_id=indexed.entity_id,
+            permalink=indexed.permalink,
+            checksum=indexed.checksum,
+            content_type=indexed.content_type,
+            search_content=search_content,
+            markdown_content=indexed.markdown_content,
+            relations=indexed.relations,
+            resolve_relations=indexed.resolve_relations,
+        )
+        refreshed = await self._refresh_search_index(prepared, refresh.entity)
+        async with db.scoped_session(self.session_maker) as session:
+            # Trigger: N+1 can be accepted after N loaded its coherent snapshot but
+            # before N finishes the external search write.
+            # Why: N must not consume the last repair marker after rendering stale
+            # bytes; N+1 owns convergence and may already have completed its pass.
+            # Outcome: the guarded completion either retires N's observed markers or
+            # leaves fresh durable work that repairs a late stale write.
+            await self.relation_repository.complete_search_refresh_for_generation(
+                session,
+                entity_id=indexed.entity_id,
+                generation=generation,
+                refresh_ids=refresh.refresh_ids,
+            )
+        return refreshed
 
     async def _resolve_batch_relations(
         self,
@@ -513,68 +682,29 @@ class BatchIndexer:
         *,
         max_concurrent: int,
     ) -> tuple[int, int]:
+        if max_concurrent < 1:
+            raise ValueError("max_concurrent must be greater than zero")
+
+        ordered_entity_ids = sorted(set(entity_ids))
         unresolved_relation_lists = await asyncio.gather(
-            *(self._find_unresolved_relations_for_entity(entity_id) for entity_id in entity_ids)
+            *(
+                self._find_unresolved_relations_for_entity(entity_id)
+                for entity_id in ordered_entity_ids
+            )
         )
-        unresolved_relations = [
-            relation for relation_list in unresolved_relation_lists for relation in relation_list
-        ]
+        unresolved_before = sum(len(relations) for relations in unresolved_relation_lists)
 
-        if not unresolved_relations:
-            return 0, 0
-
-        semaphore = asyncio.Semaphore(max_concurrent)
-
-        async def resolve_relation(relation: Relation) -> int:
-            async with semaphore:
-                try:
-                    # strict=True for deferred resolution: only fill in to_id on an
-                    # exact permalink/title/file_path match. Fuzzy fallback would silently
-                    # resolve ambiguous links to whichever entity shares tokens with the
-                    # link text, mismatching this with the sync_service forward-reference
-                    # path and producing confidently-wrong graph edges. See
-                    # sync_service.resolve_forward_references for the same change.
-                    async with db.scoped_session(self.session_maker) as session:
-                        resolved_entity = await self.entity_service.link_resolver.resolve_link(
-                            relation.to_name, strict=True, session=session
-                        )
-                    if resolved_entity is None or resolved_entity.id == relation.from_id:
-                        return 0
-
-                    try:
-                        async with db.scoped_session(self.session_maker) as session:
-                            await self.relation_repository.update(
-                                session,
-                                relation.id,
-                                {
-                                    "to_id": resolved_entity.id,
-                                    "to_name": resolved_entity.title,
-                                },
-                            )
-                    except IntegrityError:
-                        async with db.scoped_session(self.session_maker) as session:
-                            await self.relation_repository.delete(session, relation.id)
-                    return 1
-                except Exception as exc:  # pragma: no cover - defensive logging
-                    logger.warning(
-                        "Batch relation resolution failed",
-                        relation_id=relation.id,
-                        from_id=relation.from_id,
-                        to_name=relation.to_name,
-                        error=str(exc),
-                    )
-                    return 0
-
-        resolved_counts = await asyncio.gather(
-            *(resolve_relation(relation) for relation in unresolved_relations)
-        )
+        for entity_id in ordered_entity_ids:
+            await self.relation_resolution.resolve_relations(entity_id=entity_id)
 
         remaining_relation_lists = await asyncio.gather(
-            *(self._find_unresolved_relations_for_entity(entity_id) for entity_id in entity_ids)
+            *(
+                self._find_unresolved_relations_for_entity(entity_id)
+                for entity_id in ordered_entity_ids
+            )
         )
         remaining_unresolved = sum(len(relations) for relations in remaining_relation_lists)
-
-        return sum(resolved_counts), remaining_unresolved
+        return max(0, unresolved_before - remaining_unresolved), remaining_unresolved
 
     async def _find_unresolved_relations_for_entity(self, entity_id: int):
         """Load unresolved relations for one entity in a service-owned session."""
@@ -606,6 +736,8 @@ class BatchIndexer:
             checksum=prepared.checksum,
             content_type=prepared.content_type,
             markdown_content=prepared.markdown_content,
+            relations=prepared.relations,
+            resolve_relations=prepared.resolve_relations,
         )
 
     # --- Helpers ---
@@ -615,8 +747,6 @@ class BatchIndexer:
         prepared: _PreparedMarkdownFile,
         *,
         is_new: bool | None = None,
-        resolve_relations: bool = True,
-        reload_entity: bool = True,
     ) -> _PersistedMarkdownFile:
         async with db.scoped_session(self.session_maker) as session:
             existing = await self.entity_repository.get_by_file_path(
@@ -626,15 +756,19 @@ class BatchIndexer:
             )
             if is_new is None:
                 is_new = existing is None
-            entity = await self.entity_service.upsert_entity_from_markdown(
-                Path(prepared.file.path),
-                prepared.markdown,
-                is_new=is_new,
-                existing_entity=existing,
-                resolve_relations=resolve_relations,
-                reload_entity=reload_entity,
-                session=session,
-            )
+            if is_new:
+                entity = await self.entity_service.create_entity_from_markdown(
+                    Path(prepared.file.path),
+                    prepared.markdown,
+                    session=session,
+                )
+            else:
+                entity = await self.entity_service.update_entity_and_observations(
+                    Path(prepared.file.path),
+                    prepared.markdown,
+                    existing_entity=existing,
+                    session=session,
+                )
             prepared = await self._reconcile_persisted_permalink(prepared, entity)
             metadata_updates = self._file_bookkeeping_updates(
                 prepared.file,
@@ -693,11 +827,28 @@ class BatchIndexer:
             file_contains_frontmatter=prepared.file_contains_frontmatter,
         )
 
-    def _build_prepared_entity(
+    async def _build_prepared_entity(
         self,
         prepared: _PreparedMarkdownFile,
         entity: Entity,
+        *,
+        resolve_relations: bool = True,
     ) -> _PreparedEntity:
+        indexed_relations: list[IndexedRelation] = []
+        for relation in prepared.markdown.relations:
+            resolved = await self.entity_service.resolve_deferred_self_relation(
+                relation.target,
+                entity,
+            )
+            indexed_relations.append(
+                IndexedRelation(
+                    relation_type=relation.type,
+                    target_name=relation.target,
+                    context=relation.context,
+                    target_id=resolved.id if resolved else None,
+                )
+            )
+
         return _PreparedEntity(
             path=prepared.file.path,
             entity_id=entity.id,
@@ -710,6 +861,8 @@ class BatchIndexer:
                 else remove_frontmatter(prepared.content)
             ),
             markdown_content=prepared.content,
+            relations=tuple(indexed_relations),
+            resolve_relations=resolve_relations,
         )
 
     async def _resolve_checksum(self, file: IndexInputFile) -> str:

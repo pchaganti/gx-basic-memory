@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Literal, Protocol
 from uuid import UUID
 
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory.indexing.accepted_note_mutation_runner import (
@@ -19,12 +20,17 @@ from basic_memory.indexing.accepted_note_mutation_runner import (
     AcceptedNoteMutationDependencies,
     AcceptedNoteMutationRejected,
     AcceptedNoteMutationRejection,
+    AcceptedNoteMutationResult,
     AcceptedNoteUpdateMutation,
     run_accepted_note_create,
     run_accepted_note_delete,
     run_accepted_note_edit,
     run_accepted_note_move,
     run_accepted_note_update,
+)
+from basic_memory.indexing.relation_persistence import (
+    RelationGenerationPublication,
+    RelationGenerationPublisher,
 )
 from basic_memory.runtime.note_content import (
     RuntimeAcceptedNoteChange,
@@ -150,6 +156,48 @@ class NoteContentMutationService:
         self.actor_resolver = actor_resolver
         self.read_cache = read_cache
 
+    async def _publish_relation_generation(
+        self,
+        publication: RelationGenerationPublication | None,
+    ) -> None:
+        """Publish accepted relation intent only after note-content commit."""
+        if publication is None:
+            return
+
+        repository = self.mutation_dependencies.write_repositories.relation_repository(
+            publication.project_id
+        )
+        publisher = RelationGenerationPublisher(
+            relation_repository=repository,
+            session_maker=self.session_maker,
+        )
+        await publisher.publish(
+            entity_id=publication.entity_id,
+            generation=publication.generation,
+            relations=publication.relations,
+        )
+
+    async def _finish_mutation(
+        self,
+        result: AcceptedNoteMutationResult,
+    ) -> AcceptedNoteChange:
+        """Run post-commit relation publication and expose the accepted response."""
+        try:
+            await self._publish_relation_generation(result.relation_publication)
+        except Exception:
+            publication = result.relation_publication
+            # Trigger: derived relation publication fails after accepted content committed.
+            # Why: failing the response would strand file materialization even though the
+            # canonical DB write succeeded; a later index pass can republish the same generation.
+            # Outcome: preserve the accepted change and surface the repairable failure in logs.
+            logger.exception(
+                "Relation publication failed after accepted note commit; continuing "
+                "materialization: entity_id={} generation={}",
+                publication.entity_id if publication is not None else None,
+                publication.generation if publication is not None else None,
+            )
+        return result.change
+
     @asynccontextmanager
     async def _mutation_cache_scope(
         self,
@@ -257,7 +305,7 @@ class NoteContentMutationService:
         try:
             async with self._mutation_cache_scope(project_external_id):
                 async with accepted_note_transaction(self.session_maker) as session:
-                    accepted = await run_accepted_note_create(
+                    result = await run_accepted_note_create(
                         session,
                         request=AcceptedNoteCreateMutation(
                             project_external_id=project_external_id,
@@ -271,6 +319,7 @@ class NoteContentMutationService:
                         ),
                         dependencies=self.mutation_dependencies,
                     )
+                accepted = await self._finish_mutation(result)
             return accepted
         except AcceptedNoteMutationRejected as error:
             raise note_content_mutation_error_from_rejection(error.rejection) from error
@@ -314,7 +363,7 @@ class NoteContentMutationService:
                 invalidate_on_rejection=freshening_may_have_published,
             ):
                 async with accepted_note_transaction(self.session_maker) as session:
-                    accepted = await run_accepted_note_update(
+                    result = await run_accepted_note_update(
                         session,
                         request=AcceptedNoteUpdateMutation(
                             project_external_id=project_external_id,
@@ -330,6 +379,7 @@ class NoteContentMutationService:
                         ),
                         dependencies=self.mutation_dependencies,
                     )
+                accepted = await self._finish_mutation(result)
         except AcceptedNoteMutationRejected as error:
             raise note_content_mutation_error_from_rejection(error.rejection) from error
         return accepted
@@ -364,7 +414,7 @@ class NoteContentMutationService:
                 invalidate_on_rejection=freshening_may_have_published,
             ):
                 async with accepted_note_transaction(self.session_maker) as session:
-                    accepted = await run_accepted_note_edit(
+                    result = await run_accepted_note_edit(
                         session,
                         request=AcceptedNoteEditMutation(
                             project_external_id=project_external_id,
@@ -379,6 +429,7 @@ class NoteContentMutationService:
                         ),
                         dependencies=self.mutation_dependencies,
                     )
+                accepted = await self._finish_mutation(result)
         except AcceptedNoteMutationRejected as error:
             raise note_content_mutation_error_from_rejection(error.rejection) from error
         return accepted
@@ -413,7 +464,7 @@ class NoteContentMutationService:
                 invalidate_on_rejection=freshening_may_have_published,
             ):
                 async with accepted_note_transaction(self.session_maker) as session:
-                    accepted = await run_accepted_note_move(
+                    result = await run_accepted_note_move(
                         session,
                         request=AcceptedNoteMoveMutation(
                             project_external_id=project_external_id,
@@ -428,6 +479,7 @@ class NoteContentMutationService:
                         ),
                         dependencies=self.mutation_dependencies,
                     )
+                accepted = await self._finish_mutation(result)
         except AcceptedNoteMutationRejected as error:
             raise note_content_mutation_error_from_rejection(error.rejection) from error
         return accepted
@@ -450,7 +502,7 @@ class NoteContentMutationService:
                 invalidate_on_rejection=freshening_may_have_published,
             ):
                 async with accepted_note_transaction(self.session_maker) as session:
-                    accepted = await run_accepted_note_delete(
+                    result = await run_accepted_note_delete(
                         session,
                         request=AcceptedNoteDeleteMutation(
                             project_external_id=project_external_id,
@@ -458,6 +510,7 @@ class NoteContentMutationService:
                         ),
                         dependencies=self.mutation_dependencies,
                     )
+                accepted = await self._finish_mutation(result)
         except AcceptedNoteMutationRejected as error:
             raise note_content_mutation_error_from_rejection(error.rejection) from error
         return accepted

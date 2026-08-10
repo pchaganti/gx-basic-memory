@@ -14,7 +14,7 @@ from basic_memory.indexing.file_index_checking import IndexedFileChecksumRow, Mo
 from basic_memory import db
 from basic_memory.indexing.note_content_reconciliation import (
     NoteContentReconciliationAnchor,
-    NoteContentReconciliationOutcome,
+    NoteContentReconciliationResult,
 )
 from basic_memory.indexing.models import (
     FileIndexOperation,
@@ -102,6 +102,15 @@ class IndexCurrentMarkdownFileIndexer(Protocol):
         source: str,
     ) -> FileIndexResult: ...
 
+    async def publish_relation_generation(
+        self,
+        synced: SyncedMarkdownFile,
+        *,
+        generation: int,
+    ) -> bool:
+        """Publish parsed relations only while ``generation`` remains current."""
+        ...
+
 
 class IndexMarkdownNoteContentReconciler(Protocol):
     """Note-content capability needed after canonical markdown sync succeeds."""
@@ -117,7 +126,7 @@ class IndexMarkdownNoteContentReconciler(Protocol):
         observed_at: datetime | None,
         source: str,
         anchor: NoteContentReconciliationAnchor | None = None,
-    ) -> NoteContentReconciliationOutcome: ...
+    ) -> NoteContentReconciliationResult: ...
 
 
 class NoteContentChangedDuringIndexError(RuntimeError):
@@ -167,7 +176,7 @@ class FileIndexer:
     ) -> FileIndexResult:
         """Read, parse, persist, search-index, and reconcile one markdown file."""
         log = bound_logger or logger
-        log.info(f"Indexing markdown file: {file_path}")
+        log.info("Indexing markdown file: {}", file_path)
 
         async with db.scoped_session(self.markdown_indexer.session_maker) as session:
             existing = await self.markdown_indexer.entity_repository.get_by_file_path(
@@ -197,21 +206,33 @@ class FileIndexer:
                 refresh_unchanged_derived_state=existing is not None,
             )
 
-            outcome = await self.note_content_reconciler.reconcile(
+            reconciliation = await self.note_content_reconciler.reconcile(
                 entity=synced.entity,
                 markdown_content=synced.markdown_content,
                 observed_at=synced.updated_at,
                 source=source,
                 anchor=anchor,
             )
-            if outcome == "current":
+            # Trigger: the indexed file is older than the accepted DB generation.
+            # Why: retrying identical bytes cannot make that file lineage current.
+            # Outcome: preserve accepted relations and finish without publishing this pass.
+            if reconciliation.status == "deferred":
                 break
 
+            if reconciliation.generation is not None:
+                generation_is_current = await self.markdown_indexer.publish_relation_generation(
+                    synced,
+                    generation=reconciliation.generation,
+                )
+                if generation_is_current:
+                    break
+
             log.info(
-                "Retrying markdown index after concurrent accepted note write: {}",
+                "Retrying markdown index without a current relation generation: {}",
                 file_path,
                 entity_id=synced.entity.id,
                 attempt=attempt + 1,
+                reconciliation_status=reconciliation.status,
             )
         else:
             raise NoteContentChangedDuringIndexError(
@@ -219,7 +240,8 @@ class FileIndexer:
             )
 
         log.info(
-            f"Indexed markdown file: {file_path}",
+            "Indexed markdown file: {}",
+            file_path,
             entity_id=synced.entity.id,
             checksum=synced.checksum,
             operation=operation,

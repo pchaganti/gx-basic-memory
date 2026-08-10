@@ -7,12 +7,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from basic_memory import file_utils
-from basic_memory.indexing.accepted_note_search import (
-    accepted_search_content_from_markdown,
-    build_accepted_note_search_row,
+from basic_memory.indexing.accepted_note_search import build_accepted_note_search_row
+from basic_memory.indexing.models import IndexedRelation
+from basic_memory.indexing.relation_persistence import (
+    RelationGenerationPublication,
+    RelationGenerationStore,
 )
 from basic_memory.models import Entity, NoteContent
 from basic_memory.repository import (
@@ -94,17 +97,6 @@ class AcceptedNoteEditPreparer(Protocol):
     ) -> PreparedEntityWrite: ...
 
 
-class AcceptedNoteSelfRelationResolver(Protocol):
-    """Capability for resolving ambiguity-safe self-links during acceptance."""
-
-    async def resolve_deferred_self_relation(
-        self,
-        target: str,
-        entity: Entity,
-        session: AsyncSession | None = ...,
-    ) -> Entity | None: ...
-
-
 class AcceptedNoteMovePreparer(Protocol):
     """Capability that derives accepted markdown for a note move."""
 
@@ -114,6 +106,7 @@ class AcceptedNoteMovePreparer(Protocol):
         current_content: str,
         destination_path: str,
         *,
+        should_update_permalink: bool,
         session: AsyncSession | None = ...,
     ) -> PreparedEntityMove: ...
 
@@ -123,6 +116,17 @@ class AcceptedNoteMovePreparer(Protocol):
         source_file_path: str,
         destination_file_path: str,
     ) -> None: ...
+
+
+class AcceptedNoteSelfRelationResolver(Protocol):
+    """Resolve only ambiguity-safe self-links while accepted bytes are in hand."""
+
+    async def resolve_deferred_self_relation(
+        self,
+        target: str,
+        entity: Entity,
+        session: AsyncSession | None = ...,
+    ) -> Entity | None: ...
 
 
 class AcceptedNoteDeleteEntitySource(RuntimeDeletedNoteFileDeleteEntitySource, Protocol):
@@ -182,15 +186,8 @@ class AcceptedNoteObservationRepository(Protocol):
     ) -> None: ...
 
 
-class AcceptedNoteRelationRepository(Protocol):
-    """Repository capability for replacing one accepted note's outgoing relations."""
-
-    async def replace_accepted_outgoing_relations(
-        self,
-        session: AsyncSession,
-        entity_id: RuntimeEntityId,
-        relations: Sequence[AcceptedRelationWrite],
-    ) -> None: ...
+class AcceptedNoteRelationRepository(RelationGenerationStore, Protocol):
+    """Generation-fenced relation persistence for accepted note writes."""
 
 
 class AcceptedNoteWriteRepositories(Protocol):
@@ -239,6 +236,7 @@ class AcceptedPreparedNoteMove:
     search_content: str
     permalink: str | None
     db_checksum: RuntimeNoteContentChecksum
+    relations: tuple[AcceptedRelationWrite, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +245,7 @@ class AcceptedPersistedNoteWrite:
 
     note_content: NoteContent
     previous_file_delete: RuntimePendingNoteFileDelete | None = None
+    relation_publication: RelationGenerationPublication | None = None
 
 
 async def prepare_accepted_note_create(
@@ -341,7 +340,7 @@ async def prepare_accepted_note_edit(
 
 
 async def prepare_accepted_note_move(
-    preparer: AcceptedNoteMovePreparer | None,
+    preparer: AcceptedNoteMovePreparer,
     session: AsyncSession,
     *,
     entity: Entity,
@@ -352,31 +351,21 @@ async def prepare_accepted_note_move(
 ) -> AcceptedPreparedNoteMove:
     """Prepare a DB-first move and apply the accepted path/permalink fields."""
     current_content = str(current_note_content.markdown_content)
-    file_path = accepted_file_path
-    permalink = entity.permalink
-    markdown_content = current_content
-    search_content = accepted_search_content_from_markdown(markdown_content)
-
-    if should_update_permalink:
-        if preparer is None:
-            raise ValueError("Accepted note move requires a preparer to update the permalink")
-        prepared = await preparer.prepare_move_entity_content(
-            entity,
-            current_content,
-            accepted_file_path,
-            session=session,
-        )
-        file_path = prepared.file_path.as_posix()
-        permalink = prepared.permalink
-        markdown_content = prepared.markdown_content
-        search_content = prepared.search_content
+    prepared = await preparer.prepare_move_entity_content(
+        entity,
+        current_content,
+        accepted_file_path,
+        should_update_permalink=should_update_permalink,
+        session=session,
+    )
 
     result = AcceptedPreparedNoteMove(
-        file_path=file_path,
-        markdown_content=markdown_content,
-        search_content=search_content,
-        permalink=permalink,
-        db_checksum=await file_utils.compute_checksum(markdown_content),
+        file_path=prepared.file_path.as_posix(),
+        markdown_content=prepared.markdown_content,
+        search_content=prepared.search_content,
+        permalink=prepared.permalink,
+        db_checksum=await file_utils.compute_checksum(prepared.markdown_content),
+        relations=prepared.relations,
     )
     entity.file_path = result.file_path
     entity.permalink = result.permalink
@@ -594,22 +583,18 @@ async def _persist_accepted_note_content_and_search(
     )
 
 
-async def _replace_accepted_note_graph(
+async def _replace_accepted_note_observations(
     session: AsyncSession,
     *,
     entity: Entity,
     prepared: PreparedEntityWrite,
-    self_relation_resolver: AcceptedNoteSelfRelationResolver,
     repositories: AcceptedNoteWriteRepositories,
 ) -> None:
-    """Persist the accepted note's observations and relations in one transaction.
+    """Persist observations alongside the accepted note-content generation.
 
     The accepted markdown was already parsed during prepare, so the graph rows
-    are committed alongside note_content and search instead of waiting for a
-    later ``index_file`` pass to reparse the materialized file. Without this the
-    observation/relation tables stay empty after a successful DB-first write, so
-    schema inference and relation traversal are nondeterministic until an
-    unrelated storage notification happens to fire (issue #1076).
+    are committed alongside note_content and search. Relations use a separate
+    generation-fenced publication after this transaction commits.
     """
     observation_repository = repositories.observation_repository(entity.project_id)
     await observation_repository.replace_accepted_observations(
@@ -618,37 +603,42 @@ async def _replace_accepted_note_graph(
         prepared.observations,
     )
 
-    # General deferred resolution skips target_id == from_id to avoid binding an
-    # ambiguous title to the wrong note. Reuse the indexing path's narrow,
-    # ambiguity-safe self resolver here so filepath/permalink self-links do not
-    # remain unresolved forever after a DB-first write.
-    relations: list[AcceptedRelationWrite] = []
-    for relation in prepared.relations:
-        if relation.target_id is not None:
-            relations.append(relation)
-            continue
-        target_entity = await self_relation_resolver.resolve_deferred_self_relation(
-            relation.target_name,
-            entity,
-            session=session,
-        )
-        if target_entity is None:
-            relations.append(relation)
-            continue
-        relations.append(
-            AcceptedRelationWrite(
+
+async def accepted_relation_generation_publication(
+    session: AsyncSession,
+    *,
+    entity: Entity,
+    note_content: NoteContent,
+    relations: Sequence[AcceptedRelationWrite],
+    self_relation_resolver: AcceptedNoteSelfRelationResolver,
+) -> RelationGenerationPublication:
+    """Carry original target names plus ambiguity-safe self targets into publication."""
+    indexed_relations: list[IndexedRelation] = []
+    for relation in relations:
+        target_id = relation.target_id
+        if target_id is None:
+            target = await self_relation_resolver.resolve_deferred_self_relation(
+                relation.target_name,
+                entity,
+                session=session,
+            )
+            target_id = target.id if target is not None else None
+        if target_id is not None and target_id != entity.id:
+            raise ValueError("Accepted relation pre-resolution is restricted to self-links")
+        indexed_relations.append(
+            IndexedRelation(
                 relation_type=relation.relation_type,
-                target_name=target_entity.title,
+                target_name=relation.target_name,
                 context=relation.context,
-                target_id=target_entity.id,
+                target_id=target_id,
             )
         )
 
-    relation_repository = repositories.relation_repository(entity.project_id)
-    await relation_repository.replace_accepted_outgoing_relations(
-        session,
-        entity.id,
-        relations,
+    return RelationGenerationPublication(
+        project_id=entity.project_id,
+        entity_id=entity.id,
+        generation=note_content.db_version,
+        relations=tuple(indexed_relations),
     )
 
 
@@ -658,13 +648,13 @@ async def persist_accepted_note_snapshot(
     entity: Entity,
     prepared: PreparedEntityWrite,
     db_checksum: RuntimeNoteContentChecksum,
-    self_relation_resolver: AcceptedNoteSelfRelationResolver,
     last_source: RuntimeNoteChangeSource | None,
     updated_at: datetime,
     current_note_content: RuntimeAcceptedNoteContentWriteSource | None = None,
     existing_file_path: RuntimeFilePath | None = None,
     accepted_file_path: RuntimeFilePath | None = None,
     source_file_checksum: RuntimeFileChecksum | None = None,
+    self_relation_resolver: AcceptedNoteSelfRelationResolver,
     repositories: AcceptedNoteWriteRepositories,
 ) -> AcceptedPersistedNoteWrite:
     """Persist one complete accepted Markdown snapshot in the caller's transaction."""
@@ -682,14 +672,23 @@ async def persist_accepted_note_snapshot(
         source_file_checksum=source_file_checksum,
         repositories=repositories,
     )
-    await _replace_accepted_note_graph(
+    await _replace_accepted_note_observations(
         session,
         entity=entity,
         prepared=prepared,
-        self_relation_resolver=self_relation_resolver,
         repositories=repositories,
     )
-    return persisted
+    return AcceptedPersistedNoteWrite(
+        note_content=persisted.note_content,
+        previous_file_delete=persisted.previous_file_delete,
+        relation_publication=await accepted_relation_generation_publication(
+            session,
+            entity=entity,
+            note_content=persisted.note_content,
+            relations=prepared.relations,
+            self_relation_resolver=self_relation_resolver,
+        ),
+    )
 
 
 async def persist_accepted_note_move(
@@ -702,10 +701,11 @@ async def persist_accepted_note_move(
     current_note_content: RuntimeAcceptedNoteContentWriteSource,
     existing_file_path: RuntimeFilePath,
     source_file_checksum: RuntimeFileChecksum | None = None,
+    self_relation_resolver: AcceptedNoteSelfRelationResolver,
     repositories: AcceptedNoteWriteRepositories,
 ) -> AcceptedPersistedNoteWrite:
     """Persist the explicitly narrower content/search state for an accepted move."""
-    return await _persist_accepted_note_content_and_search(
+    persisted = await _persist_accepted_note_content_and_search(
         session,
         entity=entity,
         markdown_content=prepared.markdown_content,
@@ -719,6 +719,17 @@ async def persist_accepted_note_move(
         source_file_checksum=source_file_checksum,
         repositories=repositories,
     )
+    return AcceptedPersistedNoteWrite(
+        note_content=persisted.note_content,
+        previous_file_delete=persisted.previous_file_delete,
+        relation_publication=await accepted_relation_generation_publication(
+            session,
+            entity=entity,
+            note_content=persisted.note_content,
+            relations=prepared.relations,
+            self_relation_resolver=self_relation_resolver,
+        ),
+    )
 
 
 async def delete_accepted_note_entity(
@@ -728,6 +739,37 @@ async def delete_accepted_note_entity(
 ) -> None:
     """Delete the accepted entity row inside the caller-owned transaction."""
     await session.delete(entity)
+
+
+async def lock_accepted_note_content_for_entity_mutation(
+    session: AsyncSession,
+    *,
+    project_id: ProjectId,
+    entity_id: RuntimeEntityId,
+) -> None:
+    """Lock the source before entity mutation; see current_relation_generation_statement."""
+    await session.scalar(
+        select(NoteContent.entity_id)
+        .where(
+            NoteContent.project_id == project_id,
+            NoteContent.entity_id == entity_id,
+        )
+        .with_for_update()
+    )
+
+
+async def lock_accepted_note_content_for_delete(
+    session: AsyncSession,
+    *,
+    project_id: ProjectId,
+    entity_id: RuntimeEntityId,
+) -> None:
+    """Compatibility name for the accepted-delete lock-order boundary."""
+    await lock_accepted_note_content_for_entity_mutation(
+        session,
+        project_id=project_id,
+        entity_id=entity_id,
+    )
 
 
 async def delete_accepted_note(
@@ -745,6 +787,14 @@ async def delete_accepted_note(
         note_content=note_content,
     )
     if entity is not None:
+        if note_content is not None:
+            # Relation publication locks NoteContent before its Entity foreign-key check.
+            # Taking the same order here prevents delete/publication from holding opposite locks.
+            await lock_accepted_note_content_for_delete(
+                session,
+                project_id=project_id,
+                entity_id=entity.id,
+            )
         await delete_accepted_note_search_index(
             session,
             project_id=project_id,

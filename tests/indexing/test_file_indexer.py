@@ -7,6 +7,7 @@ from typing import cast
 from unittest.mock import ANY, AsyncMock, Mock
 
 import pytest
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from basic_memory.indexing.file_indexer import (
@@ -18,6 +19,7 @@ from basic_memory.indexing.file_indexer import (
 from basic_memory.indexing.models import FileIndexOperation, FileIndexResult, SyncedMarkdownFile
 from basic_memory.indexing.note_content_reconciliation import (
     NoteContentReconciliationAnchor,
+    NoteContentReconciliationResult,
     NoteContentState,
 )
 from basic_memory.indexing.note_content_reconciler import NoteContentReconciler
@@ -87,6 +89,7 @@ def _file_indexer(
     markdown_indexer.session_maker = _FakeSession
     markdown_indexer.entity_repository = entity_repository
     markdown_indexer.index_current_markdown_file = AsyncMock(return_value=index_result)
+    markdown_indexer.publish_relation_generation = AsyncMock(return_value=True)
     markdown_indexer.index_file = AsyncMock(
         return_value=FileIndexResult(
             file_path="notes/note.md",
@@ -100,7 +103,9 @@ def _file_indexer(
     )
 
     note_content_reconciler = Mock()
-    note_content_reconciler.reconcile = AsyncMock(return_value="current")
+    note_content_reconciler.reconcile = AsyncMock(
+        return_value=NoteContentReconciliationResult.current(3)
+    )
     note_content_reconciler.capture_anchor = AsyncMock(
         return_value=NoteContentReconciliationAnchor(
             entity_id=existing_entity.id if existing_entity is not None else None,
@@ -189,6 +194,10 @@ async def test_file_indexer_indexes_new_markdown_file() -> None:
         source="s3_webhook",
         anchor=note_content_reconciler.capture_anchor.return_value,
     )
+    markdown_indexer.publish_relation_generation.assert_awaited_once_with(
+        synced_file,
+        generation=3,
+    )
     assert result.file_path == "notes/note.md"
     assert result.entity_id == 42
     assert result.checksum == CHECKSUM
@@ -231,9 +240,12 @@ async def test_file_indexer_indexes_existing_markdown_file() -> None:
 
 @pytest.mark.asyncio
 async def test_file_indexer_reindexes_current_file_after_anchor_becomes_stale() -> None:
-    """A stale pass must repair derived state from the current file before succeeding."""
+    """A stale pass must retry and log brace-bearing customer identity safely."""
+    file_path = "notes/{AG} Plan.md"
     existing_entity = _entity(entity_id=7, checksum="older-checksum")
+    existing_entity.title = "{AG} Plan"
     current_entity = _entity(entity_id=7, checksum="current-checksum")
+    current_entity.title = "{AG} Plan"
     stale_file = _synced_file(entity=existing_entity)
     current_file = _synced_file(entity=current_entity, checksum="current-checksum")
 
@@ -249,14 +261,85 @@ async def test_file_indexer_reindexes_current_file_after_anchor_becomes_stale() 
         stale_file,
         current_file,
     ]
-    note_content_reconciler.reconcile.side_effect = ["stale", "current"]
+    note_content_reconciler.reconcile.side_effect = [
+        NoteContentReconciliationResult.stale(),
+        NoteContentReconciliationResult.current(4),
+    ]
 
-    result = await file_indexer.index_markdown_file("notes/note.md")
+    rendered_messages: list[str] = []
+    sink_id = logger.add(
+        lambda message: rendered_messages.append(str(message).strip()),
+        format="{message}",
+        level="INFO",
+    )
+    try:
+        result = await file_indexer.index_markdown_file(file_path, bound_logger=logger)
+    finally:
+        logger.remove(sink_id)
 
     assert markdown_indexer.index_current_markdown_file.await_count == 2
     assert note_content_reconciler.capture_anchor.await_args_list[0].args == (7,)
     assert note_content_reconciler.capture_anchor.await_args_list[1].args == (7,)
+    assert f"Retrying markdown index without a current relation generation: {file_path}" in (
+        rendered_messages
+    )
+    assert f"Indexed markdown file: {file_path}" in rendered_messages
+    assert result.file_path == file_path
+    assert result.title == "{AG} Plan"
+    markdown_indexer.publish_relation_generation.assert_awaited_once_with(
+        current_file,
+        generation=4,
+    )
     assert result.checksum == "current-checksum"
+
+
+@pytest.mark.asyncio
+async def test_file_indexer_preserves_relations_when_file_lineage_is_deferred() -> None:
+    """An older file cannot publish relations or become current by retrying identical bytes."""
+    existing_entity = _entity(entity_id=7)
+    file_indexer, markdown_indexer, note_content_reconciler = _file_indexer(
+        existing_entity=existing_entity,
+    )
+    note_content_reconciler.reconcile.return_value = NoteContentReconciliationResult.deferred()
+
+    result = await file_indexer.index_markdown_file("notes/note.md")
+
+    markdown_indexer.index_current_markdown_file.assert_awaited_once()
+    markdown_indexer.publish_relation_generation.assert_not_awaited()
+    assert result.checksum == CHECKSUM
+
+
+@pytest.mark.asyncio
+async def test_file_indexer_retries_when_generation_changes_before_relation_publish() -> None:
+    """Losing the repository source fence retries instead of reporting partial publication."""
+    existing_entity = _entity(entity_id=7)
+    stale_file = _synced_file(entity=existing_entity)
+    current_file = _synced_file(entity=existing_entity, checksum="current-checksum")
+    file_indexer, markdown_indexer, note_content_reconciler = _file_indexer(
+        existing_entity=existing_entity,
+        synced_file=stale_file,
+    )
+    markdown_indexer.entity_repository.get_by_file_path.side_effect = [
+        existing_entity,
+        existing_entity,
+    ]
+    markdown_indexer.index_current_markdown_file.side_effect = [stale_file, current_file]
+    markdown_indexer.publish_relation_generation.side_effect = [False, True]
+    note_content_reconciler.reconcile.side_effect = [
+        NoteContentReconciliationResult.current(3),
+        NoteContentReconciliationResult.current(4),
+    ]
+
+    result = await file_indexer.index_markdown_file("notes/note.md")
+
+    assert result.checksum == "current-checksum"
+    assert markdown_indexer.publish_relation_generation.await_count == 2
+    assert markdown_indexer.publish_relation_generation.await_args_list[0].kwargs == {
+        "generation": 3
+    }
+    assert markdown_indexer.publish_relation_generation.await_args_list[1].kwargs == {
+        "generation": 4
+    }
 
 
 @pytest.mark.asyncio
@@ -277,7 +360,10 @@ async def test_file_indexer_reloads_entity_after_initial_absence_becomes_stale()
         stale_file,
         current_file,
     ]
-    note_content_reconciler.reconcile.side_effect = ["stale", "current"]
+    note_content_reconciler.reconcile.side_effect = [
+        NoteContentReconciliationResult.stale(),
+        NoteContentReconciliationResult.current(2),
+    ]
 
     result = await file_indexer.index_markdown_file("notes/note.md")
 
@@ -298,7 +384,10 @@ async def test_file_indexer_fails_for_retry_after_repeated_stale_indexes() -> No
         existing_entity,
         existing_entity,
     ]
-    note_content_reconciler.reconcile.side_effect = ["stale", "stale"]
+    note_content_reconciler.reconcile.side_effect = [
+        NoteContentReconciliationResult.stale(),
+        NoteContentReconciliationResult.stale(),
+    ]
 
     with pytest.raises(
         NoteContentChangedDuringIndexError,
@@ -362,7 +451,7 @@ async def test_file_indexer_reports_refreshed_derived_counts_after_unchanged_rep
 
     assert result.entity_id == refreshed_entity.id
     final_log = bound_logger.info.call_args_list[-1]
-    assert final_log.args == ("Indexed markdown file: notes/note.md",)
+    assert final_log.args == ("Indexed markdown file: {}", "notes/note.md")
     assert final_log.kwargs["observation_count"] == 2
     assert final_log.kwargs["relation_count"] == 1
 

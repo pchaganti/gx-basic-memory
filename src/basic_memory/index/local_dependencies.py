@@ -39,6 +39,7 @@ from basic_memory.indexing.models import (
     FileIndexOperation,
     FileIndexResult,
     IndexEntitySearchWriter,
+    IndexedEntity,
     IndexInputFile,
     IndexingBatchResult,
     StorageIndexFileWriter,
@@ -292,7 +293,7 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
         source: str,
     ) -> FileIndexResult:
         """Read, persist, search-index, and reconcile one markdown file."""
-        logger.info(f"Indexing markdown file: {file_path}")
+        logger.info("Indexing markdown file: {}", file_path)
 
         async with db.scoped_session(self.session_maker) as session:
             existing = await self.entity_repository.get_by_file_path(
@@ -321,21 +322,33 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
                 resolve_relations=True,
                 refresh_unchanged_derived_state=existing is not None,
             )
-            outcome = await self.note_content_reconciler.reconcile(
+            reconciliation = await self.note_content_reconciler.reconcile(
                 entity=synced.entity,
                 markdown_content=synced.markdown_content,
                 observed_at=synced.updated_at,
                 source=source,
                 anchor=anchor,
             )
-            if outcome == "current":
+            # Trigger: the indexed file is older than the accepted DB generation.
+            # Why: retrying identical bytes cannot make that file lineage current.
+            # Outcome: preserve accepted relations and finish without publishing this pass.
+            if reconciliation.status == "deferred":
                 break
 
+            if reconciliation.generation is not None:
+                generation_is_current = await self.publish_relation_generation(
+                    synced,
+                    generation=reconciliation.generation,
+                )
+                if generation_is_current:
+                    break
+
             logger.info(
-                "Retrying markdown index after concurrent accepted note write: {}",
+                "Retrying markdown index without a current relation generation: {}",
                 file_path,
                 entity_id=synced.entity.id,
                 attempt=attempt + 1,
+                reconciliation_status=reconciliation.status,
             )
         else:
             raise NoteContentChangedDuringIndexError(
@@ -343,7 +356,8 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
             )
 
         logger.info(
-            f"Indexed markdown file: {file_path}",
+            "Indexed markdown file: {}",
+            file_path,
             entity_id=synced.entity.id,
             checksum=synced.checksum,
             operation=operation,
@@ -367,7 +381,7 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
         source: str,
     ) -> FileIndexResult:
         """Read, persist, and search-index one regular file entity."""
-        logger.info(f"Indexing regular file: {file_path}", source=source)
+        logger.info("Indexing regular file: {}", file_path, source=source)
 
         async with db.scoped_session(self.session_maker) as session:
             existing = await self.entity_repository.get_by_file_path(
@@ -411,7 +425,8 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
 
         entity = refreshed_entities[0]
         logger.info(
-            f"Indexed regular file: {file_path}",
+            "Indexed regular file: {}",
+            file_path,
             entity_id=entity.id,
             checksum=indexed.checksum,
             operation=operation,
@@ -426,6 +441,39 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
             operation=operation,
         )
 
+    async def publish_relation_generation(
+        self,
+        synced: SyncedMarkdownFile,
+        *,
+        generation: int,
+    ) -> bool:
+        """Publish one claimed relation set, then preserve legacy inline resolution."""
+        indexed = IndexedEntity(
+            path=synced.file_path,
+            entity_id=synced.entity.id,
+            permalink=synced.entity.permalink,
+            checksum=synced.checksum,
+            content_type=synced.content_type,
+            markdown_content=synced.markdown_content,
+            relations=synced.relations,
+            resolve_relations=synced.resolve_relations,
+        )
+        generation_is_current = await self.batch_indexer.publish_relation_generation(
+            indexed,
+            generation=generation,
+        )
+        if generation_is_current and synced.resolve_relations:
+            await self.batch_indexer.resolve_relation_targets(
+                [synced.entity.id],
+                max_concurrent=1,
+            )
+        if generation_is_current:
+            await self.batch_indexer.refresh_indexed_entity_search(
+                indexed,
+                generation=generation,
+            )
+        return generation_is_current
+
     async def index_current_markdown_file(
         self,
         path: RuntimeFilePath,
@@ -436,7 +484,7 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
         refresh_unchanged_derived_state: bool,
     ) -> SyncedMarkdownFile:
         """Index the current local markdown bytes and return canonical file state."""
-        logger.debug(f"Parsing markdown file, path: {path}, new: {new}")
+        logger.debug("Parsing markdown file, path: {}, new: {}", path, new)
 
         try:
             initial_markdown_bytes = await self.file_service.read_file_bytes(path)
@@ -473,8 +521,10 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
                 )
 
             logger.debug(
-                f"Markdown index skipped unchanged file: path={path}, "
-                f"entity_id={existing_entity.id}, checksum={initial_checksum[:8]}"
+                "Markdown index skipped unchanged file: path={}, entity_id={}, checksum={}",
+                path,
+                existing_entity.id,
+                initial_checksum[:8],
             )
             return SyncedMarkdownFile(
                 entity=existing_entity,
@@ -484,6 +534,8 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
                 content_type=self.file_service.content_type(path),
                 updated_at=file_metadata.modified_at,
                 size=file_metadata.size,
+                relations=(),
+                resolve_relations=resolve_relations,
             )
 
         return await self.index_changed_markdown_file(
@@ -506,8 +558,10 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
     ) -> SyncedMarkdownFile:
         """Refresh derived DB/search state for a markdown file with unchanged bytes."""
         logger.debug(
-            f"Markdown index refreshing unchanged derived state: path={input_file.path}, "
-            f"entity_id={existing_entity.id}, checksum={input_file.checksum[:8] if input_file.checksum else None}"
+            "Markdown index refreshing unchanged derived state: path={}, entity_id={}, checksum={}",
+            input_file.path,
+            existing_entity.id,
+            input_file.checksum[:8] if input_file.checksum else None,
         )
         indexed = await self.batch_indexer.index_markdown_file(
             input_file,
@@ -530,6 +584,8 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
             content_type=self.file_service.content_type(input_file.path),
             updated_at=file_metadata.modified_at,
             size=file_metadata.size,
+            relations=indexed.relations,
+            resolve_relations=resolve_relations,
         )
 
     async def index_changed_markdown_file(
@@ -580,9 +636,13 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
             )
 
         logger.debug(
-            f"Markdown index completed: path={input_file.path}, entity_id={updated_entity.id}, "
-            f"observation_count={len(updated_entity.observations)}, "
-            f"relation_count={len(updated_entity.relations)}, checksum={indexed.checksum[:8]}"
+            "Markdown index completed: path={}, entity_id={}, observation_count={}, "
+            "relation_count={}, checksum={}",
+            input_file.path,
+            updated_entity.id,
+            len(updated_entity.observations),
+            len(updated_entity.relations),
+            indexed.checksum[:8],
         )
         return SyncedMarkdownFile(
             entity=updated_entity,
@@ -592,6 +652,8 @@ class LocalMarkdownFileIndexer(IndexFileExecutor):
             content_type=self.file_service.content_type(input_file.path),
             updated_at=file_metadata.modified_at,
             size=file_metadata.size,
+            relations=indexed.relations,
+            resolve_relations=resolve_relations,
         )
 
 
@@ -661,6 +723,7 @@ async def build_local_index_project_dependencies(
         app_config=app_config,
     )
     batch_indexer = BatchIndexer(
+        project_id=project.id,
         app_config=app_config,
         entity_service=entity_service,
         entity_repository=entity_repository,
