@@ -57,6 +57,7 @@ from basic_memory.runtime.storage import (
     RuntimeFilePath,
 )
 from basic_memory.models import Entity, NoteContent
+from basic_memory.repository.entity_repository import EntityRepository
 from basic_memory.repository.note_file_vacate_repository import NoteFileVacateRepository
 
 type NoteMaterializationPreflightOutcome = (
@@ -427,25 +428,31 @@ class RepositoryNoteMaterializationPublisher:
                 entity_id=request.entity_id,
             )
 
-            # Materialization publishes NoteContent and Entity in one transaction.
-            # The canonical order lives in current_relation_generation_statement:
-            # claim NoteContent before any Entity lock so publication, accepted
-            # mutation, deletion, and materialization cannot form a lock cycle.
+            # These are plain snapshots for planning. This transaction's first row
+            # lock is the NoteContent CAS UPDATE, preserving the canonical order in
+            # current_relation_generation_statement. With no read locks held, the
+            # publisher cannot anchor the lock cycle reported in #1224.
+            #
+            # Everything this publisher writes — the file on disk, Entity
+            # mtime/size, NoteContent file lineage — is derived, eventually
+            # consistent state. A concurrent accepted write or move may
+            # invalidate these snapshots at any point; when it does, the CAS
+            # below no-ops and the newer generation's own publish converges the
+            # projections. Do not "fix" an observed race here by reintroducing
+            # SELECT-time locks: every such lock rebuilds a #1224-class
+            # deadlock, while the drift it would prevent is transient and
+            # repaired by the next write's index pass.
             note_content = await session.scalar(
-                select(NoteContent)
-                .where(
+                select(NoteContent).where(
                     NoteContent.entity_id == request.entity_id,
                     NoteContent.project_id == request.project_id,
                 )
-                .with_for_update()
             )
             entity = await session.scalar(
-                select(Entity)
-                .where(
+                select(Entity).where(
                     Entity.id == request.entity_id,
                     Entity.project_id == request.project_id,
                 )
-                .with_for_update()
             )
             publish_plan = plan_written_note_materialization_publish(
                 request=request,
@@ -509,9 +516,20 @@ class RepositoryNoteMaterializationPublisher:
                 expected_db_version=expected_db_version,
             )
             if not applied:
-                # A newer accepted write (and its own materialization) superseded
-                # this one between our read and write; skip the stale file_version
-                # publish and the entity metadata update rather than reverting them.
+                # Trigger: a move can commit after the plain planning reads but
+                # before the CAS observes the newer NoteContent row.
+                # Why: that observation guarantees this later plain read sees the
+                # move's committed Entity path.
+                # Outcome: clean the just-written vacated path while keeping a
+                # same-path superseded write in place for its newer materialization.
+                current_entity = await session.scalar(
+                    select(Entity)
+                    .where(
+                        Entity.id == request.entity_id,
+                        Entity.project_id == request.project_id,
+                    )
+                    .execution_options(populate_existing=True)
+                )
                 return RuntimeNoteMaterializationResult(
                     entity_id=request.entity_id,
                     status=RuntimeNoteMaterializationStatus.stale,
@@ -519,6 +537,31 @@ class RepositoryNoteMaterializationPublisher:
                         "file written but a newer accepted note superseded it "
                         f"before publish: {request.entity_id}"
                     ),
+                    file_path=written_file.file_path,
+                    file_checksum=written_file.file_checksum,
+                    written_file_orphaned=(
+                        current_entity is None or current_entity.file_path != written_file.file_path
+                    ),
+                )
+
+            updated = await EntityRepository(request.project_id).update_fields(
+                session,
+                request.entity_id,
+                {
+                    "mtime": written_file.file_updated_at.timestamp(),
+                    "size": len(prepared_write.markdown_content.encode("utf-8")),
+                },
+            )
+            if not updated:
+                # Trigger: the guarded Entity update found no row after the CAS.
+                # Why: this is a portable fail-safe; on PostgreSQL the successful
+                # CAS holds NoteContent while every Entity metadata producer crosses
+                # that row first, so the miss is unreachable under row locking.
+                # Outcome: report the missing Entity without clearing its vacate path.
+                return RuntimeNoteMaterializationResult(
+                    entity_id=request.entity_id,
+                    status=RuntimeNoteMaterializationStatus.missing,
+                    reason=f"entity disappeared after file write: {request.entity_id}",
                     file_path=written_file.file_path,
                     file_checksum=written_file.file_checksum,
                 )
@@ -530,9 +573,6 @@ class RepositoryNoteMaterializationPublisher:
                 session,
                 file_path=written_file.file_path,
             )
-            entity.mtime = written_file.file_updated_at.timestamp()
-            entity.size = len(prepared_write.markdown_content.encode("utf-8"))
-            await session.flush()
             return publish_plan.result
 
 
